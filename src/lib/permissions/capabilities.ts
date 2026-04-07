@@ -1,0 +1,76 @@
+/**
+ * Capability constants used for fine-grained permission checks.
+ * Map roles to capabilities, then check capabilities in guards and UI.
+ */
+export const CAPABILITIES = {
+  // Visitor operations
+  VISITOR_CHECK_IN: "visitor:check_in",
+  VISITOR_CHECK_OUT: "visitor:check_out",
+  VISITOR_VIEW_ACTIVE: "visitor:view_active",
+  VISITOR_VIEW_SESSIONS: "visitor:view_sessions",
+  VISITOR_VIEW_PROFILES: "visitor:view_profiles",
+  VISITOR_EDIT_PROFILE: "visitor:edit_profile",
+
+  // Appointments
+  APPOINTMENT_CREATE: "appointment:create",
+  APPOINTMENT_VIEW: "appointment:view",
+  APPOINTMENT_EDIT: "appointment:edit",
+  APPOINTMENT_DELETE: "appointment:delete",
+
+  // Departments
+  DEPARTMENT_CREATE: "department:create",
+  DEPARTMENT_VIEW: "department:view",
+  DEPARTMENT_EDIT: "department:edit",
+  DEPARTMENT_DELETE: "department:delete",
+
+  // Branches
+  BRANCH_CREATE: "branch:create",
+  BRANCH_VIEW: "branch:view",
+  BRANCH_EDIT: "branch:edit",
+  BRANCH_DELETE: "branch:delete",
+
+  // User management
+  USER_CREATE: "user:create",
+  USER_VIEW: "user:view",
+  USER_EDIT: "user:edit",
+  USER_DELETE: "user:delete",
+
+  // Branding
+  BRANDING_VIEW: "branding:view",
+  BRANDING_EDIT: "branding:edit",
+
+  // Billing
+  BILLING_VIEW: "billing:view",
+  BILLING_MANAGE: "billing:manage",
+
+  // Incidents
+  INCIDENT_CREATE: "incident:create",
+  INCIDENT_VIEW: "incident:view",
+  INCIDENT_EDIT: "incident:edit",
+
+  // Audit
+  AUDIT_VIEW: "audit:view",
+  AUDIT_EXPORT: "audit:export",
+
+  // DPO / Compliance
+  DSR_CREATE: "dsr:create",
+  DSR_VIEW: "dsr:view",
+  DSR_EDIT: "dsr:edit",
+  RETENTION_VIEW: "retention:view",
+  RETENTION_EDIT: "retention:edit",
+  SUB_PROCESSOR_VIEW: "sub_processor:view",
+  SUB_PROCESSOR_EDIT: "sub_processor:edit",
+  PRIVACY_NOTICE_VIEW: "privacy_notice:view",
+  PRIVACY_NOTICE_EDIT: "privacy_notice:edit",
+  COMPLIANCE_REGISTER_VIEW: "compliance_register:view",
+  COMPLIANCE_REGISTER_EDIT: "compliance_register:edit",
+
+  // Dashboard
+  DASHBOARD_VIEW: "dashboard:view",
+
+  // Tenant config
+  TENANT_CONFIG_VIEW: "tenant_config:view",
+  TENANT_CONFIG_EDIT: "tenant_config:edit",
+} as const;
+
+export type Capability = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];
