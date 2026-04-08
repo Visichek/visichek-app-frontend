@@ -1,34 +1,41 @@
 "use client";
 
-import { Menu, Bell, LogOut, User } from "lucide-react";
+import { Menu, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useSession } from "@/hooks/use-session";
-import { useAuth } from "@/hooks/use-auth";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { NotificationDropdown } from "@/components/navigation/notification-dropdown";
 
 interface TopbarProps {
   onMenuClick: () => void;
+  onSearchClick?: () => void;
   title?: string;
 }
 
-export function Topbar({ onMenuClick, title }: TopbarProps) {
-  const { adminProfile, systemUserProfile, isAdmin } = useSession();
-  const { logout } = useAuth();
-  const displayName = isAdmin
-    ? adminProfile?.fullName
-    : systemUserProfile?.fullName;
-
+export function Topbar({ onMenuClick, onSearchClick, title }: TopbarProps) {
   return (
-    <header className="sticky top-0 z-sticky flex h-16 items-center gap-4 border-b bg-background px-4 lg:px-6">
+    <header className="sticky top-0 z-sticky flex h-14 items-center gap-4 border-b bg-background px-4 lg:px-6">
       {/* Mobile hamburger */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="lg:hidden min-h-[44px] min-w-[44px]"
-        onClick={onMenuClick}
-        aria-label="Open navigation menu"
-      >
-        <Menu className="h-5 w-5" />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden min-h-[44px] min-w-[44px]"
+            onClick={onMenuClick}
+            aria-label="Open navigation menu"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          Open the navigation menu to browse pages
+        </TooltipContent>
+      </Tooltip>
 
       {/* Page title */}
       {title && (
@@ -37,33 +44,32 @@ export function Topbar({ onMenuClick, title }: TopbarProps) {
         </h2>
       )}
 
-      <div className="ml-auto flex items-center gap-2">
-        {/* Notifications placeholder */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="min-h-[44px] min-w-[44px]"
-          aria-label="View notifications"
-        >
-          <Bell className="h-5 w-5" />
-        </Button>
+      <div className="ml-auto flex items-center gap-1">
+        {/* Search — visible on mobile where sidebar search is hidden */}
+        {onSearchClick && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden min-h-[44px] min-w-[44px]"
+                onClick={onSearchClick}
+                aria-label="Search"
+              >
+                <Search className="h-5 w-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              Search pages, actions, and settings (Ctrl+K)
+            </TooltipContent>
+          </Tooltip>
+        )}
 
-        {/* User info */}
-        <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
-          <User className="h-4 w-4" aria-hidden="true" />
-          <span>{displayName || "User"}</span>
-        </div>
+        {/* Theme toggle */}
+        <ThemeToggle />
 
-        {/* Logout */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="min-h-[44px] min-w-[44px]"
-          onClick={logout}
-          aria-label="Sign out"
-        >
-          <LogOut className="h-5 w-5" />
-        </Button>
+        {/* Notifications */}
+        <NotificationDropdown />
       </div>
     </header>
   );

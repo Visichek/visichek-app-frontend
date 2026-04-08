@@ -8,3 +8,6 @@ export * from "./incident";
 export * from "./audit";
 export * from "./dpo";
 export * from "./public";
+export * from "./notification";
+export * from "./settings";
+export * from "./account";

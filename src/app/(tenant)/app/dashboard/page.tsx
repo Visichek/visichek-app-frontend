@@ -16,13 +16,13 @@ interface DashboardStats {
 }
 
 export default function TenantDashboardPage() {
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["tenant", "dashboard", "stats"],
     queryFn: () => apiGet<DashboardStats>("/dashboard/stats"),
   });
 
   if (isLoading) return <PageSkeleton />;
-  if (isError) return <ErrorState onRetry={refetch} />;
+  if (isError) return <ErrorState error={error} onRetry={refetch} />;
 
   return (
     <div className="space-y-6">

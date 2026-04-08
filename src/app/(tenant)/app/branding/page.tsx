@@ -47,6 +47,7 @@ export default function BrandingPage() {
     data: brandingConfig,
     isLoading: isLoadingConfig,
     isError: isErrorConfig,
+    error: brandingError,
     refetch: refetchBranding,
   } = useTenantBrandingConfig(tenantId || "");
 
@@ -143,6 +144,7 @@ export default function BrandingPage() {
     return (
       <ErrorState
         title="Failed to load branding"
+        error={brandingError}
         onRetry={refetchBranding}
       />
     );

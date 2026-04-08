@@ -84,4 +84,12 @@ export class ApiError extends Error {
     this.details = opts.details;
     this.requestId = opts.requestId;
   }
+
+  get isPermissionError(): boolean {
+    return this.status === 403;
+  }
+}
+
+export function isPermissionError(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.status === 403;
 }

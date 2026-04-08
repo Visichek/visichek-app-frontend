@@ -55,6 +55,7 @@ export default function BillingPage() {
     data: usage,
     isLoading: usageLoading,
     isError: usageError,
+    error: usageErrorObj,
     refetch: refetchUsage,
   } = useMyUsage();
 
@@ -128,6 +129,7 @@ export default function BillingPage() {
     return (
       <ErrorState
         title="Failed to load billing information"
+        error={usageErrorObj}
         onRetry={() => {
           refetchUsage();
           refetchInvoices();

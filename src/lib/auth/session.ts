@@ -17,34 +17,48 @@ const REFRESH_ENDPOINTS: Record<SessionType, string> = {
 function normalizeTokenPair(raw: Record<string, unknown>): TokenPair {
   return {
     accessToken:
-      (raw.accessToken as string) ?? (raw.accessToken as string) ?? "",
+      (raw.accessToken as string) ?? (raw.access_token as string) ?? "",
     refreshToken:
-      (raw.refreshToken as string) ?? (raw.refreshToken as string) ?? "",
+      (raw.refreshToken as string) ?? (raw.refresh_token as string) ?? "",
   };
 }
 
 /**
  * Refresh the current session. Returns the new access token on success.
- * Called by the Axios 401 interceptor — do NOT call from components.
+ *
+ * The httpOnly refresh cookie is sent automatically (withCredentials).
+ * If we also have an in-memory refresh token, we include it in the body
+ * as a belt-and-suspenders fallback.
  */
 export async function refreshSession(): Promise<string> {
   const currentRefreshToken = getRefreshToken();
   const currentSessionType = getSessionType();
 
-  if (!currentRefreshToken || !currentSessionType) {
+  if (!currentSessionType) {
     throw new Error("No session to refresh");
   }
 
   const endpoint = REFRESH_ENDPOINTS[currentSessionType];
 
-  // Use a bare axios instance to avoid interceptor loops
+  // Build request body — include refresh token if we have it in memory,
+  // otherwise send empty body and let the cookie handle it.
+  const body = currentRefreshToken
+    ? { refreshToken: currentRefreshToken }
+    : {};
+
+  // Use a bare axios instance to avoid interceptor loops.
   const response = await axios.post<{ success: boolean; data: Record<string, unknown> }>(
     `${API_BASE_URL}${endpoint}`,
-    { refreshToken: currentRefreshToken }
+    body,
+    { withCredentials: true }
   );
 
-  const newTokens = normalizeTokenPair(response.data.data);
-  setTokens(newTokens, currentSessionType);
+  const data = response.data.data ?? {};
+  const newTokens = normalizeTokenPair(data);
+
+  if (newTokens.accessToken) {
+    setTokens(newTokens, currentSessionType);
+  }
 
   return newTokens.accessToken;
 }

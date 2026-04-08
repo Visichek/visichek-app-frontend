@@ -1,5 +1,5 @@
 import type { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from "axios";
-import { getAccessToken, getRefreshToken, getSessionType } from "@/lib/auth/tokens";
+import { getAccessToken, getSessionType } from "@/lib/auth/tokens";
 import { refreshSession, clearSession } from "@/lib/auth/session";
 import { ApiError, type ErrorEnvelope } from "@/types/api";
 
@@ -54,11 +54,12 @@ export function setupInterceptors(client: AxiosInstance) {
         return Promise.reject(normalizeError(error));
       }
 
-      // Attempt token refresh
-      const refreshToken = getRefreshToken();
+      // Check if we have a session type — needed to pick the right refresh endpoint.
+      // The actual refresh token is in the httpOnly cookie (sent automatically).
+      // In-memory refresh token is a bonus but not required.
       const sessionType = getSessionType();
 
-      if (!refreshToken || !sessionType) {
+      if (!sessionType) {
         clearSession();
         return Promise.reject(normalizeError(error));
       }
@@ -103,11 +104,23 @@ export function setupInterceptors(client: AxiosInstance) {
 function normalizeError(error: AxiosError<ErrorEnvelope>): ApiError {
   const response = error.response;
   const envelope = response?.data;
+  const status = response?.status || 0;
+
+  // 403 → always surface a clear permissions message
+  const message =
+    status === 403
+      ? "Insufficient permissions — you do not have access to this feature."
+      : envelope?.message || error.message || "An unexpected error occurred";
+
+  const code =
+    status === 403
+      ? envelope?.data?.code || "FORBIDDEN"
+      : envelope?.data?.code || `HTTP_${status}`;
 
   return new ApiError({
-    message: envelope?.message || error.message || "An unexpected error occurred",
-    code: envelope?.data?.code || `HTTP_${response?.status || 0}`,
-    status: response?.status || 0,
+    message,
+    code,
+    status,
     details: envelope?.data?.details,
     requestId: envelope?.requestId,
   });

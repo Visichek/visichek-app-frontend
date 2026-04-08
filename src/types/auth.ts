@@ -23,6 +23,7 @@ export interface AdminProfile {
   id: string;
   fullName: string;
   email: string;
+  mfaEnabled?: boolean;
 }
 
 export interface SystemUserProfile {
@@ -32,6 +33,8 @@ export interface SystemUserProfile {
   role: SystemUserRole;
   tenantId: string;
   departmentId?: string;
+  mfaEnabled?: boolean;
+  mfaLockedByAdmin?: boolean;
 }
 
 export interface AdminSession {

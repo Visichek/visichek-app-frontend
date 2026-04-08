@@ -20,6 +20,7 @@ export const PATHS = {
   ADMIN_SUBSCRIPTIONS: "/admin/subscriptions",
   ADMIN_DISCOUNTS: "/admin/discounts",
   ADMIN_PAYMENTS: "/admin/payments",
+  ADMIN_SETTINGS: "/admin/settings",
 
   // Tenant
   APP_DASHBOARD: "/app/dashboard",
@@ -33,4 +34,6 @@ export const PATHS = {
   APP_AUDIT: "/app/audit",
   APP_DPO: "/app/dpo",
   APP_BILLING: "/app/billing",
+  APP_ALERTS: "/app/alerts",
+  APP_SETTINGS: "/app/settings",
 } as const;

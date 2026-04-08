@@ -13,10 +13,13 @@ import {
   ShieldCheck,
   HelpCircle,
   ArrowRight,
+  ArrowLeft,
   Loader2,
+  KeyRound,
 } from "lucide-react";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth, type LoginResult } from "@/hooks/use-auth";
 import { ApiError } from "@/types/api";
+import { OtpInput } from "@/components/ui/otp-input";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email address"),
@@ -26,9 +29,14 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function AdminLoginPage() {
-  const { loginAdmin } = useAuth();
+  const { loginAdmin, verifyOtp } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  // OTP state
+  const [otpChallengeId, setOtpChallengeId] = useState<string | null>(null);
+  const [otpCode, setOtpCode] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const {
     register,
@@ -41,14 +49,64 @@ export default function AdminLoginPage() {
   async function onSubmit(values: LoginFormValues) {
     setError(null);
     try {
-      await loginAdmin(values);
+      const result = await loginAdmin(values);
+
+      // If OTP is required, show the OTP form instead of redirecting
+      if (result.otpRequired) {
+        setOtpChallengeId(result.otpChallengeId);
+        setOtpCode("");
+      }
+      // If otpRequired is false, the hook already redirected to dashboard
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message);
+        if (err.code === "TOO_MANY_REQUESTS") {
+          setError(
+            "Too many login attempts. Your account has been temporarily locked. Please try again later."
+          );
+        } else {
+          setError(err.message);
+        }
       } else {
         setError("An unexpected error occurred. Please try again.");
       }
     }
+  }
+
+  async function onVerifyOtp() {
+    if (!otpChallengeId || otpCode.length < 6) return;
+    setError(null);
+    setIsVerifying(true);
+
+    try {
+      await verifyOtp(
+        { otpChallengeId, otpCode },
+        "admin"
+      );
+      // On success the hook redirects to the dashboard
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 429) {
+          setError(
+            "Too many OTP attempts. Please log in again to get a new code."
+          );
+          // Reset to login form since the challenge is expired
+          setOtpChallengeId(null);
+          setOtpCode("");
+        } else {
+          setError(err.message || "Invalid code. Please try again.");
+        }
+      } else {
+        setError("Verification failed. Please try again.");
+      }
+    } finally {
+      setIsVerifying(false);
+    }
+  }
+
+  function handleBackToLogin() {
+    setOtpChallengeId(null);
+    setOtpCode("");
+    setError(null);
   }
 
   return (
@@ -80,10 +138,12 @@ export default function AdminLoginPage() {
 
           <div className="text-center space-y-1">
             <h1 className="text-2xl font-semibold text-white tracking-tight">
-              Platform Administration
+              {otpChallengeId ? "Two-Factor Authentication" : "Platform Administration"}
             </h1>
             <p className="text-sm text-zinc-400">
-              Sign in to the VisiChek admin console
+              {otpChallengeId
+                ? "Enter the 6-digit code from your authenticator app"
+                : "Sign in to the VisiChek admin console"}
             </p>
           </div>
         </div>
@@ -93,126 +153,188 @@ export default function AdminLoginPage() {
           id="main-content"
           className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/60 rounded-3xl shadow-2xl p-8"
         >
-          <form
-            onSubmit={handleSubmit(onSubmit)}
-            className="space-y-6"
-            noValidate
-          >
-            {/* Error Banner */}
-            {error && (
-              <div
-                className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"
-                role="alert"
-              >
-                {error}
-              </div>
-            )}
-
-            {/* Credentials */}
-            <div className="space-y-4">
-              {/* Email */}
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="email"
-                  className="text-xs font-medium text-zinc-300 ml-1"
-                >
-                  Email
-                </label>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500 group-focus-within:text-emerald-500 transition-colors">
-                    <Mail size={18} aria-hidden="true" />
-                  </div>
-                  <input
-                    id="email"
-                    type="email"
-                    placeholder="admin@visichek.com"
-                    autoComplete="email"
-                    autoFocus
-                    className="login-input w-full bg-zinc-950/50 border border-zinc-800 rounded-xl py-3 pl-10 pr-4 text-base md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                    {...register("email")}
-                  />
-                </div>
-                {errors.email && (
-                  <p className="text-xs text-red-400 ml-1">
-                    {errors.email.message}
-                  </p>
-                )}
-              </div>
-
-              {/* Password */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between ml-1">
-                  <label
-                    htmlFor="password"
-                    className="text-xs font-medium text-zinc-300"
-                  >
-                    Password
-                  </label>
-                  <button
-                    type="button"
-                    className="text-xs font-medium text-emerald-500 hover:text-emerald-400 transition-colors"
-                  >
-                    Forgot password?
-                  </button>
-                </div>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500 group-focus-within:text-emerald-500 transition-colors">
-                    <Lock size={18} aria-hidden="true" />
-                  </div>
-                  <input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    autoComplete="current-password"
-                    className="login-input w-full bg-zinc-950/50 border border-zinc-800 rounded-xl py-3 pl-10 pr-12 text-base md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                    {...register("password")}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-zinc-500 hover:text-zinc-300 transition-colors focus:outline-none"
-                    aria-label={
-                      showPassword ? "Hide password" : "Show password"
-                    }
-                  >
-                    {showPassword ? (
-                      <EyeOff size={18} />
-                    ) : (
-                      <Eye size={18} />
-                    )}
-                  </button>
-                </div>
-                {errors.password && (
-                  <p className="text-xs text-red-400 ml-1">
-                    {errors.password.message}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full min-h-[48px] bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 disabled:pointer-events-none text-zinc-950 font-semibold rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)] hover:shadow-[0_0_25px_-5px_rgba(16,185,129,0.6)] mt-2 text-base md:text-sm"
+          {/* Error Banner */}
+          {error && (
+            <div
+              className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300 mb-6"
+              role="alert"
             >
-              {isSubmitting ? (
-                <>
-                  <Loader2
-                    size={18}
-                    className="animate-spin"
-                    aria-hidden="true"
-                  />
-                  Signing in...
-                </>
-              ) : (
-                <>
-                  Sign In
-                  <ArrowRight size={18} className="opacity-80" />
-                </>
-              )}
-            </button>
-          </form>
+              {error}
+            </div>
+          )}
+
+          {otpChallengeId ? (
+            /* ── OTP Verification Form ────────────────────── */
+            <div className="space-y-6">
+              <div className="flex justify-center">
+                <div className="rounded-full bg-emerald-500/10 p-4">
+                  <KeyRound className="h-8 w-8 text-emerald-500" />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-xs font-medium text-zinc-300 ml-1 block text-center">
+                  Verification code
+                </label>
+                <OtpInput
+                  length={6}
+                  value={otpCode}
+                  onChange={setOtpCode}
+                  onComplete={(_code) => onVerifyOtp()}
+                  disabled={isVerifying}
+                  autoFocus
+                  aria-label="Enter your 6-digit verification code"
+                />
+                <p className="text-[11px] text-zinc-500 text-center">
+                  You can also use a backup code
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={onVerifyOtp}
+                disabled={otpCode.length < 6 || isVerifying}
+                className="w-full min-h-[48px] bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 disabled:pointer-events-none text-zinc-950 font-semibold rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)] hover:shadow-[0_0_25px_-5px_rgba(16,185,129,0.6)] text-base md:text-sm"
+              >
+                {isVerifying ? (
+                  <>
+                    <Loader2
+                      size={18}
+                      className="animate-spin"
+                      aria-hidden="true"
+                    />
+                    Verifying...
+                  </>
+                ) : (
+                  <>
+                    Verify Code
+                    <ArrowRight size={18} className="opacity-80" />
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleBackToLogin}
+                className="w-full flex items-center justify-center gap-1.5 text-sm text-zinc-400 hover:text-emerald-400 transition-colors py-2"
+              >
+                <ArrowLeft size={14} />
+                Back to login
+              </button>
+            </div>
+          ) : (
+            /* ── Login Form ───────────────────────────────── */
+            <form
+              onSubmit={handleSubmit(onSubmit)}
+              className="space-y-6"
+              noValidate
+            >
+              {/* Credentials */}
+              <div className="space-y-4">
+                {/* Email */}
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="email"
+                    className="text-xs font-medium text-zinc-300 ml-1"
+                  >
+                    Email
+                  </label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500 group-focus-within:text-emerald-500 transition-colors">
+                      <Mail size={18} aria-hidden="true" />
+                    </div>
+                    <input
+                      id="email"
+                      type="email"
+                      placeholder="admin@visichek.com"
+                      autoComplete="email"
+                      autoFocus
+                      className="login-input w-full bg-zinc-950/50 border border-zinc-800 rounded-xl py-3 pl-10 pr-4 text-base md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                      {...register("email")}
+                    />
+                  </div>
+                  {errors.email && (
+                    <p className="text-xs text-red-400 ml-1">
+                      {errors.email.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Password */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between ml-1">
+                    <label
+                      htmlFor="password"
+                      className="text-xs font-medium text-zinc-300"
+                    >
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-emerald-500 hover:text-emerald-400 transition-colors"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500 group-focus-within:text-emerald-500 transition-colors">
+                      <Lock size={18} aria-hidden="true" />
+                    </div>
+                    <input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      autoComplete="current-password"
+                      className="login-input w-full bg-zinc-950/50 border border-zinc-800 rounded-xl py-3 pl-10 pr-12 text-base md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                      {...register("password")}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-zinc-500 hover:text-zinc-300 transition-colors focus:outline-none"
+                      aria-label={
+                        showPassword ? "Hide password" : "Show password"
+                      }
+                    >
+                      {showPassword ? (
+                        <EyeOff size={18} />
+                      ) : (
+                        <Eye size={18} />
+                      )}
+                    </button>
+                  </div>
+                  {errors.password && (
+                    <p className="text-xs text-red-400 ml-1">
+                      {errors.password.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full min-h-[48px] bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 disabled:pointer-events-none text-zinc-950 font-semibold rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)] hover:shadow-[0_0_25px_-5px_rgba(16,185,129,0.6)] mt-2 text-base md:text-sm"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2
+                      size={18}
+                      className="animate-spin"
+                      aria-hidden="true"
+                    />
+                    Signing in...
+                  </>
+                ) : (
+                  <>
+                    Sign In
+                    <ArrowRight size={18} className="opacity-80" />
+                  </>
+                )}
+              </button>
+            </form>
+          )}
         </main>
 
         {/* Footer */}

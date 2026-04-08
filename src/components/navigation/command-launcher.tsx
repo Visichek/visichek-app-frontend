@@ -47,16 +47,36 @@ interface CommandGroupType {
   items: CommandItemType[];
 }
 
-export function CommandLauncher() {
+interface CommandLauncherProps {
+  /** Allow parent to control open state (e.g. from sidebar search button) */
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
+}
+
+export function CommandLauncher({ externalOpen, onExternalOpenChange }: CommandLauncherProps = {}) {
   const router = useRouter();
   const { isAuthenticated, isAdmin, currentRole } = useSession();
   const { hasCapability, canAccess } = useCapabilities();
 
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+
+  // Merge internal and external open state
+  const open = externalOpen ?? internalOpen;
+  const setOpen = (value: boolean) => {
+    setInternalOpen(value);
+    onExternalOpenChange?.(value);
+  };
   const [inputValue, setInputValue] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
+
+  // Sync external open state
+  useEffect(() => {
+    if (externalOpen !== undefined && externalOpen !== internalOpen) {
+      setInternalOpen(externalOpen);
+    }
+  }, [externalOpen]);
 
   // Keyboard shortcut: Cmd+K (Mac) or Ctrl+K (Windows/Linux)
   useEffect(() => {

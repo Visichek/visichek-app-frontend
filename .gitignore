@@ -36,6 +36,14 @@ IMPLEMENTATION_SUMMARY.md
 .vercel
 COMPONENT_GUIDE.md
 # typescript
+
+
+
+
+
+
+
+.claude
 *.tsbuildinfo
 next-env.d.ts
 CLAUDE.md

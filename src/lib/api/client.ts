@@ -9,6 +9,7 @@ export const apiClient = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true, // Send httpOnly cookies on every request
   timeout: 30_000,
 });
 
