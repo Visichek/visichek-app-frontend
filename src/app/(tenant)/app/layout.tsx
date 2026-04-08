@@ -25,6 +25,8 @@ import { useTenantBranding } from "@/hooks/use-tenant-branding";
 import { useSession } from "@/hooks/use-session";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLE_ROUTES } from "@/lib/permissions/route-access";
+import { NavigationLoadingProvider } from "@/lib/routing/navigation-context";
+import { NavigationOverlay } from "@/components/feedback/navigation-overlay";
 import { cn } from "@/lib/utils/cn";
 import { useThemeSync } from "@/hooks/use-theme-sync";
 
@@ -144,6 +146,7 @@ export default function TenantLayout({
   }, [currentRole]);
 
   return (
+    <NavigationLoadingProvider>
     <div className="min-h-screen bg-background">
       {/* Desktop sidebar — tenant branding applied via CSS variables */}
       <AppSidebar
@@ -191,6 +194,10 @@ export default function TenantLayout({
 
       {/* Command launcher overlay */}
       <CommandLauncher externalOpen={commandOpen} onExternalOpenChange={setCommandOpen} />
+
+      {/* Full-screen navigation loading overlay */}
+      <NavigationOverlay />
     </div>
+    </NavigationLoadingProvider>
   );
 }

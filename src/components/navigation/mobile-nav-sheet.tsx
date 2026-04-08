@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   Sheet,
   SheetContent,
@@ -11,7 +11,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils/cn";
 import { Loader2, Settings, LogOut, HelpCircle } from "lucide-react";
-import { useNavLoading } from "@/hooks/use-nav-loading";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useSession } from "@/hooks/use-session";
 import { useAuth } from "@/hooks/use-auth";
 import type { NavItem } from "./app-sidebar";
@@ -28,8 +28,7 @@ export function MobileNavSheet({
   items,
 }: MobileNavSheetProps) {
   const pathname = usePathname();
-  const router = useRouter();
-  const { loadingHref, handleNavClick } = useNavLoading();
+  const { loadingHref, handleNavClick, navigate } = useNavigationLoading();
   const { adminProfile, systemUserProfile, isAdmin, currentRole } =
     useSession();
   const { logout } = useAuth();
@@ -135,7 +134,7 @@ export function MobileNavSheet({
           {/* Settings link */}
           <button
             onClick={() => {
-              router.push(settingsPath);
+              navigate(settingsPath);
               onOpenChange(false);
             }}
             className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground/70 hover:bg-accent hover:text-foreground transition-colors w-full min-h-[44px]"

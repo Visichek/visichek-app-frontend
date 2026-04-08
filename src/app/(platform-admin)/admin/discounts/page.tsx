@@ -4,6 +4,7 @@ import * as React from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { MoreHorizontal, Plus } from "lucide-react";
+import { DiscountFormModal } from "@/features/discounts/components/discount-form-modal";
 import {
   useDiscounts,
   useDeleteDiscount,
@@ -142,6 +143,7 @@ export default function DiscountsPage() {
   const { mutate: disableDiscount, isPending: isDisablePending } =
     useDisableDiscount();
 
+  const [createModalOpen, setCreateModalOpen] = React.useState(false);
   const isLoading_ = isDeletePending || isDisablePending;
 
   const handleEdit = (id: string) => {
@@ -244,14 +246,18 @@ export default function DiscountsPage() {
 
   return (
     <div className="space-y-6">
+      <DiscountFormModal
+        open={createModalOpen}
+        onOpenChange={setCreateModalOpen}
+      />
+
       <PageHeader
         title="Discounts"
         description="Manage discount codes and promotions"
         actions={
           <Button
             className="w-full md:w-auto min-h-[44px]"
-            disabled
-            title="Coming soon"
+            onClick={() => setCreateModalOpen(true)}
           >
             <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
             <span>Create Discount</span>

@@ -27,9 +27,12 @@ export function useDiscount(discountId: string) {
 
 interface CreateDiscountRequest {
   code: string;
+  name: string;
   type: string;
   scope: string;
   value: number;
+  description?: string;
+  targetTenantId?: string;
   maxRedemptions?: number;
   validFrom?: number;
   validUntil?: number;

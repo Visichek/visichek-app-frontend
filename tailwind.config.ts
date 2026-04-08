@@ -45,6 +45,7 @@ const config: Config = {
         dropdown: "40",
         drawer: "50",
         modal: "60",
+        popup: "65", // Select/Popover/Combobox portals that must float above modals
         toast: "70",
       },
       colors: {

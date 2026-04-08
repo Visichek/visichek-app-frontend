@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { Plus, Eye, MoreHorizontal } from "lucide-react";
+import { BootstrapTenantModal } from "@/features/auth/components/bootstrap-tenant-modal";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
@@ -19,6 +21,7 @@ import type { AdminTenant } from "@/types/admin";
 export default function TenantsPage() {
   const { data, isLoading } = useTenantList();
   const tenants = data || [];
+  const [bootstrapModalOpen, setBootstrapModalOpen] = useState(false);
 
   const getSubscriptionStatusVariant = (status: string) => {
     switch (status) {
@@ -133,13 +136,21 @@ export default function TenantsPage() {
 
   return (
     <div className="space-y-6">
+      <BootstrapTenantModal
+        open={bootstrapModalOpen}
+        onOpenChange={setBootstrapModalOpen}
+      />
+
       <PageHeader
         title="Tenants"
         description="Manage tenant organizations"
         actions={
-          <Button className="w-full md:w-auto min-h-[44px]" disabled>
+          <Button
+            className="w-full md:w-auto min-h-[44px]"
+            onClick={() => setBootstrapModalOpen(true)}
+          >
             <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Bootstrap Tenant (Coming soon)
+            Bootstrap Tenant
           </Button>
         }
       />

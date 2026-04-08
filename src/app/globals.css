@@ -114,6 +114,42 @@
   transition: background-color 5000s ease-in-out 0s;
 }
 
+/*
+  Quiet theme cross-fade for settings-page theme changes.
+  The topbar toggle uses the View Transitions API for its circular reveal,
+  so this only fires when theme is changed outside of that toggle.
+*/
+html {
+  transition: background-color 300ms ease, color 300ms ease;
+}
+
+/*
+  View Transitions circular reveal for the theme toggle.
+  The old page stays visible (z-index 1, no animation) while the new themed
+  page is clipped into view via an expanding circle (z-index 2).
+  --reveal-x / --reveal-y are set inline on <html> by the toggle button.
+*/
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root) {
+    animation: none;
+    z-index: 1;
+  }
+
+  ::view-transition-new(root) {
+    z-index: 2;
+    animation: theme-circle-reveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes theme-circle-reveal {
+    from {
+      clip-path: circle(0% at var(--reveal-x, 50%) var(--reveal-y, 50%));
+    }
+    to {
+      clip-path: circle(150% at var(--reveal-x, 50%) var(--reveal-y, 50%));
+    }
+  }
+}
+
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { cn } from "@/lib/utils/cn";
 import {
   Tooltip,
@@ -132,7 +132,7 @@ function orderActions(actions: QuickAction[], order: string[] | null): QuickActi
 // ── Component ─────────────────────────────────────────────────────────
 
 export function QuickActions() {
-  const router = useRouter();
+  const { navigate } = useNavigationLoading();
   const [actions, setActions] = useState<QuickAction[]>(() =>
     orderActions(ALL_ACTIONS, getPersistedOrder())
   );
@@ -295,11 +295,11 @@ export function QuickActions() {
                   onDragOver={isEditing ? handleDragOver : undefined}
                   onDrop={isEditing ? (e) => handleDrop(e, action.id) : undefined}
                   onDragEnd={isEditing ? handleDragEnd : undefined}
-                  onClick={!isEditing ? () => router.push(action.href) : undefined}
+                  onClick={!isEditing ? () => navigate(action.href) : undefined}
                   onKeyDown={(e) => {
                     if (!isEditing && (e.key === "Enter" || e.key === " ")) {
                       e.preventDefault();
-                      router.push(action.href);
+                      navigate(action.href);
                     }
                   }}
                   className={cn(

@@ -49,14 +49,16 @@ export function SettingsLayout({ title, tabs, defaultTab }: SettingsLayoutProps)
 
   return (
     <div>
-      {/* Page heading */}
-      <h1 className="text-2xl font-semibold tracking-tight font-display mb-6">
-        {title}
-      </h1>
+      {/* ── Mobile: sticky heading + tab strip ─────────────── */}
+      {/* ── Desktop: static heading only ───────────────────── */}
+      <div className="sticky top-14 z-[40] bg-background -mx-4 px-4 pb-3 pt-3 border-b border-border md:static md:mx-0 md:px-0 md:pb-0 md:pt-0 md:border-none md:bg-transparent">
+        <h1 className="text-2xl font-semibold tracking-tight font-display mb-3 md:mb-6">
+          {title}
+        </h1>
 
-      {/* ── Mobile: horizontal scrollable tabs ─────────────── */}
-      <div className="md:hidden mb-6 -mx-4 px-4">
-        <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-none">
+        {/* ── Mobile: horizontal scrollable tabs ─────────────── */}
+        <div className="md:hidden -mx-4 px-4">
+          <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             const isLoading = isPending && pendingTab === tab.id;
@@ -81,6 +83,7 @@ export function SettingsLayout({ title, tabs, defaultTab }: SettingsLayoutProps)
               </button>
             );
           })}
+          </div>
         </div>
       </div>
 

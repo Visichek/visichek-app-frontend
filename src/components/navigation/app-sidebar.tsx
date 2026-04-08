@@ -26,7 +26,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useNavLoading } from "@/hooks/use-nav-loading";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
 
 export interface NavItem {
   label: string;
@@ -75,7 +75,7 @@ export function AppSidebar({
   onCollapsedChange,
 }: AppSidebarProps) {
   const pathname = usePathname();
-  const { loadingHref, handleNavClick } = useNavLoading();
+  const { loadingHref, handleNavClick } = useNavigationLoading();
 
   const isSettingsLoading = settingsHref ? loadingHref === settingsHref : false;
 

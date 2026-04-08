@@ -15,6 +15,8 @@ import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
 import { MobileNavSheet } from "@/components/navigation/mobile-nav-sheet";
 import { Topbar } from "@/components/navigation/topbar";
 import { CommandLauncher } from "@/components/navigation/command-launcher";
+import { NavigationLoadingProvider } from "@/lib/routing/navigation-context";
+import { NavigationOverlay } from "@/components/feedback/navigation-overlay";
 import { useSession } from "@/hooks/use-session";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils/cn";
@@ -81,6 +83,7 @@ export default function PlatformAdminLayout({
   useThemeSync();
 
   return (
+    <NavigationLoadingProvider>
     <div className="min-h-screen bg-background">
       {/* Desktop sidebar — platform branding only, no tenant branding */}
       <AppSidebar
@@ -128,6 +131,10 @@ export default function PlatformAdminLayout({
 
       {/* Command launcher overlay */}
       <CommandLauncher externalOpen={commandOpen} onExternalOpenChange={setCommandOpen} />
+
+      {/* Full-screen navigation loading overlay */}
+      <NavigationOverlay />
     </div>
+    </NavigationLoadingProvider>
   );
 }

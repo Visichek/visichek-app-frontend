@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Plus, Edit2, Copy, Trash2, MoreHorizontal } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { PlanFormModal } from "@/features/plans/components/plan-form-modal";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
@@ -61,6 +62,7 @@ export default function PlansPage() {
   const archiveMutation = useArchivePlan();
   const cloneMutation = useClonePlan();
 
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [activateDialogOpen, setActivateDialogOpen] = useState(false);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
@@ -283,13 +285,21 @@ export default function PlansPage() {
 
   return (
     <div className="space-y-6">
+      <PlanFormModal
+        open={createModalOpen}
+        onOpenChange={setCreateModalOpen}
+      />
+
       <PageHeader
         title="Plans"
         description="Manage subscription plans"
         actions={
-          <Button className="w-full md:w-auto min-h-[44px]" disabled>
+          <Button
+            className="w-full md:w-auto min-h-[44px]"
+            onClick={() => setCreateModalOpen(true)}
+          >
             <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Create Plan (Coming soon)
+            Create Plan
           </Button>
         }
       />

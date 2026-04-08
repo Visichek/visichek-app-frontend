@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Dialog,
@@ -54,7 +54,7 @@ interface CommandLauncherProps {
 }
 
 export function CommandLauncher({ externalOpen, onExternalOpenChange }: CommandLauncherProps = {}) {
-  const router = useRouter();
+  const { navigate } = useNavigationLoading();
   const { isAuthenticated, isAdmin, currentRole } = useSession();
   const { hasCapability, canAccess } = useCapabilities();
 
@@ -93,7 +93,7 @@ export function CommandLauncher({ externalOpen, onExternalOpenChange }: CommandL
 
   // Build command groups based on user role and shell
   const groups = useMemo<CommandGroupType[]>(() => {
-    if (!isAuthenticated || !currentRole) return [];
+    if (!isAuthenticated) return [];
 
     const navigationItems: CommandItemType[] = [];
     const actionItems: CommandItemType[] = [];
@@ -408,7 +408,7 @@ export function CommandLauncher({ externalOpen, onExternalOpenChange }: CommandL
           const item = allFilteredItems[selectedIndex];
           if (item) {
             if (item.href) {
-              router.push(item.href);
+              navigate(item.href);
             }
             item.action?.();
             setOpen(false);
@@ -420,7 +420,7 @@ export function CommandLauncher({ externalOpen, onExternalOpenChange }: CommandL
           break;
       }
     },
-    [allFilteredItems, selectedIndex, router]
+    [allFilteredItems, selectedIndex, navigate]
   );
 
   // Auto-scroll selected item into view
@@ -451,12 +451,12 @@ export function CommandLauncher({ externalOpen, onExternalOpenChange }: CommandL
   const handleSelect = useCallback(
     (item: CommandItemType) => {
       if (item.href) {
-        router.push(item.href);
+        navigate(item.href);
       }
       item.action?.();
       setOpen(false);
     },
-    [router]
+    [navigate]
   );
 
   return (
@@ -464,9 +464,9 @@ export function CommandLauncher({ externalOpen, onExternalOpenChange }: CommandL
       {/* Cmd+K hint in topbar or accessible via keyboard */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogPortal>
-          <DialogOverlay className="z-modal" />
-          <div className="fixed inset-0 z-modal flex items-start justify-center pt-[20vh]">
-            <div className="w-full max-w-2xl mx-4 rounded-lg border bg-background shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-top-10">
+          <DialogOverlay className="z-modal" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 z-modal flex items-start justify-center pt-[20vh] pointer-events-none">
+            <div className="w-full max-w-2xl mx-4 rounded-lg border bg-background shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-top-10 pointer-events-auto">
               {/* Input Section */}
               <div className="flex items-center gap-3 border-b px-4 py-3">
                 <Search className="h-4 w-4 text-muted-foreground shrink-0" />

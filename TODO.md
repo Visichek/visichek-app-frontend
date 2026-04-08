@@ -1,388 +1,627 @@
-# VisiChek Frontend TODO
-
-> **Last audited:** 2026-04-07
-> **Status:** Pending frontend implementation for the new public registration, public rights, staged check-in, and compliance flows now available in the backend.
-> Tasks are organized by functional phase with dependency chains, route scope, and expected frontend ownership.
-
----
-
-## Phase 1: Public Visitor Registration Surface
-
-| Task | Description | Priority | Depends | Frontend scope |
-|------|-------------|:--------:|---------|----------------|
-| **1A** | Add public visitor route group and layout | High | — | `(public)` routes, middleware, public shell |
-| **1B** | Build tenant-scoped registration page | High | 1A | Registration page, form, loading and error states |
-| **1C** | Load tenant info, departments, and privacy notice | High | 1B | Public data hooks, API layer, types |
-| **1D** | Submit visitor self-registration | High | 1B, 1C | Form submission, success handoff, validation |
-| **1E** | Appointment prefill flow | High | 1B | Query-param driven prefill UX |
-
-### 1A — Add public visitor route group and layout
-
-- [ ] Add a dedicated unauthenticated public route group for visitor flows
-- [ ] Keep these routes outside the authenticated tenant and platform shells
-- [ ] Add a public layout for visitor-facing pages with no admin navigation chrome
-- [ ] Update middleware so public visitor flows are never redirected to login
-- [ ] Keep public registration pages reachable from QR codes without auth state
-
-### 1B — Build tenant-scoped registration page
-
-- [ ] Add a route for public registration:
-  - `/register/[tenantId]`
-- [ ] Support optional appointment-prefill entry via query params or QR payload
-- [ ] Build a tablet-first registration form for:
-  - full name
-  - phone
-  - company
-  - email
-  - purpose
-  - department
-- [ ] Make the public form usable on both visitor phones and reception tablets
-- [ ] Add clear invalid-tenant, tenant-not-found, and no-departments states
-
-### 1C — Load tenant info, departments, and privacy notice
-
-- [ ] Add API methods and frontend types for:
-  - `GET /v1/public/register/{tenant_id}/info`
-  - `GET /v1/public/register/{tenant_id}/departments`
-  - `GET /v1/public/register/{tenant_id}/privacy-notice`
-- [ ] Load tenant company name and public branding context before rendering the form
-- [ ] Display the privacy notice before any meaningful data capture step
-- [ ] Show notice title, content, and version when present
-- [ ] Handle the backend fallback response when no active notice exists
-
-### 1D — Submit visitor self-registration
-
-- [ ] Add API method and types for:
-  - `POST /v1/public/register/{tenant_id}`
-- [ ] Submit the public registration payload with backend field names correctly mapped
-- [ ] Support consent fields when required:
-  - `consentGranted`
-  - `consentMethod`
-  - `privacyNoticeVersionId`
-- [ ] Show a clear success screen after registration
-- [ ] Display the handoff message telling the visitor to proceed to reception
-- [ ] Handle backend validation errors cleanly, especially consent-required failures
-
-### 1E — Appointment prefill flow
-
-- [ ] Add API method and types for:
-  - `GET /v1/public/register/{tenant_id}/appointment/{appointment_id}`
-- [ ] Pre-fill registration fields from appointment data where available:
-  - host
-  - department
-  - purpose
-  - scheduled time
-- [ ] Keep prefilled fields editable when the UI should allow updates
-- [ ] Handle invalid, expired, or tenant-mismatched appointment links gracefully
-
----
-
-## Phase 2: Public Privacy, Consent, and Data Rights
-
-| Task | Description | Priority | Depends | Frontend scope |
-|------|-------------|:--------:|---------|----------------|
-| **2A** | Consent-aware public registration UX | High | 1C, 1D | Consent UI, validation, copy |
-| **2B** | Public rights request flow | High | 1A | Visitor rights pages and forms |
-| **2C** | Consent withdrawal flow | High | 2B | Public self-service action |
-| **2D** | Profiling opt-out flow | Medium | 2B | Public self-service action |
-| **2E** | DSR status check page | Medium | 2B | Token-based request-status UI |
-
-### 2A — Consent-aware public registration UX
-
-- [ ] Make the public form adapt to whether consent is required by backend policy
-- [ ] Add an explicit consent control when the tenant requires consent
-- [ ] Prevent submission until the required consent action is completed
-- [ ] Pass through the privacy notice version shown to the visitor
-- [ ] Surface backend consent or notice errors in plain language
-
-### 2B — Public rights request flow
-
-- [ ] Add public routes for visitor rights:
-  - `/rights/request`
-  - `/rights/request/[requestId]/status`
-- [ ] Add API method and types for:
-  - `POST /v1/public/rights/request`
-- [ ] Build a visitor rights form supporting:
-  - access request
-  - correction request
-  - deletion request
-  - consent withdrawal request
-- [ ] Allow identification by phone or email, matching backend rules
-- [ ] Show the returned request ID, verification token, and due date clearly
-
-### 2C — Consent withdrawal flow
-
-- [ ] Add API method and types for:
-  - `POST /v1/public/rights/withdraw-consent`
-- [ ] Provide a lightweight public form for visitors to withdraw consent
-- [ ] Reuse identification fields and validation from the rights flow
-- [ ] Show how many sessions were updated when the request succeeds
-
-### 2D — Profiling opt-out flow
-
-- [ ] Add API method and types for:
-  - `PATCH /v1/public/rights/profiling-opt-out`
-- [ ] Add a public opt-out form or panel for repeat-visitor profiling preferences
-- [ ] Explain the effect of opting out in plain language
-- [ ] Show clear success and error states
+# Premium Interaction Spec For Admin Surfaces
 
-### 2E — DSR status check page
+This file replaces a rough motion request with an explicit product and implementation guide for premium-feeling admin interactions in VisiChek.
 
-- [ ] Add API method and types for:
-  - `GET /v1/public/rights/request/{id}/status`
-- [ ] Build a status page that reads `requestId` and `verificationToken`
-- [ ] Support status lookup from a link or manual entry
-- [ ] Show request status, due date, and next-step guidance
+The goal is not "more animation." The goal is to make the interface feel considerate, calm, and well-crafted. Motion should reassure the user that the product is alive and attentive. It should never feel ornamental, noisy, or sales-driven.
 
----
+## Product Intent
 
-## Phase 3: Public Checkout and Badge-Linked Flows
+The admin experience should communicate:
 
-| Task | Description | Priority | Depends | Frontend scope |
-|------|-------------|:--------:|---------|----------------|
-| **3A** | Public self-checkout page | High | 1A | Visitor-facing checkout route |
-| **3B** | Badge-QR driven checkout handling | High | 3A | Query-param/token UX |
-| **3C** | Checkout confirmation UX | Medium | 3A | Success, failure, expired token states |
+- this product is precise
+- this product respects the user's focus
+- this product acknowledges every action
+- this product cares about the quality of the experience, not only the transaction
 
-### 3A — Public self-checkout page
+That means:
 
-- [ ] Add a public route for badge self-checkout:
-  - `/checkout`
-- [ ] Add API method and types for:
-  - `POST /v1/public/checkout`
-- [ ] Accept the badge QR token from URL params, QR scan result, or manual paste
-- [ ] Allow a one-tap checkout path when the token is already present in the URL
+- no ambient decorative motion
+- no repeated bouncing or pulsing loops
+- no flashy transitions across dense data views
+- no animation that delays comprehension
 
-### 3B — Badge-QR driven checkout handling
+For application admin, motion intensity stays low. "Premium" here means refinement, not spectacle.
 
-- [ ] Read the signed badge token from the scanned URL consistently
-- [ ] Submit the token using the backend request shape
-- [ ] Handle missing-token and malformed-token states before hitting the API
-- [ ] Keep the flow fast enough for visitor self-checkout on mobile
+## Core Motion Philosophy
 
-### 3C — Checkout confirmation UX
+Follow the shared rules already established in `frontend-docs/design-docs/shared/design-rules.md` and `frontend-docs/design-docs/application-admin/design-system.md`.
 
-- [ ] Show checkout success with:
-  - session status
-  - visit duration
-- [ ] Add clear states for:
-  - invalid token
-  - expired token
-  - session not found
-  - already checked-out session
-- [ ] Make the completion screen understandable without staff assistance
+Interpret them this way:
 
----
+- motion is used for acknowledgement, orientation, and polish
+- motion should cluster around state changes, not idle states
+- the strongest animation on the page should happen rarely
+- dense tables remain quiet
+- micro-interactions should reward attention without competing for it
 
-## Phase 4: Reception Staged Check-In Workflow
+## Motion Budget
 
-> **Note:** Hooks for check-in, confirm, deny, OCR, host-approve, and draft-update already exist in `features/visitors/hooks/use-visitors.ts`. The visitors page at `/app/visitors` already has Active/Pending tabs. This phase focuses on improving and completing the UI layer.
+Use these timings as defaults unless a component has a strong reason not to:
 
-| Task | Description | Priority | Depends | Frontend scope |
-|------|-------------|:--------:|---------|----------------|
-| **4A** | Pending queue UI for reception | High | — | Tenant shell reception pages |
-| **4B** | Draft/session resume flow | High | 4A | Session detail and edit forms |
-| **4C** | Confirm check-in flow | High | 4B | Confirmation action, badge response |
-| **4D** | Deny-entry flow | Medium | 4B | Denial modal and reason capture |
-| **4E** | Badge download/print UX | Medium | 4C | Badge preview/download actions |
+- hover and focus feedback: `140-180ms`
+- icon state swaps: `160-220ms`
+- dropdown, popover, and sheet entrances: `180-240ms`
+- theme transition reveal: `420-560ms`
+- notification arrival emphasis: `360-520ms` total, then stop completely
 
-### 4A — Pending queue UI for reception
+Use these easing patterns:
 
-- [ ] Improve receptionist UI for pending sessions from `GET /v1/visitors/sessions/pending`
-- [ ] Display sessions in `registered` and `pending_verification` states clearly
-- [ ] Sort and label pending items so reception can resume work quickly
-- [ ] Show origin cues for sessions created from public registration versus staff entry
+- standard UI feedback: `ease-out`
+- premium reveal moments: gentle custom ease or soft spring
+- nothing should feel elastic, rubbery, or playful in a consumer-app way
 
-### 4B — Draft/session resume flow
+Animate primarily:
 
-- [ ] Add receptionist detail view for pending sessions
-- [ ] Improve draft update support using `PATCH /v1/visitors/sessions/{id}/update-draft`
-- [ ] Allow reception to fill or update: department, host, purpose, visitor photo, ID image
-- [ ] Reuse visitor profile search from `GET /v1/visitor-profiles/search`
+- `opacity`
+- `transform`
+- very light `filter` or `backdrop` accents only if performance remains stable
 
-### 4C — Confirm check-in flow
+Avoid animating:
 
-- [ ] Improve confirm action using `POST /v1/visitors/sessions/{id}/confirm`
-- [ ] Support badge format selection (A6 or A7)
-- [ ] Handle the confirm response: session, badgePdfBase64, badgeQrToken
-- [ ] Transition the UI from draft state to checked-in state cleanly
+- layout-heavy properties
+- shadows with large blur changes on repeated surfaces
+- table row heights for decorative reasons
+- background effects that constantly move
 
-### 4D — Deny-entry flow
+## Theme Change: Desired Experience
 
-- [ ] Improve deny action using `POST /v1/visitors/sessions/{id}/deny`
-- [ ] Require a denial reason before submission
-- [ ] Show denied sessions distinctly in reception and logs
+There are two approved theme-change modes.
 
-### 4E — Badge download/print UX
+### 1. Topbar theme toggle: signature transition
 
-- [ ] Add badge download action using `GET /v1/visitors/sessions/{id}/badge`
-- [ ] Support immediate print/download after confirmation
-- [ ] Add retry paths if the inline badge payload fails
+When the user clicks the sun or moon icon in the topbar, the theme change should feel intentional and delightful.
 
----
+Desired behavior:
 
-## Phase 5: Verification and Identity Capture
+- the transition originates from the toggle button itself
+- a circular reveal expands from the exact toggle hit area
+- the reveal carries the incoming theme tone, not a random accent color
+- the rest of the UI updates as the circle expands, not before it
+- the effect should feel smooth and premium, not fast and gimmicky
 
-> **Note:** Hooks for OCR verification, apply-id-scan, and host-approve already exist. This phase focuses on the UI layer for these flows.
+Emotional target:
 
-| Task | Description | Priority | Depends | Frontend scope |
-|------|-------------|:--------:|---------|----------------|
-| **5A** | OCR verification flow | High | 4B | ID upload and extraction UI |
-| **5B** | Apply OCR results to session/profile | High | 5A | Review and confirm extracted data |
-| **5C** | Host approval flow | High | 4B | Host action screen or prompt |
-| **5D** | Verification status presentation | Medium | 4A, 4B | Shared badges and labels |
+- "the app noticed my choice and is carefully reshaping itself"
 
-### 5A — OCR verification flow
+Not acceptable:
 
-- [ ] Add document upload UX for ID scanning using upload-intents flow
-- [ ] Add OCR action using `POST /v1/visitors/verify/id-scan`
-- [ ] Show extracted fields: full name, id number, id type, confidence
-- [ ] Let reception review extracted values before applying them
+- instant hard swap with no transition
+- dramatic flash or strobe-like inversion
+- exaggerated zoom or long theatrical reveal
+- a reveal so slow that the app feels blocked
 
-### 5B — Apply OCR results to session/profile
+### 2. Settings page theme change: quiet fade
 
-- [ ] Add apply action using `POST /v1/visitors/sessions/{id}/apply-id-scan`
-- [ ] Map OCR output into the session confirmation workflow
-- [ ] Update the UI after apply so verification status changes are visible immediately
+If the user changes theme from settings, use a much calmer transition.
 
-### 5C — Host approval flow
+Desired behavior:
 
-- [ ] Add host-approval action using `POST /v1/visitors/sessions/{id}/host-approve`
-- [ ] Surface a clear host-approval path when ID-based verification is unavailable
-- [ ] Distinguish host-approved verification from ID-scan verification in the UI
+- short cross-fade between theme states
+- no expanding circle
+- no flourish competing with the settings task
+- state should feel confirmed, but subdued
 
-### 5D — Verification status presentation
+Emotional target:
 
-- [ ] Add shared badges and labels for visit status, verification status, verification method
-- [ ] Use backend enums from `api-docs/06-enums-reference.md`
-- [ ] Do not invent frontend-only states or labels that conflict with backend values
+- "setting saved and applied cleanly"
 
----
+## Theme Change: Explicit Design Decisions
 
-## Phase 6: Tenant Operations and Dashboard Alignment
+### Visual source
 
-> **Note:** Hooks and pages exist for visitors, appointments, departments, branches, and dashboard. This phase focuses on alignment with backend contracts and adding missing features.
+The reveal must originate from the topbar theme toggle button in `src/components/theme/theme-toggle.tsx`, not from screen center.
 
-| Task | Description | Priority | Depends | Frontend scope |
-|------|-------------|:--------:|---------|----------------|
-| **6A** | Visitor log alignment | High | — | Dashboard tables, filters, exports |
-| **6B** | Active visitor monitoring | High | — | Reception and admin active views |
-| **6C** | Appointment management alignment | Medium | — | Appointment forms and lists |
-| **6D** | Visitor profile alignment | Medium | — | Profile list/detail/update |
+### Reveal shape
 
-### 6A — Visitor log alignment
+Use a perfect circle, not a blob, wave, or radial burst.
 
-- [ ] Ensure visitor log UI matches `GET /v1/dashboard/visitors`
-- [ ] Add filters for host, verification status, date range
-- [ ] Add export actions for CSV and XLSX via `GET /v1/dashboard/export`
-- [ ] Show receptionist name, duration, and verification details
+Reason:
 
-### 6B — Active visitor monitoring
+- a circle feels precise
+- it maps cleanly to the icon button
+- it reads as controlled rather than decorative
 
-- [ ] Add or update active visitor views using `GET /v1/visitors/active` and `GET /v1/dashboard/visitors/active`
-- [ ] Make active visitors easy to scan for security and reception staff
-- [ ] Add practical refresh behavior for near-real-time monitoring
+### Color treatment
 
-### 6C — Appointment management alignment
+The reveal color should be derived from the incoming theme background.
 
-- [ ] Ensure appointment pages align with CRUD endpoints
-- [ ] Make appointment creation support the later public registration prefill flow
+Use:
 
-### 6D — Visitor profile alignment
+- light mode transition: reveal with the incoming light surface/background tone
+- dark mode transition: reveal with the incoming dark surface/background tone
 
-- [ ] Ensure profile pages align with profile CRUD endpoints
-- [ ] Show profile-level verification fields and repeat-visitor context
+Do not use:
 
----
+- brand gradients
+- saturated accent colors
+- rainbow interpolation
 
-## Phase 7: Compliance and Privacy Operations UI
+This is a theme transition, not a marketing animation.
 
-> **Note:** Hooks exist for privacy notices, retention policies, sub-processors, DSR, incidents, audit logs, and compliance register. Pages exist for incidents, audit, and DPO. This phase focuses on completing and improving the UI layer.
+### Content response during reveal
 
-| Task | Description | Priority | Depends | Frontend scope |
-|------|-------------|:--------:|---------|----------------|
-| **7A** | Privacy notice management | High | — | Tenant compliance pages |
-| **7B** | Retention policy management | High | — | Tenant compliance pages |
-| **7C** | DSR management panel | High | — | DPO and super-admin pages |
-| **7D** | Incident log module | High | — | Security/compliance pages |
-| **7E** | Audit log viewer | Medium | — | Auditor and DPO views |
-| **7F** | Compliance register and export UI | Medium | — | Compliance reporting pages |
-| **7G** | Sub-processor management | Medium | — | Compliance settings |
+As the reveal expands:
 
-### 7A — Privacy notice management
+- background surfaces should appear to transform with it
+- icons and text may cross-fade slightly to avoid a harsh palette snap
+- the icon inside the toggle should rotate or morph subtly while swapping
 
-- [ ] Build or improve pages for privacy notice CRUD and activation
-- [ ] Make it obvious which notice is active and what version is visitor-facing
+Do not:
 
-### 7B — Retention policy management
+- animate every child independently
+- stagger table cells
+- create a chain reaction through cards and widgets
 
-- [ ] Build or improve pages for retention policy CRUD
-- [ ] Show retention days and configured action clearly
+### Timing
 
-### 7C — DSR management panel
+Target total duration: `420-560ms`
 
-- [ ] Build or improve pages for DSR CRUD with status, assignee workflow, and due-date visibility
+Suggested pacing:
 
-### 7D — Incident log module
+- first `80-120ms`: toggle press acknowledgement
+- next `320-420ms`: circular reveal expansion and theme variable swap
+- final `40-80ms`: small settle on icon/state
 
-- [ ] Build or improve pages for incident CRUD
-- [ ] Highlight incidents approaching the 72-hour notification deadline
+### Icon behavior
 
-### 7E — Audit log viewer
+The sun/moon icon should not just disappear and pop in.
 
-- [ ] Build audit log views with filtering by actor, action, entity, and date range
+Preferred behavior:
 
-### 7F — Compliance register and export UI
+- slight rotate plus fade between states
+- tiny scale shift, no more than about `0.92 -> 1.0` or `1.0 -> 0.92 -> 1.0`
 
-- [ ] Build pages for compliance register, deletion logs, consent log, and ZIP export
+The icon animation should support the reveal, not become the main event.
 
-### 7G — Sub-processor management
+## Theme Change: Engineering Notes
 
-- [ ] Build pages for sub-processor CRUD with provider purpose, jurisdiction, and status
+### Component ownership
 
----
+Current relevant surfaces:
 
-## Phase 8: Frontend Platform Work
+- topbar trigger: `src/components/theme/theme-toggle.tsx`
+- topbar container: `src/components/navigation/topbar.tsx`
+- settings theme picker: `src/app/(platform-admin)/admin/settings/page.tsx`
+- oosettings theme picker: `src/app/(tenant)/app/settings/page.tsx`
 
-| Task | Description | Priority | Depends | Frontend scope |
-|------|-------------|:--------:|---------|----------------|
-| **8A** | API client and type coverage | High | All prior phases | `lib/api`, `types/`, feature slices |
-| **8B** | Shared components for public flows | Medium | 1A, 1B, 2A, 3A | Design system and recipes |
-| **8C** | Responsive and accessibility QA | Medium | All visible flows | Public and tenant UIs |
-| **8D** | End-to-end frontend testing | Medium | All major flows | Automated tests and manual QA |
+### Recommended implementation direction
 
-### 8A — API client and type coverage
+Use `motion/react` only. Do not add another animation system for this.
 
-- [ ] Add frontend types for all new public registration and rights payloads/responses
-- [ ] Add frontend types for staged check-in, compliance, and export responses not yet modeled
-- [ ] Keep the API layer consistent with backend contracts and casing conventions
-- [ ] Keep public calls outside auth-only request wrappers where appropriate
+Recommended structure:
 
-### 8B — Shared components for public flows
+1. capture the toggle button bounding rect on click
+2. render a fixed overlay reveal layer above the app shell
+3. compute the radius needed to cover the viewport from the click origin
+4. begin the reveal animation
+5. switch theme during the reveal, not long before it
+6. remove the overlay as soon as the transition completes
 
-- [ ] Build reusable components for privacy notice display, consent capture, visitor success/error screens, badge-token checkout entry, request-status lookup
+The overlay should be:
 
-### 8C — Responsive and accessibility QA
+- fixed
+- pointer-events none
+- isolated from layout
+- short-lived
 
-- [ ] Verify public flows on mobile phone, reception tablet, and desktop
-- [ ] Ensure touch targets and form spacing are adequate for tablet use
-- [ ] Ensure keyboard and screen-reader support for public and compliance forms
+### Theme swap timing rule
 
-### 8D — End-to-end frontend testing
+If the theme variables swap too early, the reveal looks fake.
+If they swap too late, the UI flashes.
 
-- [ ] Add tests for all major public and tenant flows
+The implementation should switch theme around the early-middle of the reveal, when the expanding circle has already established visual ownership of the transition.
 
----
+### Fallback behavior
 
-## Suggested Delivery Order
+If geometry capture fails for any reason:
 
-1. Public route group, middleware allowances, and public layout
-2. Public registration page with tenant info, departments, and privacy notice loading
-3. Consent-aware registration submission and success handoff
-4. Public self-checkout flow
-5. Reception pending queue, draft resume, and confirm check-in flow
-6. OCR verification and host approval UI
-7. Dashboard alignment for logs, active visitors, profiles, and appointments
-8. Public rights portal and DSR status flow
-9. Compliance operations pages
-10. Shared component cleanup, responsiveness, accessibility, and tests
+- fall back to a simple opacity transition
+- do not block theme switching
+
+### Hydration and first paint
+
+Do not animate:
+
+- initial theme hydration
+- server/client reconciliation
+- automatic sync from stored user preference on app boot
+
+The signature reveal is only for direct user-triggered theme toggles from the topbar.
+
+## Notification Bell: Desired Experience
+
+The notifications button in `src/components/navigation/notification-dropdown.tsx` should acknowledge new unread notifications in a tasteful way.
+
+The request is for the button to "jump" when there is a new notification. That should be interpreted carefully.
+
+Desired behavior:
+
+- when unread count increases, the bell performs one brief upward pop or soft nudge
+- the badge appears or updates with crisp emphasis
+- the effect happens once per newly received notification event batch
+- the interaction stops completely after the acknowledgment
+
+Emotional target:
+
+- "something new arrived"
+- not "click me now"
+
+## Notification Bell: Explicit Design Decisions
+
+### Bell motion style
+
+Use a restrained vertical pop with a tiny rotational accent if needed.
+
+Good:
+
+- 1 quick upward movement
+- 1 controlled return
+- optional tiny ring-like tilt
+
+Bad:
+
+- infinite bounce
+- cartoon wobble
+- attention-seeking shake
+- repeated pulsing while unread count remains non-zero
+
+### Badge behavior
+
+The unread badge should feel more precise than loud.
+
+Use:
+
+- a quick scale-in when the badge first appears
+- a subtle number update transition when count changes
+
+Avoid:
+
+- explosive badge growth
+- repeated pulse loops
+- harsh color flash
+
+### Trigger condition
+
+Animate only when unread count increases compared to the last known count.
+
+Do not animate when:
+
+- the component first mounts with existing unread notifications
+- polling returns the same unread count
+- unread count decreases because the user reads items
+- the dropdown is merely opened
+
+This avoids the cheap feeling of recycled attention hooks.
+
+### Timing
+
+Target total duration: `360-520ms`
+
+Suggested sequence:
+
+- bell pop: `180-240ms`
+- badge settle: `140-220ms`
+
+This should read as one composed event, not two disconnected animations.
+
+## Notification Bell: Engineering Notes
+
+Recommended state logic:
+
+- keep previous unread count in a ref
+- compare previous and current count after each successful unread-count fetch
+- animate only if `current > previous` and the previous value is not the initial unknown state
+
+Animation implementation guidance:
+
+- prefer a one-shot motion value or keyed animation state
+- reset cleanly after completion
+- keep the button target size and layout stable
+
+The button must remain fully usable during the animation.
+
+## Premium Micro-Interaction Rules Across The Admin App
+
+These rules should shape future polish work, not just the two requested interactions.
+
+### Buttons
+
+- primary buttons should acknowledge press immediately
+- loading buttons must preserve width
+- hover changes should feel crisp, never syrupy
+- destructive buttons should gain clarity, not drama
+
+### Menus and dropdowns
+
+- open with quick fade + slight translate
+- no overshoot
+- no long scale animations
+- row action menus should feel instant and controlled
+
+### Tables
+
+- no decorative row hover dancing
+- row hover may use a light surface tint only
+- pending row actions should use inline status, not page-wide spinners
+- refreshed data can use a very soft opacity refresh if necessary
+
+### Sheets and dialogs
+
+- short entrance, strong readability
+- background dimming should support focus, not create spectacle
+- close interactions should feel faster than open interactions
+
+### Inputs and filters
+
+- search should acknowledge pending fetch without clearing existing results
+- focus rings must feel deliberate and visible
+- filter chips and badges may animate in lightly, but never bounce
+
+## Accessibility And Trust Rules
+
+Premium means accessible and respectful.
+
+Mandatory:
+
+- support `prefers-reduced-motion`
+- preserve keyboard usability during all animated states
+- keep icon-only controls labeled
+- never communicate state change through motion alone
+- keep all touch targets at or above `44x44`
+
+Reduced motion behavior:
+
+- topbar theme toggle uses quick fade instead of circular reveal
+- settings theme change stays a quick fade
+- notification bell uses opacity or tiny scale emphasis only, or no movement if needed
+
+## Performance Rules
+
+These interactions must feel expensive in craft, not expensive in frame time.
+
+Required:
+
+- no frame drops on common admin hardware
+- no heavy paints on every render
+- no persistent animation loops
+- no global reflow-heavy choreography
+
+Prefer:
+
+- fixed overlay for the theme reveal
+- transforms over layout changes
+- small isolated motion surfaces
+
+## Acceptance Criteria
+
+The work is successful when all of the following are true:
+
+- clicking the topbar theme toggle produces a circular reveal from the toggle origin
+- the reveal feels smooth, not flashy
+- changing theme from settings uses only a short fade
+- unread notification increases cause one tasteful bell acknowledgment
+- the bell does not bounce repeatedly while unread notifications remain
+- reduced-motion users get simpler equivalents
+- no core admin workflow feels slower because of the motion
+- the result feels premium, calm, and user-respectful
+
+## Anti-Goals
+
+Do not turn the admin app into:
+
+- a showcase animation site
+- a playful consumer social app
+- a dashboard with ambient motion noise
+- a product that begs for attention
+
+The standard is quiet delight.
+The user should feel cared for, not manipulated.
+
+
+
+
+# Discount Creation
+
+## How discounts are created
+
+Discounts are created by application admins through:
+
+- `POST /v1/discounts`
+
+This endpoint accepts a `DiscountCreate` payload and creates a discount code that can later be applied to subscriptions.
+
+## Who can create discounts
+
+Only application admins can create and manage discounts. Tenant users cannot create discounts.
+
+## Minimum fields required
+
+At minimum, a discount needs:
+
+- `code`
+- `name`
+- `value`
+
+Example:
+
+```json
+{
+  "code": "LAUNCH50",
+  "name": "Launch Discount",
+  "value": 50
+}
+```
+
+## What can be configured during creation
+
+When creating a discount, the admin can also define:
+
+- `description`
+- `discount_type` as `percentage` or `fixed`
+- `scope` as `global`, `tenant`, or `plan`
+- `status`
+- `target_tenant_id`
+- `target_plan_ids`
+- `valid_from`
+- `valid_until`
+- `max_redemptions`
+- `stackable`
+- `min_subscription_value`
+
+## Discount scopes
+
+- `global` means the code can be used across tenants
+- `tenant` means the code is only for one tenant and requires `target_tenant_id`
+- `plan` means the code is limited to specific plans and uses `target_plan_ids`
+
+## Important creation rules
+
+- Discount `code` must be unique
+- Discount `code` must contain only letters, numbers, underscores, or hyphens
+- If `discount_type` is `percentage`, `value` must be between `0` and `100`
+- If `discount_type` is `fixed`, `value` cannot be negative
+- If `scope` is `tenant`, `target_tenant_id` is required
+- If no status is provided, the discount is created as `active`
+- `current_redemptions` starts at `0`
+
+## How discounts are validated later
+
+Before a discount is applied, the system checks:
+
+- the code exists
+- the discount is `active`
+- the current time is within `valid_from` and `valid_until`
+- the redemption limit has not been reached
+- the tenant matches if the discount is tenant-scoped
+- the plan matches if the discount is plan-scoped
+- the subscription value meets `min_subscription_value` if one is set
+
+Validation is done through:
+
+- `POST /v1/discounts/validate`
+
+## What happens after creation
+
+Once created, the discount can be used during subscription creation if it passes validation.
+
+After that, an application admin can:
+
+- update it with `PUT /v1/discounts/{discount_id}`
+- disable it with `POST /v1/discounts/{discount_id}/disable`
+- delete it with `DELETE /v1/discounts/{discount_id}`
+
+Deletion is only allowed when the discount is not active and has never been redeemed.
+
+## Short summary
+
+Discounts are created by application admins through `POST /v1/discounts`. A discount can be global, tenant-specific, or plan-specific, and it can be percentage-based or fixed-value. The system enforces uniqueness, scope rules, validity windows, and redemption limits before the discount is applied.
+
+
+# Plan Creation
+
+## How plans are created
+
+Plans are created by application admins through:
+
+- `POST /v1/plans`
+
+This endpoint accepts a `PlanCreate` payload and creates a new subscription plan in the `plans` collection.
+
+## Who can create plans
+
+Only application admins can create and manage plans. Tenant users cannot create plans.
+
+## Minimum fields required
+
+At minimum, a plan needs:
+
+- `name`
+- `display_name`
+
+Example:
+
+```json
+{
+  "name": "professional-plan",
+  "display_name": "Professional Plan"
+}
+```
+
+## What can be configured during creation
+
+When creating a plan, the admin can also define:
+
+- `tier` such as `free`, `starter`, `professional`, `enterprise`, or `custom`
+- `description`
+- `status`
+- `base_price_monthly`
+- `base_price_yearly`
+- `currency`
+- `feature_rules`
+- `crud_limits`
+- `retrieval_quotas`
+- `storage_limits`
+- `tenant_caps`
+- `priority_support`
+- `sla_response_hours`
+- `custom_branding`
+- `api_access`
+- `is_public`
+- `sort_order`
+
+These fields control what subscribed tenants are allowed to access and how much they can use.
+
+## Important creation rules
+
+- Plan `name` must be unique
+- Plan `name` must be slug-like and only contain letters, numbers, hyphens, or underscores
+- `base_price_monthly` and `base_price_yearly` cannot be negative
+- If no status is provided, the plan is created as `draft`
+
+## What happens after creation
+
+Once created, the plan is stored and returned in the response. The system also records an audit event for plan creation.
+
+After that, an application admin can:
+
+- activate the plan with `POST /v1/plans/{plan_id}/activate`
+- update it with `PUT /v1/plans/{plan_id}`
+- archive it with `POST /v1/plans/{plan_id}/archive`
+- clone it with `POST /v1/plans/{source_plan_id}/clone`
+
+## Short summary
+
+Plans are created by application admins through `POST /v1/plans`. A plan can be created with just `name` and `display_name`, but it can also include pricing, feature access, quotas, storage limits, and tenant caps. New plans default to `draft` unless another status is provided.
+
+
+
+# Tenant And System User Creation
+
+## How tenants are created
+
+There are two supported flows:
+
+1. `POST /v1/tenants/`
+   This creates only the tenant record. It is meant for application admins.
+
+2. `POST /v1/admins/tenants/bootstrap`
+   This creates the tenant and the first tenant user together. The first tenant user is always a `super_admin`. If creating the `super_admin` fails, the tenant creation is rolled back so the system does not leave an orphaned tenant behind.
+
+## How system users are created for tenants
+
+System users belong to a specific tenant through `tenant_id`.
+
+After a tenant has been bootstrapped and has its first `super_admin`, that `super_admin` can create other tenant users through `POST /v1/system-users/signup`.
+
+The created user is attached to the same tenant, and the system assigns permissions automatically based on the selected role, such as:
+
+- `super_admin`
+- `dept_admin`
+- `receptionist`
+- `auditor`
+- `security_officer`
+- `dpo`
+
+## Short summary
+
+Application admins create tenants. The bootstrap endpoint is the main setup flow because it creates both the tenant and its first `super_admin`. After that, the tenant's `super_admin` creates the rest of the tenant's system users.
