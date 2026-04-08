@@ -7,6 +7,12 @@ export const PATHS = {
   ADMIN_LOGIN: "/admin/login",
   APP_LOGIN: "/app/login",
 
+  // Public visitor flows
+  PUBLIC_REGISTER: "/register",
+  PUBLIC_CHECKOUT: "/checkout",
+  PUBLIC_RIGHTS_REQUEST: "/rights/request",
+  PUBLIC_RIGHTS_STATUS: "/rights/request",
+
   // Platform admin
   ADMIN_DASHBOARD: "/admin/dashboard",
   ADMIN_TENANTS: "/admin/tenants",

@@ -14,20 +14,35 @@ import { apiPost } from "@/lib/api/request";
 import { getPostLoginPath } from "@/lib/routing/redirects";
 import type {
   LoginRequest,
-  TokenPair,
-  AdminProfile,
-  SystemUserProfile,
+  AdminLoginResponse,
+  SystemUserLoginResponse,
+  SuperAdminGlobalLoginResponse,
 } from "@/types/auth";
-import type { SystemUserRole } from "@/types/enums";
 
-interface AdminLoginResponse {
-  tokens: TokenPair;
-  profile: AdminProfile;
+/**
+ * Extract a TokenPair from a flat login response where
+ * access_token and refresh_token are top-level fields.
+ */
+function extractTokens(response: SystemUserLoginResponse) {
+  return {
+    access_token: response.access_token,
+    refresh_token: response.refresh_token,
+  };
 }
 
-interface SystemUserLoginResponse {
-  tokens: TokenPair;
-  user: SystemUserProfile;
+/**
+ * Extract a SystemUserProfile from a flat login response,
+ * omitting token fields.
+ */
+function extractProfile(response: SystemUserLoginResponse) {
+  return {
+    id: response.id,
+    full_name: response.full_name,
+    email: response.email,
+    role: response.role,
+    tenant_id: response.tenant_id,
+    department_id: response.department_id,
+  };
 }
 
 export function useAuth() {
@@ -36,6 +51,7 @@ export function useAuth() {
 
   /**
    * Platform admin login.
+   * POST /v1/admins/login
    */
   const loginAdmin = useCallback(
     async (credentials: LoginRequest) => {
@@ -43,10 +59,19 @@ export function useAuth() {
         "/admins/login",
         credentials
       );
-      setTokens(data.tokens, "admin");
-      dispatch(
-        setAdminSession({ type: "admin", tokens: data.tokens, profile: data.profile })
-      );
+
+      const tokens = {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+      };
+      const profile = {
+        id: data.id,
+        full_name: data.full_name,
+        email: data.email,
+      };
+
+      setTokens(tokens, "admin");
+      dispatch(setAdminSession({ type: "admin", tokens, profile }));
       router.push(getPostLoginPath("admin"));
     },
     [dispatch, router]
@@ -54,36 +79,47 @@ export function useAuth() {
 
   /**
    * Tenant staff login (receptionist, dept_admin, auditor, security_officer, dpo).
+   * POST /v1/system-users/tenant/{tenant_id}/login
+   *
+   * Requires a tenant_id to scope the login to the correct tenant.
    */
   const loginSystemUser = useCallback(
-    async (credentials: LoginRequest) => {
+    async (credentials: LoginRequest, tenantId: string) => {
       const data = await apiPost<SystemUserLoginResponse>(
-        "/system-users/login",
+        `/system-users/tenant/${tenantId}/login`,
         credentials
       );
-      setTokens(data.tokens, "system_user");
+
+      const tokens = extractTokens(data);
+      const profile = extractProfile(data);
+
+      setTokens(tokens, "system_user");
       dispatch(
-        setSystemUserSession({
-          type: "system_user",
-          tokens: data.tokens,
-          profile: data.user,
-        })
+        setSystemUserSession({ type: "system_user", tokens, profile })
       );
-      router.push(getPostLoginPath("system_user", data.user.role));
+      router.push(getPostLoginPath("system_user", data.role));
     },
     [dispatch, router]
   );
 
   /**
    * Super admin global login (step 1 of dual-login flow).
+   * POST /v1/system-users/super-admin/login
+   *
+   * Returns user profile, tenant context, and tenant-scoped login URL.
+   * Does NOT complete login — caller must follow up with loginSuperAdminTenant.
    */
   const loginSuperAdminGlobal = useCallback(
     async (credentials: LoginRequest) => {
-      const data = await apiPost<SystemUserLoginResponse>(
+      const data = await apiPost<SuperAdminGlobalLoginResponse>(
         "/system-users/super-admin/login",
         credentials
       );
-      setTokens(data.tokens, "system_user");
+
+      // Store tokens from step 1 so the tenant-scoped call is authenticated
+      const tokens = extractTokens(data.user);
+      setTokens(tokens, "system_user");
+
       return data;
     },
     []
@@ -91,19 +127,25 @@ export function useAuth() {
 
   /**
    * Super admin tenant-scoped login (step 2 of dual-login flow).
+   * POST /v1/system-users/tenant/{tenant_id}/login
+   *
+   * Uses the tokens from step 1 (already stored in memory) to
+   * authenticate. The interceptor adds the auth header automatically.
+   * Replaces step-1 tokens with tenant-scoped tokens.
    */
   const loginSuperAdminTenant = useCallback(
     async (tenantId: string) => {
       const data = await apiPost<SystemUserLoginResponse>(
-        `/system-users/tenant/${tenantId}/login`
+        `/system-users/tenant/${tenantId}/login`,
+        {}
       );
-      setTokens(data.tokens, "system_user");
+
+      const tokens = extractTokens(data);
+      const profile = extractProfile(data);
+
+      setTokens(tokens, "system_user");
       dispatch(
-        setSystemUserSession({
-          type: "system_user",
-          tokens: data.tokens,
-          profile: data.user,
-        })
+        setSystemUserSession({ type: "system_user", tokens, profile })
       );
       router.push(getPostLoginPath("system_user", "super_admin"));
     },

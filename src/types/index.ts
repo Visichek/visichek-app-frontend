@@ -7,3 +7,4 @@ export * from "./billing";
 export * from "./incident";
 export * from "./audit";
 export * from "./dpo";
+export * from "./public";

@@ -2,7 +2,15 @@
 
 import { useState, useCallback } from "react";
 import { ColumnDef } from "@tanstack/react-table";
-import { UserPlus, UserMinus, MoreHorizontal } from "lucide-react";
+import {
+  UserPlus,
+  UserMinus,
+  MoreHorizontal,
+  Globe,
+  Monitor,
+  Eye,
+  ScanLine,
+} from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
@@ -13,12 +21,16 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CheckInModal } from "@/features/visitors/components/check-in-modal";
 import { CheckOutModal } from "@/features/visitors/components/check-out-modal";
 import { ConfirmCheckInModal } from "@/features/visitors/components/confirm-check-in-modal";
 import { DenyVisitorModal } from "@/features/visitors/components/deny-visitor-modal";
+import { SessionDetailSheet } from "@/features/visitors/components/session-detail-sheet";
+import { OcrVerificationModal } from "@/features/visitors/components/ocr-verification-modal";
+import { VisitStatusBadge } from "@/features/visitors/components/verification-badges";
 import {
   useActiveVisitors,
   useCheckOut,
@@ -26,31 +38,35 @@ import {
 } from "@/features/visitors/hooks/use-visitors";
 import { formatDateTime } from "@/lib/utils/format-date";
 import type { VisitSession } from "@/types/visitor";
-import type { VisitStatus } from "@/types/enums";
-
-function statusVariant(status: VisitStatus) {
-  switch (status) {
-    case "checked_in":
-      return "success" as const;
-    case "checked_out":
-      return "secondary" as const;
-    case "registered":
-    case "pending_verification":
-      return "warning" as const;
-    case "denied":
-      return "destructive" as const;
-    case "cancelled":
-      return "outline" as const;
-    default:
-      return "default" as const;
-  }
-}
 
 type TabView = "active" | "pending";
 
+// ── Origin Badge ────────────────────────────────────────────────────
+
+function OriginBadge({ method }: { method?: string }) {
+  if (method === "qr_registration") {
+    return (
+      <Badge variant="outline" className="text-xs gap-1">
+        <Globe className="h-3 w-3" aria-hidden="true" />
+        Self-reg
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="text-xs gap-1">
+      <Monitor className="h-3 w-3" aria-hidden="true" />
+      Staff
+    </Badge>
+  );
+}
+
+// ── Page Component ──────────────────────────────────────────────────
+
 export default function VisitorsPage() {
-  const { data: activeVisitors = [], isLoading: activeLoading } = useActiveVisitors();
-  const { data: pendingSessions = [], isLoading: pendingLoading } = usePendingVisitorSessions();
+  const { data: activeVisitors = [], isLoading: activeLoading } =
+    useActiveVisitors();
+  const { data: pendingSessions = [], isLoading: pendingLoading } =
+    usePendingVisitorSessions();
   const checkOutMutation = useCheckOut();
 
   // Tab state
@@ -61,46 +77,63 @@ export default function VisitorsPage() {
   const [showCheckOutModal, setShowCheckOutModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showDenyModal, setShowDenyModal] = useState(false);
+  const [showDetailSheet, setShowDetailSheet] = useState(false);
+  const [showOcrModal, setShowOcrModal] = useState(false);
   const [confirmCheckOutOpen, setConfirmCheckOutOpen] = useState(false);
 
   // Selected session for modals
-  const [selectedSession, setSelectedSession] = useState<VisitSession | null>(null);
+  const [selectedSession, setSelectedSession] = useState<VisitSession | null>(
+    null
+  );
   const [selectedCheckOutId, setSelectedCheckOutId] = useState<string>("");
 
-  // Handle confirm check-in
+  // ── Handlers ──────────────────────────────────────────────────────
+
   const handleConfirmCheckIn = useCallback((session: VisitSession) => {
     setSelectedSession(session);
     setShowConfirmModal(true);
   }, []);
 
-  // Handle deny visitor
   const handleDenyVisitor = useCallback((session: VisitSession) => {
     setSelectedSession(session);
     setShowDenyModal(true);
   }, []);
 
-  // Close modals and clear selection
+  const handleViewDetails = useCallback((session: VisitSession) => {
+    setSelectedSession(session);
+    setShowDetailSheet(true);
+  }, []);
+
+  const handleStartOcrVerification = useCallback((session: VisitSession) => {
+    setSelectedSession(session);
+    setShowOcrModal(true);
+  }, []);
+
   const handleCloseConfirmModal = useCallback((open: boolean) => {
     setShowConfirmModal(open);
-    if (!open) {
-      setSelectedSession(null);
-    }
+    if (!open) setSelectedSession(null);
   }, []);
 
   const handleCloseDenyModal = useCallback((open: boolean) => {
     setShowDenyModal(open);
-    if (!open) {
-      setSelectedSession(null);
-    }
+    if (!open) setSelectedSession(null);
   }, []);
 
-  // Handle check out click
+  const handleCloseDetailSheet = useCallback((open: boolean) => {
+    setShowDetailSheet(open);
+    if (!open) setSelectedSession(null);
+  }, []);
+
+  const handleCloseOcrModal = useCallback((open: boolean) => {
+    setShowOcrModal(open);
+    if (!open) setSelectedSession(null);
+  }, []);
+
   const handleCheckOutClick = useCallback((sessionId: string) => {
     setSelectedCheckOutId(sessionId);
     setConfirmCheckOutOpen(true);
   }, []);
 
-  // Confirm check out
   const handleConfirmCheckOut = async () => {
     try {
       await checkOutMutation.mutateAsync({
@@ -109,36 +142,33 @@ export default function VisitorsPage() {
       });
       setConfirmCheckOutOpen(false);
       setSelectedCheckOutId("");
-    } catch (error) {
-      // Error is handled by the mutation hook
+    } catch {
+      // Error handled by mutation hook
     }
   };
 
-  // Active Visitors columns
+  // ── Active Visitors Columns ───────────────────────────────────────
+
   const activeVisitorsColumns: ColumnDef<VisitSession>[] = [
     {
       accessorKey: "visitor_name_snapshot",
       header: "Visitor Name",
       cell: ({ row }) => (
         <span className="font-medium">
-          {row.original.visitor_name_snapshot || row.original.visitor_profile_id || "—"}
+          {row.original.visitor_name_snapshot ||
+            row.original.visitor_profile_id ||
+            "—"}
         </span>
       ),
       enableSorting: true,
     },
     {
-      accessorKey: "company",
-      header: "Company",
-      cell: ({ row }) => {
-        // Note: company field may not exist on VisitSession; adjust as needed
-        return <span className="text-muted-foreground text-sm">—</span>;
-      },
-    },
-    {
       accessorKey: "department_id",
       header: "Department",
       cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">{row.original.department_id || "—"}</span>
+        <span className="text-muted-foreground text-sm">
+          {row.original.department_id || "—"}
+        </span>
       ),
     },
     {
@@ -155,9 +185,7 @@ export default function VisitorsPage() {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => (
-        <Badge variant={statusVariant(row.original.status)}>
-          {row.original.status.replace(/_/g, " ")}
-        </Badge>
+        <VisitStatusBadge status={row.original.status} />
       ),
     },
     {
@@ -172,8 +200,17 @@ export default function VisitorsPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() => handleViewDetails(row.original)}
+            >
+              <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
+              View Details
+            </DropdownMenuItem>
             {row.original.status === "checked_in" && (
-              <DropdownMenuItem onClick={() => handleCheckOutClick(row.original.id)}>
+              <DropdownMenuItem
+                onClick={() => handleCheckOutClick(row.original.id)}
+              >
+                <UserMinus className="mr-2 h-4 w-4" aria-hidden="true" />
                 Check Out
               </DropdownMenuItem>
             )}
@@ -183,33 +220,31 @@ export default function VisitorsPage() {
     },
   ];
 
-  // Pending Sessions columns
+  // ── Pending Sessions Columns ──────────────────────────────────────
+
   const pendingSessionsColumns: ColumnDef<VisitSession>[] = [
     {
       accessorKey: "visitor_name_snapshot",
       header: "Visitor Name",
       cell: ({ row }) => (
-        <span className="font-medium">
-          {row.original.visitor_name_snapshot || row.original.visitor_profile_id || "—"}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="font-medium">
+            {row.original.visitor_name_snapshot ||
+              row.original.visitor_profile_id ||
+              "—"}
+          </span>
+          <OriginBadge method={row.original.check_in_method} />
+        </div>
       ),
       enableSorting: true,
-    },
-    {
-      accessorKey: "phone",
-      header: "Phone",
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">
-          {/* Phone may not be directly on VisitSession; check backend */}
-          —
-        </span>
-      ),
     },
     {
       accessorKey: "department_id",
       header: "Department",
       cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">{row.original.department_id || "—"}</span>
+        <span className="text-muted-foreground text-sm">
+          {row.original.department_id || "—"}
+        </span>
       ),
     },
     {
@@ -226,9 +261,7 @@ export default function VisitorsPage() {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => (
-        <Badge variant={statusVariant(row.original.status)}>
-          {row.original.status.replace(/_/g, " ")}
-        </Badge>
+        <VisitStatusBadge status={row.original.status} />
       ),
     },
     {
@@ -243,14 +276,29 @@ export default function VisitorsPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleConfirmCheckIn(row.original)}>
+            <DropdownMenuItem
+              onClick={() => handleViewDetails(row.original)}
+            >
+              <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
+              View Details
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => handleStartOcrVerification(row.original)}
+            >
+              <ScanLine className="mr-2 h-4 w-4" aria-hidden="true" />
+              Scan ID
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => handleConfirmCheckIn(row.original)}
+            >
               Confirm Check-In
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleDenyVisitor(row.original)}>
+            <DropdownMenuItem
+              onClick={() => handleDenyVisitor(row.original)}
+              className="text-destructive"
+            >
               Deny Entry
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled>
-              Edit Draft
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -258,48 +306,67 @@ export default function VisitorsPage() {
     },
   ];
 
-  // Mobile card renderers
+  // ── Mobile Card Renderers ─────────────────────────────────────────
+
   const mobileActiveCard = (visitor: VisitSession) => (
     <div className="rounded-lg border p-4 space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="font-medium text-sm">
-            {visitor.visitor_name_snapshot || visitor.visitor_profile_id || "Visitor"}
+            {visitor.visitor_name_snapshot ||
+              visitor.visitor_profile_id ||
+              "Visitor"}
           </p>
-          <p className="text-xs text-muted-foreground">{visitor.department_id || "—"}</p>
+          <p className="text-xs text-muted-foreground">
+            {visitor.department_id || "—"}
+          </p>
         </div>
-        <Badge variant={statusVariant(visitor.status)}>
-          {visitor.status.replace(/_/g, " ")}
-        </Badge>
+        <VisitStatusBadge status={visitor.status} />
       </div>
       <div className="text-xs text-muted-foreground space-y-1">
         <p>Checked in: {formatDateTime(visitor.checked_in_at)}</p>
       </div>
-      {visitor.status === "checked_in" && (
+      <div className="flex gap-2">
         <Button
           size="sm"
           variant="outline"
-          onClick={() => handleCheckOutClick(visitor.id)}
-          className="w-full"
+          onClick={() => handleViewDetails(visitor)}
+          className="flex-1 min-h-[44px]"
         >
-          Check Out
+          <Eye className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+          Details
         </Button>
-      )}
+        {visitor.status === "checked_in" && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleCheckOutClick(visitor.id)}
+            className="flex-1 min-h-[44px]"
+          >
+            Check Out
+          </Button>
+        )}
+      </div>
     </div>
   );
 
   const mobilePendingCard = (session: VisitSession) => (
     <div className="rounded-lg border p-4 space-y-3">
       <div className="flex items-start justify-between gap-2">
-        <div>
+        <div className="space-y-1">
           <p className="font-medium text-sm">
-            {session.visitor_name_snapshot || session.visitor_profile_id || "Visitor"}
+            {session.visitor_name_snapshot ||
+              session.visitor_profile_id ||
+              "Visitor"}
           </p>
-          <p className="text-xs text-muted-foreground">{session.department_id || "—"}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-muted-foreground">
+              {session.department_id || "—"}
+            </p>
+            <OriginBadge method={session.check_in_method} />
+          </div>
         </div>
-        <Badge variant={statusVariant(session.status)}>
-          {session.status.replace(/_/g, " ")}
-        </Badge>
+        <VisitStatusBadge status={session.status} />
       </div>
       <div className="text-xs text-muted-foreground space-y-1">
         <p>Registered: {formatDateTime(session.checked_in_at)}</p>
@@ -307,9 +374,18 @@ export default function VisitorsPage() {
       <div className="flex gap-2">
         <Button
           size="sm"
+          variant="outline"
+          onClick={() => handleViewDetails(session)}
+          className="min-h-[44px]"
+        >
+          <Eye className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+          Details
+        </Button>
+        <Button
+          size="sm"
           variant="default"
           onClick={() => handleConfirmCheckIn(session)}
-          className="flex-1"
+          className="flex-1 min-h-[44px]"
         >
           Confirm
         </Button>
@@ -317,13 +393,15 @@ export default function VisitorsPage() {
           size="sm"
           variant="destructive"
           onClick={() => handleDenyVisitor(session)}
-          className="flex-1"
+          className="min-h-[44px]"
         >
           Deny
         </Button>
       </div>
     </div>
   );
+
+  // ── Render ────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
@@ -367,13 +445,18 @@ export default function VisitorsPage() {
         <button
           onClick={() => setActiveTab("pending")}
           className={cn(
-            "pb-2 px-1 text-sm font-medium border-b-2 transition-colors",
+            "pb-2 px-1 text-sm font-medium border-b-2 transition-colors relative",
             activeTab === "pending"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
-          Pending Check-ins ({pendingSessions.length})
+          Pending Check-ins
+          {pendingSessions.length > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-warning text-warning-foreground text-xs font-semibold h-5 min-w-[20px] px-1.5">
+              {pendingSessions.length}
+            </span>
+          )}
         </button>
       </div>
 
@@ -410,8 +493,14 @@ export default function VisitorsPage() {
       )}
 
       {/* Modals */}
-      <CheckInModal open={showCheckInModal} onOpenChange={setShowCheckInModal} />
-      <CheckOutModal open={showCheckOutModal} onOpenChange={setShowCheckOutModal} />
+      <CheckInModal
+        open={showCheckInModal}
+        onOpenChange={setShowCheckInModal}
+      />
+      <CheckOutModal
+        open={showCheckOutModal}
+        onOpenChange={setShowCheckOutModal}
+      />
 
       {selectedSession && (
         <>
@@ -419,13 +508,39 @@ export default function VisitorsPage() {
             open={showConfirmModal}
             onOpenChange={handleCloseConfirmModal}
             sessionId={selectedSession.id}
-            visitorName={selectedSession.visitor_name_snapshot || selectedSession.visitor_profile_id || "Visitor"}
+            visitorName={
+              selectedSession.visitor_name_snapshot ||
+              selectedSession.visitor_profile_id ||
+              "Visitor"
+            }
           />
           <DenyVisitorModal
             open={showDenyModal}
             onOpenChange={handleCloseDenyModal}
             sessionId={selectedSession.id}
-            visitorName={selectedSession.visitor_name_snapshot || selectedSession.visitor_profile_id || "Visitor"}
+            visitorName={
+              selectedSession.visitor_name_snapshot ||
+              selectedSession.visitor_profile_id ||
+              "Visitor"
+            }
+          />
+          <SessionDetailSheet
+            open={showDetailSheet}
+            onOpenChange={handleCloseDetailSheet}
+            session={selectedSession}
+            onConfirmCheckIn={handleConfirmCheckIn}
+            onDenyEntry={handleDenyVisitor}
+            onStartOcrVerification={handleStartOcrVerification}
+          />
+          <OcrVerificationModal
+            open={showOcrModal}
+            onOpenChange={handleCloseOcrModal}
+            sessionId={selectedSession.id}
+            visitorName={
+              selectedSession.visitor_name_snapshot ||
+              selectedSession.visitor_profile_id ||
+              "Visitor"
+            }
           />
         </>
       )}
