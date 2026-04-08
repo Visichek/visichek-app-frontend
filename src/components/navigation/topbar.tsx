@@ -14,8 +14,8 @@ export function Topbar({ onMenuClick, title }: TopbarProps) {
   const { adminProfile, systemUserProfile, isAdmin } = useSession();
   const { logout } = useAuth();
   const displayName = isAdmin
-    ? adminProfile?.full_name
-    : systemUserProfile?.full_name;
+    ? adminProfile?.fullName
+    : systemUserProfile?.fullName;
 
   return (
     <header className="sticky top-0 z-sticky flex h-16 items-center gap-4 border-b bg-background px-4 lg:px-6">

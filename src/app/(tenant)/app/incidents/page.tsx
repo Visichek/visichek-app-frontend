@@ -81,8 +81,8 @@ export default function IncidentsPage() {
 
     updateIncidentMutation.mutate(
       {
-        ndpc_notified: true,
-        notification_sent_at: Math.floor(Date.now() / 1000),
+        ndpcNotified: true,
+        notificationSentAt: Math.floor(Date.now() / 1000),
       },
       {
         onSuccess: () => {
@@ -124,23 +124,23 @@ export default function IncidentsPage() {
       ),
     },
     {
-      accessorKey: "created_at",
+      accessorKey: "createdAt",
       header: "Reported",
       cell: ({ row }) => (
         <span className="text-muted-foreground text-sm">
-          {formatDateTime(row.original.created_at)}
+          {formatDateTime(row.original.createdAt)}
         </span>
       ),
       enableSorting: true,
     },
     {
-      accessorKey: "notification_deadline",
+      accessorKey: "notificationDeadline",
       header: "NDPC Deadline",
       cell: ({ row }) => {
-        if (!row.original.notification_deadline) {
+        if (!row.original.notificationDeadline) {
           return <span className="text-muted-foreground text-sm">—</span>;
         }
-        const deadline = row.original.notification_deadline * 1000;
+        const deadline = row.original.notificationDeadline * 1000;
         const now = Date.now();
         const hoursRemaining = Math.floor((deadline - now) / (1000 * 60 * 60));
 
@@ -153,11 +153,11 @@ export default function IncidentsPage() {
       className: "hidden md:table-cell",
     },
     {
-      accessorKey: "ndpc_notified",
+      accessorKey: "ndpcNotified",
       header: "NDPC Status",
       cell: ({ row }) => (
-        <Badge variant={row.original.ndpc_notified ? "success" : "warning"}>
-          {row.original.ndpc_notified ? "Notified" : "Pending"}
+        <Badge variant={row.original.ndpcNotified ? "success" : "warning"}>
+          {row.original.ndpcNotified ? "Notified" : "Pending"}
         </Badge>
       ),
       className: "hidden md:table-cell",
@@ -177,7 +177,7 @@ export default function IncidentsPage() {
             <DropdownMenuItem onClick={() => handleEditIncident(row.original)}>
               View / Edit
             </DropdownMenuItem>
-            {!row.original.ndpc_notified && (
+            {!row.original.ndpcNotified && (
               <DropdownMenuItem
                 onClick={() => handleMarkAsNotified(row.original)}
                 disabled={pendingNotificationId === row.original.id}
@@ -203,7 +203,7 @@ export default function IncidentsPage() {
         </Badge>
       </div>
       <div className="text-xs text-muted-foreground">
-        {formatDateTime(incident.created_at)}
+        {formatDateTime(incident.createdAt)}
       </div>
       <Button
         size="sm"
@@ -243,7 +243,7 @@ export default function IncidentsPage() {
             <ul className="mt-2 space-y-1">
               {deadlineIncidents.map((inc) => (
                 <li key={inc.id} className="text-sm">
-                  • <strong>{inc.title}</strong> — deadline: {inc.notification_deadline ? formatDateTime(inc.notification_deadline) : "N/A"}
+                  • <strong>{inc.title}</strong> — deadline: {inc.notificationDeadline ? formatDateTime(inc.notificationDeadline) : "N/A"}
                 </li>
               ))}
             </ul>

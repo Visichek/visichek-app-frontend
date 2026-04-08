@@ -81,33 +81,33 @@ export default function AppointmentsPage() {
 
   const columns: ColumnDef<Appointment>[] = [
     {
-      accessorKey: "visitor_name_snapshot",
+      accessorKey: "visitorNameSnapshot",
       header: "Visitor",
       cell: ({ row }) => (
-        <span className="font-medium text-sm">{row.original.visitor_name_snapshot || "—"}</span>
+        <span className="font-medium text-sm">{row.original.visitorNameSnapshot || "—"}</span>
       ),
       enableSorting: true,
     },
     {
-      accessorKey: "host_name_snapshot",
+      accessorKey: "hostNameSnapshot",
       header: "Host",
       cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">{row.original.host_name_snapshot || "—"}</span>
+        <span className="text-muted-foreground text-sm">{row.original.hostNameSnapshot || "—"}</span>
       ),
     },
     {
-      accessorKey: "department_id",
+      accessorKey: "departmentId",
       header: "Department",
       cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">{row.original.department_id || "—"}</span>
+        <span className="text-muted-foreground text-sm">{row.original.departmentId || "—"}</span>
       ),
     },
     {
-      accessorKey: "scheduled_datetime",
+      accessorKey: "scheduledDatetime",
       header: "Scheduled",
       cell: ({ row }) => (
         <span className="text-muted-foreground text-sm">
-          {formatDateTime(row.original.scheduled_datetime)}
+          {formatDateTime(row.original.scheduledDatetime)}
         </span>
       ),
       enableSorting: true,
@@ -152,9 +152,9 @@ export default function AppointmentsPage() {
     <div className="rounded-lg border p-4 space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1">
-          <p className="font-medium text-sm">{appointment.visitor_name_snapshot || "Visitor"}</p>
+          <p className="font-medium text-sm">{appointment.visitorNameSnapshot || "Visitor"}</p>
           <p className="text-xs text-muted-foreground">
-            with {appointment.host_name_snapshot || "Host"}
+            with {appointment.hostNameSnapshot || "Host"}
           </p>
         </div>
         <Badge variant={statusVariant(appointment.status)}>
@@ -162,8 +162,8 @@ export default function AppointmentsPage() {
         </Badge>
       </div>
       <div className="text-xs text-muted-foreground space-y-1">
-        <p>Scheduled: {formatDateTime(appointment.scheduled_datetime)}</p>
-        {appointment.department_id && <p>Department: {appointment.department_id}</p>}
+        <p>Scheduled: {formatDateTime(appointment.scheduledDatetime)}</p>
+        {appointment.departmentId && <p>Department: {appointment.departmentId}</p>}
       </div>
       <div className="flex gap-2 pt-2">
         <Button
@@ -206,7 +206,7 @@ export default function AppointmentsPage() {
         columns={columns}
         data={appointments}
         isLoading={isLoading}
-        searchKey="visitor_name_snapshot"
+        searchKey="visitorNameSnapshot"
         searchPlaceholder="Search appointments..."
         pagination={true}
         pageSize={10}

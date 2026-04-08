@@ -62,4 +62,4 @@ export const selectSystemUserProfile = (state: { session: SessionState }) =>
 export const selectCurrentRole = (state: { session: SessionState }) =>
   state.session.systemUserProfile?.role ?? null;
 export const selectTenantId = (state: { session: SessionState }) =>
-  state.session.systemUserProfile?.tenant_id ?? null;
+  state.session.systemUserProfile?.tenantId ?? null;

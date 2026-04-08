@@ -24,8 +24,8 @@ import type { DataSubjectRequest } from "@/types/dpo";
 import type { DSRType, DSRStatus } from "@/types/enums";
 
 const dsrSchema = z.object({
-  requester_name: z.string().min(1, "Requester name is required"),
-  requester_email: z.string().email().optional().or(z.literal("")),
+  requesterName: z.string().min(1, "Requester name is required"),
+  requesterEmail: z.string().email().optional().or(z.literal("")),
   type: z.enum([
     "access",
     "correction",
@@ -63,8 +63,8 @@ export function DSRFormModal({
   } = useForm<DSRFormData>({
     resolver: zodResolver(dsrSchema),
     defaultValues: {
-      requester_name: "",
-      requester_email: "",
+      requesterName: "",
+      requesterEmail: "",
       type: "access",
       description: "",
       status: "pending",
@@ -77,8 +77,8 @@ export function DSRFormModal({
   // Populate form with DSR data when editing
   useEffect(() => {
     if (isEditing && dsr && open) {
-      setValue("requester_name", dsr.requester_name);
-      setValue("requester_email", dsr.requester_email || "");
+      setValue("requesterName", dsr.requesterName);
+      setValue("requesterEmail", dsr.requesterEmail || "");
       setValue("type", dsr.type as DSRType);
       setValue("description", dsr.description || "");
       setValue("status", dsr.status as DSRStatus);
@@ -97,8 +97,8 @@ export function DSRFormModal({
         toast.success("Data subject request updated successfully");
       } else {
         await createMutation.mutateAsync({
-          requester_name: data.requester_name,
-          requester_email: data.requester_email || undefined,
+          requesterName: data.requesterName,
+          requesterEmail: data.requesterEmail || undefined,
           type: data.type as DSRType,
           description: data.description,
         });
@@ -133,47 +133,47 @@ export function DSRFormModal({
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Requester Name */}
         <div className="space-y-2">
-          <Label htmlFor="requester_name">Requester Name *</Label>
+          <Label htmlFor="requesterName">Requester Name *</Label>
           <Input
-            id="requester_name"
+            id="requesterName"
             placeholder="Full name of data subject"
-            {...register("requester_name")}
-            aria-invalid={!!errors.requester_name}
+            {...register("requesterName")}
+            aria-invalid={!!errors.requesterName}
             aria-describedby={
-              errors.requester_name ? "error-requester_name" : undefined
+              errors.requesterName ? "error-requesterName" : undefined
             }
           />
-          {errors.requester_name && (
+          {errors.requesterName && (
             <p
-              id="error-requester_name"
+              id="error-requesterName"
               className="text-sm text-destructive"
               role="alert"
             >
-              {errors.requester_name.message}
+              {errors.requesterName.message}
             </p>
           )}
         </div>
 
         {/* Requester Email */}
         <div className="space-y-2">
-          <Label htmlFor="requester_email">Requester Email</Label>
+          <Label htmlFor="requesterEmail">Requester Email</Label>
           <Input
-            id="requester_email"
+            id="requesterEmail"
             type="email"
             placeholder="Email address (optional)"
-            {...register("requester_email")}
-            aria-invalid={!!errors.requester_email}
+            {...register("requesterEmail")}
+            aria-invalid={!!errors.requesterEmail}
             aria-describedby={
-              errors.requester_email ? "error-requester_email" : undefined
+              errors.requesterEmail ? "error-requesterEmail" : undefined
             }
           />
-          {errors.requester_email && (
+          {errors.requesterEmail && (
             <p
-              id="error-requester_email"
+              id="error-requesterEmail"
               className="text-sm text-destructive"
               role="alert"
             >
-              {errors.requester_email.message}
+              {errors.requesterEmail.message}
             </p>
           )}
         </div>

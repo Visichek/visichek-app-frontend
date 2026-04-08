@@ -17,7 +17,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         display: ["Fraunces", "serif"],
-        sans: ["Plus Jakarta Sans", "system-ui", "sans-serif"],
+        sans: ["Arial", "Helvetica", "system-ui", "sans-serif"],
         mono: ["IBM Plex Mono", "monospace"],
       },
       spacing: {

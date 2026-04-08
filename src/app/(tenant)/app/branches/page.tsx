@@ -114,15 +114,15 @@ export default function BranchesPage() {
       ),
     },
     {
-      id: "is_active",
+      id: "isActive",
       header: "Status",
       cell: ({ row }) => (
         <Badge
           variant={
-            row.original.is_active === false ? "secondary" : "success"
+            row.original.isActive === false ? "secondary" : "success"
           }
         >
-          {row.original.is_active === false ? "Inactive" : "Active"}
+          {row.original.isActive === false ? "Inactive" : "Active"}
         </Badge>
       ),
     },
@@ -142,7 +142,7 @@ export default function BranchesPage() {
               <Edit2 className="mr-2 h-4 w-4" />
               Edit
             </DropdownMenuItem>
-            {row.original.is_active !== false && (
+            {row.original.isActive !== false && (
               <DropdownMenuItem
                 onClick={() => handleDeactivateClick(row.original)}
               >
@@ -169,10 +169,10 @@ export default function BranchesPage() {
         <span className="font-medium">{branch.name}</span>
         <Badge
           variant={
-            branch.is_active === false ? "secondary" : "success"
+            branch.isActive === false ? "secondary" : "success"
           }
         >
-          {branch.is_active === false ? "Inactive" : "Active"}
+          {branch.isActive === false ? "Inactive" : "Active"}
         </Badge>
       </div>
       {branch.address && (
@@ -190,7 +190,7 @@ export default function BranchesPage() {
             <Edit2 className="mr-2 h-4 w-4" />
             Edit
           </DropdownMenuItem>
-          {branch.is_active !== false && (
+          {branch.isActive !== false && (
             <DropdownMenuItem
               onClick={() => handleDeactivateClick(branch)}
             >

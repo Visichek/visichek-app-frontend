@@ -26,7 +26,7 @@ interface UsePlansParams {
 export function usePlans(params?: UsePlansParams) {
   return useQuery<PaginatedResponse<Plan>>({
     queryKey: ["plans", params],
-    queryFn: () => apiGet<PaginatedResponse<Plan>>("/v1/plans", params),
+    queryFn: () => apiGet<PaginatedResponse<Plan>>("/plans", params),
   });
 }
 
@@ -36,25 +36,25 @@ export function usePlans(params?: UsePlansParams) {
 export function usePlan(planId: string) {
   return useQuery<Plan>({
     queryKey: ["plans", planId],
-    queryFn: () => apiGet<Plan>(`/v1/plans/${planId}`),
+    queryFn: () => apiGet<Plan>(`/plans/${planId}`),
     enabled: !!planId,
   });
 }
 
 interface CreatePlanRequest {
   name: string;
-  display_name?: string;
+  displayName?: string;
   tier: string;
-  price_minor?: number;
+  priceMinor?: number;
   currency?: string;
-  billing_cycle?: string;
+  billingCycle?: string;
   description?: string;
-  is_public?: boolean;
-  feature_rules?: Plan["feature_rules"];
-  crud_limits?: Plan["crud_limits"];
-  retrieval_quotas?: Plan["retrieval_quotas"];
-  storage_limits?: Plan["storage_limits"];
-  tenant_cap_limits?: Plan["tenant_cap_limits"];
+  isPublic?: boolean;
+  featureRules?: Plan["featureRules"];
+  crudLimits?: Plan["crudLimits"];
+  retrievalQuotas?: Plan["retrievalQuotas"];
+  storageLimits?: Plan["storageLimits"];
+  tenantCapLimits?: Plan["tenantCapLimits"];
 }
 
 /**
@@ -64,7 +64,7 @@ export function useCreatePlan() {
   const queryClient = useQueryClient();
 
   return useMutation<Plan, Error, CreatePlanRequest>({
-    mutationFn: (data) => apiPost<Plan>("/v1/plans", data),
+    mutationFn: (data) => apiPost<Plan>("/plans", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["plans"] });
     },
@@ -80,7 +80,7 @@ export function useUpdatePlan(planId: string) {
   const queryClient = useQueryClient();
 
   return useMutation<Plan, Error, UpdatePlanRequest>({
-    mutationFn: (data) => apiPut<Plan>(`/v1/plans/${planId}`, data),
+    mutationFn: (data) => apiPut<Plan>(`/plans/${planId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["plans", planId] });
       queryClient.invalidateQueries({ queryKey: ["plans"] });
@@ -95,7 +95,7 @@ export function useActivatePlan() {
   const queryClient = useQueryClient();
 
   return useMutation<Plan, Error, string>({
-    mutationFn: (planId) => apiPost<Plan>(`/v1/plans/${planId}/activate`),
+    mutationFn: (planId) => apiPost<Plan>(`/plans/${planId}/activate`),
     onSuccess: (_, planId) => {
       queryClient.invalidateQueries({ queryKey: ["plans", planId] });
       queryClient.invalidateQueries({ queryKey: ["plans"] });
@@ -110,7 +110,7 @@ export function useArchivePlan() {
   const queryClient = useQueryClient();
 
   return useMutation<Plan, Error, string>({
-    mutationFn: (planId) => apiPost<Plan>(`/v1/plans/${planId}/archive`),
+    mutationFn: (planId) => apiPost<Plan>(`/plans/${planId}/archive`),
     onSuccess: (_, planId) => {
       queryClient.invalidateQueries({ queryKey: ["plans", planId] });
       queryClient.invalidateQueries({ queryKey: ["plans"] });
@@ -137,12 +137,12 @@ export function useClonePlan() {
   >({
     mutationFn: ({ sourcePlanId, newName, newDisplayName }) =>
       apiPost<Plan>(
-        `/v1/plans/${sourcePlanId}/clone`,
+        `/plans/${sourcePlanId}/clone`,
         {},
         {
           params: {
             new_name: newName,
-            ...(newDisplayName && { new_display_name: newDisplayName }),
+            ...(newDisplayName && { new_displayName: newDisplayName }),
           },
         }
       ),
@@ -159,7 +159,7 @@ export function useDeletePlan() {
   const queryClient = useQueryClient();
 
   return useMutation<unknown, Error, string>({
-    mutationFn: (planId) => apiDelete(`/v1/plans/${planId}`),
+    mutationFn: (planId) => apiDelete(`/plans/${planId}`),
     onSuccess: (_, planId) => {
       queryClient.invalidateQueries({ queryKey: ["plans", planId] });
       queryClient.invalidateQueries({ queryKey: ["plans"] });

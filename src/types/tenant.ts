@@ -2,65 +2,65 @@ import type { LawfulBasis, NoticeDisplayMode, DeletionAction, BranchStatus, Logo
 
 export interface Tenant {
   id: string;
-  company_name: string;
-  lawful_basis?: LawfulBasis;
-  notice_display_mode?: NoticeDisplayMode;
-  retention_days?: number;
-  default_retention_action?: DeletionAction;
-  dpo_contact_email?: string;
-  privacy_policy_url?: string;
-  country_of_hosting?: string;
-  cross_border_approved?: boolean;
-  created_at: number;
-  updated_at: number;
+  companyName: string;
+  lawfulBasis?: LawfulBasis;
+  noticeDisplayMode?: NoticeDisplayMode;
+  retentionDays?: number;
+  defaultRetentionAction?: DeletionAction;
+  dpoContactEmail?: string;
+  privacyPolicyUrl?: string;
+  countryOfHosting?: string;
+  crossBorderApproved?: boolean;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface TenantBootstrapRequest {
-  company_name: string;
-  lawful_basis?: LawfulBasis;
-  notice_display_mode?: NoticeDisplayMode;
-  retention_days?: number;
-  default_retention_action?: DeletionAction;
-  dpo_contact_email?: string;
-  privacy_policy_url?: string;
-  country_of_hosting?: string;
-  cross_border_approved?: boolean;
-  admin_full_name: string;
-  admin_email: string;
-  admin_password: string;
+  companyName: string;
+  lawfulBasis?: LawfulBasis;
+  noticeDisplayMode?: NoticeDisplayMode;
+  retentionDays?: number;
+  defaultRetentionAction?: DeletionAction;
+  dpoContactEmail?: string;
+  privacyPolicyUrl?: string;
+  countryOfHosting?: string;
+  crossBorderApproved?: boolean;
+  adminFullName: string;
+  adminEmail: string;
+  adminPassword: string;
 }
 
 export interface Branch {
   id: string;
-  tenant_id: string;
+  tenantId: string;
   name: string;
   address?: string;
   city?: string;
   state?: string;
   status?: BranchStatus;
-  is_active?: boolean;
-  created_at: number;
-  updated_at: number;
+  isActive?: boolean;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface Department {
   id: string;
-  tenant_id: string;
+  tenantId: string;
   name: string;
-  branch_id?: string;
-  created_at: number;
-  updated_at: number;
+  branchId?: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface TenantBranding {
-  tenant_id: string;
-  primary_color?: string;
-  secondary_color?: string;
-  accent_color?: string;
-  logo_url?: string;
-  logo_position?: LogoPosition;
-  badge_primary_color?: string;
-  badge_secondary_color?: string;
-  badge_logo_url?: string;
-  badge_logo_position?: LogoPosition;
+  tenantId: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  accentColor?: string;
+  logoUrl?: string;
+  logoPosition?: LogoPosition;
+  badgePrimaryColor?: string;
+  badgeSecondaryColor?: string;
+  badgeLogoUrl?: string;
+  badgeLogoPosition?: LogoPosition;
 }

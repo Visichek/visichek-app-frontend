@@ -25,17 +25,17 @@ export interface UploadResult {
 export async function uploadDocument(file: File): Promise<UploadResult> {
   // Step 1: Create upload intent
   const intentPayload: UploadIntentRequest = {
-    file_name: file.name,
-    mime_type: file.type,
+    fileName: file.name,
+    mimeType: file.type,
     size: file.size,
   };
 
   const intentResponse = await apiPost<UploadIntentResponse>(
-    "/v1/documents/upload-intents",
+    "/documents/upload-intents",
     intentPayload
   );
 
-  const { object_key, upload_url, method, headers } = intentResponse;
+  const { objectKey, uploadUrl, method, headers } = intentResponse;
 
   // Step 2: Upload file bytes to the presigned URL
   const uploadOptions: RequestInit = {
@@ -47,7 +47,7 @@ export async function uploadDocument(file: File): Promise<UploadResult> {
     uploadOptions.headers = headers;
   }
 
-  const uploadResponse = await fetch(upload_url, uploadOptions);
+  const uploadResponse = await fetch(uploadUrl, uploadOptions);
 
   if (!uploadResponse.ok) {
     throw new Error(
@@ -57,16 +57,16 @@ export async function uploadDocument(file: File): Promise<UploadResult> {
 
   // Step 3: Complete the upload to finalize it
   const completePayload: CompleteUploadRequest = {
-    object_key,
-    file_name: file.name,
-    mime_type: file.type,
+    objectKey,
+    fileName: file.name,
+    mimeType: file.type,
     size: file.size,
   };
 
-  await apiPost("/v1/documents/complete", completePayload);
+  await apiPost("/documents/complete", completePayload);
 
   return {
-    objectKey: object_key,
+    objectKey: objectKey,
     fileName: file.name,
     mimeType: file.type,
     size: file.size,

@@ -24,8 +24,8 @@ interface ComplianceRegisterParams {
 }
 
 interface ConsentLogParams {
-  start_date?: string;
-  end_date?: string;
+  startDate?: string;
+  endDate?: string;
   skip?: number;
   limit?: number;
 }
@@ -61,7 +61,7 @@ export function useComplianceRegister(params?: ComplianceRegisterParams) {
     queryKey: complianceKeys.registerList(params),
     queryFn: () =>
       apiGet<PaginatedResponse<ComplianceRegisterEntry>>(
-        '/v1/compliance/register',
+        '/compliance/register',
         params
       ),
   });
@@ -76,7 +76,7 @@ export function useCreateRegisterEntry() {
 
   return useMutation<ComplianceRegisterEntry, Error, CreateRegisterEntryRequest>({
     mutationFn: (data) =>
-      apiPost<ComplianceRegisterEntry>('/v1/compliance/register', data),
+      apiPost<ComplianceRegisterEntry>('/compliance/register', data),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: complianceKeys.register(),
@@ -94,7 +94,7 @@ export function useDeletionLogs(params?: DeletionLogsParams) {
     queryKey: complianceKeys.deletionLogsList(params),
     queryFn: () =>
       apiGet<PaginatedResponse<DeletionLogEntry>>(
-        '/v1/compliance/deletion-logs',
+        '/compliance/deletion-logs',
         params
       ),
   });
@@ -109,7 +109,7 @@ export function useConsentLog(params?: ConsentLogParams) {
     queryKey: complianceKeys.consentLogList(params),
     queryFn: () =>
       apiGet<PaginatedResponse<ConsentLogEntry>>(
-        '/v1/compliance/consent-log',
+        '/compliance/consent-log',
         params
       ),
   });
@@ -123,10 +123,10 @@ export function useConsentLog(params?: ConsentLogParams) {
 export function useComplianceExport() {
   return useMutation<Blob, Error, void>({
     mutationFn: async () => {
-      const response = await fetch('/v1/compliance/export', {
+      const response = await fetch('/compliance/export', {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+          'Authorization': `Bearer ${localStorage.getItem('accessToken') || ''}`,
         },
       });
 

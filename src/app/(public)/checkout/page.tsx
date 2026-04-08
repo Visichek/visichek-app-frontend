@@ -29,7 +29,7 @@ import type { PublicCheckoutResponse } from "@/types/public";
 // ── Schema ───────────────────────────────────────────────────────────
 
 const checkoutSchema = z.object({
-  badge_qr_token: z.string().min(1, "Badge token is required"),
+  badgeQrToken: z.string().min(1, "Badge token is required"),
 });
 
 type CheckoutFormValues = z.infer<typeof checkoutSchema>;
@@ -63,7 +63,7 @@ export default function PublicCheckoutPage() {
   } = useForm<CheckoutFormValues>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
-      badge_qr_token: tokenFromUrl,
+      badgeQrToken: tokenFromUrl,
     },
   });
 
@@ -71,7 +71,7 @@ export default function PublicCheckoutPage() {
   useEffect(() => {
     if (tokenFromUrl && !result && !submitError) {
       setAutoSubmitting(true);
-      setValue("badge_qr_token", tokenFromUrl);
+      setValue("badgeQrToken", tokenFromUrl);
       performCheckout(tokenFromUrl);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -81,7 +81,7 @@ export default function PublicCheckoutPage() {
     setSubmitError(null);
     try {
       const response = await checkoutMutation.mutateAsync({
-        badge_qr_token: token,
+        badgeQrToken: token,
       });
       setResult(response);
     } catch (err) {
@@ -107,7 +107,7 @@ export default function PublicCheckoutPage() {
   }
 
   function onSubmit(values: CheckoutFormValues) {
-    performCheckout(values.badge_qr_token);
+    performCheckout(values.badgeQrToken);
   }
 
   // ── Auto-submit loading ───────────────────────────────────────────
@@ -152,12 +152,12 @@ export default function PublicCheckoutPage() {
                   {result.session.status.replace("_", " ")}
                 </span>
               </div>
-              {result.visit_duration_minutes != null && (
+              {result.visitDurationMinutes != null && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Visit Duration</span>
                   <div className="flex items-center gap-1.5 font-medium">
                     <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-                    {formatDuration(result.visit_duration_minutes)}
+                    {formatDuration(result.visitDurationMinutes)}
                   </div>
                 </div>
               )}
@@ -213,20 +213,20 @@ export default function PublicCheckoutPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="badge_qr_token">
+              <Label htmlFor="badgeQrToken">
                 Badge Token <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="badge_qr_token"
+                id="badgeQrToken"
                 type="text"
                 placeholder="Enter or paste your badge token"
                 autoFocus
                 className="text-base md:text-sm font-mono"
-                {...register("badge_qr_token")}
+                {...register("badgeQrToken")}
               />
-              {errors.badge_qr_token && (
+              {errors.badgeQrToken && (
                 <p className="text-sm text-destructive">
-                  {errors.badge_qr_token.message}
+                  {errors.badgeQrToken.message}
                 </p>
               )}
             </div>

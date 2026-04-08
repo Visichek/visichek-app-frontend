@@ -39,9 +39,9 @@ export default function TenantsPage() {
 
   const columns: ColumnDef<AdminTenant>[] = [
     {
-      accessorKey: "company_name",
+      accessorKey: "companyName",
       header: "Company",
-      cell: ({ row }) => <span className="font-medium">{row.original.company_name}</span>,
+      cell: ({ row }) => <span className="font-medium">{row.original.companyName}</span>,
     },
     {
       accessorKey: "contact_email",
@@ -53,27 +53,27 @@ export default function TenantsPage() {
       ),
     },
     {
-      accessorKey: "plan_name",
+      accessorKey: "planName",
       header: "Plan",
       cell: ({ row }) => (
-        <span className="text-sm">{row.original.plan_name || "—"}</span>
+        <span className="text-sm">{row.original.planName || "—"}</span>
       ),
     },
     {
-      id: "subscription_status",
+      id: "subscriptionStatus",
       header: "Subscription Status",
       cell: ({ row }) => (
-        <Badge variant={getSubscriptionStatusVariant(row.original.subscription_status)}>
-          {row.original.subscription_status.replace(/_/g, " ")}
+        <Badge variant={getSubscriptionStatusVariant(row.original.subscriptionStatus)}>
+          {row.original.subscriptionStatus.replace(/_/g, " ")}
         </Badge>
       ),
     },
     {
-      accessorKey: "created_at",
+      accessorKey: "createdAt",
       header: "Created",
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">
-          {formatDate(row.original.created_at)}
+          {formatDate(row.original.createdAt)}
         </span>
       ),
     },
@@ -102,16 +102,16 @@ export default function TenantsPage() {
 
   const mobileCard = (tenant: AdminTenant) => (
     <div className="rounded-lg border p-4 space-y-2">
-      <div className="font-medium">{tenant.company_name}</div>
+      <div className="font-medium">{tenant.companyName}</div>
       <div className="text-sm text-muted-foreground">
-        {formatDate(tenant.created_at)}
+        {formatDate(tenant.createdAt)}
       </div>
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
-          {tenant.plan_name || "—"}
+          {tenant.planName || "—"}
         </span>
-        <Badge variant={getSubscriptionStatusVariant(tenant.subscription_status)}>
-          {tenant.subscription_status.replace(/_/g, " ")}
+        <Badge variant={getSubscriptionStatusVariant(tenant.subscriptionStatus)}>
+          {tenant.subscriptionStatus.replace(/_/g, " ")}
         </Badge>
       </div>
       <DropdownMenu>
@@ -150,7 +150,7 @@ export default function TenantsPage() {
         isLoading={isLoading}
         pagination={true}
         pageSize={10}
-        searchKey="company_name"
+        searchKey="companyName"
         searchPlaceholder="Search tenants..."
         emptyTitle="No tenants yet"
         emptyDescription="Bootstrap your first tenant to get started."

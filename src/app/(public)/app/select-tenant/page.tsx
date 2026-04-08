@@ -28,7 +28,7 @@ export default function SelectTenantPage() {
 
   useEffect(() => {
     const filtered = tenants.filter((tenant) =>
-      tenant.company_name.toLowerCase().includes(searchQuery.toLowerCase())
+      tenant.companyName.toLowerCase().includes(searchQuery.toLowerCase())
     );
     setFilteredTenants(filtered);
   }, [searchQuery, tenants]);
@@ -122,17 +122,17 @@ export default function SelectTenantPage() {
                 className="group relative rounded-lg border border-border bg-card p-6 transition-all hover:border-primary hover:shadow-md"
               >
                 {/* Logo area */}
-                {tenant.company_name && (
+                {tenant.companyName && (
                   <div className="mb-4 h-12 w-full flex items-center justify-center rounded bg-muted">
                     <span className="text-sm font-semibold text-muted-foreground">
-                      {tenant.company_name.substring(0, 2).toUpperCase()}
+                      {tenant.companyName.substring(0, 2).toUpperCase()}
                     </span>
                   </div>
                 )}
 
                 {/* Tenant name */}
                 <h3 className="mb-2 line-clamp-2 text-lg font-semibold">
-                  {tenant.company_name}
+                  {tenant.companyName}
                 </h3>
 
                 {/* Tenant ID */}

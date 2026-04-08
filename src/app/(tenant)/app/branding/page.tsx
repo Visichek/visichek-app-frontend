@@ -24,11 +24,11 @@ import type { TenantBranding } from "@/types/tenant";
 import type { LogoPosition } from "@/types/enums";
 
 interface BrandingFormData {
-  primary_color: string;
-  secondary_color: string;
-  accent_color: string;
-  logo_position: LogoPosition;
-  company_name?: string;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  logoPosition: LogoPosition;
+  companyName?: string;
 }
 
 const LOGO_POSITION_OPTIONS: { value: LogoPosition; label: string }[] = [
@@ -64,11 +64,11 @@ export default function BrandingPage() {
     formState: { isDirty },
   } = useForm<BrandingFormData>({
     defaultValues: {
-      primary_color: brandingConfig?.primary_color || "#1a1a2e",
-      secondary_color: brandingConfig?.secondary_color || "#e2e8f0",
-      accent_color: brandingConfig?.accent_color || "#3b82f6",
-      logo_position: brandingConfig?.logo_position || "top_left",
-      company_name: systemUserProfile?.company_name || "",
+      primaryColor: brandingConfig?.primaryColor || "#1a1a2e",
+      secondaryColor: brandingConfig?.secondaryColor || "#e2e8f0",
+      accentColor: brandingConfig?.accentColor || "#3b82f6",
+      logoPosition: brandingConfig?.logoPosition || "top_left",
+      companyName: systemUserProfile?.companyName || "",
     },
   });
 
@@ -78,10 +78,10 @@ export default function BrandingPage() {
   // Update form when config loads
   useMemo(() => {
     if (brandingConfig) {
-      setValue("primary_color", brandingConfig.primary_color || "#1a1a2e");
-      setValue("secondary_color", brandingConfig.secondary_color || "#e2e8f0");
-      setValue("accent_color", brandingConfig.accent_color || "#3b82f6");
-      setValue("logo_position", brandingConfig.logo_position || "top_left");
+      setValue("primaryColor", brandingConfig.primaryColor || "#1a1a2e");
+      setValue("secondaryColor", brandingConfig.secondaryColor || "#e2e8f0");
+      setValue("accentColor", brandingConfig.accentColor || "#3b82f6");
+      setValue("logoPosition", brandingConfig.logoPosition || "top_left");
     }
   }, [brandingConfig, setValue]);
 
@@ -94,11 +94,11 @@ export default function BrandingPage() {
 
     try {
       const payload: Partial<TenantBranding> = {
-        tenant_id: tenantId,
-        primary_color: data.primary_color,
-        secondary_color: data.secondary_color,
-        accent_color: data.accent_color,
-        logo_position: data.logo_position,
+        tenantId: tenantId,
+        primaryColor: data.primaryColor,
+        secondaryColor: data.secondaryColor,
+        accentColor: data.accentColor,
+        logoPosition: data.logoPosition,
       };
 
       await updateMutation.mutateAsync(payload);
@@ -122,10 +122,10 @@ export default function BrandingPage() {
       toast.success("Branding reset to defaults");
       refetchBranding();
       reset({
-        primary_color: "#1a1a2e",
-        secondary_color: "#e2e8f0",
-        accent_color: "#3b82f6",
-        logo_position: "top_left",
+        primaryColor: "#1a1a2e",
+        secondaryColor: "#e2e8f0",
+        accentColor: "#3b82f6",
+        logoPosition: "top_left",
       });
     } catch (error) {
       console.error("Failed to reset branding:", error);
@@ -165,21 +165,21 @@ export default function BrandingPage() {
             <CardContent className="space-y-6">
               {/* Primary Color */}
               <div className="space-y-2">
-                <label htmlFor="primary_color" className="text-sm font-medium">
+                <label htmlFor="primaryColor" className="text-sm font-medium">
                   Primary Color
                 </label>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <input
                     type="color"
-                    id="primary_color"
-                    {...register("primary_color")}
+                    id="primaryColor"
+                    {...register("primaryColor")}
                     className="h-10 w-20 cursor-pointer rounded-md border border-input"
                   />
                   <Input
                     type="text"
                     placeholder="#1a1a2e"
-                    value={watchedValues.primary_color}
-                    onChange={(e) => setValue("primary_color", e.target.value)}
+                    value={watchedValues.primaryColor}
+                    onChange={(e) => setValue("primaryColor", e.target.value)}
                     className="flex-1 font-mono text-sm"
                   />
                 </div>
@@ -187,21 +187,21 @@ export default function BrandingPage() {
 
               {/* Secondary Color */}
               <div className="space-y-2">
-                <label htmlFor="secondary_color" className="text-sm font-medium">
+                <label htmlFor="secondaryColor" className="text-sm font-medium">
                   Secondary Color
                 </label>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <input
                     type="color"
-                    id="secondary_color"
-                    {...register("secondary_color")}
+                    id="secondaryColor"
+                    {...register("secondaryColor")}
                     className="h-10 w-20 cursor-pointer rounded-md border border-input"
                   />
                   <Input
                     type="text"
                     placeholder="#e2e8f0"
-                    value={watchedValues.secondary_color}
-                    onChange={(e) => setValue("secondary_color", e.target.value)}
+                    value={watchedValues.secondaryColor}
+                    onChange={(e) => setValue("secondaryColor", e.target.value)}
                     className="flex-1 font-mono text-sm"
                   />
                 </div>
@@ -209,21 +209,21 @@ export default function BrandingPage() {
 
               {/* Accent Color */}
               <div className="space-y-2">
-                <label htmlFor="accent_color" className="text-sm font-medium">
+                <label htmlFor="accentColor" className="text-sm font-medium">
                   Accent Color
                 </label>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <input
                     type="color"
-                    id="accent_color"
-                    {...register("accent_color")}
+                    id="accentColor"
+                    {...register("accentColor")}
                     className="h-10 w-20 cursor-pointer rounded-md border border-input"
                   />
                   <Input
                     type="text"
                     placeholder="#3b82f6"
-                    value={watchedValues.accent_color}
-                    onChange={(e) => setValue("accent_color", e.target.value)}
+                    value={watchedValues.accentColor}
+                    onChange={(e) => setValue("accentColor", e.target.value)}
                     className="flex-1 font-mono text-sm"
                   />
                 </div>
@@ -241,9 +241,9 @@ export default function BrandingPage() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Current Logo</label>
                 <div className="flex h-24 items-center justify-center rounded-lg border-2 border-dashed border-muted bg-muted/30">
-                  {brandingConfig?.logo_url ? (
+                  {brandingConfig?.logoUrl ? (
                     <img
-                      src={brandingConfig.logo_url}
+                      src={brandingConfig.logoUrl}
                       alt="Tenant logo"
                       className="max-h-20 max-w-48 object-contain"
                     />
@@ -260,18 +260,18 @@ export default function BrandingPage() {
 
               {/* Logo Position */}
               <div className="space-y-2">
-                <label htmlFor="logo_position" className="text-sm font-medium">
+                <label htmlFor="logoPosition" className="text-sm font-medium">
                   Logo Position
                 </label>
                 <Select
-                  value={watchedValues.logo_position}
+                  value={watchedValues.logoPosition}
                   onValueChange={(value) =>
-                    setValue("logo_position", value as LogoPosition, {
+                    setValue("logoPosition", value as LogoPosition, {
                       shouldDirty: true,
                     })
                   }
                 >
-                  <SelectTrigger id="logo_position">
+                  <SelectTrigger id="logoPosition">
                     <SelectValue placeholder="Select position" />
                   </SelectTrigger>
                   <SelectContent>
@@ -286,13 +286,13 @@ export default function BrandingPage() {
 
               {/* Company Name (Display Only) */}
               <div className="space-y-2">
-                <label htmlFor="company_name" className="text-sm font-medium">
+                <label htmlFor="companyName" className="text-sm font-medium">
                   Company Name
                 </label>
                 <Input
-                  id="company_name"
+                  id="companyName"
                   type="text"
-                  value={watchedValues.company_name || ""}
+                  value={watchedValues.companyName || ""}
                   disabled
                   className="bg-muted"
                 />
@@ -313,13 +313,13 @@ export default function BrandingPage() {
             <div
               className="space-y-3 rounded-lg p-6"
               style={{
-                backgroundColor: watchedValues.secondary_color,
+                backgroundColor: watchedValues.secondaryColor,
               }}
             >
               <div
                 className="inline-block rounded px-3 py-2 text-white"
                 style={{
-                  backgroundColor: watchedValues.primary_color,
+                  backgroundColor: watchedValues.primaryColor,
                 }}
               >
                 <span className="text-sm font-medium">Primary Button</span>
@@ -327,7 +327,7 @@ export default function BrandingPage() {
               <div
                 className="inline-block rounded px-3 py-2 text-white"
                 style={{
-                  backgroundColor: watchedValues.accent_color,
+                  backgroundColor: watchedValues.accentColor,
                   marginLeft: "1rem",
                 }}
               >
@@ -340,7 +340,7 @@ export default function BrandingPage() {
                     <div
                       className="h-12 w-12 rounded border"
                       style={{
-                        backgroundColor: watchedValues.primary_color,
+                        backgroundColor: watchedValues.primaryColor,
                       }}
                     />
                     <span className="text-xs text-muted-foreground">
@@ -351,7 +351,7 @@ export default function BrandingPage() {
                     <div
                       className="h-12 w-12 rounded border"
                       style={{
-                        backgroundColor: watchedValues.secondary_color,
+                        backgroundColor: watchedValues.secondaryColor,
                       }}
                     />
                     <span className="text-xs text-muted-foreground">
@@ -362,7 +362,7 @@ export default function BrandingPage() {
                     <div
                       className="h-12 w-12 rounded border"
                       style={{
-                        backgroundColor: watchedValues.accent_color,
+                        backgroundColor: watchedValues.accentColor,
                       }}
                     />
                     <span className="text-xs text-muted-foreground">

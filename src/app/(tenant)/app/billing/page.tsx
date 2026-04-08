@@ -72,11 +72,11 @@ export default function BillingPage() {
   const columnHelper = createColumnHelper<Invoice>();
   const columns = useMemo(
     () => [
-      columnHelper.accessor("invoice_number", {
+      columnHelper.accessor("invoiceNumber", {
         header: "Invoice Number",
         cell: (info) => info.getValue() || "—",
       }),
-      columnHelper.accessor("total_minor", {
+      columnHelper.accessor("totalMinor", {
         header: "Amount",
         cell: (info) => formatCurrency(info.getValue(), info.row.original.currency),
       }),
@@ -88,7 +88,7 @@ export default function BillingPage() {
           </Badge>
         ),
       }),
-      columnHelper.accessor("issued_at", {
+      columnHelper.accessor("issuedAt", {
         header: "Issued Date",
         cell: (info) => (info.getValue() ? formatDate(info.getValue()) : "—"),
       }),
@@ -100,11 +100,11 @@ export default function BillingPage() {
             size="sm"
             asChild
             className="h-8 gap-2"
-            disabled={!info.row.original.pdf_url}
-            title={info.row.original.pdf_url ? "View PDF" : "PDF not available"}
+            disabled={!info.row.original.pdfUrl}
+            title={info.row.original.pdfUrl ? "View PDF" : "PDF not available"}
           >
             <a
-              href={info.row.original.pdf_url || "#"}
+              href={info.row.original.pdfUrl || "#"}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -147,19 +147,19 @@ export default function BillingPage() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <StatCard
           title="Current Plan"
-          value={usage?.plan_name ?? "—"}
+          value={usage?.planName ?? "—"}
           description="Active subscription plan"
         />
         <StatCard
           title="Plan Tier"
-          value={usage?.plan_tier ?? "—"}
+          value={usage?.planTier ?? "—"}
           description="Your plan level"
         />
         <StatCard
           title="Subscription Status"
           value={
-            usage?.subscription_status
-              ? usage.subscription_status
+            usage?.subscriptionStatus
+              ? usage.subscriptionStatus
                   .split("_")
                   .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
                   .join(" ")
@@ -181,9 +181,9 @@ export default function BillingPage() {
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Documents</span>
                 <span className="text-sm text-muted-foreground">
-                  {usage.storage.documents_used}
-                  {usage.storage.documents_limit != null &&
-                    ` / ${usage.storage.documents_limit}`}
+                  {usage.storage.documentsUsed}
+                  {usage.storage.documentsLimit != null &&
+                    ` / ${usage.storage.documentsLimit}`}
                 </span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-secondary">
@@ -191,11 +191,11 @@ export default function BillingPage() {
                   className="h-full bg-primary transition-all"
                   style={{
                     width:
-                      usage.storage.documents_limit &&
-                      usage.storage.documents_limit > 0
+                      usage.storage.documentsLimit &&
+                      usage.storage.documentsLimit > 0
                         ? `${Math.min(
-                            (usage.storage.documents_used /
-                              usage.storage.documents_limit) *
+                            (usage.storage.documentsUsed /
+                              usage.storage.documentsLimit) *
                               100,
                             100
                           )}%`
@@ -210,9 +210,9 @@ export default function BillingPage() {
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Storage</span>
                 <span className="text-sm text-muted-foreground">
-                  {usage.storage.storage_mb_used.toFixed(1)} MB
-                  {usage.storage.storage_mb_limit != null &&
-                    ` / ${usage.storage.storage_mb_limit} MB`}
+                  {usage.storage.storageMbUsed.toFixed(1)} MB
+                  {usage.storage.storageMbLimit != null &&
+                    ` / ${usage.storage.storageMbLimit} MB`}
                 </span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-secondary">
@@ -220,11 +220,11 @@ export default function BillingPage() {
                   className="h-full bg-primary transition-all"
                   style={{
                     width:
-                      usage.storage.storage_mb_limit &&
-                      usage.storage.storage_mb_limit > 0
+                      usage.storage.storageMbLimit &&
+                      usage.storage.storageMbLimit > 0
                         ? `${Math.min(
-                            (usage.storage.storage_mb_used /
-                              usage.storage.storage_mb_limit) *
+                            (usage.storage.storageMbUsed /
+                              usage.storage.storageMbLimit) *
                               100,
                             100
                           )}%`

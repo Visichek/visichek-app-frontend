@@ -26,7 +26,7 @@ const visitorKeys = {
   sessionsList: (params: {
     start?: number;
     stop?: number;
-    department_id?: string;
+    departmentId?: string;
   }) => ['visitors', 'sessions', params] as const,
   session: (sessionId: string) => ['visitors', 'sessions', sessionId] as const,
   pending: ['visitors', 'sessions', 'pending'] as const,
@@ -44,8 +44,8 @@ export function useActiveVisitors(departmentId?: string) {
   return useQuery({
     queryKey: visitorKeys.activeWithDept(departmentId),
     queryFn: async () => {
-      const data = await apiGet<VisitSession[]>('/v1/visitors/active', {
-        ...(departmentId && { department_id: departmentId }),
+      const data = await apiGet<VisitSession[]>('/visitors/active', {
+        ...(departmentId && { departmentId: departmentId }),
       });
       return data;
     },
@@ -60,12 +60,12 @@ export function useActiveVisitors(departmentId?: string) {
 export function useVisitorSessions(params: {
   start?: number;
   stop?: number;
-  department_id?: string;
+  departmentId?: string;
 }) {
   return useQuery({
     queryKey: visitorKeys.sessionsList(params),
     queryFn: async () => {
-      const data = await apiGet<VisitSession[]>('/v1/visitors/sessions', params);
+      const data = await apiGet<VisitSession[]>('/visitors/sessions', params);
       return data;
     },
     enabled: true,
@@ -81,7 +81,7 @@ export function useVisitorSession(sessionId: string) {
     queryKey: visitorKeys.session(sessionId),
     queryFn: async () => {
       const data = await apiGet<VisitSession>(
-        `/v1/visitors/sessions/${sessionId}`
+        `/visitors/sessions/${sessionId}`
       );
       return data;
     },
@@ -98,7 +98,7 @@ export function usePendingVisitorSessions() {
   return useQuery({
     queryKey: visitorKeys.pending,
     queryFn: async () => {
-      const data = await apiGet<VisitSession[]>('/v1/visitors/sessions/pending');
+      const data = await apiGet<VisitSession[]>('/visitors/sessions/pending');
       return data;
     },
     refetchInterval: 10000,
@@ -117,7 +117,7 @@ export function useCheckIn() {
   return useMutation({
     mutationFn: async (request: CheckInRequest) => {
       const data = await apiPost<VisitSession>(
-        '/v1/visitors/check-in',
+        '/visitors/check-in',
         request
       );
       return data;
@@ -149,13 +149,13 @@ export function useConfirmCheckIn() {
   return useMutation({
     mutationFn: async ({
       sessionId,
-      badge_format,
+      badgeFormat,
     }: {
       sessionId: string;
     } & ConfirmCheckInRequest) => {
       const data = await apiPost<ConfirmCheckInResponse>(
-        `/v1/visitors/sessions/${sessionId}/confirm`,
-        { badge_format }
+        `/visitors/sessions/${sessionId}/confirm`,
+        { badgeFormat }
       );
       return data;
     },
@@ -191,7 +191,7 @@ export function useDenyVisitor() {
       sessionId: string;
     } & DenyVisitorRequest) => {
       const data = await apiPost<VisitSession>(
-        `/v1/visitors/sessions/${sessionId}/deny`,
+        `/visitors/sessions/${sessionId}/deny`,
         { reason }
       );
       return data;
@@ -220,7 +220,7 @@ export function useHostApprove() {
   return useMutation({
     mutationFn: async (sessionId: string) => {
       const data = await apiPost<VisitSession>(
-        `/v1/visitors/sessions/${sessionId}/host-approve`,
+        `/visitors/sessions/${sessionId}/host-approve`,
         {}
       );
       return data;
@@ -249,15 +249,15 @@ export function useApplyIdScan() {
   return useMutation({
     mutationFn: async ({
       sessionId,
-      id_type,
-      id_number,
-      id_image_object_key,
+      idType,
+      idNumber,
+      idImageObjectKey,
     }: {
       sessionId: string;
     } & ApplyIdScanRequest) => {
       const data = await apiPost<VisitSession>(
-        `/v1/visitors/sessions/${sessionId}/apply-id-scan`,
-        { id_type, id_number, id_image_object_key }
+        `/visitors/sessions/${sessionId}/apply-id-scan`,
+        { idType, idNumber, idImageObjectKey }
       );
       return data;
     },
@@ -283,7 +283,7 @@ export function useVerifyIdScan() {
   return useMutation({
     mutationFn: async (request: FormData) => {
       const data = await apiPost<Record<string, unknown>>(
-        '/v1/visitors/verify/id-scan',
+        '/visitors/verify/id-scan',
         request
       );
       return data;
@@ -300,7 +300,7 @@ export function useVisitorBadge(sessionId: string) {
     queryKey: visitorKeys.badge(sessionId),
     queryFn: async () => {
       const data = await apiGet<Blob>(
-        `/v1/visitors/sessions/${sessionId}/badge`
+        `/visitors/sessions/${sessionId}/badge`
       );
       return data;
     },
@@ -324,7 +324,7 @@ export function useUpdateDraftSession() {
       sessionId: string;
     } & UpdateDraftSessionRequest) => {
       const data = await apiPatch<VisitSession>(
-        `/v1/visitors/sessions/${sessionId}/update-draft`,
+        `/visitors/sessions/${sessionId}/update-draft`,
         updateData
       );
       return data;
@@ -353,7 +353,7 @@ export function useCheckOut() {
   return useMutation({
     mutationFn: async (request: CheckOutRequest) => {
       const data = await apiPost<VisitSession>(
-        '/v1/visitors/check-out',
+        '/visitors/check-out',
         request
       );
       return data;
@@ -378,7 +378,7 @@ export function useSearchVisitorProfiles(query: string) {
     queryKey: visitorKeys.profilesSearch(query),
     queryFn: async () => {
       const data = await apiGet<VisitorProfile[]>(
-        '/v1/visitor-profiles/search',
+        '/visitor-profiles/search',
         { q: query }
       );
       return data;

@@ -137,8 +137,8 @@ export default function VisitorsPage() {
   const handleConfirmCheckOut = async () => {
     try {
       await checkOutMutation.mutateAsync({
-        session_id: selectedCheckOutId,
-        check_out_method: "manual",
+        sessionId: selectedCheckOutId,
+        checkOutMethod: "manual",
       });
       setConfirmCheckOutOpen(false);
       setSelectedCheckOutId("");
@@ -151,32 +151,32 @@ export default function VisitorsPage() {
 
   const activeVisitorsColumns: ColumnDef<VisitSession>[] = [
     {
-      accessorKey: "visitor_name_snapshot",
+      accessorKey: "visitorNameSnapshot",
       header: "Visitor Name",
       cell: ({ row }) => (
         <span className="font-medium">
-          {row.original.visitor_name_snapshot ||
-            row.original.visitor_profile_id ||
+          {row.original.visitorNameSnapshot ||
+            row.original.visitorProfileId ||
             "—"}
         </span>
       ),
       enableSorting: true,
     },
     {
-      accessorKey: "department_id",
+      accessorKey: "departmentId",
       header: "Department",
       cell: ({ row }) => (
         <span className="text-muted-foreground text-sm">
-          {row.original.department_id || "—"}
+          {row.original.departmentId || "—"}
         </span>
       ),
     },
     {
-      accessorKey: "checked_in_at",
+      accessorKey: "checkedInAt",
       header: "Checked In",
       cell: ({ row }) => (
         <span className="text-muted-foreground text-sm">
-          {formatDateTime(row.original.checked_in_at)}
+          {formatDateTime(row.original.checkedInAt)}
         </span>
       ),
       enableSorting: true,
@@ -224,35 +224,35 @@ export default function VisitorsPage() {
 
   const pendingSessionsColumns: ColumnDef<VisitSession>[] = [
     {
-      accessorKey: "visitor_name_snapshot",
+      accessorKey: "visitorNameSnapshot",
       header: "Visitor Name",
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <span className="font-medium">
-            {row.original.visitor_name_snapshot ||
-              row.original.visitor_profile_id ||
+            {row.original.visitorNameSnapshot ||
+              row.original.visitorProfileId ||
               "—"}
           </span>
-          <OriginBadge method={row.original.check_in_method} />
+          <OriginBadge method={row.original.checkInMethod} />
         </div>
       ),
       enableSorting: true,
     },
     {
-      accessorKey: "department_id",
+      accessorKey: "departmentId",
       header: "Department",
       cell: ({ row }) => (
         <span className="text-muted-foreground text-sm">
-          {row.original.department_id || "—"}
+          {row.original.departmentId || "—"}
         </span>
       ),
     },
     {
-      accessorKey: "checked_in_at",
+      accessorKey: "checkedInAt",
       header: "Registered",
       cell: ({ row }) => (
         <span className="text-muted-foreground text-sm">
-          {formatDateTime(row.original.checked_in_at)}
+          {formatDateTime(row.original.checkedInAt)}
         </span>
       ),
       enableSorting: true,
@@ -313,18 +313,18 @@ export default function VisitorsPage() {
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="font-medium text-sm">
-            {visitor.visitor_name_snapshot ||
-              visitor.visitor_profile_id ||
+            {visitor.visitorNameSnapshot ||
+              visitor.visitorProfileId ||
               "Visitor"}
           </p>
           <p className="text-xs text-muted-foreground">
-            {visitor.department_id || "—"}
+            {visitor.departmentId || "—"}
           </p>
         </div>
         <VisitStatusBadge status={visitor.status} />
       </div>
       <div className="text-xs text-muted-foreground space-y-1">
-        <p>Checked in: {formatDateTime(visitor.checked_in_at)}</p>
+        <p>Checked in: {formatDateTime(visitor.checkedInAt)}</p>
       </div>
       <div className="flex gap-2">
         <Button
@@ -355,21 +355,21 @@ export default function VisitorsPage() {
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-1">
           <p className="font-medium text-sm">
-            {session.visitor_name_snapshot ||
-              session.visitor_profile_id ||
+            {session.visitorNameSnapshot ||
+              session.visitorProfileId ||
               "Visitor"}
           </p>
           <div className="flex items-center gap-2">
             <p className="text-xs text-muted-foreground">
-              {session.department_id || "—"}
+              {session.departmentId || "—"}
             </p>
-            <OriginBadge method={session.check_in_method} />
+            <OriginBadge method={session.checkInMethod} />
           </div>
         </div>
         <VisitStatusBadge status={session.status} />
       </div>
       <div className="text-xs text-muted-foreground space-y-1">
-        <p>Registered: {formatDateTime(session.checked_in_at)}</p>
+        <p>Registered: {formatDateTime(session.checkedInAt)}</p>
       </div>
       <div className="flex gap-2">
         <Button
@@ -466,7 +466,7 @@ export default function VisitorsPage() {
           columns={activeVisitorsColumns}
           data={activeVisitors}
           isLoading={activeLoading}
-          searchKey="visitor_name_snapshot"
+          searchKey="visitorNameSnapshot"
           searchPlaceholder="Search visitors..."
           pagination={true}
           pageSize={10}
@@ -482,7 +482,7 @@ export default function VisitorsPage() {
           columns={pendingSessionsColumns}
           data={pendingSessions}
           isLoading={pendingLoading}
-          searchKey="visitor_name_snapshot"
+          searchKey="visitorNameSnapshot"
           searchPlaceholder="Search pending visitors..."
           pagination={true}
           pageSize={10}
@@ -509,8 +509,8 @@ export default function VisitorsPage() {
             onOpenChange={handleCloseConfirmModal}
             sessionId={selectedSession.id}
             visitorName={
-              selectedSession.visitor_name_snapshot ||
-              selectedSession.visitor_profile_id ||
+              selectedSession.visitorNameSnapshot ||
+              selectedSession.visitorProfileId ||
               "Visitor"
             }
           />
@@ -519,8 +519,8 @@ export default function VisitorsPage() {
             onOpenChange={handleCloseDenyModal}
             sessionId={selectedSession.id}
             visitorName={
-              selectedSession.visitor_name_snapshot ||
-              selectedSession.visitor_profile_id ||
+              selectedSession.visitorNameSnapshot ||
+              selectedSession.visitorProfileId ||
               "Visitor"
             }
           />
@@ -537,8 +537,8 @@ export default function VisitorsPage() {
             onOpenChange={handleCloseOcrModal}
             sessionId={selectedSession.id}
             visitorName={
-              selectedSession.visitor_name_snapshot ||
-              selectedSession.visitor_profile_id ||
+              selectedSession.visitorNameSnapshot ||
+              selectedSession.visitorProfileId ||
               "Visitor"
             }
           />

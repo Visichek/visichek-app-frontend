@@ -20,6 +20,6 @@ export function useAuditLogs(params?: AuditLogFilters) {
   return useQuery<PaginatedResponse<AuditLog>>({
     queryKey: ["audit-logs", params],
     queryFn: () =>
-      apiGet<PaginatedResponse<AuditLog>>("/v1/audit-logs", params),
+      apiGet<PaginatedResponse<AuditLog>>("/audit-logs", params),
   });
 }

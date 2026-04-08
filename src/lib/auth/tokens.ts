@@ -9,8 +9,8 @@ let refreshToken: string | null = null;
 let sessionType: SessionType | null = null;
 
 export function setTokens(tokens: TokenPair, type: SessionType): void {
-  accessToken = tokens.access_token;
-  refreshToken = tokens.refresh_token;
+  accessToken = tokens.accessToken;
+  refreshToken = tokens.refreshToken;
   sessionType = type;
 }
 

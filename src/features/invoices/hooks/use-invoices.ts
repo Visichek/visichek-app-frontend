@@ -19,7 +19,7 @@ interface PaginatedResponse<T> {
 export function useAllInvoices() {
   return useQuery<PaginatedResponse<Invoice>>({
     queryKey: ["invoices", "admin"],
-    queryFn: () => apiGet<PaginatedResponse<Invoice>>("/v1/invoices/admin"),
+    queryFn: () => apiGet<PaginatedResponse<Invoice>>("/invoices/admin"),
   });
 }
 
@@ -29,7 +29,7 @@ export function useAllInvoices() {
 export function useTenantInvoices(tenantId: string) {
   return useQuery<PaginatedResponse<Invoice>>({
     queryKey: ["invoices", "tenant", tenantId],
-    queryFn: () => apiGet<PaginatedResponse<Invoice>>(`/v1/invoices/tenant/${tenantId}`),
+    queryFn: () => apiGet<PaginatedResponse<Invoice>>(`/invoices/tenant/${tenantId}`),
     enabled: !!tenantId,
   });
 }
@@ -40,7 +40,7 @@ export function useTenantInvoices(tenantId: string) {
 export function useInvoice(invoiceId: string) {
   return useQuery<Invoice>({
     queryKey: ["invoices", invoiceId],
-    queryFn: () => apiGet<Invoice>(`/v1/invoices/${invoiceId}`),
+    queryFn: () => apiGet<Invoice>(`/invoices/${invoiceId}`),
     enabled: !!invoiceId,
   });
 }

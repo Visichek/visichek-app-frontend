@@ -3,12 +3,12 @@ import type { NoticeDisplayMode } from "./enums";
 
 // ── Public Registration Info ─────────────────────────────────────────
 export interface PublicTenantInfo {
-  tenant_id: string;
-  company_name: string;
-  logo_url?: string;
-  primary_color?: string;
-  secondary_color?: string;
-  accent_color?: string;
+  tenantId: string;
+  companyName: string;
+  logoUrl?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  accentColor?: string;
 }
 
 export interface PublicDepartment {
@@ -20,25 +20,25 @@ export interface PublicPrivacyNotice {
   id: string;
   title: string;
   summary?: string;
-  full_text?: string;
-  display_mode: NoticeDisplayMode;
-  version_id?: string;
-  effective_date?: number;
+  fullText?: string;
+  displayMode: NoticeDisplayMode;
+  versionId?: string;
+  effectiveDate?: number;
 }
 
 // ── Public Registration Request ──────────────────────────────────────
 export interface PublicRegistrationRequest {
-  full_name: string;
+  fullName: string;
   phone: string;
   email?: string;
   company?: string;
-  department_id: string;
+  departmentId: string;
   purpose?: string;
-  host_id?: string;
-  appointment_id?: string;
-  consent_granted?: boolean;
-  consent_method?: string;
-  privacy_notice_version_id?: string;
+  hostId?: string;
+  appointmentId?: string;
+  consentGranted?: boolean;
+  consentMethod?: string;
+  privacyNoticeVersionId?: string;
 }
 
 export interface PublicRegistrationResponse {
@@ -48,49 +48,49 @@ export interface PublicRegistrationResponse {
 
 // ── Appointment Prefill ──────────────────────────────────────────────
 export interface AppointmentPrefillData {
-  appointment_id: string;
-  visitor_name?: string;
-  host_id?: string;
-  host_name?: string;
-  department_id?: string;
-  department_name?: string;
+  appointmentId: string;
+  visitorName?: string;
+  hostId?: string;
+  hostName?: string;
+  departmentId?: string;
+  departmentName?: string;
   purpose?: string;
-  scheduled_datetime?: number;
+  scheduledDatetime?: number;
 }
 
 // ── Public Checkout ──────────────────────────────────────────────────
 export interface PublicCheckoutRequest {
-  badge_qr_token: string;
+  badgeQrToken: string;
 }
 
 export interface PublicCheckoutResponse {
   session: VisitSession;
-  visit_duration_minutes?: number;
+  visitDurationMinutes?: number;
 }
 
 // ── Public Rights ────────────────────────────────────────────────────
 export interface PublicRightsRequest {
-  request_type: "access" | "correction" | "deletion" | "consent_withdrawal";
-  requester_name: string;
-  requester_email?: string;
-  requester_phone?: string;
+  requestType: "access" | "correction" | "deletion" | "consent_withdrawal";
+  requesterName: string;
+  requesterEmail?: string;
+  requesterPhone?: string;
   description?: string;
 }
 
 export interface PublicRightsResponse {
-  request_id: string;
-  verification_token: string;
-  due_date?: number;
+  requestId: string;
+  verificationToken: string;
+  dueDate?: number;
   status: string;
 }
 
 export interface PublicRightsStatusResponse {
-  request_id: string;
+  requestId: string;
   status: string;
   type: string;
-  due_date?: number;
-  created_at: number;
-  updated_at?: number;
+  dueDate?: number;
+  createdAt: number;
+  updatedAt?: number;
 }
 
 export interface PublicConsentWithdrawalRequest {
@@ -99,7 +99,7 @@ export interface PublicConsentWithdrawalRequest {
 }
 
 export interface PublicConsentWithdrawalResponse {
-  sessions_updated: number;
+  sessionsUpdated: number;
 }
 
 export interface PublicProfilingOptOutRequest {
@@ -109,5 +109,5 @@ export interface PublicProfilingOptOutRequest {
 }
 
 export interface PublicProfilingOptOutResponse {
-  profile_updated: boolean;
+  profileUpdated: boolean;
 }

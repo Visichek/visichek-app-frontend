@@ -10,91 +10,91 @@ import type {
 
 export interface CheckInRequest {
   phone: string;
-  full_name: string;
+  fullName: string;
   company?: string;
-  department_id: string;
-  host_id?: string;
+  departmentId: string;
+  hostId?: string;
   purpose?: string;
-  appointment_id?: string;
-  check_in_method?: CheckInMethod;
-  photo_object_key?: string;
-  id_image_object_key?: string;
-  consent_granted?: boolean;
+  appointmentId?: string;
+  checkInMethod?: CheckInMethod;
+  photoObjectKey?: string;
+  idImageObjectKey?: string;
+  consentGranted?: boolean;
 }
 
 export interface CheckOutRequest {
-  badge_qr_token?: string;
-  session_id?: string;
-  check_out_method?: CheckOutMethod;
+  badgeQrToken?: string;
+  sessionId?: string;
+  checkOutMethod?: CheckOutMethod;
 }
 
 export interface VisitSession {
   id: string;
-  tenant_id: string;
-  visitor_profile_id: string;
-  department_id: string;
-  host_id?: string;
+  tenantId: string;
+  visitorProfileId: string;
+  departmentId: string;
+  hostId?: string;
   purpose?: string;
   status: VisitStatus;
-  check_in_method?: CheckInMethod;
-  check_out_method?: CheckOutMethod;
-  checked_in_at: number;
-  checked_out_at?: number;
-  checked_in_by?: string;
-  checked_out_by?: string;
-  badge_qr_token?: string;
-  visitor_name_snapshot?: string;
+  checkInMethod?: CheckInMethod;
+  checkOutMethod?: CheckOutMethod;
+  checkedInAt: number;
+  checkedOutAt?: number;
+  checkedInBy?: string;
+  checkedOutBy?: string;
+  badgeQrToken?: string;
+  visitorNameSnapshot?: string;
 }
 
 export interface VisitorProfile {
   id: string;
-  tenant_id: string;
-  full_name: string;
+  tenantId: string;
+  fullName: string;
   phone?: string;
   email?: string;
   company?: string;
-  verification_status: VerificationStatus;
-  profiling_preference: ProfilingPreference;
-  visit_count: number;
-  last_visit_at?: number;
-  created_at: number;
+  verificationStatus: VerificationStatus;
+  profilingPreference: ProfilingPreference;
+  visitCount: number;
+  lastVisitAt?: number;
+  createdAt: number;
 }
 
 export interface Appointment {
   id: string;
-  tenant_id: string;
-  visitor_profile_id?: string;
-  host_id: string;
-  department_id: string;
-  visitor_name_snapshot?: string;
-  host_name_snapshot?: string;
-  scheduled_datetime: number;
+  tenantId: string;
+  visitorProfileId?: string;
+  hostId: string;
+  departmentId: string;
+  visitorNameSnapshot?: string;
+  hostNameSnapshot?: string;
+  scheduledDatetime: number;
   purpose?: string;
   status: AppointmentStatus;
-  created_at: number;
-  updated_at: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface AppointmentRequest {
-  tenant_id: string;
-  visitor_profile_id?: string;
-  host_id: string;
-  department_id: string;
-  visitor_name_snapshot?: string;
-  host_name_snapshot?: string;
-  scheduled_datetime: number;
+  tenantId: string;
+  visitorProfileId?: string;
+  hostId: string;
+  departmentId: string;
+  visitorNameSnapshot?: string;
+  hostNameSnapshot?: string;
+  scheduledDatetime: number;
   purpose?: string;
   status?: AppointmentStatus;
 }
 
 export interface ConfirmCheckInRequest {
-  badge_format?: BadgeFormat;
+  badgeFormat?: BadgeFormat;
 }
 
 export interface ConfirmCheckInResponse {
   session: VisitSession;
-  badge_pdf_base64: string;
-  badge_qr_token: string;
+  badgePdfBase64: string;
+  badgeQrToken: string;
 }
 
 export interface DenyVisitorRequest {
@@ -102,16 +102,16 @@ export interface DenyVisitorRequest {
 }
 
 export interface ApplyIdScanRequest {
-  id_type: string;
-  id_number: string;
-  id_image_object_key?: string;
+  idType: string;
+  idNumber: string;
+  idImageObjectKey?: string;
 }
 
 export interface UpdateDraftSessionRequest {
-  full_name?: string;
+  fullName?: string;
   phone?: string;
   company?: string;
-  department_id?: string;
-  host_id?: string;
+  departmentId?: string;
+  hostId?: string;
   purpose?: string;
 }

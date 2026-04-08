@@ -21,19 +21,19 @@ import { useDepartments } from "@/features/departments/hooks/use-departments";
 import type { CheckInMethod } from "@/types/enums";
 
 const checkInSchema = z.object({
-  full_name: z.string().min(1, "Full name is required"),
+  fullName: z.string().min(1, "Full name is required"),
   company: z.string().optional(),
-  department_id: z.string().min(1, "Department is required"),
-  host_id: z.string().optional(),
+  departmentId: z.string().min(1, "Department is required"),
+  hostId: z.string().optional(),
   purpose: z.string().optional(),
-  appointment_id: z.string().optional(),
+  appointmentId: z.string().optional(),
   phone: z.string().min(1, "Phone number is required"),
-  check_in_method: z.enum([
+  checkInMethod: z.enum([
     "qr_registration",
     "id_scan",
     "manual_entry",
   ] as const),
-  consent_granted: z.boolean().optional(),
+  consentGranted: z.boolean().optional(),
 });
 
 type CheckInFormData = z.infer<typeof checkInSchema>;
@@ -57,26 +57,26 @@ export function CheckInModal({ open, onOpenChange }: CheckInModalProps) {
   } = useForm<CheckInFormData>({
     resolver: zodResolver(checkInSchema),
     defaultValues: {
-      check_in_method: "manual_entry",
-      consent_granted: false,
+      checkInMethod: "manual_entry",
+      consentGranted: false,
     },
   });
 
-  const checkInMethod = watch("check_in_method");
-  const consentGranted = watch("consent_granted");
+  const checkInMethod = watch("checkInMethod");
+  const consentGranted = watch("consentGranted");
 
   const onSubmit = async (data: CheckInFormData) => {
     try {
       await checkInMutation.mutateAsync({
-        full_name: data.full_name,
+        fullName: data.fullName,
         company: data.company,
-        department_id: data.department_id,
-        host_id: data.host_id,
+        departmentId: data.departmentId,
+        hostId: data.hostId,
         purpose: data.purpose,
-        appointment_id: data.appointment_id,
+        appointmentId: data.appointmentId,
         phone: data.phone,
-        check_in_method: data.check_in_method as CheckInMethod,
-        consent_granted: data.consent_granted,
+        checkInMethod: data.checkInMethod as CheckInMethod,
+        consentGranted: data.consentGranted,
       });
 
       toast.success("Visitor registered. Confirm check-in to issue badge.");
@@ -101,21 +101,21 @@ export function CheckInModal({ open, onOpenChange }: CheckInModalProps) {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Full Name */}
         <div className="space-y-2">
-          <Label htmlFor="full_name">Full Name *</Label>
+          <Label htmlFor="fullName">Full Name *</Label>
           <Input
-            id="full_name"
+            id="fullName"
             placeholder="Enter visitor's full name"
-            {...register("full_name")}
-            aria-invalid={!!errors.full_name}
-            aria-describedby={errors.full_name ? "error-full_name" : undefined}
+            {...register("fullName")}
+            aria-invalid={!!errors.fullName}
+            aria-describedby={errors.fullName ? "error-fullName" : undefined}
           />
-          {errors.full_name && (
+          {errors.fullName && (
             <p
-              id="error-full_name"
+              id="error-fullName"
               className="text-sm text-destructive"
               role="alert"
             >
-              {errors.full_name.message}
+              {errors.fullName.message}
             </p>
           )}
         </div>
@@ -132,12 +132,12 @@ export function CheckInModal({ open, onOpenChange }: CheckInModalProps) {
 
         {/* Department */}
         <div className="space-y-2">
-          <Label htmlFor="department_id">Department *</Label>
+          <Label htmlFor="departmentId">Department *</Label>
           <Select
-            value={watch("department_id") || ""}
-            onValueChange={(value) => setValue("department_id", value)}
+            value={watch("departmentId") || ""}
+            onValueChange={(value) => setValue("departmentId", value)}
           >
-            <SelectTrigger id="department_id">
+            <SelectTrigger id="departmentId">
               <SelectValue placeholder="Select department" />
             </SelectTrigger>
             <SelectContent>
@@ -148,20 +148,20 @@ export function CheckInModal({ open, onOpenChange }: CheckInModalProps) {
               ))}
             </SelectContent>
           </Select>
-          {errors.department_id && (
+          {errors.departmentId && (
             <p className="text-sm text-destructive" role="alert">
-              {errors.department_id.message}
+              {errors.departmentId.message}
             </p>
           )}
         </div>
 
         {/* Host ID */}
         <div className="space-y-2">
-          <Label htmlFor="host_id">Host ID</Label>
+          <Label htmlFor="hostId">Host ID</Label>
           <Input
-            id="host_id"
+            id="hostId"
             placeholder="Host's ID or email (optional)"
-            {...register("host_id")}
+            {...register("hostId")}
           />
         </div>
 
@@ -178,11 +178,11 @@ export function CheckInModal({ open, onOpenChange }: CheckInModalProps) {
 
         {/* Appointment ID */}
         <div className="space-y-2">
-          <Label htmlFor="appointment_id">Appointment ID</Label>
+          <Label htmlFor="appointmentId">Appointment ID</Label>
           <Input
-            id="appointment_id"
+            id="appointmentId"
             placeholder="Appointment ID (optional)"
-            {...register("appointment_id")}
+            {...register("appointmentId")}
           />
         </div>
 
@@ -210,14 +210,14 @@ export function CheckInModal({ open, onOpenChange }: CheckInModalProps) {
 
         {/* Check-in Method */}
         <div className="space-y-2">
-          <Label htmlFor="check_in_method">Check-in Method</Label>
+          <Label htmlFor="checkInMethod">Check-in Method</Label>
           <Select
             value={checkInMethod}
             onValueChange={(value) =>
-              setValue("check_in_method", value as CheckInMethod)
+              setValue("checkInMethod", value as CheckInMethod)
             }
           >
-            <SelectTrigger id="check_in_method">
+            <SelectTrigger id="checkInMethod">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -231,13 +231,13 @@ export function CheckInModal({ open, onOpenChange }: CheckInModalProps) {
         {/* Consent */}
         <div className="flex items-center space-x-2">
           <input
-            id="consent_granted"
+            id="consentGranted"
             type="checkbox"
             className="h-4 w-4 rounded border-input"
-            {...register("consent_granted")}
+            {...register("consentGranted")}
             aria-label="Visitor consent granted"
           />
-          <Label htmlFor="consent_granted" className="font-normal">
+          <Label htmlFor="consentGranted" className="font-normal">
             Consent granted for processing
           </Label>
         </div>

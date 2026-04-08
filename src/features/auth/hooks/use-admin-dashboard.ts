@@ -32,7 +32,7 @@ export function useAdminDashboardStats() {
     queryKey: adminKeys.stats(),
     queryFn: async () => {
       const data = await apiGet<AdminDashboardStats>(
-        '/v1/admins/dashboard/stats'
+        '/admins/dashboard/stats'
       );
       return data;
     },
@@ -49,7 +49,7 @@ export function useAdminBillingSummary() {
     queryKey: adminKeys.billing(),
     queryFn: async () => {
       const data = await apiGet<AdminBillingSummary>(
-        '/v1/admins/dashboard/billing'
+        '/admins/dashboard/billing'
       );
       return data;
     },
@@ -65,7 +65,7 @@ export function useTenantList(filters?: Record<string, unknown>) {
   return useQuery({
     queryKey: adminKeys.tenantList(filters),
     queryFn: async () => {
-      const data = await apiGet<AdminTenant[]>('/v1/tenants/', filters);
+      const data = await apiGet<AdminTenant[]>('/tenants/', filters);
       return data;
     },
     staleTime: 30000,
@@ -80,7 +80,7 @@ export function useTenant(tenantId: string) {
   return useQuery({
     queryKey: adminKeys.tenantDetail(tenantId),
     queryFn: async () => {
-      const data = await apiGet<AdminTenant>(`/v1/tenants/${tenantId}`);
+      const data = await apiGet<AdminTenant>(`/tenants/${tenantId}`);
       return data;
     },
     enabled: !!tenantId,
@@ -98,7 +98,7 @@ export function useBootstrapTenant() {
   return useMutation({
     mutationFn: async (request: TenantBootstrapRequest) => {
       const data = await apiPost<Tenant>(
-        '/v1/admins/tenants/bootstrap',
+        '/admins/tenants/bootstrap',
         request
       );
       return data;

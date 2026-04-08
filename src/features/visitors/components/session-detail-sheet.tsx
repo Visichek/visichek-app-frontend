@@ -38,11 +38,11 @@ import type { VisitSession } from "@/types/visitor";
 // ── Draft Edit Schema ────────────────────────────────────────────────
 
 const draftSchema = z.object({
-  full_name: z.string().optional(),
+  fullName: z.string().optional(),
   phone: z.string().optional(),
   company: z.string().optional(),
-  department_id: z.string().optional(),
-  host_id: z.string().optional(),
+  departmentId: z.string().optional(),
+  hostId: z.string().optional(),
   purpose: z.string().optional(),
 });
 
@@ -89,11 +89,11 @@ export function SessionDetailSheet({
   } = useForm<DraftFormValues>({
     resolver: zodResolver(draftSchema),
     defaultValues: {
-      full_name: currentSession.visitor_name_snapshot || "",
+      fullName: currentSession.visitorNameSnapshot || "",
       phone: "",
       company: "",
-      department_id: currentSession.department_id || "",
-      host_id: currentSession.host_id || "",
+      departmentId: currentSession.departmentId || "",
+      hostId: currentSession.hostId || "",
       purpose: currentSession.purpose || "",
     },
   });
@@ -102,11 +102,11 @@ export function SessionDetailSheet({
     try {
       await updateDraftMutation.mutateAsync({
         sessionId: currentSession.id,
-        full_name: values.full_name || undefined,
+        fullName: values.fullName || undefined,
         phone: values.phone || undefined,
         company: values.company || undefined,
-        department_id: values.department_id || undefined,
-        host_id: values.host_id || undefined,
+        departmentId: values.departmentId || undefined,
+        hostId: values.hostId || undefined,
         purpose: values.purpose || undefined,
       });
       toast.success("Session updated");
@@ -132,7 +132,7 @@ export function SessionDetailSheet({
   async function handleBadgeDownload() {
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/v1"}/visitors/sessions/${currentSession.id}/badge`,
+        `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"}/visitors/sessions/${currentSession.id}/badge`,
         {
           headers: {
             Authorization: `Bearer ${(await import("@/lib/auth/tokens")).getAccessToken()}`,
@@ -144,7 +144,7 @@ export function SessionDetailSheet({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `badge-${(currentSession.visitor_name_snapshot || "visitor").replace(/\s+/g, "-").toLowerCase()}.pdf`;
+      link.download = `badge-${(currentSession.visitorNameSnapshot || "visitor").replace(/\s+/g, "-").toLowerCase()}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -197,16 +197,16 @@ export function SessionDetailSheet({
       onOpenChange={onOpenChange}
       title="Session Details"
       description={
-        currentSession.visitor_name_snapshot || "Visitor session"
+        currentSession.visitorNameSnapshot || "Visitor session"
       }
       actions={actions}
     >
       {/* Status and verification */}
       <div className="flex flex-wrap gap-2">
         <VisitStatusBadge status={currentSession.status} />
-        {currentSession.check_in_method && (
+        {currentSession.checkInMethod && (
           <Badge variant="outline" className="text-xs">
-            {currentSession.check_in_method.replace(/_/g, " ")}
+            {currentSession.checkInMethod.replace(/_/g, " ")}
           </Badge>
         )}
       </div>
@@ -216,19 +216,19 @@ export function SessionDetailSheet({
         <div className="flex justify-between">
           <span className="text-muted-foreground">Visitor</span>
           <span className="font-medium">
-            {currentSession.visitor_name_snapshot || "—"}
+            {currentSession.visitorNameSnapshot || "—"}
           </span>
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Department</span>
           <span className="font-medium">
-            {currentSession.department_id || "—"}
+            {currentSession.departmentId || "—"}
           </span>
         </div>
-        {currentSession.host_id && (
+        {currentSession.hostId && (
           <div className="flex justify-between">
             <span className="text-muted-foreground">Host</span>
-            <span className="font-medium">{currentSession.host_id}</span>
+            <span className="font-medium">{currentSession.hostId}</span>
           </div>
         )}
         {currentSession.purpose && (
@@ -242,14 +242,14 @@ export function SessionDetailSheet({
         <div className="flex justify-between">
           <span className="text-muted-foreground">Registered</span>
           <span className="font-medium">
-            {formatDateTime(currentSession.checked_in_at)}
+            {formatDateTime(currentSession.checkedInAt)}
           </span>
         </div>
-        {currentSession.checked_out_at && (
+        {currentSession.checkedOutAt && (
           <div className="flex justify-between">
             <span className="text-muted-foreground">Checked Out</span>
             <span className="font-medium">
-              {formatDateTime(currentSession.checked_out_at)}
+              {formatDateTime(currentSession.checkedOutAt)}
             </span>
           </div>
         )}
@@ -318,8 +318,8 @@ export function SessionDetailSheet({
                     Department
                   </Label>
                   <Select
-                    value={watch("department_id") || ""}
-                    onValueChange={(v) => setValue("department_id", v)}
+                    value={watch("departmentId") || ""}
+                    onValueChange={(v) => setValue("departmentId", v)}
                   >
                     <SelectTrigger
                       id="draft_department"
@@ -343,7 +343,7 @@ export function SessionDetailSheet({
                   <Input
                     id="draft_host"
                     className="h-9 text-base md:text-sm"
-                    {...register("host_id")}
+                    {...register("hostId")}
                   />
                 </div>
                 <div className="space-y-1.5">

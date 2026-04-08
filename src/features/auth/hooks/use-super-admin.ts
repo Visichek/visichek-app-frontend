@@ -14,16 +14,16 @@ interface PaginatedResponse<T> {
 }
 
 interface VisitorLogParams {
-  start_date?: string;
-  end_date?: string;
-  status_filter?: string;
+  startDate?: string;
+  endDate?: string;
+  statusFilter?: string;
   skip?: number;
   limit?: number;
 }
 
 interface GenerateRegistrationQRResponse {
   qr_code: string;
-  expires_in?: number;
+  expiresIn?: number;
 }
 
 interface AssignUserDepartmentRequest {
@@ -62,7 +62,7 @@ export function useVisitorLog(params?: VisitorLogParams) {
     queryKey: superAdminKeys.visitorLogList(params),
     queryFn: () =>
       apiGet<PaginatedResponse<Visitor>>(
-        '/v1/super-admin/visitor-log',
+        '/super-admin/visitor-log',
         params
       ),
   });
@@ -76,7 +76,7 @@ export function useGenerateRegistrationQR() {
   return useMutation<GenerateRegistrationQRResponse, Error, void>({
     mutationFn: () =>
       apiPost<GenerateRegistrationQRResponse>(
-        '/v1/super-admin/registration-qr',
+        '/super-admin/registration-qr',
         {}
       ),
   });
@@ -93,8 +93,8 @@ export function useAssignUserDepartment() {
   return useMutation<void, Error, AssignUserDepartmentRequest>({
     mutationFn: ({ userId, departmentId }) =>
       apiPatch<void>(
-        `/v1/super-admin/admins/${userId}/department`,
-        { department_id: departmentId }
+        `/super-admin/admins/${userId}/department`,
+        { departmentId: departmentId }
       ),
     onSuccess: () => {
       // Invalidate related user and department queries
@@ -117,7 +117,7 @@ export function useSuperAdminAnalytics() {
   return useQuery<SuperAdminAnalyticsResponse>({
     queryKey: superAdminKeys.analytics(),
     queryFn: () =>
-      apiGet<SuperAdminAnalyticsResponse>('/v1/super-admin/analytics'),
+      apiGet<SuperAdminAnalyticsResponse>('/super-admin/analytics'),
     staleTime: 300000, // 5 minutes
   });
 }

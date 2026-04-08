@@ -22,7 +22,7 @@ import type { BadgeFormat } from "@/types/enums";
 import type { ConfirmCheckInResponse } from "@/types/visitor";
 
 const confirmCheckInSchema = z.object({
-  badge_format: z.enum(["A6", "A7"] as const).default("A7"),
+  badgeFormat: z.enum(["A6", "A7"] as const).default("A7"),
 });
 
 type ConfirmCheckInFormData = z.infer<typeof confirmCheckInSchema>;
@@ -94,11 +94,11 @@ export function ConfirmCheckInModal({
   } = useForm<ConfirmCheckInFormData>({
     resolver: zodResolver(confirmCheckInSchema),
     defaultValues: {
-      badge_format: "A7",
+      badgeFormat: "A7",
     },
   });
 
-  const badgeFormat = watch("badge_format");
+  const badgeFormat = watch("badgeFormat");
 
   function handleClose(nextOpen: boolean) {
     if (!nextOpen) {
@@ -112,16 +112,16 @@ export function ConfirmCheckInModal({
     try {
       const response = await confirmCheckInMutation.mutateAsync({
         sessionId,
-        badge_format: data.badge_format as BadgeFormat,
+        badgeFormat: data.badgeFormat as BadgeFormat,
       });
 
       toast.success("Check-in confirmed and badge generated");
       setConfirmResult(response);
 
       // Auto-download badge
-      if (response.badge_pdf_base64) {
+      if (response.badgePdfBase64) {
         try {
-          downloadBadgePdf(response.badge_pdf_base64, visitorName);
+          downloadBadgePdf(response.badgePdfBase64, visitorName);
         } catch {
           // Download failed silently; user can retry via button
         }
@@ -156,13 +156,13 @@ export function ConfirmCheckInModal({
             Badge has been generated. You can download or print it below.
           </p>
 
-          {confirmResult.badge_pdf_base64 && (
+          {confirmResult.badgePdfBase64 && (
             <div className="flex w-full gap-2 flex-col sm:flex-row">
               <Button
                 variant="default"
                 onClick={() =>
                   downloadBadgePdf(
-                    confirmResult.badge_pdf_base64,
+                    confirmResult.badgePdfBase64,
                     visitorName
                   )
                 }
@@ -174,7 +174,7 @@ export function ConfirmCheckInModal({
               <Button
                 variant="outline"
                 onClick={() =>
-                  printBadgePdf(confirmResult.badge_pdf_base64)
+                  printBadgePdf(confirmResult.badgePdfBase64)
                 }
                 className="flex-1 min-h-[44px]"
               >
@@ -207,14 +207,14 @@ export function ConfirmCheckInModal({
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Badge Format */}
         <div className="space-y-2">
-          <Label htmlFor="badge_format">Badge Format</Label>
+          <Label htmlFor="badgeFormat">Badge Format</Label>
           <Select
             value={badgeFormat}
             onValueChange={(value) =>
-              setValue("badge_format", value as BadgeFormat)
+              setValue("badgeFormat", value as BadgeFormat)
             }
           >
-            <SelectTrigger id="badge_format" className="text-base md:text-sm">
+            <SelectTrigger id="badgeFormat" className="text-base md:text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -222,9 +222,9 @@ export function ConfirmCheckInModal({
               <SelectItem value="A6">A6 — Large (4.1" x 5.8")</SelectItem>
             </SelectContent>
           </Select>
-          {errors.badge_format && (
+          {errors.badgeFormat && (
             <p className="text-sm text-destructive" role="alert">
-              {errors.badge_format.message}
+              {errors.badgeFormat.message}
             </p>
           )}
           <p className="text-xs text-muted-foreground">

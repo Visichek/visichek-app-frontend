@@ -23,7 +23,7 @@ export function useAppointments(filters?: Record<string, unknown>) {
   return useQuery({
     queryKey: appointmentKeys.list(filters),
     queryFn: async () => {
-      const data = await apiGet<Appointment[]>('/v1/appointments/', filters);
+      const data = await apiGet<Appointment[]>('/appointments/', filters);
       return data;
     },
     staleTime: 30000,
@@ -38,7 +38,7 @@ export function useAppointment(appointmentId: string) {
     queryKey: appointmentKeys.detail(appointmentId),
     queryFn: async () => {
       const data = await apiGet<Appointment>(
-        `/v1/appointments/${appointmentId}`
+        `/appointments/${appointmentId}`
       );
       return data;
     },
@@ -56,7 +56,7 @@ export function useCreateAppointment() {
 
   return useMutation({
     mutationFn: async (request: AppointmentRequest) => {
-      const data = await apiPost<Appointment>('/v1/appointments/', request);
+      const data = await apiPost<Appointment>('/appointments/', request);
       return data;
     },
     onSuccess: (newAppointment) => {
@@ -87,7 +87,7 @@ export function useUpdateAppointment() {
       data: Partial<AppointmentRequest>;
     }) => {
       const result = await apiPatch<Appointment>(
-        `/v1/appointments/${appointmentId}`,
+        `/appointments/${appointmentId}`,
         data
       );
       return result;
@@ -113,7 +113,7 @@ export function useDeleteAppointment() {
 
   return useMutation({
     mutationFn: async (appointmentId: string) => {
-      await apiDelete(`/v1/appointments/${appointmentId}`);
+      await apiDelete(`/appointments/${appointmentId}`);
     },
     onSuccess: (_, appointmentId) => {
       // Invalidate all appointments lists

@@ -7,14 +7,14 @@ import type { TenantBranding } from "@/types/tenant";
 export function applyBranding(branding: TenantBranding): void {
   const root = document.documentElement;
 
-  if (branding.primary_color) {
-    root.style.setProperty("--tenant-primary", branding.primary_color);
+  if (branding.primaryColor) {
+    root.style.setProperty("--tenant-primary", branding.primaryColor);
   }
-  if (branding.secondary_color) {
-    root.style.setProperty("--tenant-secondary", branding.secondary_color);
+  if (branding.secondaryColor) {
+    root.style.setProperty("--tenant-secondary", branding.secondaryColor);
   }
-  if (branding.accent_color) {
-    root.style.setProperty("--tenant-accent", branding.accent_color);
+  if (branding.accentColor) {
+    root.style.setProperty("--tenant-accent", branding.accentColor);
   }
 }
 

@@ -1,27 +1,27 @@
 // ── Compliance Register ───────────────────────────────────────────────
 export interface ComplianceRegisterEntry {
   id: string;
-  tenant_id: string;
-  processing_activity: string;
+  tenantId: string;
+  processingActivity: string;
   purpose: string;
-  lawful_basis: string;
-  data_categories?: string;
-  created_at: number;
+  lawfulBasis: string;
+  dataCategories?: string;
+  createdAt: number;
 }
 
 export interface CreateRegisterEntryRequest {
-  processing_activity: string;
+  processingActivity: string;
   purpose: string;
-  lawful_basis: string;
-  data_categories?: string;
+  lawfulBasis: string;
+  dataCategories?: string;
 }
 
 // ── Consent Log ────────────────────────────────────────────────────
 export interface ConsentLogEntry {
   id: string;
-  tenant_id: string;
-  visitor_profile_id: string;
-  consent_granted: boolean;
+  tenantId: string;
+  visitorProfileId: string;
+  consentGranted: boolean;
   purpose: string;
   timestamp: number;
 }
@@ -29,9 +29,9 @@ export interface ConsentLogEntry {
 // ── Deletion Log ───────────────────────────────────────────────────
 export interface DeletionLogEntry {
   id: string;
-  tenant_id: string;
-  entity_type: string;
-  entity_id: string;
+  tenantId: string;
+  entityType: string;
+  entityId: string;
   action: string;
-  executed_at: number;
+  executedAt: number;
 }

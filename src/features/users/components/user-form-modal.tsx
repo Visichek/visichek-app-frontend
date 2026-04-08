@@ -20,7 +20,7 @@ import { useDepartments } from "@/features/departments/hooks/use-departments";
 import type { SystemUserRole } from "@/types/enums";
 
 const userSchema = z.object({
-  full_name: z.string().min(1, "Full name is required"),
+  fullName: z.string().min(1, "Full name is required"),
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   role: z.enum([
@@ -31,7 +31,7 @@ const userSchema = z.object({
     "security_officer",
     "dpo",
   ] as const),
-  department_id: z.string().optional(),
+  departmentId: z.string().optional(),
 });
 
 type UserFormData = z.infer<typeof userSchema>;
@@ -55,25 +55,25 @@ export function UserFormModal({ open, onOpenChange }: UserFormModalProps) {
   } = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
     defaultValues: {
-      full_name: "",
+      fullName: "",
       email: "",
       password: "",
       role: "receptionist",
-      department_id: "",
+      departmentId: "",
     },
   });
 
   const role = watch("role");
-  const departmentId = watch("department_id");
+  const departmentId = watch("departmentId");
 
   const onSubmit = async (data: UserFormData) => {
     try {
       await createMutation.mutateAsync({
-        full_name: data.full_name,
+        fullName: data.fullName,
         email: data.email,
         password: data.password,
         role: data.role as SystemUserRole,
-        department_id: data.department_id || undefined,
+        departmentId: data.departmentId || undefined,
       });
 
       toast.success("System user created successfully");
@@ -96,23 +96,23 @@ export function UserFormModal({ open, onOpenChange }: UserFormModalProps) {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Full Name */}
         <div className="space-y-2">
-          <Label htmlFor="full_name">Full Name *</Label>
+          <Label htmlFor="fullName">Full Name *</Label>
           <Input
-            id="full_name"
+            id="fullName"
             placeholder="Enter user's full name"
-            {...register("full_name")}
-            aria-invalid={!!errors.full_name}
+            {...register("fullName")}
+            aria-invalid={!!errors.fullName}
             aria-describedby={
-              errors.full_name ? "error-full_name" : undefined
+              errors.fullName ? "error-fullName" : undefined
             }
           />
-          {errors.full_name && (
+          {errors.fullName && (
             <p
-              id="error-full_name"
+              id="error-fullName"
               className="text-sm text-destructive"
               role="alert"
             >
-              {errors.full_name.message}
+              {errors.fullName.message}
             </p>
           )}
         </div>
@@ -190,12 +190,12 @@ export function UserFormModal({ open, onOpenChange }: UserFormModalProps) {
         {/* Department (optional, relevant for dept_admin and receptionist) */}
         {(role === "dept_admin" || role === "receptionist") && (
           <div className="space-y-2">
-            <Label htmlFor="department_id">Department</Label>
+            <Label htmlFor="departmentId">Department</Label>
             <Select
               value={departmentId}
-              onValueChange={(value) => setValue("department_id", value)}
+              onValueChange={(value) => setValue("departmentId", value)}
             >
-              <SelectTrigger id="department_id">
+              <SelectTrigger id="departmentId">
                 <SelectValue placeholder="Select department (optional)" />
               </SelectTrigger>
               <SelectContent>

@@ -42,13 +42,13 @@ import { ApiError } from "@/types/api";
 
 function buildRegistrationSchema(consentRequired: boolean) {
   return z.object({
-    full_name: z.string().min(1, "Full name is required"),
+    fullName: z.string().min(1, "Full name is required"),
     phone: z.string().min(1, "Phone number is required"),
     email: z.string().email("Enter a valid email").optional().or(z.literal("")),
     company: z.string().optional(),
-    department_id: z.string().min(1, "Department is required"),
+    departmentId: z.string().min(1, "Department is required"),
     purpose: z.string().optional(),
-    consent_granted: consentRequired
+    consentGranted: consentRequired
       ? z.literal(true, {
           errorMap: () => ({
             message: "You must consent to the privacy notice to register.",
@@ -101,7 +101,7 @@ export default function PublicRegistrationPage() {
   const [registeredCompany, setRegisteredCompany] = useState<string | undefined>();
 
   // ── Consent required check ──────────────────────────────────────────
-  const consentRequired = privacyNotice?.display_mode === "active_consent";
+  const consentRequired = privacyNotice?.displayMode === "active_consent";
 
   // ── Form ──────────────────────────────────────────────────────────
   const {
@@ -113,24 +113,24 @@ export default function PublicRegistrationPage() {
   } = useForm<RegistrationFormValues>({
     resolver: zodResolver(buildRegistrationSchema(consentRequired ?? false)),
     defaultValues: {
-      full_name: "",
+      fullName: "",
       phone: "",
       email: "",
       company: "",
-      department_id: "",
+      departmentId: "",
       purpose: "",
-      consent_granted: false,
+      consentGranted: false,
     },
   });
 
   // ── Appointment prefill effect ────────────────────────────────────
   useEffect(() => {
     if (appointmentData) {
-      if (appointmentData.visitor_name) {
-        setValue("full_name", appointmentData.visitor_name);
+      if (appointmentData.visitorName) {
+        setValue("fullName", appointmentData.visitorName);
       }
-      if (appointmentData.department_id) {
-        setValue("department_id", appointmentData.department_id);
+      if (appointmentData.departmentId) {
+        setValue("departmentId", appointmentData.departmentId);
       }
       if (appointmentData.purpose) {
         setValue("purpose", appointmentData.purpose);
@@ -140,10 +140,10 @@ export default function PublicRegistrationPage() {
 
   // ── Apply tenant branding ─────────────────────────────────────────
   useEffect(() => {
-    if (tenantInfo?.primary_color) {
+    if (tenantInfo?.primaryColor) {
       document.documentElement.style.setProperty(
         "--tenant-primary",
-        tenantInfo.primary_color
+        tenantInfo.primaryColor
       );
     }
     return () => {
@@ -157,30 +157,30 @@ export default function PublicRegistrationPage() {
 
     // Build request payload
     const payload: PublicRegistrationRequest = {
-      full_name: values.full_name,
+      fullName: values.fullName,
       phone: values.phone,
-      department_id: values.department_id,
+      departmentId: values.departmentId,
       email: values.email || undefined,
       company: values.company || undefined,
       purpose: values.purpose || undefined,
-      consent_granted: values.consent_granted || undefined,
-      appointment_id: appointmentId || undefined,
+      consentGranted: values.consentGranted || undefined,
+      appointmentId: appointmentId || undefined,
     };
 
     // Attach consent metadata if privacy notice was shown
-    if (privacyNotice && values.consent_granted) {
-      payload.consent_method = "public_registration_form";
-      payload.privacy_notice_version_id = privacyNotice.version_id || privacyNotice.id;
+    if (privacyNotice && values.consentGranted) {
+      payload.consentMethod = "public_registration_form";
+      payload.privacyNotice_versionId = privacyNotice.versionId || privacyNotice.id;
     }
 
     // Attach host from appointment prefill if present
-    if (appointmentData?.host_id) {
-      payload.host_id = appointmentData.host_id;
+    if (appointmentData?.hostId) {
+      payload.hostId = appointmentData.hostId;
     }
 
     try {
       await registerMutation.mutateAsync(payload);
-      setRegisteredName(values.full_name);
+      setRegisteredName(values.fullName);
       setRegisteredCompany(values.company || undefined);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -237,7 +237,7 @@ export default function PublicRegistrationPage() {
     return (
       <RegistrationSuccess
         visitorName={registeredName}
-        companyName={registeredCompany ?? tenantInfo.company_name}
+        companyName={registeredCompany ?? tenantInfo.companyName}
       />
     );
   }
@@ -250,10 +250,10 @@ export default function PublicRegistrationPage() {
     <div className="flex flex-col items-center px-4 py-8 md:py-12">
       {/* Tenant branding header */}
       <div className="mb-6 flex flex-col items-center gap-3 text-center">
-        {tenantInfo.logo_url ? (
+        {tenantInfo.logoUrl ? (
           <img
-            src={tenantInfo.logo_url}
-            alt={`${tenantInfo.company_name} logo`}
+            src={tenantInfo.logoUrl}
+            alt={`${tenantInfo.companyName} logo`}
             className="h-12 w-auto object-contain"
           />
         ) : (
@@ -262,7 +262,7 @@ export default function PublicRegistrationPage() {
           </div>
         )}
         <h1 className="text-2xl font-display font-semibold">
-          {tenantInfo.company_name}
+          {tenantInfo.companyName}
         </h1>
         <p className="text-sm text-muted-foreground">Visitor Registration</p>
       </div>
@@ -272,13 +272,13 @@ export default function PublicRegistrationPage() {
         <div className="mb-4 w-full max-w-lg rounded-md border border-info/30 bg-info/5 p-3 text-center text-sm">
           <p className="font-medium text-foreground">
             Appointment with{" "}
-            {appointmentData.host_name || "your host"}
+            {appointmentData.hostName || "your host"}
           </p>
-          {appointmentData.scheduled_datetime && (
+          {appointmentData.scheduledDatetime && (
             <p className="text-muted-foreground">
               Scheduled:{" "}
               {new Date(
-                appointmentData.scheduled_datetime * 1000
+                appointmentData.scheduledDatetime * 1000
               ).toLocaleString()}
             </p>
           )}
@@ -314,21 +314,21 @@ export default function PublicRegistrationPage() {
 
             {/* Full Name */}
             <div className="space-y-2">
-              <Label htmlFor="full_name">
+              <Label htmlFor="fullName">
                 Full Name <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="full_name"
+                id="fullName"
                 type="text"
                 placeholder="Your full name"
                 autoComplete="name"
                 autoFocus
                 className="text-base md:text-sm"
-                {...register("full_name")}
+                {...register("fullName")}
               />
-              {errors.full_name && (
+              {errors.fullName && (
                 <p className="text-sm text-destructive">
-                  {errors.full_name.message}
+                  {errors.fullName.message}
                 </p>
               )}
             </div>
@@ -388,18 +388,18 @@ export default function PublicRegistrationPage() {
 
             {/* Department */}
             <div className="space-y-2">
-              <Label htmlFor="department_id">
+              <Label htmlFor="departmentId">
                 Department <span className="text-destructive">*</span>
               </Label>
               <Controller
-                name="department_id"
+                name="departmentId"
                 control={control}
                 render={({ field }) => (
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
                   >
-                    <SelectTrigger id="department_id" className="text-base md:text-sm">
+                    <SelectTrigger id="departmentId" className="text-base md:text-sm">
                       <SelectValue placeholder="Select a department" />
                     </SelectTrigger>
                     <SelectContent>
@@ -412,9 +412,9 @@ export default function PublicRegistrationPage() {
                   </Select>
                 )}
               />
-              {errors.department_id && (
+              {errors.departmentId && (
                 <p className="text-sm text-destructive">
-                  {errors.department_id.message}
+                  {errors.departmentId.message}
                 </p>
               )}
             </div>
@@ -436,11 +436,11 @@ export default function PublicRegistrationPage() {
               <div className="space-y-2">
                 <div className="flex items-start gap-3 rounded-md border p-3">
                   <Controller
-                    name="consent_granted"
+                    name="consentGranted"
                     control={control}
                     render={({ field }) => (
                       <Checkbox
-                        id="consent_granted"
+                        id="consentGranted"
                         checked={field.value === true}
                         onCheckedChange={field.onChange}
                         className="mt-0.5"
@@ -449,20 +449,20 @@ export default function PublicRegistrationPage() {
                     )}
                   />
                   <Label
-                    htmlFor="consent_granted"
+                    htmlFor="consentGranted"
                     className="text-sm font-normal leading-relaxed cursor-pointer"
                   >
                     I have read the privacy notice and consent to the processing
                     of my personal data for the purpose of this visit.
                   </Label>
                 </div>
-                {errors.consent_granted && (
+                {errors.consentGranted && (
                   <p
                     id="consent-error"
                     className="text-sm text-destructive"
                     role="alert"
                   >
-                    {errors.consent_granted.message}
+                    {errors.consentGranted.message}
                   </p>
                 )}
               </div>

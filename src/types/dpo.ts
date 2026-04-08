@@ -3,19 +3,19 @@ import type { DSRType, DSRStatus, DeletionAction, NoticeDisplayMode } from "./en
 // ── Data Subject Requests ─────────────────────────────────────────────
 export interface DataSubjectRequest {
   id: string;
-  tenant_id: string;
-  requester_name: string;
-  requester_email?: string;
+  tenantId: string;
+  requesterName: string;
+  requesterEmail?: string;
   type: DSRType;
   status: DSRStatus;
   description?: string;
-  created_at: number;
-  updated_at: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface CreateDSRRequest {
-  requester_name: string;
-  requester_email?: string;
+  requesterName: string;
+  requesterEmail?: string;
   type: DSRType;
   description?: string;
 }
@@ -23,48 +23,48 @@ export interface CreateDSRRequest {
 // ── Retention Policies ────────────────────────────────────────────────
 export interface RetentionPolicy {
   id: string;
-  tenant_id: string;
-  data_type: string;
-  retention_days: number;
+  tenantId: string;
+  dataType: string;
+  retentionDays: number;
   action: DeletionAction;
-  auto_execute: boolean;
-  created_at: number;
-  updated_at: number;
+  autoExecute: boolean;
+  createdAt: number;
+  updatedAt: number;
 }
 
 // ── Sub-Processors ────────────────────────────────────────────────────
 export interface SubProcessor {
   id: string;
-  tenant_id: string;
+  tenantId: string;
   name: string;
   purpose?: string;
-  data_categories?: string;
+  dataCategories?: string;
   country?: string;
-  created_at: number;
-  updated_at: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
 // ── Privacy Notices ───────────────────────────────────────────────────
 export interface PrivacyNotice {
   id: string;
-  tenant_id: string;
+  tenantId: string;
   title: string;
   summary?: string;
-  full_text?: string;
-  display_mode: NoticeDisplayMode;
-  is_active: boolean;
-  effective_date?: number;
-  created_at: number;
-  updated_at: number;
+  fullText?: string;
+  displayMode: NoticeDisplayMode;
+  isActive: boolean;
+  effectiveDate?: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
 // ── Compliance Register ───────────────────────────────────────────────
 export interface ComplianceRegisterEntry {
   id: string;
-  tenant_id: string;
-  processing_activity: string;
+  tenantId: string;
+  processingActivity: string;
   purpose: string;
-  lawful_basis: string;
-  data_categories?: string;
-  created_at: number;
+  lawfulBasis: string;
+  dataCategories?: string;
+  createdAt: number;
 }

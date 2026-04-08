@@ -42,23 +42,23 @@ export interface PaginatedMeta {
 
 // ── Upload Flow ───────────────────────────────────────────────────────
 export interface UploadIntentRequest {
-  file_name: string;
-  mime_type: string;
+  fileName: string;
+  mimeType: string;
   size: number;
 }
 
 export interface UploadIntentResponse {
-  object_key: string;
-  upload_url: string;
-  expires_in: number;
+  objectKey: string;
+  uploadUrl: string;
+  expiresIn: number;
   method: string;
   headers?: Record<string, string>;
 }
 
 export interface CompleteUploadRequest {
-  object_key: string;
-  file_name: string;
-  mime_type: string;
+  objectKey: string;
+  fileName: string;
+  mimeType: string;
   size: number;
   checksum?: string;
 }

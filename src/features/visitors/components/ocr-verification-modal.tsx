@@ -35,8 +35,8 @@ import {
 // ── Schema ──────────────────────────────────────────────────────────
 
 const applySchema = z.object({
-  id_type: z.string().min(1, "ID type is required"),
-  id_number: z.string().min(1, "ID number is required"),
+  idType: z.string().min(1, "ID type is required"),
+  idNumber: z.string().min(1, "ID number is required"),
 });
 
 type ApplyFormValues = z.infer<typeof applySchema>;
@@ -87,8 +87,8 @@ export function OcrVerificationModal({
   } = useForm<ApplyFormValues>({
     resolver: zodResolver(applySchema),
     defaultValues: {
-      id_type: "",
-      id_number: "",
+      idType: "",
+      idNumber: "",
     },
   });
 
@@ -158,11 +158,11 @@ export function OcrVerificationModal({
       setExtractedFields(result);
 
       // Pre-fill form with extracted fields if available
-      if (result.id_type && typeof result.id_type === "string") {
-        setValue("id_type", result.id_type);
+      if (result.idType && typeof result.idType === "string") {
+        setValue("idType", result.idType);
       }
-      if (result.id_number && typeof result.id_number === "string") {
-        setValue("id_number", result.id_number);
+      if (result.idNumber && typeof result.idNumber === "string") {
+        setValue("idNumber", result.idNumber);
       }
 
       setStep("review");
@@ -179,8 +179,8 @@ export function OcrVerificationModal({
     try {
       await applyIdScanMutation.mutateAsync({
         sessionId,
-        id_type: values.id_type,
-        id_number: values.id_number,
+        idType: values.idType,
+        idNumber: values.idNumber,
       });
 
       setStep("success");
@@ -328,15 +328,15 @@ export function OcrVerificationModal({
           {/* Editable fields to apply */}
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="ocr_id_type" className="text-xs">
+              <Label htmlFor="ocr_idType" className="text-xs">
                 ID Type <span className="text-destructive">*</span>
               </Label>
               <Select
-                value={watch("id_type") || ""}
-                onValueChange={(v) => setValue("id_type", v)}
+                value={watch("idType") || ""}
+                onValueChange={(v) => setValue("idType", v)}
               >
                 <SelectTrigger
-                  id="ocr_id_type"
+                  id="ocr_idType"
                   className="text-base md:text-sm"
                 >
                   <SelectValue placeholder="Select ID type" />
@@ -349,26 +349,26 @@ export function OcrVerificationModal({
                   ))}
                 </SelectContent>
               </Select>
-              {errors.id_type && (
+              {errors.idType && (
                 <p className="text-sm text-destructive">
-                  {errors.id_type.message}
+                  {errors.idType.message}
                 </p>
               )}
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="ocr_id_number" className="text-xs">
+              <Label htmlFor="ocr_idNumber" className="text-xs">
                 ID Number <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="ocr_id_number"
+                id="ocr_idNumber"
                 className="h-9 text-base md:text-sm"
                 placeholder="Enter or verify ID number"
-                {...register("id_number")}
+                {...register("idNumber")}
               />
-              {errors.id_number && (
+              {errors.idNumber && (
                 <p className="text-sm text-destructive">
-                  {errors.id_number.message}
+                  {errors.idNumber.message}
                 </p>
               )}
             </div>

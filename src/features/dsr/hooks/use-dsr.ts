@@ -37,7 +37,7 @@ export function useDataSubjectRequests(
   return useQuery<PaginatedResponse<DataSubjectRequest>>({
     queryKey: ["dsr", params],
     queryFn: () =>
-      apiGet<PaginatedResponse<DataSubjectRequest>>("/v1/dsr", params),
+      apiGet<PaginatedResponse<DataSubjectRequest>>("/dsr", params),
   });
 }
 
@@ -47,7 +47,7 @@ export function useDataSubjectRequests(
 export function useDataSubjectRequest(dsrId: string) {
   return useQuery<DataSubjectRequest>({
     queryKey: ["dsr", dsrId],
-    queryFn: () => apiGet<DataSubjectRequest>(`/v1/dsr/${dsrId}`),
+    queryFn: () => apiGet<DataSubjectRequest>(`/dsr/${dsrId}`),
     enabled: !!dsrId,
   });
 }
@@ -59,7 +59,7 @@ export function useCreateDSR() {
   const queryClient = useQueryClient();
 
   return useMutation<DataSubjectRequest, Error, CreateDSRRequest>({
-    mutationFn: (data) => apiPost<DataSubjectRequest>("/v1/dsr", data),
+    mutationFn: (data) => apiPost<DataSubjectRequest>("/dsr", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dsr"] });
     },
@@ -74,7 +74,7 @@ export function useUpdateDSR(dsrId: string) {
 
   return useMutation<DataSubjectRequest, Error, UpdateDSRRequest>({
     mutationFn: (data) =>
-      apiPatch<DataSubjectRequest>(`/v1/dsr/${dsrId}`, data),
+      apiPatch<DataSubjectRequest>(`/dsr/${dsrId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dsr", dsrId] });
       queryClient.invalidateQueries({ queryKey: ["dsr"] });

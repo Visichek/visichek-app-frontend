@@ -24,10 +24,10 @@ import { useDepartments } from "@/features/departments/hooks/use-departments";
 import type { Appointment } from "@/types/visitor";
 
 const appointmentSchema = z.object({
-  visitor_name_snapshot: z.string().min(1, "Visitor name is required"),
-  host_name_snapshot: z.string().min(1, "Host name is required"),
-  department_id: z.string().min(1, "Department is required"),
-  scheduled_datetime: z.string().min(1, "Date and time is required"),
+  visitorNameSnapshot: z.string().min(1, "Visitor name is required"),
+  hostNameSnapshot: z.string().min(1, "Host name is required"),
+  departmentId: z.string().min(1, "Department is required"),
+  scheduledDatetime: z.string().min(1, "Date and time is required"),
   purpose: z.string().optional(),
 });
 
@@ -59,15 +59,15 @@ export function AppointmentFormModal({
   } = useForm<AppointmentFormData>({
     resolver: zodResolver(appointmentSchema),
     defaultValues: {
-      visitor_name_snapshot: "",
-      host_name_snapshot: "",
-      department_id: "",
-      scheduled_datetime: "",
+      visitorNameSnapshot: "",
+      hostNameSnapshot: "",
+      departmentId: "",
+      scheduledDatetime: "",
       purpose: "",
     },
   });
 
-  const departmentId = watch("department_id");
+  const departmentId = watch("departmentId");
 
   // Format Unix timestamp to ISO datetime-local format
   const formatTimestampToDatetime = (timestamp: number): string => {
@@ -84,14 +84,14 @@ export function AppointmentFormModal({
   useEffect(() => {
     if (isEditing && appointment && open) {
       setValue(
-        "visitor_name_snapshot",
-        appointment.visitor_name_snapshot || ""
+        "visitorNameSnapshot",
+        appointment.visitorNameSnapshot || ""
       );
-      setValue("host_name_snapshot", appointment.host_name_snapshot || "");
-      setValue("department_id", appointment.department_id);
+      setValue("hostNameSnapshot", appointment.hostNameSnapshot || "");
+      setValue("departmentId", appointment.departmentId);
       setValue(
-        "scheduled_datetime",
-        formatTimestampToDatetime(appointment.scheduled_datetime)
+        "scheduledDatetime",
+        formatTimestampToDatetime(appointment.scheduledDatetime)
       );
       setValue("purpose", appointment.purpose || "");
     } else if (open && !isEditing) {
@@ -102,30 +102,30 @@ export function AppointmentFormModal({
   const onSubmit = async (data: AppointmentFormData) => {
     try {
       const scheduledDatetime = Math.floor(
-        new Date(data.scheduled_datetime).getTime() / 1000
+        new Date(data.scheduledDatetime).getTime() / 1000
       );
 
       if (isEditing && appointment) {
         await updateMutation.mutateAsync({
           appointmentId: appointment.id,
           data: {
-            visitor_name_snapshot: data.visitor_name_snapshot,
-            host_name_snapshot: data.host_name_snapshot,
-            department_id: data.department_id,
-            scheduled_datetime: scheduledDatetime,
+            visitorNameSnapshot: data.visitorNameSnapshot,
+            hostNameSnapshot: data.hostNameSnapshot,
+            departmentId: data.departmentId,
+            scheduledDatetime: scheduledDatetime,
             purpose: data.purpose,
           },
         });
         toast.success("Appointment updated successfully");
       } else {
         await createMutation.mutateAsync({
-          visitor_name_snapshot: data.visitor_name_snapshot,
-          host_name_snapshot: data.host_name_snapshot,
-          department_id: data.department_id,
-          host_id: "", // Note: backend may require this; adjust if needed
-          scheduled_datetime: scheduledDatetime,
+          visitorNameSnapshot: data.visitorNameSnapshot,
+          hostNameSnapshot: data.hostNameSnapshot,
+          departmentId: data.departmentId,
+          hostId: "", // Note: backend may require this; adjust if needed
+          scheduledDatetime: scheduledDatetime,
           purpose: data.purpose,
-          tenant_id: "", // Will be set by backend
+          tenantId: "", // Will be set by backend
         });
         toast.success("Appointment created successfully");
       }
@@ -158,62 +158,62 @@ export function AppointmentFormModal({
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Visitor Name */}
         <div className="space-y-2">
-          <Label htmlFor="visitor_name_snapshot">Visitor Name *</Label>
+          <Label htmlFor="visitorNameSnapshot">Visitor Name *</Label>
           <Input
-            id="visitor_name_snapshot"
+            id="visitorNameSnapshot"
             placeholder="Full name of visitor"
-            {...register("visitor_name_snapshot")}
-            aria-invalid={!!errors.visitor_name_snapshot}
+            {...register("visitorNameSnapshot")}
+            aria-invalid={!!errors.visitorNameSnapshot}
             aria-describedby={
-              errors.visitor_name_snapshot
-                ? "error-visitor_name_snapshot"
+              errors.visitorNameSnapshot
+                ? "error-visitorNameSnapshot"
                 : undefined
             }
           />
-          {errors.visitor_name_snapshot && (
+          {errors.visitorNameSnapshot && (
             <p
-              id="error-visitor_name_snapshot"
+              id="error-visitorNameSnapshot"
               className="text-sm text-destructive"
               role="alert"
             >
-              {errors.visitor_name_snapshot.message}
+              {errors.visitorNameSnapshot.message}
             </p>
           )}
         </div>
 
         {/* Host Name */}
         <div className="space-y-2">
-          <Label htmlFor="host_name_snapshot">Host Name *</Label>
+          <Label htmlFor="hostNameSnapshot">Host Name *</Label>
           <Input
-            id="host_name_snapshot"
+            id="hostNameSnapshot"
             placeholder="Name of host/employee"
-            {...register("host_name_snapshot")}
-            aria-invalid={!!errors.host_name_snapshot}
+            {...register("hostNameSnapshot")}
+            aria-invalid={!!errors.hostNameSnapshot}
             aria-describedby={
-              errors.host_name_snapshot
-                ? "error-host_name_snapshot"
+              errors.hostNameSnapshot
+                ? "error-hostNameSnapshot"
                 : undefined
             }
           />
-          {errors.host_name_snapshot && (
+          {errors.hostNameSnapshot && (
             <p
-              id="error-host_name_snapshot"
+              id="error-hostNameSnapshot"
               className="text-sm text-destructive"
               role="alert"
             >
-              {errors.host_name_snapshot.message}
+              {errors.hostNameSnapshot.message}
             </p>
           )}
         </div>
 
         {/* Department */}
         <div className="space-y-2">
-          <Label htmlFor="department_id">Department *</Label>
+          <Label htmlFor="departmentId">Department *</Label>
           <Select
             value={departmentId}
-            onValueChange={(value) => setValue("department_id", value)}
+            onValueChange={(value) => setValue("departmentId", value)}
           >
-            <SelectTrigger id="department_id">
+            <SelectTrigger id="departmentId">
               <SelectValue placeholder="Select department" />
             </SelectTrigger>
             <SelectContent>
@@ -224,36 +224,36 @@ export function AppointmentFormModal({
               ))}
             </SelectContent>
           </Select>
-          {errors.department_id && (
+          {errors.departmentId && (
             <p className="text-sm text-destructive" role="alert">
-              {errors.department_id.message}
+              {errors.departmentId.message}
             </p>
           )}
         </div>
 
         {/* Scheduled DateTime */}
         <div className="space-y-2">
-          <Label htmlFor="scheduled_datetime">
+          <Label htmlFor="scheduledDatetime">
             Scheduled Date & Time *
           </Label>
           <Input
-            id="scheduled_datetime"
+            id="scheduledDatetime"
             type="datetime-local"
-            {...register("scheduled_datetime")}
-            aria-invalid={!!errors.scheduled_datetime}
+            {...register("scheduledDatetime")}
+            aria-invalid={!!errors.scheduledDatetime}
             aria-describedby={
-              errors.scheduled_datetime
-                ? "error-scheduled_datetime"
+              errors.scheduledDatetime
+                ? "error-scheduledDatetime"
                 : undefined
             }
           />
-          {errors.scheduled_datetime && (
+          {errors.scheduledDatetime && (
             <p
-              id="error-scheduled_datetime"
+              id="error-scheduledDatetime"
               className="text-sm text-destructive"
               role="alert"
             >
-              {errors.scheduled_datetime.message}
+              {errors.scheduledDatetime.message}
             </p>
           )}
         </div>

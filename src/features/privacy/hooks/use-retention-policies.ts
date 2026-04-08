@@ -15,17 +15,17 @@ interface PaginatedResponse<T> {
 }
 
 export interface CreateRetentionPolicyRequest {
-  data_type: string;
-  retention_days: number;
+  dataType: string;
+  retentionDays: number;
   action: DeletionAction;
-  auto_execute?: boolean;
+  autoExecute?: boolean;
 }
 
 export interface UpdateRetentionPolicyRequest {
-  data_type?: string;
-  retention_days?: number;
+  dataType?: string;
+  retentionDays?: number;
   action?: DeletionAction;
-  auto_execute?: boolean;
+  autoExecute?: boolean;
 }
 
 interface UseRetentionPoliciesParams {
@@ -41,7 +41,7 @@ export function useRetentionPolicies(params?: UseRetentionPoliciesParams) {
     queryKey: ["retention-policies", params],
     queryFn: () =>
       apiGet<PaginatedResponse<RetentionPolicy>>(
-        "/v1/retention-policies",
+        "/retention-policies",
         params
       ),
   });
@@ -55,7 +55,7 @@ export function useCreateRetentionPolicy() {
 
   return useMutation<RetentionPolicy, Error, CreateRetentionPolicyRequest>({
     mutationFn: (data) =>
-      apiPost<RetentionPolicy>("/v1/retention-policies", data),
+      apiPost<RetentionPolicy>("/retention-policies", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["retention-policies"] });
     },
@@ -75,7 +75,7 @@ export function useUpdateRetentionPolicy(policyId: string) {
   >({
     mutationFn: (data) =>
       apiPatch<RetentionPolicy>(
-        `/v1/retention-policies/${policyId}`,
+        `/retention-policies/${policyId}`,
         data
       ),
     onSuccess: () => {

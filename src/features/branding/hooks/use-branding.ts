@@ -22,7 +22,7 @@ export function useTenantBrandingConfig(tenantId: string) {
     queryKey: brandingKeys.config(tenantId),
     queryFn: async () => {
       const data = await apiGet<TenantBranding>(
-        `/v1/branding/tenant/${tenantId}`
+        `/branding/tenant/${tenantId}`
       );
       return data;
     },
@@ -40,17 +40,17 @@ export function useUpdateBranding() {
 
   return useMutation({
     mutationFn: async (branding: Partial<TenantBranding>) => {
-      const data = await apiPut<TenantBranding>('/v1/branding', branding);
+      const data = await apiPut<TenantBranding>('/branding', branding);
       return data;
     },
     onSuccess: (updatedBranding) => {
       // Invalidate the branding config for the tenant
       queryClient.invalidateQueries({
-        queryKey: brandingKeys.config(updatedBranding.tenant_id),
+        queryKey: brandingKeys.config(updatedBranding.tenantId),
       });
       // Update cache
       queryClient.setQueryData(
-        brandingKeys.config(updatedBranding.tenant_id),
+        brandingKeys.config(updatedBranding.tenantId),
         updatedBranding
       );
     },
@@ -66,7 +66,7 @@ export function useResetBranding() {
 
   return useMutation({
     mutationFn: async (tenantId: string) => {
-      await apiDelete(`/v1/branding`);
+      await apiDelete(`/branding`);
       return tenantId;
     },
     onSuccess: (tenantId) => {

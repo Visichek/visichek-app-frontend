@@ -137,7 +137,7 @@ export function usePublicRightsStatus(
     queryFn: () =>
       apiGet<PublicRightsStatusResponse>(
         `/public/rights/request/${requestId}/status`,
-        { verification_token: verificationToken }
+        { verificationToken: verificationToken }
       ),
     enabled: !!requestId && !!verificationToken,
     retry: 1,

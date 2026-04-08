@@ -31,7 +31,7 @@ interface UseIncidentsParams {
 export function useIncidents(params?: UseIncidentsParams) {
   return useQuery<PaginatedResponse<Incident>>({
     queryKey: ["incidents", params],
-    queryFn: () => apiGet<PaginatedResponse<Incident>>("/v1/incidents", params),
+    queryFn: () => apiGet<PaginatedResponse<Incident>>("/incidents", params),
   });
 }
 
@@ -41,7 +41,7 @@ export function useIncidents(params?: UseIncidentsParams) {
 export function useIncident(incidentId: string) {
   return useQuery<Incident>({
     queryKey: ["incidents", incidentId],
-    queryFn: () => apiGet<Incident>(`/v1/incidents/${incidentId}`),
+    queryFn: () => apiGet<Incident>(`/incidents/${incidentId}`),
     enabled: !!incidentId,
   });
 }
@@ -53,7 +53,7 @@ export function useCreateIncident() {
   const queryClient = useQueryClient();
 
   return useMutation<Incident, Error, CreateIncidentRequest>({
-    mutationFn: (data) => apiPost<Incident>("/v1/incidents", data),
+    mutationFn: (data) => apiPost<Incident>("/incidents", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["incidents"] });
     },
@@ -68,7 +68,7 @@ export function useUpdateIncident(incidentId: string) {
 
   return useMutation<Incident, Error, UpdateIncidentRequest>({
     mutationFn: (data) =>
-      apiPatch<Incident>(`/v1/incidents/${incidentId}`, data),
+      apiPatch<Incident>(`/incidents/${incidentId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["incidents", incidentId] });
       queryClient.invalidateQueries({ queryKey: ["incidents"] });
@@ -83,7 +83,7 @@ export function useUpdateIncident(incidentId: string) {
 export function useApproachingDeadlineIncidents() {
   return useQuery<PaginatedResponse<Incident>>({
     queryKey: ["incidents", "approaching-deadline"],
-    queryFn: () => apiGet<PaginatedResponse<Incident>>("/v1/incidents/approaching-deadline"),
+    queryFn: () => apiGet<PaginatedResponse<Incident>>("/incidents/approaching-deadline"),
     refetchInterval: 60000,
     staleTime: 30000,
   });

@@ -88,7 +88,7 @@ export default function PlansPage() {
       await cloneMutation.mutateAsync({
         sourcePlanId: plan.id,
         newName: `${plan.name} (Copy)`,
-        newDisplayName: `${plan.display_name || plan.name} (Copy)`,
+        newDisplayName: `${plan.displayName || plan.name} (Copy)`,
       });
       toast.success("Plan cloned successfully");
     } catch (error) {
@@ -142,11 +142,11 @@ export default function PlansPage() {
 
   const columns: ColumnDef<Plan>[] = [
     {
-      accessorKey: "display_name",
+      accessorKey: "displayName",
       header: "Name",
       cell: ({ row }) => (
         <span className="font-medium">
-          {row.original.display_name || row.original.name}
+          {row.original.displayName || row.original.name}
         </span>
       ),
     },
@@ -169,12 +169,12 @@ export default function PlansPage() {
       ),
     },
     {
-      accessorKey: "monthly_price_minor",
+      accessorKey: "monthlyPriceMinor",
       header: "Price",
       cell: ({ row }) => (
         <span className="text-sm">
-          {row.original.monthly_price_minor != null
-            ? `₦${(row.original.monthly_price_minor / 100).toLocaleString()}`
+          {row.original.monthlyPriceMinor != null
+            ? `₦${(row.original.monthlyPriceMinor / 100).toLocaleString()}`
             : "—"}
         </span>
       ),
@@ -227,7 +227,7 @@ export default function PlansPage() {
     <div className="rounded-lg border p-4 space-y-2">
       <div className="flex items-center justify-between">
         <span className="font-medium">
-          {plan.display_name || plan.name}
+          {plan.displayName || plan.name}
         </span>
         <Badge variant={statusBadgeVariant(plan.status as PlanStatus)}>
           {plan.status}
@@ -238,8 +238,8 @@ export default function PlansPage() {
           {plan.tier}
         </Badge>
         <span className="text-muted-foreground">
-          {plan.monthly_price_minor != null
-            ? `₦${(plan.monthly_price_minor / 100).toLocaleString()}`
+          {plan.monthlyPriceMinor != null
+            ? `₦${(plan.monthlyPriceMinor / 100).toLocaleString()}`
             : "—"}
         </span>
       </div>
@@ -300,7 +300,7 @@ export default function PlansPage() {
         isLoading={isLoading}
         pagination={true}
         pageSize={10}
-        searchKey="display_name"
+        searchKey="displayName"
         searchPlaceholder="Search plans..."
         emptyTitle="No plans yet"
         emptyDescription="Create your first subscription plan to get started."
@@ -311,7 +311,7 @@ export default function PlansPage() {
         open={activateDialogOpen}
         onOpenChange={setActivateDialogOpen}
         title="Activate Plan"
-        description={`Are you sure you want to activate "${planToActivate?.display_name || planToActivate?.name}"? This plan will be available to new subscriptions.`}
+        description={`Are you sure you want to activate "${planToActivate?.displayName || planToActivate?.name}"? This plan will be available to new subscriptions.`}
         confirmLabel="Activate"
         isLoading={activateMutation.isPending}
         onConfirm={handleActivateConfirm}
@@ -321,7 +321,7 @@ export default function PlansPage() {
         open={archiveDialogOpen}
         onOpenChange={setArchiveDialogOpen}
         title="Archive Plan"
-        description={`Are you sure you want to archive "${planToArchive?.display_name || planToArchive?.name}"? New subscriptions will not be able to use this plan.`}
+        description={`Are you sure you want to archive "${planToArchive?.displayName || planToArchive?.name}"? New subscriptions will not be able to use this plan.`}
         confirmLabel="Archive"
         isLoading={archiveMutation.isPending}
         onConfirm={handleArchiveConfirm}
@@ -331,7 +331,7 @@ export default function PlansPage() {
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         title="Delete Plan"
-        description={`Are you sure you want to delete "${planToDelete?.display_name || planToDelete?.name}"? This action cannot be undone.`}
+        description={`Are you sure you want to delete "${planToDelete?.displayName || planToDelete?.name}"? This action cannot be undone.`}
         confirmLabel="Delete"
         variant="destructive"
         isLoading={deleteMutation.isPending}

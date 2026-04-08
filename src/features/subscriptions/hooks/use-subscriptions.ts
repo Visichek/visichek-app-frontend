@@ -14,7 +14,7 @@ interface PaginatedResponse<T> {
 }
 
 interface UseSubscriptionsParams {
-  tenant_id?: string;
+  tenantId?: string;
   status?: string;
   skip?: number;
   limit?: number;
@@ -26,7 +26,7 @@ interface UseSubscriptionsParams {
 export function useSubscriptions(params?: UseSubscriptionsParams) {
   return useQuery<PaginatedResponse<Subscription>>({
     queryKey: ["subscriptions", params],
-    queryFn: () => apiGet<PaginatedResponse<Subscription>>("/v1/subscriptions", params),
+    queryFn: () => apiGet<PaginatedResponse<Subscription>>("/subscriptions", params),
   });
 }
 
@@ -36,7 +36,7 @@ export function useSubscriptions(params?: UseSubscriptionsParams) {
 export function useSubscription(subscriptionId: string) {
   return useQuery<Subscription>({
     queryKey: ["subscriptions", subscriptionId],
-    queryFn: () => apiGet<Subscription>(`/v1/subscriptions/${subscriptionId}`),
+    queryFn: () => apiGet<Subscription>(`/subscriptions/${subscriptionId}`),
     enabled: !!subscriptionId,
   });
 }
@@ -47,7 +47,7 @@ export function useSubscription(subscriptionId: string) {
 export function useActiveSubscription(tenantId: string) {
   return useQuery<Subscription>({
     queryKey: ["subscriptions", "tenant", tenantId, "active"],
-    queryFn: () => apiGet<Subscription>(`/v1/subscriptions/tenant/${tenantId}/active`),
+    queryFn: () => apiGet<Subscription>(`/subscriptions/tenant/${tenantId}/active`),
     enabled: !!tenantId,
   });
 }
@@ -59,11 +59,11 @@ export function useCreateSubscription() {
   const queryClient = useQueryClient();
 
   return useMutation<Subscription, Error, SubscribeTenantRequest>({
-    mutationFn: (data) => apiPost<Subscription>("/v1/subscriptions", data),
+    mutationFn: (data) => apiPost<Subscription>("/subscriptions", data),
     onSuccess: (subscription) => {
       queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
       queryClient.invalidateQueries({
-        queryKey: ["subscriptions", "tenant", subscription.tenant_id, "active"],
+        queryKey: ["subscriptions", "tenant", subscription.tenantId, "active"],
       });
     },
   });
@@ -76,14 +76,14 @@ export function useChangePlan() {
   const queryClient = useQueryClient();
 
   return useMutation<Subscription, Error, ChangePlanRequest>({
-    mutationFn: (data) => apiPost<Subscription>("/v1/subscriptions/change-plan", data),
+    mutationFn: (data) => apiPost<Subscription>("/subscriptions/change-plan", data),
     onSuccess: (subscription) => {
       queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
       queryClient.invalidateQueries({
         queryKey: ["subscriptions", subscription.id],
       });
       queryClient.invalidateQueries({
-        queryKey: ["subscriptions", "tenant", subscription.tenant_id, "active"],
+        queryKey: ["subscriptions", "tenant", subscription.tenantId, "active"],
       });
     },
   });
@@ -96,24 +96,24 @@ export function useCancelSubscription() {
   const queryClient = useQueryClient();
 
   return useMutation<Subscription, Error, CancelSubscriptionRequest>({
-    mutationFn: (data) => apiPost<Subscription>("/v1/subscriptions/cancel", data),
+    mutationFn: (data) => apiPost<Subscription>("/subscriptions/cancel", data),
     onSuccess: (subscription) => {
       queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
       queryClient.invalidateQueries({
         queryKey: ["subscriptions", subscription.id],
       });
       queryClient.invalidateQueries({
-        queryKey: ["subscriptions", "tenant", subscription.tenant_id, "active"],
+        queryKey: ["subscriptions", "tenant", subscription.tenantId, "active"],
       });
     },
   });
 }
 
 interface UpdateOverridesRequest {
-  feature_overrides?: Record<string, unknown>;
-  crud_limit_overrides?: Record<string, unknown>;
-  retrieval_quota_overrides?: Record<string, unknown>;
-  tenant_cap_overrides?: Record<string, unknown>;
+  featureOverrides?: Record<string, unknown>;
+  crudLimitOverrides?: Record<string, unknown>;
+  retrievalQuotaOverrides?: Record<string, unknown>;
+  tenantCapOverrides?: Record<string, unknown>;
 }
 
 /**
@@ -123,11 +123,11 @@ export function useUpdateOverrides(subscriptionId: string) {
   const queryClient = useQueryClient();
 
   return useMutation<Subscription, Error, UpdateOverridesRequest>({
-    mutationFn: (data) => apiPut<Subscription>(`/v1/subscriptions/${subscriptionId}/overrides`, data),
+    mutationFn: (data) => apiPut<Subscription>(`/subscriptions/${subscriptionId}/overrides`, data),
     onSuccess: (subscription) => {
       queryClient.invalidateQueries({ queryKey: ["subscriptions", subscriptionId] });
       queryClient.invalidateQueries({
-        queryKey: ["subscriptions", "tenant", subscription.tenant_id, "active"],
+        queryKey: ["subscriptions", "tenant", subscription.tenantId, "active"],
       });
     },
   });

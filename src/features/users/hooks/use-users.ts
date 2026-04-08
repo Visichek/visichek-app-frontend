@@ -35,7 +35,7 @@ export function useSystemUsers(filters?: Record<string, unknown>) {
   return useQuery({
     queryKey: userKeys.list(filters),
     queryFn: async () => {
-      const data = await apiGet<SystemUser[]>('/v1/system-users/', filters);
+      const data = await apiGet<SystemUser[]>('/system-users/', filters);
       return data;
     },
     staleTime: 30000,
@@ -49,7 +49,7 @@ export function useCurrentUser() {
   return useQuery({
     queryKey: userKeys.current(),
     queryFn: async () => {
-      const data = await apiGet<SystemUserProfile>('/v1/system-users/me');
+      const data = await apiGet<SystemUserProfile>('/system-users/me');
       return data;
     },
     staleTime: 60000,
@@ -65,7 +65,7 @@ export function useCreateSystemUser() {
 
   return useMutation({
     mutationFn: async (request: SystemUserSignupRequest) => {
-      const data = await apiPost<SystemUser>('/v1/system-users/signup', request);
+      const data = await apiPost<SystemUser>('/system-users/signup', request);
       return data;
     },
     onSuccess: (newUser) => {
@@ -93,7 +93,7 @@ export function useUpdateSystemUser() {
       data: SystemUserUpdateRequest;
     }) => {
       const result = await apiPatch<SystemUser>(
-        `/v1/system-users/${userId}`,
+        `/system-users/${userId}`,
         data
       );
       return result;
@@ -116,7 +116,7 @@ export function useDeleteSystemUser() {
 
   return useMutation({
     mutationFn: async (userId: string) => {
-      await apiDelete(`/v1/system-users/${userId}`);
+      await apiDelete(`/system-users/${userId}`);
     },
     onSuccess: (_, userId) => {
       // Invalidate all users lists
@@ -139,7 +139,7 @@ export function useInviteUser() {
   return useMutation({
     mutationFn: async (request: InviteAdminRequest) => {
       const data = await apiPost<SystemUser>(
-        '/v1/super-admin/admins/invite',
+        '/super-admin/admins/invite',
         request
       );
       return data;

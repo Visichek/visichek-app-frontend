@@ -1,24 +1,24 @@
 export interface AuditLog {
   id: string;
-  tenant_id: string;
-  actor_id: string;
-  actor_name_snapshot?: string;
-  user_session_id?: string;
+  tenantId: string;
+  actorId: string;
+  actorNameSnapshot?: string;
+  userSessionId?: string;
   action: string;
-  target_entity?: string;
-  target_id?: string;
+  targetEntity?: string;
+  targetId?: string;
   ip?: string;
-  device_signature?: string;
+  deviceSignature?: string;
   reason?: string;
-  occurred_at: number;
+  occurredAt: number;
 }
 
 export interface AuditLogFilters {
-  actor_id?: string;
+  actorId?: string;
   action?: string;
-  target_entity?: string;
-  date_from?: number;
-  date_to?: number;
+  targetEntity?: string;
+  dateFrom?: number;
+  dateTo?: number;
   start?: number;
   stop?: number;
 }

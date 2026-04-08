@@ -27,19 +27,19 @@ export function PrivacyNoticeDisplay({ notice }: PrivacyNoticeDisplayProps) {
             {notice.summary}
           </p>
         )}
-        {notice.full_text && (
+        {notice.fullText && (
           <details className="group">
             <summary className="cursor-pointer text-sm font-medium text-info hover:underline">
               Read full privacy notice
             </summary>
             <div className="mt-2 rounded-md bg-background p-3 text-sm leading-relaxed text-foreground/70">
-              {notice.full_text}
+              {notice.fullText}
             </div>
           </details>
         )}
-        {notice.version_id && (
+        {notice.versionId && (
           <p className="text-xs text-muted-foreground">
-            Notice version: {notice.version_id}
+            Notice version: {notice.versionId}
           </p>
         )}
       </CardContent>

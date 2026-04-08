@@ -62,24 +62,24 @@ export default function PaymentsPage() {
 
   const columns: ColumnDef<Invoice>[] = [
     {
-      accessorKey: "invoice_number",
+      accessorKey: "invoiceNumber",
       header: "Invoice ID",
       cell: ({ row }) => (
-        <span className="text-sm font-medium">{row.getValue("invoice_number")}</span>
+        <span className="text-sm font-medium">{row.getValue("invoiceNumber")}</span>
       ),
     },
     {
-      accessorKey: "tenant_id",
+      accessorKey: "tenantId",
       header: "Tenant ID",
       cell: ({ row }) => (
-        <span className="text-sm">{row.getValue("tenant_id")}</span>
+        <span className="text-sm">{row.getValue("tenantId")}</span>
       ),
     },
     {
-      accessorKey: "total_minor",
+      accessorKey: "totalMinor",
       header: "Amount",
       cell: ({ row }) => {
-        const amount = row.getValue("total_minor") as number;
+        const amount = row.getValue("totalMinor") as number;
         const currency = row.original.currency || "NGN";
         return (
           <span className="text-sm font-medium">
@@ -101,10 +101,10 @@ export default function PaymentsPage() {
       },
     },
     {
-      accessorKey: "issued_at",
+      accessorKey: "issuedAt",
       header: "Issued Date",
       cell: ({ row }) => {
-        const date = row.getValue("issued_at") as number | undefined;
+        const date = row.getValue("issuedAt") as number | undefined;
         return (
           <span className="text-sm">
             {date ? formatDate(date) : "—"}
@@ -142,16 +142,16 @@ export default function PaymentsPage() {
         <DataTable
           columns={columns}
           data={invoices}
-          searchKey="invoice_number"
+          searchKey="invoiceNumber"
           searchPlaceholder="Search invoice ID or tenant..."
           isLoading={isLoading}
           mobileCard={(invoice) => (
             <div className="rounded-lg border p-4 space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{invoice.invoice_number}</p>
+                  <p className="text-sm font-medium">{invoice.invoiceNumber}</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {invoice.tenant_id}
+                    {invoice.tenantId}
                   </p>
                 </div>
                 <Badge variant={statusVariant(invoice.status)}>
@@ -159,11 +159,11 @@ export default function PaymentsPage() {
                 </Badge>
               </div>
               <div className="text-sm font-medium">
-                {formatCurrency(invoice.total_minor, invoice.currency || "NGN")}
+                {formatCurrency(invoice.totalMinor, invoice.currency || "NGN")}
               </div>
               <div className="text-xs text-muted-foreground">
-                {invoice.issued_at
-                  ? `Issued ${formatDate(invoice.issued_at)}`
+                {invoice.issuedAt
+                  ? `Issued ${formatDate(invoice.issuedAt)}`
                   : "Not yet issued"}
               </div>
               <div className="flex justify-end pt-2">

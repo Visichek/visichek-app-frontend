@@ -23,7 +23,7 @@ export function useDepartments(filters?: Record<string, unknown>) {
   return useQuery({
     queryKey: departmentKeys.list(filters),
     queryFn: async () => {
-      const data = await apiGet<Department[]>('/v1/departments/', filters);
+      const data = await apiGet<Department[]>('/departments/', filters);
       return data;
     },
     staleTime: 30000,
@@ -38,7 +38,7 @@ export function useDepartment(departmentId: string) {
     queryKey: departmentKeys.detail(departmentId),
     queryFn: async () => {
       const data = await apiGet<Department>(
-        `/v1/departments/${departmentId}`
+        `/departments/${departmentId}`
       );
       return data;
     },
@@ -55,8 +55,8 @@ export function useCreateDepartment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (request: Omit<Department, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>) => {
-      const data = await apiPost<Department>('/v1/departments/', request);
+    mutationFn: async (request: Omit<Department, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>) => {
+      const data = await apiPost<Department>('/departments/', request);
       return data;
     },
     onSuccess: (newDepartment) => {
@@ -84,10 +84,10 @@ export function useUpdateDepartment() {
       data,
     }: {
       departmentId: string;
-      data: Partial<Omit<Department, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>>;
+      data: Partial<Omit<Department, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>>;
     }) => {
       const result = await apiPatch<Department>(
-        `/v1/departments/${departmentId}`,
+        `/departments/${departmentId}`,
         data
       );
       return result;
@@ -113,7 +113,7 @@ export function useDeleteDepartment() {
 
   return useMutation({
     mutationFn: async (departmentId: string) => {
-      await apiDelete(`/v1/departments/${departmentId}`);
+      await apiDelete(`/departments/${departmentId}`);
     },
     onSuccess: (_, departmentId) => {
       // Invalidate all departments lists

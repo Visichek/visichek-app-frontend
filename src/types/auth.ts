@@ -7,13 +7,13 @@ export interface LoginRequest {
 }
 
 export interface RefreshTokenRequest {
-  refresh_token: string;
+  refreshToken: string;
 }
 
 // ── Token Shapes ──────────────────────────────────────────────────────
 export interface TokenPair {
-  access_token: string;
-  refresh_token: string;
+  accessToken: string;
+  refreshToken: string;
 }
 
 // ── Session Types ─────────────────────────────────────────────────────
@@ -21,17 +21,17 @@ export type SessionType = "admin" | "system_user";
 
 export interface AdminProfile {
   id: string;
-  full_name: string;
+  fullName: string;
   email: string;
 }
 
 export interface SystemUserProfile {
   id: string;
-  full_name: string;
+  fullName: string;
   email: string;
   role: SystemUserRole;
-  tenant_id: string;
-  department_id?: string;
+  tenantId: string;
+  departmentId?: string;
 }
 
 export interface AdminSession {
@@ -51,24 +51,24 @@ export type Session = AdminSession | SystemUserSession;
 // ── Backend Login Responses (after envelope unwrap) ───────────────────
 
 /**
- * Flat response from `POST /v1/system-users/tenant/{tenant_id}/login`
+ * Flat response from `POST /v1/system-users/tenant/{tenantId}/login`
  * and `POST /v1/system-users/login`.
  * Tokens are embedded directly on the user object.
  */
 export interface SystemUserLoginResponse {
   id: string;
-  tenant_id: string;
-  department_id?: string;
-  full_name: string;
+  tenantId: string;
+  departmentId?: string;
+  fullName: string;
   email: string;
   role: SystemUserRole;
-  account_status: AccountStatus;
-  is_active: boolean;
-  last_login_at: number | null;
-  date_created: number;
-  last_updated: number;
-  access_token: string;
-  refresh_token: string;
+  accountStatus: AccountStatus;
+  isActive: boolean;
+  lastLoginAt: number | null;
+  dateCreated: number;
+  lastUpdated: number;
+  accessToken: string;
+  refreshToken: string;
 }
 
 /**
@@ -78,20 +78,25 @@ export interface SystemUserLoginResponse {
 export interface SuperAdminGlobalLoginResponse {
   user: SystemUserLoginResponse;
   tenant: {
-    tenant_id: string;
-    company_name: string;
+    tenantId: string;
+    companyName: string;
   };
-  tenant_login_url: string;
+  tenantLoginUrl: string;
 }
 
 /**
  * Response from `POST /v1/admins/login`.
- * Shape depends on backend; adjust if different.
+ * Backend returns camelCase for admin endpoints.
  */
 export interface AdminLoginResponse {
-  id: string;
-  full_name: string;
+  Id: string;
+  fullName: string;
   email: string;
-  access_token: string;
-  refresh_token: string;
+  accessToken: string;
+  refreshToken: string;
+  accountStatus: string;
+  permissionList: string[] | null;
+  password: string;
+  dateCreated: number | null;
+  lastUpdated: number | null;
 }

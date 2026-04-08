@@ -218,11 +218,11 @@ export default function DiscountsPage() {
       },
     },
     {
-      accessorKey: "current_redemptions",
+      accessorKey: "currentRedemptions",
       header: "Uses",
       cell: ({ row }) => {
-        const current = row.original.current_redemptions ?? 0;
-        const max = row.original.max_redemptions;
+        const current = row.original.currentRedemptions ?? 0;
+        const max = row.original.maxRedemptions;
         const display = max ? `${current}/${max}` : `${current}`;
         return <span className="text-sm">{display}</span>;
       },
@@ -298,9 +298,9 @@ export default function DiscountsPage() {
               </div>
               <div className="text-xs text-muted-foreground">
                 Uses:{" "}
-                {discount.max_redemptions
-                  ? `${discount.current_redemptions ?? 0}/${discount.max_redemptions}`
-                  : `${discount.current_redemptions ?? 0}`}
+                {discount.maxRedemptions
+                  ? `${discount.currentRedemptions ?? 0}/${discount.maxRedemptions}`
+                  : `${discount.currentRedemptions ?? 0}`}
               </div>
               <div className="flex justify-end pt-2">
                 <DiscountActions

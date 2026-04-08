@@ -23,7 +23,7 @@ export function useBranches(filters?: Record<string, unknown>) {
   return useQuery({
     queryKey: branchKeys.list(filters),
     queryFn: async () => {
-      const data = await apiGet<Branch[]>('/v1/branches', filters);
+      const data = await apiGet<Branch[]>('/branches', filters);
       return data;
     },
     staleTime: 30000,
@@ -37,7 +37,7 @@ export function useBranch(branchId: string) {
   return useQuery({
     queryKey: branchKeys.detail(branchId),
     queryFn: async () => {
-      const data = await apiGet<Branch>(`/v1/branches/${branchId}`);
+      const data = await apiGet<Branch>(`/branches/${branchId}`);
       return data;
     },
     enabled: !!branchId,
@@ -54,9 +54,9 @@ export function useCreateBranch() {
 
   return useMutation({
     mutationFn: async (
-      request: Omit<Branch, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>
+      request: Omit<Branch, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>
     ) => {
-      const data = await apiPost<Branch>('/v1/branches', request);
+      const data = await apiPost<Branch>('/branches', request);
       return data;
     },
     onSuccess: (newBranch) => {
@@ -82,10 +82,10 @@ export function useUpdateBranch() {
     }: {
       branchId: string;
       data: Partial<
-        Omit<Branch, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>
+        Omit<Branch, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>
       >;
     }) => {
-      const result = await apiPut<Branch>(`/v1/branches/${branchId}`, data);
+      const result = await apiPut<Branch>(`/branches/${branchId}`, data);
       return result;
     },
     onSuccess: (updatedBranch) => {
@@ -107,7 +107,7 @@ export function useDeactivateBranch() {
   return useMutation({
     mutationFn: async (branchId: string) => {
       const data = await apiPost<Branch>(
-        `/v1/branches/${branchId}/deactivate`,
+        `/branches/${branchId}/deactivate`,
         {}
       );
       return data;
@@ -130,7 +130,7 @@ export function useDeleteBranch() {
 
   return useMutation({
     mutationFn: async (branchId: string) => {
-      await apiDelete(`/v1/branches/${branchId}`);
+      await apiDelete(`/branches/${branchId}`);
     },
     onSuccess: (_, branchId) => {
       // Invalidate all branches lists

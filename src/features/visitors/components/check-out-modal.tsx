@@ -20,7 +20,7 @@ import type { CheckOutMethod } from "@/types/enums";
 
 const checkOutSchema = z.object({
   identifier: z.string().min(1, "Session ID or badge token is required"),
-  check_out_method: z.enum(["qr_scan", "manual"] as const),
+  checkOutMethod: z.enum(["qr_scan", "manual"] as const),
 });
 
 type CheckOutFormData = z.infer<typeof checkOutSchema>;
@@ -43,19 +43,19 @@ export function CheckOutModal({ open, onOpenChange }: CheckOutModalProps) {
   } = useForm<CheckOutFormData>({
     resolver: zodResolver(checkOutSchema),
     defaultValues: {
-      check_out_method: "manual",
+      checkOutMethod: "manual",
     },
   });
 
-  const checkOutMethod = watch("check_out_method");
+  const checkOutMethod = watch("checkOutMethod");
 
   const onSubmit = async (data: CheckOutFormData) => {
     try {
       await checkOutMutation.mutateAsync({
         ...(checkOutMethod === "qr_scan"
-          ? { badge_qr_token: data.identifier }
-          : { session_id: data.identifier }),
-        check_out_method: checkOutMethod as CheckOutMethod,
+          ? { badgeQrToken: data.identifier }
+          : { sessionId: data.identifier }),
+        checkOutMethod: checkOutMethod as CheckOutMethod,
       });
 
       toast.success("Visitor checked out successfully");
@@ -80,14 +80,14 @@ export function CheckOutModal({ open, onOpenChange }: CheckOutModalProps) {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Check-out Method */}
         <div className="space-y-2">
-          <Label htmlFor="check_out_method">Check-out Method</Label>
+          <Label htmlFor="checkOutMethod">Check-out Method</Label>
           <Select
             value={checkOutMethod}
             onValueChange={(value) =>
-              setValue("check_out_method", value as CheckOutMethod)
+              setValue("checkOutMethod", value as CheckOutMethod)
             }
           >
-            <SelectTrigger id="check_out_method">
+            <SelectTrigger id="checkOutMethod">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

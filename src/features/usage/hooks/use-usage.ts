@@ -21,7 +21,7 @@ export function useMyUsage() {
   return useQuery({
     queryKey: usageKeys.my(),
     queryFn: async () => {
-      const data = await apiGet<TenantUsageSummary>('/v1/usage/my-usage');
+      const data = await apiGet<TenantUsageSummary>('/usage/my-usage');
       return data;
     },
     staleTime: 300000, // 5 minutes
@@ -37,7 +37,7 @@ export function useTenantUsage(tenantId: string) {
     queryKey: usageKeys.tenant(tenantId),
     queryFn: async () => {
       const data = await apiGet<TenantUsageSummary>(
-        `/v1/usage/tenant/${tenantId}/summary`
+        `/usage/tenant/${tenantId}/summary`
       );
       return data;
     },

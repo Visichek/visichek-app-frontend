@@ -17,18 +17,18 @@ interface PaginatedResponse<T> {
 export interface CreatePrivacyNoticeRequest {
   title: string;
   summary?: string;
-  full_text?: string;
-  display_mode: NoticeDisplayMode;
-  effective_date?: number;
+  fullText?: string;
+  displayMode: NoticeDisplayMode;
+  effectiveDate?: number;
 }
 
 export interface UpdatePrivacyNoticeRequest {
   title?: string;
   summary?: string;
-  full_text?: string;
-  display_mode?: NoticeDisplayMode;
-  is_active?: boolean;
-  effective_date?: number;
+  fullText?: string;
+  displayMode?: NoticeDisplayMode;
+  isActive?: boolean;
+  effectiveDate?: number;
 }
 
 interface UsePrivacyNoticesParams {
@@ -44,7 +44,7 @@ export function usePrivacyNotices(params?: UsePrivacyNoticesParams) {
     queryKey: ["privacy-notices", params],
     queryFn: () =>
       apiGet<PaginatedResponse<PrivacyNotice>>(
-        "/v1/privacy-notices",
+        "/privacy-notices",
         params
       ),
   });
@@ -57,7 +57,7 @@ export function useActivePrivacyNotice() {
   return useQuery<PrivacyNotice>({
     queryKey: ["privacy-notices", "active"],
     queryFn: () =>
-      apiGet<PrivacyNotice>("/v1/privacy-notices/active"),
+      apiGet<PrivacyNotice>("/privacy-notices/active"),
   });
 }
 
@@ -69,7 +69,7 @@ export function useCreatePrivacyNotice() {
 
   return useMutation<PrivacyNotice, Error, CreatePrivacyNoticeRequest>({
     mutationFn: (data) =>
-      apiPost<PrivacyNotice>("/v1/privacy-notices", data),
+      apiPost<PrivacyNotice>("/privacy-notices", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["privacy-notices"] });
     },
@@ -89,7 +89,7 @@ export function useUpdatePrivacyNotice(noticeId: string) {
   >({
     mutationFn: (data) =>
       apiPatch<PrivacyNotice>(
-        `/v1/privacy-notices/${noticeId}`,
+        `/privacy-notices/${noticeId}`,
         data
       ),
     onSuccess: () => {

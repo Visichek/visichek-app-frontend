@@ -16,7 +16,7 @@ import { LoadingButton } from "@/components/feedback/loading-button";
 
 const lookupSchema = z.object({
   request_id: z.string().min(1, "Request ID is required"),
-  verification_token: z.string().min(1, "Verification token is required"),
+  verificationToken: z.string().min(1, "Verification token is required"),
 });
 
 type LookupFormValues = z.infer<typeof lookupSchema>;
@@ -39,7 +39,7 @@ export default function ManualStatusLookupPage() {
   function onSubmit(values: LookupFormValues) {
     router.push(
       `/rights/request/${values.request_id}/status?token=${encodeURIComponent(
-        values.verification_token
+        values.verificationToken
       )}`
     );
   }
@@ -82,19 +82,19 @@ export default function ManualStatusLookupPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="verification_token">
+              <Label htmlFor="verificationToken">
                 Verification Token <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="verification_token"
+                id="verificationToken"
                 type="text"
                 placeholder="Your verification token"
                 className="text-base md:text-sm font-mono"
-                {...register("verification_token")}
+                {...register("verificationToken")}
               />
-              {errors.verification_token && (
+              {errors.verificationToken && (
                 <p className="text-sm text-destructive">
-                  {errors.verification_token.message}
+                  {errors.verificationToken.message}
                 </p>
               )}
             </div>

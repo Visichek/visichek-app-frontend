@@ -16,14 +16,14 @@ interface PaginatedResponse<T> {
 export interface CreateSubProcessorRequest {
   name: string;
   purpose?: string;
-  data_categories?: string;
+  dataCategories?: string;
   country?: string;
 }
 
 export interface UpdateSubProcessorRequest {
   name?: string;
   purpose?: string;
-  data_categories?: string;
+  dataCategories?: string;
   country?: string;
 }
 
@@ -40,7 +40,7 @@ export function useSubProcessors(params?: UseSubProcessorsParams) {
     queryKey: ["sub-processors", params],
     queryFn: () =>
       apiGet<PaginatedResponse<SubProcessor>>(
-        "/v1/sub-processors",
+        "/sub-processors",
         params
       ),
   });
@@ -54,7 +54,7 @@ export function useCreateSubProcessor() {
 
   return useMutation<SubProcessor, Error, CreateSubProcessorRequest>({
     mutationFn: (data) =>
-      apiPost<SubProcessor>("/v1/sub-processors", data),
+      apiPost<SubProcessor>("/sub-processors", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sub-processors"] });
     },
@@ -74,7 +74,7 @@ export function useUpdateSubProcessor(spId: string) {
   >({
     mutationFn: (data) =>
       apiPatch<SubProcessor>(
-        `/v1/sub-processors/${spId}`,
+        `/sub-processors/${spId}`,
         data
       ),
     onSuccess: () => {
@@ -93,7 +93,7 @@ export function useDeleteSubProcessor() {
 
   return useMutation<unknown, Error, string>({
     mutationFn: (spId) =>
-      apiDelete(`/v1/sub-processors/${spId}`),
+      apiDelete(`/sub-processors/${spId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["sub-processors"],

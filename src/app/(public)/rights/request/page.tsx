@@ -39,8 +39,8 @@ const rightsSchema = z.object({
     ["access", "correction", "deletion", "consent_withdrawal"],
     { required_error: "Select a request type" }
   ),
-  requester_name: z.string().min(1, "Your name is required"),
-  requester_email: z
+  requesterName: z.string().min(1, "Your name is required"),
+  requesterEmail: z
     .string()
     .email("Enter a valid email")
     .optional()
@@ -95,8 +95,8 @@ export default function PublicRightsRequestPage() {
     resolver: zodResolver(rightsSchema),
     defaultValues: {
       request_type: undefined,
-      requester_name: "",
-      requester_email: "",
+      requesterName: "",
+      requesterEmail: "",
       requester_phone: "",
       description: "",
     },
@@ -110,8 +110,8 @@ export default function PublicRightsRequestPage() {
     try {
       const response = await rightsRequestMutation.mutateAsync({
         request_type: values.request_type,
-        requester_name: values.requester_name,
-        requester_email: values.requester_email || undefined,
+        requesterName: values.requesterName,
+        requesterEmail: values.requesterEmail || undefined,
         requester_phone: values.requester_phone || undefined,
         description: values.description || undefined,
       });
@@ -126,9 +126,9 @@ export default function PublicRightsRequestPage() {
   }
 
   async function copyToken() {
-    if (!result?.verification_token) return;
+    if (!result?.verificationToken) return;
     try {
-      await navigator.clipboard.writeText(result.verification_token);
+      await navigator.clipboard.writeText(result.verificationToken);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -167,7 +167,7 @@ export default function PublicRightsRequestPage() {
                   Verification Token:
                 </span>
                 <code className="flex-1 truncate font-mono text-xs">
-                  {result.verification_token}
+                  {result.verificationToken}
                 </code>
                 <Button
                   variant="ghost"
@@ -183,10 +183,10 @@ export default function PublicRightsRequestPage() {
                   )}
                 </Button>
               </div>
-              {result.due_date && (
+              {result.dueDate && (
                 <div>
                   <span className="font-medium text-foreground">Due by:</span>{" "}
-                  {new Date(result.due_date * 1000).toLocaleDateString()}
+                  {new Date(result.dueDate * 1000).toLocaleDateString()}
                 </div>
               )}
             </div>
@@ -206,7 +206,7 @@ export default function PublicRightsRequestPage() {
               className="w-full min-h-[44px]"
             >
               <a
-                href={`/rights/request/${result.request_id}/status?token=${encodeURIComponent(result.verification_token)}`}
+                href={`/rights/request/${result.request_id}/status?token=${encodeURIComponent(result.verificationToken)}`}
               >
                 Check Request Status
               </a>
@@ -296,39 +296,39 @@ export default function PublicRightsRequestPage() {
 
             {/* Name */}
             <div className="space-y-2">
-              <Label htmlFor="requester_name">
+              <Label htmlFor="requesterName">
                 Your Name <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="requester_name"
+                id="requesterName"
                 type="text"
                 placeholder="Full name"
                 autoComplete="name"
                 className="text-base md:text-sm"
-                {...register("requester_name")}
+                {...register("requesterName")}
               />
-              {errors.requester_name && (
+              {errors.requesterName && (
                 <p className="text-sm text-destructive">
-                  {errors.requester_name.message}
+                  {errors.requesterName.message}
                 </p>
               )}
             </div>
 
             {/* Email */}
             <div className="space-y-2">
-              <Label htmlFor="requester_email">Email</Label>
+              <Label htmlFor="requesterEmail">Email</Label>
               <Input
-                id="requester_email"
+                id="requesterEmail"
                 type="email"
                 inputMode="email"
                 placeholder="you@example.com"
                 autoComplete="email"
                 className="text-base md:text-sm"
-                {...register("requester_email")}
+                {...register("requesterEmail")}
               />
-              {errors.requester_email && (
+              {errors.requesterEmail && (
                 <p className="text-sm text-destructive">
-                  {errors.requester_email.message}
+                  {errors.requesterEmail.message}
                 </p>
               )}
             </div>

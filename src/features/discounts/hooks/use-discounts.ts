@@ -10,7 +10,7 @@ import type { Discount } from "@/types/billing";
 export function useDiscounts() {
   return useQuery<Discount[]>({
     queryKey: ["discounts"],
-    queryFn: () => apiGet<Discount[]>("/v1/discounts"),
+    queryFn: () => apiGet<Discount[]>("/discounts"),
   });
 }
 
@@ -20,7 +20,7 @@ export function useDiscounts() {
 export function useDiscount(discountId: string) {
   return useQuery<Discount>({
     queryKey: ["discounts", discountId],
-    queryFn: () => apiGet<Discount>(`/v1/discounts/${discountId}`),
+    queryFn: () => apiGet<Discount>(`/discounts/${discountId}`),
     enabled: !!discountId,
   });
 }
@@ -30,9 +30,9 @@ interface CreateDiscountRequest {
   type: string;
   scope: string;
   value: number;
-  max_redemptions?: number;
-  valid_from?: number;
-  valid_until?: number;
+  maxRedemptions?: number;
+  validFrom?: number;
+  validUntil?: number;
 }
 
 /**
@@ -42,7 +42,7 @@ export function useCreateDiscount() {
   const queryClient = useQueryClient();
 
   return useMutation<Discount, Error, CreateDiscountRequest>({
-    mutationFn: (data) => apiPost<Discount>("/v1/discounts", data),
+    mutationFn: (data) => apiPost<Discount>("/discounts", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["discounts"] });
     },
@@ -58,7 +58,7 @@ export function useUpdateDiscount(discountId: string) {
   const queryClient = useQueryClient();
 
   return useMutation<Discount, Error, UpdateDiscountRequest>({
-    mutationFn: (data) => apiPut<Discount>(`/v1/discounts/${discountId}`, data),
+    mutationFn: (data) => apiPut<Discount>(`/discounts/${discountId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["discounts", discountId] });
       queryClient.invalidateQueries({ queryKey: ["discounts"] });
@@ -73,7 +73,7 @@ export function useDisableDiscount() {
   const queryClient = useQueryClient();
 
   return useMutation<Discount, Error, string>({
-    mutationFn: (discountId) => apiPost<Discount>(`/v1/discounts/${discountId}/disable`),
+    mutationFn: (discountId) => apiPost<Discount>(`/discounts/${discountId}/disable`),
     onSuccess: (_, discountId) => {
       queryClient.invalidateQueries({ queryKey: ["discounts", discountId] });
       queryClient.invalidateQueries({ queryKey: ["discounts"] });
@@ -83,7 +83,7 @@ export function useDisableDiscount() {
 
 interface ValidateDiscountRequest {
   code: string;
-  tenant_id?: string;
+  tenantId?: string;
 }
 
 interface ValidateDiscountResponse {
@@ -97,7 +97,7 @@ interface ValidateDiscountResponse {
  */
 export function useValidateDiscount() {
   return useMutation<ValidateDiscountResponse, Error, ValidateDiscountRequest>({
-    mutationFn: (data) => apiPost<ValidateDiscountResponse>("/v1/discounts/validate", data),
+    mutationFn: (data) => apiPost<ValidateDiscountResponse>("/discounts/validate", data),
   });
 }
 
@@ -108,7 +108,7 @@ export function useDeleteDiscount() {
   const queryClient = useQueryClient();
 
   return useMutation<unknown, Error, string>({
-    mutationFn: (discountId) => apiDelete(`/v1/discounts/${discountId}`),
+    mutationFn: (discountId) => apiDelete(`/discounts/${discountId}`),
     onSuccess: (_, discountId) => {
       queryClient.invalidateQueries({ queryKey: ["discounts", discountId] });
       queryClient.invalidateQueries({ queryKey: ["discounts"] });

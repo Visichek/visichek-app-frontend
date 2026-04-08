@@ -27,6 +27,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/register") ||
     pathname.startsWith("/checkout") ||
     pathname.startsWith("/rights") ||
+    pathname.startsWith("/support") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
     pathname.includes(".")

@@ -70,9 +70,9 @@ export default function DPOPage() {
 
   const columns: ColumnDef<DataSubjectRequest>[] = [
     {
-      accessorKey: "requester_name",
+      accessorKey: "requesterName",
       header: "Requester",
-      cell: ({ row }) => <span className="font-medium text-sm">{row.original.requester_name}</span>,
+      cell: ({ row }) => <span className="font-medium text-sm">{row.original.requesterName}</span>,
     },
     {
       accessorKey: "type",
@@ -91,11 +91,11 @@ export default function DPOPage() {
       ),
     },
     {
-      accessorKey: "created_at",
+      accessorKey: "createdAt",
       header: "Submitted",
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">
-          {formatDateTime(row.original.created_at)}
+          {formatDateTime(row.original.createdAt)}
         </span>
       ),
     },
@@ -132,7 +132,7 @@ export default function DPOPage() {
   const mobileCard = (dsr: DataSubjectRequest) => (
     <div className="rounded-lg border p-4 space-y-2">
       <div className="flex items-center justify-between">
-        <span className="font-medium text-sm">{dsr.requester_name}</span>
+        <span className="font-medium text-sm">{dsr.requesterName}</span>
         <Badge variant={statusVariant(dsr.status)}>
           {dsr.status.replace(/_/g, " ")}
         </Badge>
@@ -250,7 +250,7 @@ export default function DPOPage() {
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         title="Delete Data Subject Request"
-        description={`Are you sure you want to delete the request from "${dsrToDelete?.requester_name}"? This action cannot be undone.`}
+        description={`Are you sure you want to delete the request from "${dsrToDelete?.requesterName}"? This action cannot be undone.`}
         confirmLabel="Delete"
         variant="destructive"
         isLoading={false}

@@ -83,7 +83,7 @@ function SubscriptionActions({
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title="Cancel subscription"
-        description={`Are you sure you want to cancel the subscription for ${subscription.tenant_id}? This action cannot be undone.`}
+        description={`Are you sure you want to cancel the subscription for ${subscription.tenantId}? This action cannot be undone.`}
         confirmLabel="Cancel subscription"
         cancelLabel="Keep it"
         variant="destructive"
@@ -109,14 +109,14 @@ export default function SubscriptionsPage() {
 
     cancelSubscription(
       {
-        tenant_id: subscription.tenant_id,
+        tenantId: subscription.tenantId,
         reason: "Admin cancellation",
         immediate: true,
       },
       {
         onSuccess: () => {
           toast.success(
-            `Subscription for ${subscription.tenant_id} has been cancelled.`
+            `Subscription for ${subscription.tenantId} has been cancelled.`
           );
         },
         onError: (error) => {
@@ -130,17 +130,17 @@ export default function SubscriptionsPage() {
 
   const columns: ColumnDef<Subscription>[] = [
     {
-      accessorKey: "tenant_id",
+      accessorKey: "tenantId",
       header: "Tenant ID",
       cell: ({ row }) => (
-        <span className="text-sm font-medium">{row.getValue("tenant_id")}</span>
+        <span className="text-sm font-medium">{row.getValue("tenantId")}</span>
       ),
     },
     {
-      accessorKey: "plan_id",
+      accessorKey: "planId",
       header: "Plan ID",
       cell: ({ row }) => (
-        <span className="text-sm">{row.getValue("plan_id")}</span>
+        <span className="text-sm">{row.getValue("planId")}</span>
       ),
     },
     {
@@ -156,18 +156,18 @@ export default function SubscriptionsPage() {
       },
     },
     {
-      accessorKey: "billing_cycle",
+      accessorKey: "billingCycle",
       header: "Billing Cycle",
       cell: ({ row }) => {
-        const cycle = row.getValue("billing_cycle") as string;
+        const cycle = row.getValue("billingCycle") as string;
         return <span className="text-sm capitalize">{cycle}</span>;
       },
     },
     {
-      accessorKey: "created_at",
+      accessorKey: "createdAt",
       header: "Created",
       cell: ({ row }) => {
-        const date = row.getValue("created_at") as number;
+        const date = row.getValue("createdAt") as number;
         return <span className="text-sm">{formatDate(date)}</span>;
       },
     },
@@ -207,7 +207,7 @@ export default function SubscriptionsPage() {
         <DataTable
           columns={columns}
           data={subscriptions}
-          searchKey="tenant_id"
+          searchKey="tenantId"
           searchPlaceholder="Search tenant ID..."
           isLoading={isLoading}
           mobileCard={(subscription) => (
@@ -215,10 +215,10 @@ export default function SubscriptionsPage() {
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">
-                    {subscription.tenant_id}
+                    {subscription.tenantId}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {formatDate(subscription.created_at)}
+                    {formatDate(subscription.createdAt)}
                   </p>
                 </div>
                 <Badge variant={statusVariant(subscription.status)}>
@@ -226,7 +226,7 @@ export default function SubscriptionsPage() {
                 </Badge>
               </div>
               <div className="text-xs text-muted-foreground">
-                {capitalize(subscription.billing_cycle)} billing
+                {capitalize(subscription.billingCycle)} billing
               </div>
               <div className="flex justify-end pt-2">
                 <SubscriptionActions

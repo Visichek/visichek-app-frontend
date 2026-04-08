@@ -12,6 +12,18 @@ const REFRESH_ENDPOINTS: Record<SessionType, string> = {
 };
 
 /**
+ * Normalize a token response that may use camelCase or snake_case keys.
+ */
+function normalizeTokenPair(raw: Record<string, unknown>): TokenPair {
+  return {
+    accessToken:
+      (raw.accessToken as string) ?? (raw.accessToken as string) ?? "",
+    refreshToken:
+      (raw.refreshToken as string) ?? (raw.refreshToken as string) ?? "",
+  };
+}
+
+/**
  * Refresh the current session. Returns the new access token on success.
  * Called by the Axios 401 interceptor — do NOT call from components.
  */
@@ -26,15 +38,15 @@ export async function refreshSession(): Promise<string> {
   const endpoint = REFRESH_ENDPOINTS[currentSessionType];
 
   // Use a bare axios instance to avoid interceptor loops
-  const response = await axios.post<{ success: boolean; data: TokenPair }>(
+  const response = await axios.post<{ success: boolean; data: Record<string, unknown> }>(
     `${API_BASE_URL}${endpoint}`,
-    { refresh_token: currentRefreshToken }
+    { refreshToken: currentRefreshToken }
   );
 
-  const newTokens = response.data.data;
+  const newTokens = normalizeTokenPair(response.data.data);
   setTokens(newTokens, currentSessionType);
 
-  return newTokens.access_token;
+  return newTokens.accessToken;
 }
 
 /**

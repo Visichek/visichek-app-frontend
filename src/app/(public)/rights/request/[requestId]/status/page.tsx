@@ -41,7 +41,7 @@ const STATUS_CONFIG: Record<
 // ── Lookup schema ────────────────────────────────────────────────────
 
 const lookupSchema = z.object({
-  verification_token: z.string().min(1, "Verification token is required"),
+  verificationToken: z.string().min(1, "Verification token is required"),
 });
 
 type LookupFormValues = z.infer<typeof lookupSchema>;
@@ -71,12 +71,12 @@ export default function DSRStatusPage() {
   } = useForm<LookupFormValues>({
     resolver: zodResolver(lookupSchema),
     defaultValues: {
-      verification_token: tokenFromUrl,
+      verificationToken: tokenFromUrl,
     },
   });
 
   function onLookup(values: LookupFormValues) {
-    setActiveToken(values.verification_token);
+    setActiveToken(values.verificationToken);
   }
 
   // ── Token entry when not provided in URL ──────────────────────────
@@ -103,21 +103,21 @@ export default function DSRStatusPage() {
               className="space-y-4"
             >
               <div className="space-y-2">
-                <Label htmlFor="verification_token">
+                <Label htmlFor="verificationToken">
                   Verification Token{" "}
                   <span className="text-destructive">*</span>
                 </Label>
                 <Input
-                  id="verification_token"
+                  id="verificationToken"
                   type="text"
                   placeholder="Paste your verification token"
                   autoFocus
                   className="text-base md:text-sm font-mono"
-                  {...register("verification_token")}
+                  {...register("verificationToken")}
                 />
-                {formErrors.verification_token && (
+                {formErrors.verificationToken && (
                   <p className="text-sm text-destructive">
-                    {formErrors.verification_token.message}
+                    {formErrors.verificationToken.message}
                   </p>
                 )}
               </div>
@@ -207,23 +207,23 @@ export default function DSRStatusPage() {
             <div className="flex justify-between">
               <span className="text-muted-foreground">Submitted</span>
               <span className="font-medium">
-                {new Date(statusData.created_at * 1000).toLocaleDateString()}
+                {new Date(statusData.createdAt * 1000).toLocaleDateString()}
               </span>
             </div>
-            {statusData.due_date && (
+            {statusData.dueDate && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Due by</span>
                 <span className="font-medium">
-                  {new Date(statusData.due_date * 1000).toLocaleDateString()}
+                  {new Date(statusData.dueDate * 1000).toLocaleDateString()}
                 </span>
               </div>
             )}
-            {statusData.updated_at && (
+            {statusData.updatedAt && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Last updated</span>
                 <span className="font-medium">
                   {new Date(
-                    statusData.updated_at * 1000
+                    statusData.updatedAt * 1000
                   ).toLocaleDateString()}
                 </span>
               </div>

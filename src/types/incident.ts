@@ -2,19 +2,19 @@ import type { IncidentType, IncidentStatus } from "./enums";
 
 export interface Incident {
   id: string;
-  tenant_id: string;
+  tenantId: string;
   title: string;
   description?: string;
   type: IncidentType;
   status: IncidentStatus;
   severity?: string;
-  reported_by?: string;
-  assigned_to?: string;
-  created_at: number;
-  updated_at: number;
-  notification_deadline?: number;
-  ndpc_notified?: boolean;
-  notification_sent_at?: number;
+  reportedBy?: string;
+  assignedTo?: string;
+  createdAt: number;
+  updatedAt: number;
+  notificationDeadline?: number;
+  ndpcNotified?: boolean;
+  notificationSentAt?: number;
 }
 
 export interface CreateIncidentRequest {
@@ -29,7 +29,7 @@ export interface UpdateIncidentRequest {
   description?: string;
   status?: IncidentStatus;
   severity?: string;
-  assigned_to?: string;
-  ndpc_notified?: boolean;
-  notification_sent_at?: number;
+  assignedTo?: string;
+  ndpcNotified?: boolean;
+  notificationSentAt?: number;
 }

@@ -70,9 +70,9 @@ export default function UsersPage() {
 
   const columns: ColumnDef<SystemUser>[] = [
     {
-      accessorKey: "full_name",
+      accessorKey: "fullName",
       header: "Name",
-      cell: ({ row }) => <span className="font-medium">{row.original.full_name}</span>,
+      cell: ({ row }) => <span className="font-medium">{row.original.fullName}</span>,
     },
     {
       accessorKey: "email",
@@ -123,7 +123,7 @@ export default function UsersPage() {
   const mobileCard = (user: SystemUser) => (
     <div className="rounded-lg border p-4 space-y-2">
       <div className="flex items-center justify-between">
-        <span className="font-medium">{user.full_name}</span>
+        <span className="font-medium">{user.fullName}</span>
         <Badge variant={getRoleBadgeVariant(user.role)}>
           {user.role.replace(/_/g, " ")}
         </Badge>
@@ -175,7 +175,7 @@ export default function UsersPage() {
         isLoading={isLoading}
         pagination={true}
         pageSize={10}
-        searchKey="full_name"
+        searchKey="fullName"
         searchPlaceholder="Search users..."
         emptyTitle="No users"
         emptyDescription="Invite your first team member to get started."
@@ -188,7 +188,7 @@ export default function UsersPage() {
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         title="Delete User"
-        description={`Are you sure you want to delete "${userToDelete?.full_name}"? This action cannot be undone.`}
+        description={`Are you sure you want to delete "${userToDelete?.fullName}"? This action cannot be undone.`}
         confirmLabel="Delete"
         variant="destructive"
         isLoading={deleteMutation.isPending}

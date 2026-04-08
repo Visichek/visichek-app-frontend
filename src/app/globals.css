@@ -99,6 +99,21 @@
   }
 }
 
+/* Login page styles */
+.login-input {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.login-input:-webkit-autofill,
+.login-input:-webkit-autofill:hover,
+.login-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #fafafa;
+  -webkit-box-shadow: 0 0 0 40px rgba(9, 9, 11, 0.8) inset;
+  border-color: #27272a;
+  caret-color: #fafafa;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
   *,
