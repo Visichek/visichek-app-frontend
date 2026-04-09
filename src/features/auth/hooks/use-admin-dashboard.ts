@@ -1,13 +1,15 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost } from '@/lib/api/request';
+import { apiGet, apiPost, apiDelete } from '@/lib/api/request';
 import type {
   AdminDashboardStats,
   AdminBillingSummary,
   AdminTenant,
 } from '@/types/admin';
 import type { Tenant, TenantBootstrapRequest } from '@/types/tenant';
+
+export type { AdminTenant };
 
 /**
  * Query key factory for admin dashboard and tenant-related queries
@@ -108,9 +110,50 @@ export function useBootstrapTenant() {
       queryClient.invalidateQueries({ queryKey: adminKeys.tenants() });
       // Cache the new tenant
       queryClient.setQueryData(
-        adminKeys.tenantDetail(newTenant.id),
+        adminKeys.tenantDetail(newTenant.Id),
         newTenant
       );
+    },
+  });
+}
+
+/**
+ * Preview offboarding impact for a tenant.
+ */
+export function useOffboardingSummary(tenantId: string) {
+  return useQuery({
+    queryKey: ['admin', 'tenants', tenantId, 'offboarding-summary'],
+    queryFn: () => apiGet<Record<string, unknown>>(`/admins/tenants/${tenantId}/offboarding-summary`),
+    enabled: !!tenantId,
+  });
+}
+
+/**
+ * Start tenant offboarding.
+ */
+export function useOffboardTenant() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (tenantId: string) =>
+      apiPost<Record<string, unknown>>(`/admins/tenants/${tenantId}/offboard`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.tenants() });
+    },
+  });
+}
+
+/**
+ * Delete a tenant entirely (hard delete — admin only).
+ */
+export function useDeleteTenant() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (tenantId: string) =>
+      apiDelete(`/tenants/${tenantId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.tenants() });
     },
   });
 }

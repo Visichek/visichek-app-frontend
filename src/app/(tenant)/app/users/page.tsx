@@ -20,6 +20,7 @@ import {
   useDeleteSystemUser,
 } from "@/features/users/hooks/use-users";
 import { UserFormModal } from "@/features/users/components/user-form-modal";
+import { useActionParam } from "@/hooks/use-action-param";
 import type { SystemUser } from "@/types/user";
 
 export default function UsersPage() {
@@ -29,6 +30,11 @@ export default function UsersPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<SystemUser | undefined>();
+
+  // Open create modal when navigated from a "Quick Action" card.
+  useActionParam({
+    create: () => setFormOpen(true),
+  });
 
   const handleDeleteClick = (user: SystemUser) => {
     setUserToDelete(user);

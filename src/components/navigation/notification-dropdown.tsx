@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRef, useEffect, useState } from "react";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import {
   Bell,
   CheckCheck,
@@ -12,7 +12,6 @@ import {
   X,
   Loader2,
 } from "lucide-react";
-import { motion, useAnimation } from "motion/react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -63,8 +62,17 @@ function formatRelativeTime(unixSeconds: number): string {
  * Respects prefers-reduced-motion.
  */
 function AnimatedBell({ unreadCount }: { unreadCount: number }) {
-  const controls = useAnimation();
   const prevCountRef = useRef<number | null>(null);
+  const [animationKey, setAnimationKey] = useState(0);
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReducedMotion(mq.matches);
+    const listener = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
+    mq.addEventListener("change", listener);
+    return () => mq.removeEventListener("change", listener);
+  }, []);
 
   useEffect(() => {
     const prev = prevCountRef.current;
@@ -73,36 +81,23 @@ function AnimatedBell({ unreadCount }: { unreadCount: number }) {
     // Skip first mount (prev is null) and any decrease
     if (prev === null || unreadCount <= prev) return;
 
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    if (mq.matches) {
-      // Reduced-motion: tiny scale pulse only
-      controls.start({
-        scale: [1, 1.15, 1],
-        transition: { duration: 0.3, ease: "easeOut" },
-      });
-      return;
-    }
-
-    // Full pop: quick upward nudge with a subtle rotation hint
-    controls.start({
-      y: [0, -5, 1, 0],
-      rotate: [0, -6, 5, 0],
-      transition: {
-        duration: 0.42,
-        ease: "easeOut",
-        times: [0, 0.3, 0.7, 1],
-      },
-    });
-  }, [unreadCount, controls]);
+    // Bumping the key remounts the span and replays the CSS animation
+    setAnimationKey((k) => k + 1);
+  }, [unreadCount]);
 
   return (
-    <motion.span
-      animate={controls}
-      className="flex items-center justify-center"
-      style={{ display: "inline-flex" }}
+    <span
+      key={animationKey}
+      className={
+        animationKey === 0
+          ? "inline-flex items-center justify-center"
+          : reducedMotion
+            ? "inline-flex items-center justify-center animate-bell-pulse"
+            : "inline-flex items-center justify-center animate-bell-pop"
+      }
     >
       <Bell className="h-5 w-5" />
-    </motion.span>
+    </span>
   );
 }
 
@@ -112,20 +107,17 @@ function AnimatedBell({ unreadCount }: { unreadCount: number }) {
  */
 function UnreadBadge({ count }: { count: number }) {
   return (
-    <motion.span
+    <span
       key={count}
-      className="absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground"
-      initial={{ scale: 0.6, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      transition={{ duration: 0.18, ease: [0.34, 1.56, 0.64, 1] }}
+      className="absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground animate-badge-pop"
     >
       {count > 99 ? "99+" : count}
-    </motion.span>
+    </span>
   );
 }
 
 export function NotificationDropdown() {
-  const router = useRouter();
+  const { navigate } = useNavigationLoading();
 
   const { data: unreadData } = useUnreadCount();
   const { data: notifications, isLoading } = useNotifications({
@@ -146,7 +138,7 @@ export function NotificationDropdown() {
       markAsRead.mutate(id);
     }
     if (link) {
-      router.push(link);
+      navigate(link);
     }
   };
 

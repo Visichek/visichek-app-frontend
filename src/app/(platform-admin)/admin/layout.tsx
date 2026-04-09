@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import {
   LayoutDashboard,
   Building2,
@@ -14,10 +15,18 @@ import {
 import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
 import { MobileNavSheet } from "@/components/navigation/mobile-nav-sheet";
 import { Topbar } from "@/components/navigation/topbar";
-import { CommandLauncher } from "@/components/navigation/command-launcher";
-import { NavigationLoadingProvider } from "@/lib/routing/navigation-context";
-import { NavigationOverlay } from "@/components/feedback/navigation-overlay";
 import { useSession } from "@/hooks/use-session";
+
+// Lazy: 579-line palette only loads the first time the user opens it
+// (Cmd/Ctrl+K or sidebar search). Keeps it out of the admin shell's
+// first-paint bundle.
+const CommandLauncher = dynamic(
+  () =>
+    import("@/components/navigation/command-launcher").then((m) => ({
+      default: m.CommandLauncher,
+    })),
+  { ssr: false }
+);
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils/cn";
 import { useThemeSync } from "@/hooks/use-theme-sync";
@@ -77,13 +86,24 @@ export default function PlatformAdminLayout({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { adminProfile } = useSession();
   const { logout } = useAuth();
-  const router = useRouter();
+  const { navigate } = useNavigationLoading();
 
   // Sync API-persisted theme preference into next-themes on first load
   useThemeSync();
 
+  // Global Cmd/Ctrl+K opens the (lazy) command launcher
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setCommandOpen(true);
+      }
+    };
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, []);
+
   return (
-    <NavigationLoadingProvider>
     <div className="min-h-screen bg-background">
       {/* Desktop sidebar — platform branding only, no tenant branding */}
       <AppSidebar
@@ -99,7 +119,7 @@ export default function PlatformAdminLayout({
           initial: adminProfile?.fullName?.charAt(0) ?? "A",
         }}
         onSearchClick={() => setCommandOpen(true)}
-        onSettingsClick={() => router.push("/admin/settings")}
+        onSettingsClick={() => navigate("/admin/settings")}
         settingsHref="/admin/settings"
         onLogoutClick={logout}
         collapsed={sidebarCollapsed}
@@ -129,12 +149,10 @@ export default function PlatformAdminLayout({
         </main>
       </div>
 
-      {/* Command launcher overlay */}
-      <CommandLauncher externalOpen={commandOpen} onExternalOpenChange={setCommandOpen} />
-
-      {/* Full-screen navigation loading overlay */}
-      <NavigationOverlay />
+      {/* Command launcher overlay — chunk only fetched on first open */}
+      {commandOpen && (
+        <CommandLauncher externalOpen={commandOpen} onExternalOpenChange={setCommandOpen} />
+      )}
     </div>
-    </NavigationLoadingProvider>
   );
 }

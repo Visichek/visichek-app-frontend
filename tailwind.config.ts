@@ -16,9 +16,9 @@ const config: Config = {
     },
     extend: {
       fontFamily: {
-        display: ["Fraunces", "serif"],
-        sans: ["Arial", "Helvetica", "system-ui", "sans-serif"],
-        mono: ["IBM Plex Mono", "monospace"],
+        display: ["var(--font-fraunces)", "serif"],
+        sans: ["var(--font-plus-jakarta-sans)", "Arial", "Helvetica", "system-ui", "sans-serif"],
+        mono: ["var(--font-ibm-plex-mono)", "monospace"],
       },
       spacing: {
         "space-1": "4px",
@@ -114,10 +114,33 @@ const config: Config = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "bell-pop": {
+          "0%": { transform: "translateY(0) rotate(0deg)" },
+          "30%": { transform: "translateY(-5px) rotate(-6deg)" },
+          "70%": { transform: "translateY(1px) rotate(5deg)" },
+          "100%": { transform: "translateY(0) rotate(0deg)" },
+        },
+        "bell-pulse": {
+          "0%": { transform: "scale(1)" },
+          "50%": { transform: "scale(1.15)" },
+          "100%": { transform: "scale(1)" },
+        },
+        "badge-pop": {
+          "0%": { transform: "scale(0.6)", opacity: "0" },
+          "100%": { transform: "scale(1)", opacity: "1" },
+        },
+        "icon-swap-in": {
+          "0%": { transform: "rotate(-30deg) scale(0.9)", opacity: "0" },
+          "100%": { transform: "rotate(0deg) scale(1)", opacity: "1" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "bell-pop": "bell-pop 0.42s ease-out",
+        "bell-pulse": "bell-pulse 0.3s ease-out",
+        "badge-pop": "badge-pop 0.18s cubic-bezier(0.34, 1.56, 0.64, 1)",
+        "icon-swap-in": "icon-swap-in 0.2s ease-out",
       },
     },
   },

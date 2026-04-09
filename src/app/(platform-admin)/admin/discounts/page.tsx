@@ -21,10 +21,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
+import { useActionParam } from "@/hooks/use-action-param";
 import type { Discount } from "@/types/billing";
 import type { DiscountStatus } from "@/types/enums";
 
-function statusVariant(status: DiscountStatus) {
+function statusVariant(status: DiscountStatus | undefined) {
   switch (status) {
     case "active":
       return "success" as const;
@@ -37,15 +38,17 @@ function statusVariant(status: DiscountStatus) {
   }
 }
 
-function capitalize(str: string): string {
+function capitalize(str: string | null | undefined): string {
+  if (!str) return "—";
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
 
-function formatValue(value: number, type: string): string {
+function formatValue(value: number | null | undefined, type: string | null | undefined): string {
+  if (value == null) return "—";
   if (type === "percentage") {
     return `${value}%`;
   }
-  return `₦${(value / 100).toLocaleString("en-NG", {
+  return `₦${value.toLocaleString("en-NG", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -72,9 +75,9 @@ function DiscountActions({
 
   const handleConfirm = () => {
     if (confirmAction === "disable") {
-      onDisable(discount.id);
+      onDisable(discount.Id);
     } else if (confirmAction === "delete") {
-      onDelete(discount.id);
+      onDelete(discount.Id);
     }
     setConfirmAction(null);
   };
@@ -146,12 +149,17 @@ export default function DiscountsPage() {
   const [createModalOpen, setCreateModalOpen] = React.useState(false);
   const isLoading_ = isDeletePending || isDisablePending;
 
+  // Open create modal when navigated from a "Quick Action" card.
+  useActionParam({
+    create: () => setCreateModalOpen(true),
+  });
+
   const handleEdit = (id: string) => {
     toast.info("Edit functionality will be available soon.");
   };
 
   const handleDisable = (discountId: string) => {
-    const discount = discounts.find((d) => d.id === discountId);
+    const discount = discounts.find((d) => d.Id === discountId);
     if (!discount) return;
 
     disableDiscount(discountId, {
@@ -167,7 +175,7 @@ export default function DiscountsPage() {
   };
 
   const handleDelete = (discountId: string) => {
-    const discount = discounts.find((d) => d.id === discountId);
+    const discount = discounts.find((d) => d.Id === discountId);
     if (!discount) return;
 
     deleteDiscount(discountId, {
@@ -191,10 +199,10 @@ export default function DiscountsPage() {
       ),
     },
     {
-      accessorKey: "type",
+      accessorKey: "discountType",
       header: "Type",
       cell: ({ row }) => {
-        const type = row.getValue("type") as string;
+        const type = row.getValue("discountType") as string | undefined;
         return <span className="text-sm">{capitalize(type)}</span>;
       },
     },
@@ -202,8 +210,8 @@ export default function DiscountsPage() {
       accessorKey: "value",
       header: "Value",
       cell: ({ row }) => {
-        const value = row.getValue("value") as number;
-        const type = row.original.type;
+        const value = row.getValue("value") as number | undefined;
+        const type = row.original.discountType;
         return <span className="text-sm">{formatValue(value, type)}</span>;
       },
     },
@@ -211,10 +219,10 @@ export default function DiscountsPage() {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => {
-        const status = row.getValue("status") as DiscountStatus;
+        const status = row.getValue("status") as DiscountStatus | undefined;
         return (
           <Badge variant={statusVariant(status)}>
-            {capitalize(status.replace(/_/g, " "))}
+            {capitalize(status?.replace(/_/g, " "))}
           </Badge>
         );
       },
@@ -292,15 +300,15 @@ export default function DiscountsPage() {
                     {discount.code}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {capitalize(discount.type)} discount
+                    {capitalize(discount.discountType)} discount
                   </p>
                 </div>
                 <Badge variant={statusVariant(discount.status)}>
-                  {capitalize(discount.status.replace(/_/g, " "))}
+                  {capitalize(discount.status?.replace(/_/g, " "))}
                 </Badge>
               </div>
               <div className="text-sm font-medium">
-                {formatValue(discount.value, discount.type)} off
+                {formatValue(discount.value, discount.discountType)} off
               </div>
               <div className="text-xs text-muted-foreground">
                 Uses:{" "}

@@ -192,19 +192,23 @@ export function UserFormModal({ open, onOpenChange }: UserFormModalProps) {
           <div className="space-y-2">
             <Label htmlFor="departmentId">Department</Label>
             <Select
-              value={departmentId}
-              onValueChange={(value) => setValue("departmentId", value)}
+              value={departmentId ? departmentId : "none"}
+              onValueChange={(value) =>
+                setValue("departmentId", value === "none" ? "" : value)
+              }
             >
               <SelectTrigger id="departmentId">
                 <SelectValue placeholder="Select department (optional)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None</SelectItem>
-                {departmentsQuery.data?.map((dept) => (
-                  <SelectItem key={dept.id} value={dept.id}>
-                    {dept.name}
-                  </SelectItem>
-                ))}
+                <SelectItem value="none">None</SelectItem>
+                {departmentsQuery.data
+                  ?.filter((dept) => !!dept?.id)
+                  .map((dept) => (
+                    <SelectItem key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>

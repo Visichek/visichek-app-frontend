@@ -217,11 +217,13 @@ export function AppointmentFormModal({
               <SelectValue placeholder="Select department" />
             </SelectTrigger>
             <SelectContent>
-              {departmentsQuery.data?.map((dept) => (
-                <SelectItem key={dept.id} value={dept.id}>
-                  {dept.name}
-                </SelectItem>
-              ))}
+              {departmentsQuery.data
+                ?.filter((dept) => !!dept?.id)
+                .map((dept) => (
+                  <SelectItem key={dept.id} value={dept.id}>
+                    {dept.name}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
           {errors.departmentId && (

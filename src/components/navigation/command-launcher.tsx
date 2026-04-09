@@ -78,12 +78,14 @@ export function CommandLauncher({ externalOpen, onExternalOpenChange }: CommandL
     }
   }, [externalOpen]);
 
-  // Keyboard shortcut: Cmd+K (Mac) or Ctrl+K (Windows/Linux)
+  // Keyboard shortcut: Cmd+K / Ctrl+K — close when already open. Opening from
+  // closed state is handled by the parent layout so this component can stay
+  // lazy-loaded until first use.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        setOpen((open) => !open);
+        setOpen(false);
       }
     };
 

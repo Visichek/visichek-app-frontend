@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Eye, EyeOff, Building2, UserCircle, ClipboardCheck } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ResponsiveModal } from "@/components/recipes/responsive-modal";
 import {
   StepIndicator,
@@ -50,6 +51,7 @@ const bootstrapSchema = z.object({
     .optional()
     .or(z.literal("")),
   countryOfHosting: z.string().optional(),
+  crossBorderApproved: z.boolean().optional(),
 });
 
 type BootstrapFormData = z.infer<typeof bootstrapSchema>;
@@ -110,6 +112,7 @@ export function BootstrapTenantModal({
       lawfulBasis: undefined,
       dpoContactEmail: "",
       countryOfHosting: "",
+      crossBorderApproved: false,
     },
     mode: "onTouched",
   });
@@ -140,6 +143,7 @@ export function BootstrapTenantModal({
         lawfulBasis: data.lawfulBasis,
         dpoContactEmail: data.dpoContactEmail || undefined,
         countryOfHosting: data.countryOfHosting || undefined,
+        crossBorderApproved: data.crossBorderApproved || undefined,
       });
       toast.success(
         `Tenant "${data.companyName}" bootstrapped — super admin account created.`
@@ -247,6 +251,25 @@ export function BootstrapTenantModal({
                   {errors.dpoContactEmail.message}
                 </p>
               )}
+            </div>
+
+            <div className="flex items-start gap-3 rounded-md border border-border bg-muted/40 p-3">
+              <Checkbox
+                id="bt-crossBorderApproved"
+                checked={values.crossBorderApproved ?? false}
+                onCheckedChange={(checked) =>
+                  setValue("crossBorderApproved", checked === true, { shouldValidate: true })
+                }
+                className="mt-0.5"
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="bt-crossBorderApproved" className="text-sm font-medium cursor-pointer">
+                  Approve cross-border data transfer
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Required when hosting outside Nigeria (NDPA compliance). Check this to confirm you have authority to approve cross-border data transfers for this tenant.
+                </p>
+              </div>
             </div>
           </div>
         )}
@@ -360,6 +383,7 @@ export function BootstrapTenantModal({
             />
             <ReviewRow label="Country of Hosting" value={values.countryOfHosting || "Not specified"} />
             <ReviewRow label="DPO Email" value={values.dpoContactEmail || "Not specified"} />
+            <ReviewRow label="Cross-border Approved" value={values.crossBorderApproved ? "Yes" : "No"} />
             <ReviewRow label="Admin Name" value={values.adminFullName} />
             <ReviewRow label="Admin Email" value={values.adminEmail} />
             <ReviewRow label="Password" value="••••••••" />

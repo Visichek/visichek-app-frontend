@@ -10,6 +10,8 @@ import { Toaster, toast } from "sonner";
 import { isPermissionError } from "@/types/api";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { OfflineBanner } from "@/components/feedback/offline-banner";
+import { NavigationLoadingProvider } from "@/lib/routing/navigation-context";
+import { NavigationOverlay } from "@/components/feedback/navigation-overlay";
 
 interface ProvidersProps {
   children: ReactNode;
@@ -52,20 +54,23 @@ export function Providers({ children }: ProvidersProps) {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <TooltipProvider>
-            {isBootstrapping ? (
-              <div className="flex min-h-screen items-center justify-center bg-background">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
-              </div>
-            ) : (
-              children
-            )}
-            <OfflineBanner />
-            <Toaster
-              position="top-right"
-              toastOptions={{
-                className: "font-sans",
-              }}
-            />
+            <NavigationLoadingProvider>
+              {isBootstrapping ? (
+                <div className="flex min-h-screen items-center justify-center bg-background">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
+                </div>
+              ) : (
+                children
+              )}
+              <NavigationOverlay />
+              <OfflineBanner />
+              <Toaster
+                position="top-right"
+                toastOptions={{
+                  className: "font-sans",
+                }}
+              />
+            </NavigationLoadingProvider>
           </TooltipProvider>
         </ThemeProvider>
       </QueryClientProvider>

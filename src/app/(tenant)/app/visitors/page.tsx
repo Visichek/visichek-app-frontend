@@ -37,6 +37,7 @@ import {
   usePendingVisitorSessions,
 } from "@/features/visitors/hooks/use-visitors";
 import { formatDateTime } from "@/lib/utils/format-date";
+import { useActionParam } from "@/hooks/use-action-param";
 import type { VisitSession } from "@/types/visitor";
 
 type TabView = "active" | "pending";
@@ -86,6 +87,12 @@ export default function VisitorsPage() {
     null
   );
   const [selectedCheckOutId, setSelectedCheckOutId] = useState<string>("");
+
+  // Open the relevant modal when navigated from a "Quick Action" card.
+  useActionParam({
+    create: () => setShowCheckInModal(true),
+    checkout: () => setShowCheckOutModal(true),
+  });
 
   // ── Handlers ──────────────────────────────────────────────────────
 

@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -86,31 +85,16 @@ export function ThemeToggle() {
           onClick={handleToggle}
           aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
         >
-          <AnimatePresence mode="wait" initial={false}>
+          <span
+            key={isDark ? "sun" : "moon"}
+            className="flex items-center justify-center animate-icon-swap-in"
+          >
             {isDark ? (
-              <motion.span
-                key="sun"
-                initial={{ rotate: -30, scale: 0.9, opacity: 0 }}
-                animate={{ rotate: 0, scale: 1, opacity: 1 }}
-                exit={{ rotate: 30, scale: 0.9, opacity: 0 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
-                className="flex items-center justify-center"
-              >
-                <Sun className="h-5 w-5" />
-              </motion.span>
+              <Sun className="h-5 w-5" />
             ) : (
-              <motion.span
-                key="moon"
-                initial={{ rotate: 30, scale: 0.9, opacity: 0 }}
-                animate={{ rotate: 0, scale: 1, opacity: 1 }}
-                exit={{ rotate: -30, scale: 0.9, opacity: 0 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
-                className="flex items-center justify-center"
-              >
-                <Moon className="h-5 w-5" />
-              </motion.span>
+              <Moon className="h-5 w-5" />
             )}
-          </AnimatePresence>
+          </span>
         </Button>
       </TooltipTrigger>
       <TooltipContent side="bottom">

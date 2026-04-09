@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Search } from "lucide-react";
@@ -26,7 +25,7 @@ type LookupFormValues = z.infer<typeof lookupSchema>;
  * a request ID and verification token (e.g., from a saved note).
  */
 export default function ManualStatusLookupPage() {
-  const router = useRouter();
+  const { navigate } = useNavigationLoading();
 
   const {
     register,
@@ -37,7 +36,7 @@ export default function ManualStatusLookupPage() {
   });
 
   function onSubmit(values: LookupFormValues) {
-    router.push(
+    navigate(
       `/rights/request/${values.request_id}/status?token=${encodeURIComponent(
         values.verificationToken
       )}`

@@ -22,6 +22,7 @@ import {
 import { DepartmentFormModal } from "@/features/departments/components/department-form-modal";
 import { useCapabilities } from "@/hooks/use-capabilities";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
+import { useActionParam } from "@/hooks/use-action-param";
 import type { Department } from "@/types/tenant";
 
 export default function DepartmentsPage() {
@@ -35,6 +36,15 @@ export default function DepartmentsPage() {
   const [selectedDept, setSelectedDept] = useState<Department | undefined>();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deptToDelete, setDeptToDelete] = useState<Department | undefined>();
+
+  // Open create modal when navigated from a "Quick Action" card.
+  useActionParam({
+    create: () => {
+      if (!canCreate) return;
+      setSelectedDept(undefined);
+      setFormOpen(true);
+    },
+  });
 
   const handleEdit = (dept: Department) => {
     setSelectedDept(dept);

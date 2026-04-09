@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,6 @@ import { ApiError } from "@/types/api";
 import { toast } from "sonner";
 
 export default function SelectTenantPage() {
-  const router = useRouter();
   const { loginSuperAdminTenant } = useAuth();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [filteredTenants, setFilteredTenants] = useState<Tenant[]>([]);
@@ -118,7 +116,7 @@ export default function SelectTenantPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filteredTenants.map((tenant) => (
               <div
-                key={tenant.id}
+                key={tenant.Id}
                 className="group relative rounded-lg border border-border bg-card p-6 transition-all hover:border-primary hover:shadow-md"
               >
                 {/* Logo area */}
@@ -136,12 +134,12 @@ export default function SelectTenantPage() {
                 </h3>
 
                 {/* Tenant ID */}
-                <p className="mb-4 text-xs text-muted-foreground">{tenant.id}</p>
+                <p className="mb-4 text-xs text-muted-foreground">{tenant.Id}</p>
 
                 {/* Select button */}
                 <LoadingButton
-                  onClick={() => handleSelectTenant(tenant.id)}
-                  isLoading={loadingTenantId === tenant.id}
+                  onClick={() => handleSelectTenant(tenant.Id)}
+                  isLoading={loadingTenantId === tenant.Id}
                   loadingText="Switching..."
                   className="w-full"
                   size="sm"

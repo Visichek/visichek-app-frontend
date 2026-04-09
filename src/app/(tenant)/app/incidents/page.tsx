@@ -16,6 +16,7 @@ import {
 import { IncidentFormModal } from "@/features/incidents/components/incident-form-modal";
 import { useIncidents, useApproachingDeadlineIncidents, useUpdateIncident } from "@/features/incidents/hooks/use-incidents";
 import { formatDateTime } from "@/lib/utils/format-date";
+import { useActionParam } from "@/hooks/use-action-param";
 import { toast } from "sonner";
 import type { Incident } from "@/types/incident";
 import type { IncidentStatus } from "@/types/enums";
@@ -67,6 +68,11 @@ export default function IncidentsPage() {
     setSelectedIncident(undefined);
     setFormModalOpen(true);
   }, []);
+
+  // Open create modal when navigated from a "Quick Action" card.
+  useActionParam({
+    create: handleCreateIncident,
+  });
 
   const handleFormModalClose = useCallback((open: boolean) => {
     if (!open) {

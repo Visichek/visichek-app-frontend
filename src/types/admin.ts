@@ -1,4 +1,5 @@
 import type { Tenant, TenantBootstrapRequest } from './tenant';
+import type { PlanTier, SubscriptionStatus, BillingCycle } from './enums';
 
 /**
  * Admin Dashboard Stats
@@ -30,13 +31,34 @@ export interface AdminBillingSummary {
 }
 
 /**
+ * Plan summary embedded in admin tenant list responses.
+ */
+export interface TenantPlanSummary {
+  planId: string;
+  planName: string;
+  planDisplayName: string;
+  planTier: PlanTier;
+  subscriptionId: string;
+  subscriptionStatus: SubscriptionStatus;
+  billingCycle: BillingCycle;
+  effectivePrice: number;
+  currency: string;
+  currentPeriodEnd: number | null;
+  trialEndsAt: number | null;
+  entityCaps: {
+    maxSystemUsers?: number;
+    maxDepartments?: number;
+    maxBranches?: number;
+    maxVisitorsPerMonth?: number;
+    maxAppointmentsPerMonth?: number;
+  };
+}
+
+/**
  * Tenant Info for Admin
  */
 export interface AdminTenant extends Tenant {
-  contactEmail?: string;
-  planName?: string;
-  subscriptionStatus?: string;
-  planTier?: string;
+  planSummary?: TenantPlanSummary | null;
   systemUsersCount?: number;
   lastActivity?: number;
 }

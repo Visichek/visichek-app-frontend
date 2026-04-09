@@ -4,15 +4,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPut } from "@/lib/api/request";
 import type { Subscription, SubscribeTenantRequest, ChangePlanRequest, CancelSubscriptionRequest } from "@/types/billing";
 
-interface PaginatedResponse<T> {
-  data: T[];
-  meta?: {
-    skip?: number;
-    limit?: number;
-    total?: number;
-  };
-}
-
 interface UseSubscriptionsParams {
   tenantId?: string;
   status?: string;
@@ -21,12 +12,13 @@ interface UseSubscriptionsParams {
 }
 
 /**
- * Fetch all subscriptions with optional filtering and pagination
+ * Fetch all subscriptions with optional filtering and pagination.
+ * The backend returns a flat Subscription[] array (envelope is unwrapped by the axios interceptor).
  */
 export function useSubscriptions(params?: UseSubscriptionsParams) {
-  return useQuery<PaginatedResponse<Subscription>>({
+  return useQuery<Subscription[]>({
     queryKey: ["subscriptions", params],
-    queryFn: () => apiGet<PaginatedResponse<Subscription>>("/subscriptions", params),
+    queryFn: () => apiGet<Subscription[]>("/subscriptions", params),
   });
 }
 
@@ -80,7 +72,7 @@ export function useChangePlan() {
     onSuccess: (subscription) => {
       queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
       queryClient.invalidateQueries({
-        queryKey: ["subscriptions", subscription.id],
+        queryKey: ["subscriptions", subscription.Id],
       });
       queryClient.invalidateQueries({
         queryKey: ["subscriptions", "tenant", subscription.tenantId, "active"],
@@ -100,7 +92,7 @@ export function useCancelSubscription() {
     onSuccess: (subscription) => {
       queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
       queryClient.invalidateQueries({
-        queryKey: ["subscriptions", subscription.id],
+        queryKey: ["subscriptions", subscription.Id],
       });
       queryClient.invalidateQueries({
         queryKey: ["subscriptions", "tenant", subscription.tenantId, "active"],

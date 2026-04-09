@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo, useEffect } from "react";
+import dynamic from "next/dynamic";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import {
   LayoutDashboard,
   Users,
@@ -20,13 +21,21 @@ import {
 import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
 import { MobileNavSheet } from "@/components/navigation/mobile-nav-sheet";
 import { Topbar } from "@/components/navigation/topbar";
-import { CommandLauncher } from "@/components/navigation/command-launcher";
 import { useTenantBranding } from "@/hooks/use-tenant-branding";
+
+// Lazy: 579-line palette only loads the first time the user opens it
+// (Cmd/Ctrl+K or sidebar search). The global hotkey listener stays in the
+// layout so the chunk download is deferred until it's actually needed.
+const CommandLauncher = dynamic(
+  () =>
+    import("@/components/navigation/command-launcher").then((m) => ({
+      default: m.CommandLauncher,
+    })),
+  { ssr: false }
+);
 import { useSession } from "@/hooks/use-session";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLE_ROUTES } from "@/lib/permissions/route-access";
-import { NavigationLoadingProvider } from "@/lib/routing/navigation-context";
-import { NavigationOverlay } from "@/components/feedback/navigation-overlay";
 import { cn } from "@/lib/utils/cn";
 import { useThemeSync } from "@/hooks/use-theme-sync";
 
@@ -128,7 +137,19 @@ export default function TenantLayout({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { currentRole, systemUserProfile } = useSession();
   const { logout } = useAuth();
-  const router = useRouter();
+  const { navigate } = useNavigationLoading();
+
+  // Global Cmd/Ctrl+K opens the (lazy) command launcher
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setCommandOpen(true);
+      }
+    };
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, []);
 
   // Bootstrap tenant branding
   useTenantBranding();
@@ -146,7 +167,6 @@ export default function TenantLayout({
   }, [currentRole]);
 
   return (
-    <NavigationLoadingProvider>
     <div className="min-h-screen bg-background">
       {/* Desktop sidebar — tenant branding applied via CSS variables */}
       <AppSidebar
@@ -162,7 +182,7 @@ export default function TenantLayout({
           initial: systemUserProfile?.fullName?.charAt(0) ?? "U",
         }}
         onSearchClick={() => setCommandOpen(true)}
-        onSettingsClick={() => router.push("/app/settings")}
+        onSettingsClick={() => navigate("/app/settings")}
         settingsHref="/app/settings"
         onLogoutClick={logout}
         collapsed={sidebarCollapsed}
@@ -192,12 +212,10 @@ export default function TenantLayout({
         </main>
       </div>
 
-      {/* Command launcher overlay */}
-      <CommandLauncher externalOpen={commandOpen} onExternalOpenChange={setCommandOpen} />
-
-      {/* Full-screen navigation loading overlay */}
-      <NavigationOverlay />
+      {/* Command launcher overlay — chunk only fetched on first open */}
+      {commandOpen && (
+        <CommandLauncher externalOpen={commandOpen} onExternalOpenChange={setCommandOpen} />
+      )}
     </div>
-    </NavigationLoadingProvider>
   );
 }

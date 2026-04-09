@@ -21,6 +21,7 @@ import {
   useDeactivateBranch,
 } from "@/features/branches/hooks/use-branches";
 import { BranchFormModal } from "@/features/branches/components/branch-form-modal";
+import { useActionParam } from "@/hooks/use-action-param";
 import type { Branch } from "@/types/tenant";
 
 export default function BranchesPage() {
@@ -36,6 +37,14 @@ export default function BranchesPage() {
   const [branchToDeactivate, setBranchToDeactivate] = useState<
     Branch | undefined
   >();
+
+  // Open create modal when navigated from a "Quick Action" card.
+  useActionParam({
+    create: () => {
+      setSelectedBranch(undefined);
+      setFormOpen(true);
+    },
+  });
 
   const handleEdit = (branch: Branch) => {
     setSelectedBranch(branch);

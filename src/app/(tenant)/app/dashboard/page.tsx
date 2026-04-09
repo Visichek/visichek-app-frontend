@@ -4,6 +4,7 @@ import { Users, UserCheck, Clock, CalendarDays } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/recipes/page-header";
 import { StatCard } from "@/components/recipes/stat-card";
+import { QuickActions } from "@/components/tenant/quick-actions";
 import { PageSkeleton } from "@/components/feedback/page-skeleton";
 import { ErrorState } from "@/components/feedback/error-state";
 import { apiGet } from "@/lib/api/request";
@@ -25,12 +26,16 @@ export default function TenantDashboardPage() {
   if (isError) return <ErrorState error={error} onRetry={refetch} />;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
         title="Dashboard"
         description="Today's visitor activity at a glance"
       />
 
+      {/* ── Quick Actions ─────────────────────────────────── */}
+      <QuickActions />
+
+      {/* ── Stats Grid ────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Checked In Today"

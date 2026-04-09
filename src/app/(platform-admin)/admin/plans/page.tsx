@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, Edit2, Copy, Trash2, MoreHorizontal } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PlanFormModal } from "@/features/plans/components/plan-form-modal";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
@@ -16,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { useActionParam } from "@/hooks/use-action-param";
 import {
   usePlans,
   useDeletePlan,
@@ -56,19 +58,31 @@ function tierBadgeVariant(tier: PlanTier) {
 
 export default function PlansPage() {
   const { data, isLoading } = usePlans({ skip: 0, limit: 50 });
-  const plans = data?.data || [];
+  const plans = data || [];
   const deleteMutation = useDeletePlan();
   const activateMutation = useActivatePlan();
   const archiveMutation = useArchivePlan();
   const cloneMutation = useClonePlan();
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [activateDialogOpen, setActivateDialogOpen] = useState(false);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [planToEdit, setPlanToEdit] = useState<Plan | undefined>();
   const [planToDelete, setPlanToDelete] = useState<Plan | undefined>();
   const [planToActivate, setPlanToActivate] = useState<Plan | undefined>();
   const [planToArchive, setPlanToArchive] = useState<Plan | undefined>();
+
+  // Open create modal when navigated from a "Quick Action" card.
+  useActionParam({
+    create: () => setCreateModalOpen(true),
+  });
+
+  const handleEditClick = (plan: Plan) => {
+    setPlanToEdit(plan);
+    setEditModalOpen(true);
+  };
 
   const handleDeleteClick = (plan: Plan) => {
     setPlanToDelete(plan);
@@ -88,7 +102,7 @@ export default function PlansPage() {
   const handleCloneClick = async (plan: Plan) => {
     try {
       await cloneMutation.mutateAsync({
-        sourcePlanId: plan.id,
+        sourcePlanId: plan.Id,
         newName: `${plan.name} (Copy)`,
         newDisplayName: `${plan.displayName || plan.name} (Copy)`,
       });
@@ -103,7 +117,7 @@ export default function PlansPage() {
   const handleDeleteConfirm = async () => {
     if (!planToDelete) return;
     try {
-      await deleteMutation.mutateAsync(planToDelete.id);
+      await deleteMutation.mutateAsync(planToDelete.Id);
       toast.success("Plan deleted successfully");
       setDeleteDialogOpen(false);
       setPlanToDelete(undefined);
@@ -117,7 +131,7 @@ export default function PlansPage() {
   const handleActivateConfirm = async () => {
     if (!planToActivate) return;
     try {
-      await activateMutation.mutateAsync(planToActivate.id);
+      await activateMutation.mutateAsync(planToActivate.Id);
       toast.success("Plan activated successfully");
       setActivateDialogOpen(false);
       setPlanToActivate(undefined);
@@ -131,7 +145,7 @@ export default function PlansPage() {
   const handleArchiveConfirm = async () => {
     if (!planToArchive) return;
     try {
-      await archiveMutation.mutateAsync(planToArchive.id);
+      await archiveMutation.mutateAsync(planToArchive.Id);
       toast.success("Plan archived successfully");
       setArchiveDialogOpen(false);
       setPlanToArchive(undefined);
@@ -171,12 +185,12 @@ export default function PlansPage() {
       ),
     },
     {
-      accessorKey: "monthlyPriceMinor",
-      header: "Price",
+      id: "price",
+      header: "Monthly Price",
       cell: ({ row }) => (
         <span className="text-sm">
-          {row.original.monthlyPriceMinor != null
-            ? `₦${(row.original.monthlyPriceMinor / 100).toLocaleString()}`
+          {row.original.basePriceMonthly != null
+            ? `₦${row.original.basePriceMonthly.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
             : "—"}
         </span>
       ),
@@ -186,16 +200,21 @@ export default function PlansPage() {
       header: "Actions",
       cell: ({ row }) => (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-              <span className="sr-only">Actions</span>
-            </Button>
-          </DropdownMenuTrigger>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Plan actions">
+                  <MoreHorizontal className="h-4 w-4" />
+                  <span className="sr-only">Actions</span>
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>View actions for this plan</TooltipContent>
+          </Tooltip>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem disabled>
+            <DropdownMenuItem onClick={() => handleEditClick(row.original)}>
               <Edit2 className="mr-2 h-4 w-4" />
-              Edit (Coming soon)
+              Edit
             </DropdownMenuItem>
             {row.original.status !== "active" && (
               <DropdownMenuItem onClick={() => handleActivateClick(row.original)}>
@@ -240,8 +259,8 @@ export default function PlansPage() {
           {plan.tier}
         </Badge>
         <span className="text-muted-foreground">
-          {plan.monthlyPriceMinor != null
-            ? `₦${(plan.monthlyPriceMinor / 100).toLocaleString()}`
+          {plan.basePriceMonthly != null
+            ? `₦${plan.basePriceMonthly.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
             : "—"}
         </span>
       </div>
@@ -253,9 +272,9 @@ export default function PlansPage() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem disabled>
+          <DropdownMenuItem onClick={() => handleEditClick(plan)}>
             <Edit2 className="mr-2 h-4 w-4" />
-            Edit (Coming soon)
+            Edit
           </DropdownMenuItem>
           {plan.status !== "active" && (
             <DropdownMenuItem onClick={() => handleActivateClick(plan)}>
@@ -289,6 +308,16 @@ export default function PlansPage() {
         open={createModalOpen}
         onOpenChange={setCreateModalOpen}
       />
+      {planToEdit && (
+        <PlanFormModal
+          open={editModalOpen}
+          onOpenChange={(open) => {
+            setEditModalOpen(open);
+            if (!open) setPlanToEdit(undefined);
+          }}
+          plan={planToEdit}
+        />
+      )}
 
       <PageHeader
         title="Plans"

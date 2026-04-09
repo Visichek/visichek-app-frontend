@@ -1,18 +1,26 @@
 import type { LawfulBasis, NoticeDisplayMode, DeletionAction, BranchStatus, LogoPosition } from "./enums";
 
 export interface Tenant {
-  id: string;
+  Id: string;
   companyName: string;
   lawfulBasis?: LawfulBasis;
   noticeDisplayMode?: NoticeDisplayMode;
   retentionDays?: number;
   defaultRetentionAction?: DeletionAction;
-  dpoContactEmail?: string;
-  privacyPolicyUrl?: string;
+  dpoContactEmail?: string | null;
+  privacyPolicyUrl?: string | null;
   countryOfHosting?: string;
   crossBorderApproved?: boolean;
-  createdAt: number;
-  updatedAt: number;
+  isActive?: boolean;
+  activeNoticeVersion?: string | null;
+  enableRepeatVisitorRecognition?: boolean;
+  mfaDefaultForUsers?: boolean;
+  mfaUserOverrideAllowed?: boolean;
+  stripeCustomerId?: string | null;
+  flutterwaveCustomerId?: string | null;
+  defaultPaymentProvider?: string | null;
+  dateCreated: number;
+  lastUpdated: number;
 }
 
 export interface TenantBootstrapRequest {
@@ -58,6 +66,7 @@ export interface TenantBranding {
   secondaryColor?: string;
   accentColor?: string;
   logoUrl?: string;
+  logoObjectKey?: string;
   logoPosition?: LogoPosition;
   badgePrimaryColor?: string;
   badgeSecondaryColor?: string;

@@ -4,15 +4,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api/request";
 import type { Plan } from "@/types/billing";
 
-interface PaginatedResponse<T> {
-  data: T[];
-  meta?: {
-    skip?: number;
-    limit?: number;
-    total?: number;
-  };
-}
-
 interface UsePlansParams {
   status?: string;
   tier?: string;
@@ -21,12 +12,13 @@ interface UsePlansParams {
 }
 
 /**
- * Fetch all plans with optional filtering and pagination
+ * Fetch all plans with optional filtering and pagination.
+ * The backend returns a flat Plan[] array (not a paginated envelope).
  */
 export function usePlans(params?: UsePlansParams) {
-  return useQuery<PaginatedResponse<Plan>>({
+  return useQuery<Plan[]>({
     queryKey: ["plans", params],
-    queryFn: () => apiGet<PaginatedResponse<Plan>>("/plans", params),
+    queryFn: () => apiGet<Plan[]>("/plans", params),
   });
 }
 
@@ -45,16 +37,41 @@ interface CreatePlanRequest {
   name: string;
   displayName?: string;
   tier: string;
-  priceMinor?: number;
+  basePriceMonthly?: number;
+  basePriceYearly?: number;
   currency?: string;
-  billingCycle?: string;
   description?: string;
   isPublic?: boolean;
+  sortOrder?: number;
+  prioritySupport?: boolean;
+  slaResponseHours?: number | null;
+  customBranding?: boolean;
+  apiAccess?: boolean;
   featureRules?: Plan["featureRules"];
   crudLimits?: Plan["crudLimits"];
   retrievalQuotas?: Plan["retrievalQuotas"];
   storageLimits?: Plan["storageLimits"];
-  tenantCapLimits?: Plan["tenantCapLimits"];
+  tenantCaps?: Plan["tenantCaps"];
+}
+
+export interface UpdatePlanRequest {
+  displayName?: string;
+  tier?: string;
+  description?: string;
+  isPublic?: boolean;
+  sortOrder?: number;
+  basePriceMonthly?: number;
+  basePriceYearly?: number;
+  currency?: string;
+  prioritySupport?: boolean;
+  slaResponseHours?: number | null;
+  customBranding?: boolean;
+  apiAccess?: boolean;
+  storageLimits?: Plan["storageLimits"];
+  tenantCaps?: Plan["tenantCaps"];
+  featureRules?: Plan["featureRules"];
+  crudLimits?: Plan["crudLimits"];
+  retrievalQuotas?: Plan["retrievalQuotas"];
 }
 
 /**
@@ -70,8 +87,6 @@ export function useCreatePlan() {
     },
   });
 }
-
-interface UpdatePlanRequest extends Partial<CreatePlanRequest> {}
 
 /**
  * Update an existing plan
@@ -142,7 +157,7 @@ export function useClonePlan() {
         {
           params: {
             new_name: newName,
-            ...(newDisplayName && { new_displayName: newDisplayName }),
+            ...(newDisplayName && { new_display_name: newDisplayName }),
           },
         }
       ),

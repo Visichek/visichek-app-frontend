@@ -20,6 +20,7 @@ import {
   useDeleteAppointment,
 } from "@/features/appointments/hooks/use-appointments";
 import { formatDateTime } from "@/lib/utils/format-date";
+import { useActionParam } from "@/hooks/use-action-param";
 import type { Appointment } from "@/types/visitor";
 import type { AppointmentStatus } from "@/types/enums";
 
@@ -56,6 +57,11 @@ export default function AppointmentsPage() {
     setSelectedAppointment(undefined);
     setFormModalOpen(true);
   }, []);
+
+  // Open create modal when navigated from a "Quick Action" card.
+  useActionParam({
+    create: handleCreateAppointment,
+  });
 
   const handleFormModalClose = useCallback((open: boolean) => {
     if (!open) {

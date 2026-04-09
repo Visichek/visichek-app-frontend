@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { NotificationDropdown } from "@/components/navigation/notification-dropdown";
+import { DebugRefreshButton } from "@/components/navigation/debug-refresh-button";
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -67,6 +68,9 @@ export function Topbar({ onMenuClick, onSearchClick, title }: TopbarProps) {
 
         {/* Theme toggle */}
         <ThemeToggle />
+
+        {/* Debug: manual token refresh trigger */}
+        <DebugRefreshButton />
 
         {/* Notifications */}
         <NotificationDropdown />

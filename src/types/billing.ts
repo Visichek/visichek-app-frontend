@@ -49,40 +49,85 @@ export interface TenantCapLimit {
 }
 
 export interface Plan {
-  id: string;
+  /** Backend returns capital-I Id (MongoDB _id quirk) */
+  Id: string;
   name: string;
   displayName?: string;
   tier: PlanTier;
   status: PlanStatus;
-  priceMinor?: number;
-  currency?: string;
-  billingCycle?: BillingCycle;
+  basePriceMonthly: number;
+  basePriceYearly: number;
+  currency: string;
   description?: string;
   isPublic?: boolean;
   featureRules?: FeatureRule[];
   crudLimits?: CrudLimit[];
   retrievalQuotas?: RetrievalQuota[];
   storageLimits?: StorageLimit;
-  tenantCapLimits?: TenantCapLimit;
-  createdAt: number;
-  updatedAt: number;
+  /** Backend returns this as 'tenantCaps' */
+  tenantCaps?: TenantCapLimit;
+  prioritySupport?: boolean;
+  slaResponseHours?: number | null;
+  customBranding?: boolean;
+  apiAccess?: boolean;
+  sortOrder?: number;
+  dateCreated: number;
+  lastUpdated: number;
 }
 
 // ── Subscriptions ─────────────────────────────────────────────────────
-export interface Subscription {
+
+/** Embedded tenant summary returned on the subscription list endpoint */
+export interface SubscriptionTenantEmbed {
   id: string;
+  companyName: string;
+  isActive: boolean;
+  countryOfHosting: string | null;
+  dpoContactEmail: string | null;
+  defaultPaymentProvider: string | null;
+  stripeCustomerId: string | null;
+  flutterwaveCustomerId: string | null;
+}
+
+/** Embedded plan summary returned on the subscription list endpoint */
+export interface SubscriptionPlanEmbed {
+  id: string;
+  name: string;
+  displayName: string;
+  tier: string;
+  description: string | null;
+  basePriceMonthly: number;
+  basePriceYearly: number;
+  currency: string;
+  prioritySupport: boolean;
+  customBranding: boolean;
+  apiAccess: boolean;
+  tenantCaps: TenantCapLimit | null;
+}
+
+export interface Subscription {
+  /** Backend returns capital-I Id (MongoDB _id quirk) */
+  Id: string;
   tenantId: string;
   planId: string;
   status: SubscriptionStatus;
   billingCycle: BillingCycle;
+  effectivePrice?: number;
+  currency?: string;
+  currentPeriodStart?: number;
+  currentPeriodEnd?: number;
   trialDays?: number;
   adminNotes?: string;
   featureOverrides?: Record<string, unknown>;
   crudLimitOverrides?: Record<string, unknown>;
   retrievalQuotaOverrides?: Record<string, unknown>;
   tenantCapOverrides?: Record<string, unknown>;
-  createdAt: number;
-  updatedAt: number;
+  createdAt?: number;
+  updatedAt?: number;
+  /** Embedded on list responses; null if tenant record was deleted */
+  tenant?: SubscriptionTenantEmbed | null;
+  /** Embedded on list responses; null if plan record was deleted */
+  plan?: SubscriptionPlanEmbed | null;
 }
 
 export interface SubscribeTenantRequest {
@@ -112,18 +157,25 @@ export interface CancelSubscriptionRequest {
 
 // ── Discounts ─────────────────────────────────────────────────────────
 export interface Discount {
-  id: string;
+  /** Backend returns capital-I Id (MongoDB _id quirk) */
+  Id: string;
   code: string;
-  type: DiscountType;
+  name: string;
+  description?: string | null;
+  discountType: DiscountType;
   scope: DiscountScope;
   value: number;
   status: DiscountStatus;
-  maxRedemptions?: number;
+  targetTenantId?: string | null;
+  targetPlanIds?: string[];
+  maxRedemptions?: number | null;
   currentRedemptions?: number;
-  validFrom?: number;
-  validUntil?: number;
-  createdAt: number;
-  updatedAt: number;
+  validFrom?: number | null;
+  validUntil?: number | null;
+  stackable?: boolean;
+  minSubscriptionValue?: number | null;
+  dateCreated: number;
+  lastUpdated: number;
 }
 
 // ── Invoices ──────────────────────────────────────────────────────────

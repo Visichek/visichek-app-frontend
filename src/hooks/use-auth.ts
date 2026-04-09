@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { useAppDispatch } from "@/lib/store/hooks";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import {
   setAdminSession,
   setSystemUserSession,
@@ -57,7 +57,7 @@ export type LoginResult =
 
 export function useAuth() {
   const dispatch = useAppDispatch();
-  const router = useRouter();
+  const { navigate } = useNavigationLoading();
 
   /**
    * Platform admin login.
@@ -94,10 +94,10 @@ export function useAuth() {
 
       setTokens(tokens, "admin");
       dispatch(setAdminSession({ type: "admin", tokens, profile }));
-      router.push(getPostLoginPath("admin"));
+      navigate(getPostLoginPath("admin"));
       return { otpRequired: false };
     },
-    [dispatch, router]
+    [dispatch, navigate]
   );
 
   /**
@@ -127,10 +127,10 @@ export function useAuth() {
       dispatch(
         setSystemUserSession({ type: "system_user", tokens, profile })
       );
-      router.push(getPostLoginPath("system_user", loginData.role));
+      navigate(getPostLoginPath("system_user", loginData.role));
       return { otpRequired: false };
     },
-    [dispatch, router]
+    [dispatch, navigate]
   );
 
   /**
@@ -180,9 +180,9 @@ export function useAuth() {
       dispatch(
         setSystemUserSession({ type: "system_user", tokens, profile })
       );
-      router.push(getPostLoginPath("system_user", "super_admin"));
+      navigate(getPostLoginPath("system_user", "super_admin"));
     },
-    [dispatch, router]
+    [dispatch, navigate]
   );
 
   /**
@@ -220,7 +220,7 @@ export function useAuth() {
 
         setTokens(tokens, "admin");
         dispatch(setAdminSession({ type: "admin", tokens, profile }));
-        router.push(getPostLoginPath("admin"));
+        navigate(getPostLoginPath("admin"));
       } else {
         const userData = data as SystemUserLoginResponse;
         const tokens = extractTokens(userData);
@@ -230,10 +230,10 @@ export function useAuth() {
         dispatch(
           setSystemUserSession({ type: "system_user", tokens, profile })
         );
-        router.push(getPostLoginPath("system_user", userData.role));
+        navigate(getPostLoginPath("system_user", userData.role));
       }
     },
-    [dispatch, router]
+    [dispatch, navigate]
   );
 
   /**
@@ -254,8 +254,8 @@ export function useAuth() {
     clearTokens();
     dispatch(clearSessionState());
     dispatch(clearBranding());
-    router.push(currentType === "admin" ? "/admin/login" : "/app/login");
-  }, [dispatch, router]);
+    navigate(currentType === "admin" ? "/admin/login" : "/app/login");
+  }, [dispatch, navigate]);
 
   return {
     loginAdmin,
