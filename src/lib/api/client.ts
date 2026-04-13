@@ -2,7 +2,7 @@ import axios from "axios";
 import { setupInterceptors } from "./interceptors";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/v1";
+  process.env.NEXT_PUBLIC_API_BASE_URL || "https://blog.visichek.app/v1";
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

@@ -3,7 +3,7 @@ import { getAccessToken, getRefreshToken, getSessionType, setTokens, clearTokens
 import type { TokenPair, SessionType } from "@/types/auth";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/v1";
+  process.env.NEXT_PUBLIC_API_BASE_URL || "https://blog.visichek.app/v1";
 
 /** Unified, role-agnostic refresh endpoint. The backend dispatches by role
  *  using the (possibly expired) access token in the Authorization header. */

@@ -132,7 +132,7 @@ export function SessionDetailSheet({
   async function handleBadgeDownload() {
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"}/visitors/sessions/${currentSession.id}/badge`,
+        `${process.env.NEXT_PUBLIC_API_BASE_URL || "https://blog.visichek.app"}/visitors/sessions/${currentSession.id}/badge`,
         {
           headers: {
             Authorization: `Bearer ${(await import("@/lib/auth/tokens")).getAccessToken()}`,
