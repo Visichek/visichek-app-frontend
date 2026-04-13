@@ -55,6 +55,23 @@ const brandingKeys = {
  * Fetch tenant branding configuration.
  * Can be called by any authenticated system user.
  */
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/v1";
+
+function resolveObjectUrl(objectKey?: string | null): string | undefined {
+  if (!objectKey) return undefined;
+  return `${API_BASE_URL.replace(/\/$/, "")}/documents/${encodeURIComponent(objectKey)}`;
+}
+
+function normalizeBranding(data: TenantBranding): TenantBranding {
+  return {
+    ...data,
+    logoPosition: data.logoPosition ?? data.badgeLogoPosition,
+    logoUrl: data.logoUrl ?? resolveObjectUrl(data.logoObjectKey),
+    badgeLogoUrl: data.badgeLogoUrl ?? resolveObjectUrl(data.logoObjectKey),
+  };
+}
+
 export function useTenantBrandingConfig(tenantId: string) {
   return useQuery({
     queryKey: brandingKeys.config(tenantId),
@@ -62,7 +79,7 @@ export function useTenantBrandingConfig(tenantId: string) {
       const data = await apiGet<TenantBranding>(
         `/branding/tenant/${tenantId}`
       );
-      return data;
+      return normalizeBranding(data);
     },
     enabled: !!tenantId,
     staleTime: 60000,
@@ -97,7 +114,7 @@ export function useUpdateBranding() {
       };
 
       const data = await apiPut<TenantBranding>('/branding', payload);
-      return data;
+      return normalizeBranding(data);
     },
     onSuccess: (updatedBranding) => {
       // Invalidate the branding config for the tenant

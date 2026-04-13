@@ -13,6 +13,24 @@ import type {
   ApplyIdScanRequest,
   UpdateDraftSessionRequest,
 } from '@/types/visitor';
+import type {
+  MintRegistrationQrRequest,
+  MintRegistrationQrResponse,
+} from '@/types/public';
+
+/**
+ * Normalize backend session shape: maps `Id` -> `id`, `checkInTime` -> `checkedInAt`,
+ * `checkOutTime` -> `checkedOutAt` so the UI can rely on a single canonical shape.
+ */
+function normalizeSession(raw: unknown): VisitSession {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  return {
+    ...(r as object),
+    id: (r.id ?? r.Id ?? r._id ?? '') as string,
+    checkedInAt: (r.checkedInAt ?? r.checkInTime ?? r.dateCreated) as number,
+    checkedOutAt: (r.checkedOutAt ?? r.checkOutTime) as number | undefined,
+  } as VisitSession;
+}
 
 /**
  * Query key factory for visitor-related queries
@@ -47,7 +65,7 @@ export function useActiveVisitors(departmentId?: string) {
       const data = await apiGet<VisitSession[]>('/visitors/active', {
         ...(departmentId && { departmentId: departmentId }),
       });
-      return data;
+      return (data ?? []).map(normalizeSession);
     },
     refetchInterval: 5000,
     staleTime: 2000,
@@ -66,7 +84,7 @@ export function useVisitorSessions(params: {
     queryKey: visitorKeys.sessionsList(params),
     queryFn: async () => {
       const data = await apiGet<VisitSession[]>('/visitors/sessions', params);
-      return data;
+      return (data ?? []).map(normalizeSession);
     },
     enabled: true,
     staleTime: 30000,
@@ -83,7 +101,7 @@ export function useVisitorSession(sessionId: string) {
       const data = await apiGet<VisitSession>(
         `/visitors/sessions/${sessionId}`
       );
-      return data;
+      return normalizeSession(data);
     },
     enabled: !!sessionId,
     staleTime: 30000,
@@ -99,7 +117,7 @@ export function usePendingVisitorSessions() {
     queryKey: visitorKeys.pending,
     queryFn: async () => {
       const data = await apiGet<VisitSession[]>('/visitors/sessions/pending');
-      return data;
+      return (data ?? []).map(normalizeSession);
     },
     refetchInterval: 10000,
     staleTime: 5000,
@@ -149,13 +167,13 @@ export function useConfirmCheckIn() {
   return useMutation({
     mutationFn: async ({
       sessionId,
-      badgeFormat,
+      ...rest
     }: {
       sessionId: string;
     } & ConfirmCheckInRequest) => {
       const data = await apiPost<ConfirmCheckInResponse>(
         `/visitors/sessions/${sessionId}/confirm`,
-        { badgeFormat }
+        rest
       );
       return data;
     },
@@ -373,6 +391,16 @@ export function useCheckOut() {
  * Search visitor profiles by query string.
  * Only enabled when query length >= 2.
  */
+/**
+ * Mint a registration QR token (receptionist / dept_admin / super_admin).
+ */
+export function useMintRegistrationQr() {
+  return useMutation({
+    mutationFn: (data: MintRegistrationQrRequest) =>
+      apiPost<MintRegistrationQrResponse>('/visitors/registration-qr', data),
+  });
+}
+
 export function useSearchVisitorProfiles(query: string) {
   return useQuery({
     queryKey: visitorKeys.profilesSearch(query),

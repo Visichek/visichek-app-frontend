@@ -28,7 +28,7 @@ export interface PublicPrivacyNotice {
 
 // ── Public Registration Request ──────────────────────────────────────
 export interface PublicRegistrationRequest {
-  fullName: string;
+  fullName?: string;
   phone: string;
   email?: string;
   company?: string;
@@ -39,11 +39,72 @@ export interface PublicRegistrationRequest {
   consentGranted?: boolean;
   consentMethod?: string;
   privacyNoticeVersionId?: string;
+  registrationToken?: string;
+  profileId?: string;
 }
 
 export interface PublicRegistrationResponse {
   session: VisitSession;
   message?: string;
+}
+
+// ── QR Token Verification ────────────────────────────────────────────
+export interface PublicTokenVerifyResponse {
+  valid: boolean;
+  tenantId?: string;
+  departmentId?: string;
+  branchId?: string;
+  companyName?: string;
+}
+
+// ── OCR ID Scan ──────────────────────────────────────────────────────
+export interface PublicOcrScanResponse {
+  fullName?: string;
+  idNumber?: string;
+  idType?: string;
+  confidence: number;
+}
+
+// ── Returning Visitor Lookup ─────────────────────────────────────────
+export interface PublicLookupRequest {
+  phone?: string;
+  email?: string;
+}
+
+export interface PublicLookupResponse {
+  found: boolean;
+  profileId?: string;
+  fullNameMasked?: string;
+  company?: string;
+  lastVisitAgoDays?: number;
+  idVerifiedRecently: boolean;
+}
+
+// ── Finalize via Receptionist Code ───────────────────────────────────
+export interface PublicFinalizeRequest {
+  sessionId: string;
+  receptionistCode: string;
+}
+
+export interface PublicFinalizeResponse {
+  session: VisitSession;
+  badgePdfBase64?: string;
+  badgeQrToken?: string;
+}
+
+// ── Mint Registration QR (authed) ────────────────────────────────────
+export interface MintRegistrationQrRequest {
+  departmentId?: string;
+  branchId?: string;
+}
+
+export interface MintRegistrationQrResponse {
+  registrationUrl: string;
+  signedToken: string;
+  qrData: string;
+  tenantId: string;
+  departmentId?: string;
+  branchId?: string;
 }
 
 // ── Appointment Prefill ──────────────────────────────────────────────

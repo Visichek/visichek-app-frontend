@@ -89,6 +89,8 @@ export interface AppointmentRequest {
 
 export interface ConfirmCheckInRequest {
   badgeFormat?: BadgeFormat;
+  purpose?: string;
+  hostId?: string;
 }
 
 export interface ConfirmCheckInResponse {

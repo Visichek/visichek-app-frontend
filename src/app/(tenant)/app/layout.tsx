@@ -10,12 +10,10 @@ import {
   Building,
   GitBranch,
   UserCog,
-  Palette,
   ShieldAlert,
   ScrollText,
   Shield,
   CreditCard,
-  Bell,
   Settings,
 } from "lucide-react";
 import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
@@ -77,12 +75,6 @@ const ALL_TENANT_NAV_ITEMS: NavItem[] = [
     description: "Add, edit, and manage staff accounts and their roles within your organization",
   },
   {
-    label: "Branding",
-    href: "/app/branding",
-    icon: Palette,
-    description: "Customize your organization's colors, logo, and visitor-facing badge appearance",
-  },
-  {
     label: "Incidents",
     href: "/app/incidents",
     icon: ShieldAlert,
@@ -105,12 +97,6 @@ const ALL_TENANT_NAV_ITEMS: NavItem[] = [
     href: "/app/billing",
     icon: CreditCard,
     description: "View your subscription plan, invoices, and manage payment details",
-  },
-  {
-    label: "Alerts",
-    href: "/app/alerts",
-    icon: Bell,
-    description: "View notifications and system alerts for your organization",
   },
   {
     label: "Settings",

@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { ColumnDef } from "@tanstack/react-table";
+import Link from "next/link";
 import {
   UserPlus,
   UserMinus,
@@ -10,7 +11,13 @@ import {
   Monitor,
   Eye,
   ScanLine,
+  QrCode,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
@@ -432,6 +439,24 @@ export default function VisitorsPage() {
               <UserMinus className="mr-2 h-4 w-4" aria-hidden="true" />
               Check Out
             </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="flex-1 md:flex-none min-h-[44px]"
+                >
+                  <Link href="/app/visitors/qr">
+                    <QrCode className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Registration QR
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Generate a QR code visitors can scan to self-register from
+                their phone
+              </TooltipContent>
+            </Tooltip>
           </div>
         }
       />

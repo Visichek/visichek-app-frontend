@@ -10,4 +10,8 @@ export {
   usePublicRightsStatus,
   usePublicConsentWithdrawal,
   usePublicProfilingOptOut,
+  useVerifyRegistrationToken,
+  usePublicOcrIdScan,
+  usePublicLookup,
+  usePublicFinalize,
 } from "./use-public-registration";

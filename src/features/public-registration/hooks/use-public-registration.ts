@@ -16,6 +16,12 @@ import type {
   PublicConsentWithdrawalResponse,
   PublicProfilingOptOutRequest,
   PublicProfilingOptOutResponse,
+  PublicTokenVerifyResponse,
+  PublicOcrScanResponse,
+  PublicLookupRequest,
+  PublicLookupResponse,
+  PublicFinalizeRequest,
+  PublicFinalizeResponse,
 } from "@/types/public";
 
 // ── Query Keys ───────────────────────────────────────────────────────
@@ -32,7 +38,63 @@ export const publicKeys = {
     ["public", "appointment-prefill", tenantId, appointmentId] as const,
   rightsStatus: (requestId: string) =>
     ["public", "rights-status", requestId] as const,
+  tokenVerify: (token: string) =>
+    ["public", "token-verify", token] as const,
 };
+
+// ── Registration token verify ────────────────────────────────────────
+
+export function useVerifyRegistrationToken(token: string | null) {
+  return useQuery({
+    queryKey: publicKeys.tokenVerify(token ?? ""),
+    queryFn: () =>
+      apiGet<PublicTokenVerifyResponse>("/public/register/verify", {
+        token: token,
+      }),
+    enabled: !!token,
+    staleTime: 60 * 1000,
+    retry: 0,
+  });
+}
+
+// ── Public OCR ID scan ───────────────────────────────────────────────
+
+export function usePublicOcrIdScan(tenantId: string) {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return apiPost<PublicOcrScanResponse>(
+        `/public/register/${tenantId}/id-scan`,
+        form
+      );
+    },
+  });
+}
+
+// ── Returning-visitor lookup ─────────────────────────────────────────
+
+export function usePublicLookup(tenantId: string) {
+  return useMutation({
+    mutationFn: (data: PublicLookupRequest) =>
+      apiPost<PublicLookupResponse>(
+        `/public/register/${tenantId}/lookup`,
+        data
+      ),
+  });
+}
+
+// ── Finalize via receptionist code ───────────────────────────────────
+
+export function usePublicFinalize(tenantId: string) {
+  return useMutation({
+    mutationFn: (data: PublicFinalizeRequest) =>
+      apiPost<PublicFinalizeResponse>(
+        `/public/register/${tenantId}/finalize`,
+        data
+      ),
+  });
+}
 
 // ── Tenant Info ──────────────────────────────────────────────────────
 

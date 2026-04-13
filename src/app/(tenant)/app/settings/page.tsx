@@ -14,10 +14,16 @@ import { SecurityTab } from "@/components/settings/security-tab";
 import { SessionsTab } from "./_sections/sessions-tab";
 import { NotificationsTab } from "./_sections/notifications-tab";
 import { AdvancedTab } from "./_sections/advanced-tab";
+import { BrandingTab } from "./_sections/branding-tab";
+import { useCapabilities } from "@/hooks/use-capabilities";
+import { CAPABILITIES } from "@/lib/permissions/capabilities";
 
 export default function TenantSettingsPage() {
   const { data: manifest, isLoading: manifestLoading } = useSettingsManifest();
   const visibleSections = useVisibleSections(manifest);
+  const { hasCapability } = useCapabilities();
+  const canViewBranding =
+    hasCapability(CAPABILITIES.BRANDING_VIEW) || hasCapability(CAPABILITIES.BRANDING_EDIT);
 
   if (manifestLoading) {
     return (
@@ -60,6 +66,15 @@ export default function TenantSettingsPage() {
       label: "Notifications",
       description: "Email, push, event alerts, and digest settings",
       content: <NotificationsTab />,
+    });
+  }
+
+  if (canViewBranding) {
+    tabs.push({
+      id: "branding",
+      label: "Branding",
+      description: "Colors, logo, and visitor badge appearance for your tenant",
+      content: <BrandingTab />,
     });
   }
 

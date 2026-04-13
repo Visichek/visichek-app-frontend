@@ -5,4 +5,5 @@ export {
   useCheckIn,
   useCheckOut,
   useSearchVisitorProfiles,
+  useMintRegistrationQr,
 } from './use-visitors';

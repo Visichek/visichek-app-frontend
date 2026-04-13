@@ -9,6 +9,7 @@ import { Download, CheckCircle2, Printer } from "lucide-react";
 import { ResponsiveModal } from "@/components/recipes/responsive-modal";
 import { LoadingButton } from "@/components/feedback/loading-button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -23,6 +24,7 @@ import type { ConfirmCheckInResponse } from "@/types/visitor";
 
 const confirmCheckInSchema = z.object({
   badgeFormat: z.enum(["A6", "A7"] as const).default("A7"),
+  purpose: z.string().trim().min(1, "Purpose is required"),
 });
 
 type ConfirmCheckInFormData = z.infer<typeof confirmCheckInSchema>;
@@ -89,12 +91,14 @@ export function ConfirmCheckInModal({
     handleSubmit,
     setValue,
     watch,
+    register,
     reset: resetForm,
     formState: { errors },
   } = useForm<ConfirmCheckInFormData>({
     resolver: zodResolver(confirmCheckInSchema),
     defaultValues: {
       badgeFormat: "A7",
+      purpose: "",
     },
   });
 
@@ -113,6 +117,7 @@ export function ConfirmCheckInModal({
       const response = await confirmCheckInMutation.mutateAsync({
         sessionId,
         badgeFormat: data.badgeFormat as BadgeFormat,
+        purpose: data.purpose,
       });
 
       toast.success("Check-in confirmed and badge generated");
@@ -205,6 +210,21 @@ export function ConfirmCheckInModal({
       description={`Confirm check-in for ${visitorName}`}
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="purpose">Purpose of Visit</Label>
+          <Input
+            id="purpose"
+            placeholder="e.g. Interview, meeting with HR"
+            className="text-base md:text-sm"
+            {...register("purpose")}
+          />
+          {errors.purpose && (
+            <p className="text-sm text-destructive" role="alert">
+              {errors.purpose.message}
+            </p>
+          )}
+        </div>
+
         {/* Badge Format */}
         <div className="space-y-2">
           <Label htmlFor="badgeFormat">Badge Format</Label>
