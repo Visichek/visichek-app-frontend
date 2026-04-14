@@ -15,11 +15,11 @@ export default function AuditPage() {
 
   const columns: ColumnDef<AuditLog>[] = [
     {
-      accessorKey: "occurred_at",
+      accessorKey: "occurredAt",
       header: "Time",
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">
-          {formatDateTime(row.original.occurred_at)}
+          {formatDateTime(row.original.occurredAt)}
         </span>
       ),
     },
@@ -28,7 +28,7 @@ export default function AuditPage() {
       header: "Actor",
       cell: ({ row }) => (
         <span className="text-sm">
-          {row.original.actor_name_snapshot || row.original.actor_id}
+          {row.original.actorNameSnapshot || row.original.actorId}
         </span>
       ),
     },
@@ -40,11 +40,11 @@ export default function AuditPage() {
       ),
     },
     {
-      accessorKey: "target_entity",
+      accessorKey: "targetEntity",
       header: "Entity",
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">
-          {row.original.target_entity || "—"}
+          {row.original.targetEntity || "—"}
         </span>
       ),
     },
@@ -54,10 +54,10 @@ export default function AuditPage() {
     <div className="rounded-lg border p-4 space-y-1">
       <div className="font-mono text-sm">{log.action}</div>
       <div className="text-sm text-muted-foreground">
-        {log.actor_name_snapshot || log.actor_id} • {formatDateTime(log.occurred_at)}
+        {log.actorNameSnapshot || log.actorId} • {formatDateTime(log.occurredAt)}
       </div>
-      {log.target_entity && (
-        <div className="text-xs text-muted-foreground">{log.target_entity}</div>
+      {log.targetEntity && (
+        <div className="text-xs text-muted-foreground">{log.targetEntity}</div>
       )}
     </div>
   );

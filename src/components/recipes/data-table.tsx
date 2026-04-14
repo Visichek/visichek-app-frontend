@@ -34,7 +34,7 @@ import { EmptyState } from "@/components/feedback/empty-state";
 import { TableSkeleton } from "@/components/feedback/table-skeleton";
 import { useMediaQuery } from "@/hooks/use-media-query";
 
-interface DataTableProps<TData, TValue> {
+export interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
 

@@ -26,7 +26,7 @@ export interface FilterConfig {
   type: "select" | "date-range";
 }
 
-interface FilterBarProps {
+export interface FilterBarProps {
   filters: FilterConfig[];
   values: Record<string, string>;
   onChange: (key: string, value: string) => void;

@@ -96,7 +96,7 @@ function DiscountActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => onEdit(discount.id)} disabled>
+          <DropdownMenuItem onClick={() => onEdit(discount.Id)} disabled>
             Edit
           </DropdownMenuItem>
           {discount.status === "active" && (

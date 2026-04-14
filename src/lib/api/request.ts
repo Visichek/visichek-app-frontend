@@ -6,7 +6,7 @@ import type { AxiosRequestConfig } from "axios";
  */
 export async function apiGet<T>(
   url: string,
-  params?: Record<string, unknown>,
+  params?: Record<string, unknown> | object,
   config?: AxiosRequestConfig
 ): Promise<T> {
   const response = await apiClient.get<T>(url, { ...config, params });

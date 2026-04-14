@@ -1,3 +1,5 @@
+import type { DeletionAction } from "./enums";
+
 // ── Settings Manifest (GET /v1/settings) ────────────────────────────
 
 export type SettingsSectionKey =
@@ -124,7 +126,6 @@ export interface UserPreferenceUpdate {
 // ── Tenant Settings (super_admin) ────────────────────────────────────
 
 export type VisitorBadgeExpiry = "end_of_day" | "manual" | "hours";
-export type DeletionAction = "delete" | "anonymise";
 export type SsoProvider = "google" | "microsoft" | "okta" | "custom";
 export type SmtpEncryption = "tls" | "ssl" | "none";
 

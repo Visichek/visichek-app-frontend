@@ -352,7 +352,7 @@ export function BrandingTab() {
     );
   }
 
-  const companyName = systemUserProfile?.companyName || "";
+  const companyName = (systemUserProfile as { companyName?: string } | undefined)?.companyName || "";
   const persistedLogoUrl = brandingConfig?.logoUrl ?? null;
 
   return (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { createColumnHelper } from "@tanstack/react-table";
+import type { ColumnDef } from "@tanstack/react-table";
 import { ExternalLink } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
 import { StatCard } from "@/components/recipes/stat-card";
@@ -16,7 +16,8 @@ import { useMyUsage } from "@/features/usage/hooks/use-usage";
 import { useTenantInvoices } from "@/features/invoices/hooks/use-invoices";
 import { formatCurrency } from "@/lib/utils/format-currency";
 import { formatDate } from "@/lib/utils/format-date";
-import type { Invoice, InvoiceStatus } from "@/types/billing";
+import type { Invoice } from "@/types/billing";
+import type { InvoiceStatus } from "@/types/enums";
 
 /**
  * Invoice status badge color mapping
@@ -70,42 +71,48 @@ export default function BillingPage() {
   const invoices = useMemo(() => invoicesResponse?.data || [], [invoicesResponse]);
 
   // Column definitions for invoices table
-  const columnHelper = createColumnHelper<Invoice>();
-  const columns = useMemo(
+  const columns = useMemo<ColumnDef<Invoice>[]>(
     () => [
-      columnHelper.accessor("invoiceNumber", {
+      {
+        accessorKey: "invoiceNumber",
         header: "Invoice Number",
-        cell: (info) => info.getValue() || "—",
-      }),
-      columnHelper.accessor("totalMinor", {
+        cell: ({ row }) => row.original.invoiceNumber || "—",
+      },
+      {
+        accessorKey: "totalMinor",
         header: "Amount",
-        cell: (info) => formatCurrency(info.getValue(), info.row.original.currency),
-      }),
-      columnHelper.accessor("status", {
+        cell: ({ row }) =>
+          formatCurrency(row.original.totalMinor, row.original.currency),
+      },
+      {
+        accessorKey: "status",
         header: "Status",
-        cell: (info) => (
-          <Badge variant={getInvoiceStatusVariant(info.getValue())}>
-            {formatInvoiceStatus(info.getValue())}
+        cell: ({ row }) => (
+          <Badge variant={getInvoiceStatusVariant(row.original.status)}>
+            {formatInvoiceStatus(row.original.status)}
           </Badge>
         ),
-      }),
-      columnHelper.accessor("issuedAt", {
+      },
+      {
+        accessorKey: "issuedAt",
         header: "Issued Date",
-        cell: (info) => (info.getValue() ? formatDate(info.getValue()) : "—"),
-      }),
-      columnHelper.accessor("id", {
+        cell: ({ row }) =>
+          row.original.issuedAt ? formatDate(row.original.issuedAt) : "—",
+      },
+      {
+        id: "actions",
         header: "Actions",
-        cell: (info) => (
+        cell: ({ row }) => (
           <Button
             variant="ghost"
             size="sm"
             asChild
             className="h-8 gap-2"
-            disabled={!info.row.original.pdfUrl}
-            title={info.row.original.pdfUrl ? "View PDF" : "PDF not available"}
+            disabled={!row.original.pdfUrl}
+            title={row.original.pdfUrl ? "View PDF" : "PDF not available"}
           >
             <a
-              href={info.row.original.pdfUrl || "#"}
+              href={row.original.pdfUrl || "#"}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -114,9 +121,9 @@ export default function BillingPage() {
             </a>
           </Button>
         ),
-      }),
+      },
     ],
-    [columnHelper]
+    []
   );
 
   // Show loading state

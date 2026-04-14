@@ -17,7 +17,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 
-interface ResponsiveModalProps {
+export interface ResponsiveModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;

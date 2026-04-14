@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPatch } from '@/lib/api/request';
-import type { Visitor } from '@/types/visitor';
+import type { VisitSession } from '@/types/visitor';
 
 interface PaginatedResponse<T> {
   data: T[];
@@ -13,7 +13,7 @@ interface PaginatedResponse<T> {
   };
 }
 
-interface VisitorLogParams {
+interface VisitSessionLogParams {
   startDate?: string;
   endDate?: string;
   statusFilter?: string;
@@ -48,7 +48,7 @@ interface SuperAdminAnalyticsResponse {
 const superAdminKeys = {
   all: ['super-admin'] as const,
   visitorLog: () => ['super-admin', 'visitor-log'] as const,
-  visitorLogList: (params?: VisitorLogParams) =>
+  visitorLogList: (params?: VisitSessionLogParams) =>
     ['super-admin', 'visitor-log', 'list', params] as const,
   analytics: () => ['super-admin', 'analytics'] as const,
 };
@@ -57,11 +57,11 @@ const superAdminKeys = {
  * Fetch visitor log with optional date range, status filter, and pagination
  * Super admin role required
  */
-export function useVisitorLog(params?: VisitorLogParams) {
-  return useQuery<PaginatedResponse<Visitor>>({
+export function useVisitSessionLog(params?: VisitSessionLogParams) {
+  return useQuery<PaginatedResponse<VisitSession>>({
     queryKey: superAdminKeys.visitorLogList(params),
     queryFn: () =>
-      apiGet<PaginatedResponse<Visitor>>(
+      apiGet<PaginatedResponse<VisitSession>>(
         '/super-admin/visitor-log',
         params
       ),

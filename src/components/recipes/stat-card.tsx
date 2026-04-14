@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ReactNode } from "react";
 
-interface StatCardProps {
+export interface StatCardProps {
   title: string;
   value: string | number;
   description?: string;

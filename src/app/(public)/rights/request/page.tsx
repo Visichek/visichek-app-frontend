@@ -109,10 +109,10 @@ export default function PublicRightsRequestPage() {
 
     try {
       const response = await rightsRequestMutation.mutateAsync({
-        request_type: values.request_type,
+        requestType: values.request_type,
         requesterName: values.requesterName,
         requesterEmail: values.requesterEmail || undefined,
-        requester_phone: values.requester_phone || undefined,
+        requesterPhone: values.requester_phone || undefined,
         description: values.description || undefined,
       });
       setResult(response);
@@ -160,7 +160,7 @@ export default function PublicRightsRequestPage() {
             <div className="space-y-3 rounded-md bg-muted p-4 text-left text-sm">
               <div>
                 <span className="font-medium text-foreground">Request ID:</span>{" "}
-                <code className="font-mono text-xs">{result.request_id}</code>
+                <code className="font-mono text-xs">{result.requestId}</code>
               </div>
               <div className="flex items-center gap-2">
                 <span className="font-medium text-foreground">
@@ -206,7 +206,7 @@ export default function PublicRightsRequestPage() {
               className="w-full min-h-[44px]"
             >
               <a
-                href={`/rights/request/${result.request_id}/status?token=${encodeURIComponent(result.verificationToken)}`}
+                href={`/rights/request/${result.requestId}/status?token=${encodeURIComponent(result.verificationToken)}`}
               >
                 Check Request Status
               </a>

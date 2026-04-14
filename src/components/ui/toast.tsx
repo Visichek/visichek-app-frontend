@@ -57,9 +57,9 @@ export const toast = {
       success: string;
       error: string;
     },
-    options?: Parameters<typeof sonnerToast.promise>[2]
+    options?: Parameters<typeof sonnerToast.promise>[1]
   ) =>
-    sonnerToast.promise(promise, messages, { duration: 5000, ...options }),
+    sonnerToast.promise(promise, { duration: 5000, ...messages, ...options }),
 
   /**
    * Custom toast with action button

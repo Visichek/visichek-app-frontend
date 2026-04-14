@@ -174,7 +174,7 @@ function SubscriptionTab({ tenantId }: { tenantId: string }) {
         } />
         <Field label="Billing Cycle" value={sub.billingCycle} />
         <Field label="Trial Days" value={sub.trialDays ?? "—"} />
-        <Field label="Subscription ID" value={<span className="font-mono text-xs">{sub.id}</span>} />
+        <Field label="Subscription ID" value={<span className="font-mono text-xs">{sub.Id}</span>} />
         <Field label="Created" value={sub.createdAt ? formatDate(sub.createdAt) : "—"} />
         <Field label="Updated" value={sub.updatedAt ? formatDate(sub.updatedAt) : "—"} />
       </Section>

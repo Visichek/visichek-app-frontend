@@ -18,7 +18,7 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 
-interface DetailSheetProps {
+export interface DetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;

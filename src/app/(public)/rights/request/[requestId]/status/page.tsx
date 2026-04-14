@@ -181,7 +181,7 @@ export default function DSRStatusPage() {
           <CardTitle className="text-xl font-display">Request Status</CardTitle>
           <CardDescription>
             Request ID:{" "}
-            <code className="font-mono text-xs">{statusData.request_id}</code>
+            <code className="font-mono text-xs">{statusData.requestId}</code>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

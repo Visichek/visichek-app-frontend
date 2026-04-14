@@ -7,7 +7,7 @@ export {
 } from './use-admin-dashboard';
 
 export {
-  useVisitorLog,
+  useVisitSessionLog,
   useGenerateRegistrationQR,
   useAssignUserDepartment,
   useSuperAdminAnalytics,

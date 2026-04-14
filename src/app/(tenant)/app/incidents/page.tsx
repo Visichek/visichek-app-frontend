@@ -156,7 +156,6 @@ export default function IncidentsPage() {
           </span>
         );
       },
-      className: "hidden md:table-cell",
     },
     {
       accessorKey: "ndpcNotified",
@@ -166,7 +165,6 @@ export default function IncidentsPage() {
           {row.original.ndpcNotified ? "Notified" : "Pending"}
         </Badge>
       ),
-      className: "hidden md:table-cell",
     },
     {
       id: "actions",
