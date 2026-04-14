@@ -118,16 +118,6 @@ export default function AppLoginPage() {
 
   return (
     <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center relative overflow-hidden font-sans selection:bg-[#00D287]/20">
-      {/* Soft ambient glows — calm, light, not loud */}
-      <div
-        className="absolute top-[-15%] right-[-10%] w-[55%] h-[55%] bg-[#00D287]/10 rounded-full blur-[140px] pointer-events-none"
-        aria-hidden="true"
-      />
-      <div
-        className="absolute bottom-[-15%] left-[-10%] w-[55%] h-[55%] bg-emerald-100/50 rounded-full blur-[140px] pointer-events-none"
-        aria-hidden="true"
-      />
-
       {/* Very subtle light grid — barely visible, just for texture */}
       <div
         className="absolute inset-0 bg-[linear-gradient(rgba(15,23,42,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.025)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_40%,transparent_100%)] pointer-events-none"

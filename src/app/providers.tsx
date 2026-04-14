@@ -9,7 +9,6 @@ import { bootstrapSession } from "@/lib/auth/bootstrap";
 import { Toaster, toast } from "sonner";
 import { isPermissionError } from "@/types/api";
 import { ThemeProvider } from "@/components/theme/theme-provider";
-import { OfflineBanner } from "@/components/feedback/offline-banner";
 import { NavigationLoadingProvider } from "@/lib/routing/navigation-context";
 import { NavigationOverlay } from "@/components/feedback/navigation-overlay";
 
@@ -63,7 +62,6 @@ export function Providers({ children }: ProvidersProps) {
                 children
               )}
               <NavigationOverlay />
-              <OfflineBanner />
               <Toaster
                 position="top-right"
                 toastOptions={{
