@@ -117,20 +117,20 @@ export default function AppLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-zinc-100 flex items-center justify-center relative overflow-hidden font-sans selection:bg-emerald-500/30">
-      {/* Ambient Background Glows */}
+    <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center relative overflow-hidden font-sans selection:bg-[#00D287]/20">
+      {/* Soft ambient glows — calm, light, not loud */}
       <div
-        className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-600/20 rounded-full blur-[120px] pointer-events-none"
+        className="absolute top-[-15%] right-[-10%] w-[55%] h-[55%] bg-[#00D287]/10 rounded-full blur-[140px] pointer-events-none"
         aria-hidden="true"
       />
       <div
-        className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-900/20 rounded-full blur-[120px] pointer-events-none"
+        className="absolute bottom-[-15%] left-[-10%] w-[55%] h-[55%] bg-emerald-100/50 rounded-full blur-[140px] pointer-events-none"
         aria-hidden="true"
       />
 
-      {/* Subtle Grid Background */}
+      {/* Very subtle light grid — barely visible, just for texture */}
       <div
-        className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_70%,transparent_100%)] pointer-events-none"
+        className="absolute inset-0 bg-[linear-gradient(rgba(15,23,42,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.025)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_40%,transparent_100%)] pointer-events-none"
         aria-hidden="true"
       />
 
@@ -138,16 +138,16 @@ export default function AppLoginPage() {
         {/* Logo Area */}
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-3 mb-6">
-            <span className="text-3xl font-display font-bold tracking-tight text-white">
+            <span className="text-3xl font-display font-bold tracking-tight text-gray-900">
               VisiChek
             </span>
           </div>
 
           <div className="text-center space-y-1">
-            <h1 className="text-2xl font-semibold text-white tracking-tight">
+            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
               {otpChallengeId ? "Two-Factor Authentication" : "Welcome back"}
             </h1>
-            <p className="text-sm text-zinc-400">
+            <p className="text-sm text-gray-500">
               {otpChallengeId
                 ? "Enter the 6-digit code from your authenticator app"
                 : "Sign in to your workspace to continue"}
@@ -158,12 +158,12 @@ export default function AppLoginPage() {
         {/* Main Card */}
         <main
           id="main-content"
-          className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/60 rounded-3xl shadow-2xl p-8"
+          className="bg-white border border-gray-100 rounded-3xl shadow-[0_12px_40px_-12px_rgba(15,23,42,0.08)] p-8"
         >
           {/* Error Banner */}
           {error && (
             <div
-              className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300 mb-6"
+              className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 mb-6"
               role="alert"
             >
               {error}
@@ -174,13 +174,13 @@ export default function AppLoginPage() {
             /* ── OTP Verification Form ────────────────────── */
             <div className="space-y-6">
               <div className="flex justify-center">
-                <div className="rounded-full bg-emerald-500/10 p-4">
-                  <KeyRound className="h-8 w-8 text-emerald-500" />
+                <div className="rounded-full bg-[#00D287]/10 p-4">
+                  <KeyRound className="h-8 w-8 text-[#00D287]" />
                 </div>
               </div>
 
               <div className="space-y-3">
-                <label className="text-xs font-medium text-zinc-300 ml-1 block text-center">
+                <label className="text-xs font-medium text-gray-700 ml-1 block text-center">
                   Verification code
                 </label>
                 <OtpInput
@@ -192,7 +192,7 @@ export default function AppLoginPage() {
                   autoFocus
                   aria-label="Enter your 6-digit verification code"
                 />
-                <p className="text-[11px] text-zinc-500 text-center">
+                <p className="text-[11px] text-gray-400 text-center">
                   You can also use a backup code
                 </p>
               </div>
@@ -201,7 +201,7 @@ export default function AppLoginPage() {
                 type="button"
                 onClick={onVerifyOtp}
                 disabled={otpCode.length < 6 || isVerifying}
-                className="w-full min-h-[48px] bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 disabled:pointer-events-none text-zinc-950 font-semibold rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)] hover:shadow-[0_0_25px_-5px_rgba(16,185,129,0.6)] text-base md:text-sm"
+                className="w-full min-h-[48px] bg-[#00D287] hover:bg-[#00bd78] disabled:opacity-60 disabled:pointer-events-none text-white font-semibold rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(0,210,135,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(0,210,135,0.6)] text-base md:text-sm"
               >
                 {isVerifying ? (
                   <>
@@ -215,7 +215,7 @@ export default function AppLoginPage() {
                 ) : (
                   <>
                     Verify Code
-                    <ArrowRight size={18} className="opacity-80" />
+                    <ArrowRight size={18} className="opacity-90" />
                   </>
                 )}
               </button>
@@ -223,7 +223,7 @@ export default function AppLoginPage() {
               <button
                 type="button"
                 onClick={handleBackToLogin}
-                className="w-full flex items-center justify-center gap-1.5 text-sm text-zinc-400 hover:text-emerald-400 transition-colors py-2"
+                className="w-full flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors py-2"
               >
                 <ArrowLeft size={14} />
                 Back to login
@@ -241,12 +241,12 @@ export default function AppLoginPage() {
                 <div className="space-y-1.5">
                   <label
                     htmlFor="tenantId"
-                    className="text-xs font-medium text-zinc-300 ml-1"
+                    className="text-xs font-medium text-gray-700 ml-1"
                   >
                     Workspace ID
                   </label>
                   <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500 group-focus-within:text-emerald-500 transition-colors">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[#00D287] transition-colors">
                       <Building2 size={18} aria-hidden="true" />
                     </div>
                     <input
@@ -255,16 +255,16 @@ export default function AppLoginPage() {
                       placeholder="e.g. acme-corp"
                       autoComplete="organization"
                       autoFocus
-                      className="login-input w-full bg-zinc-950/50 border border-zinc-800 rounded-xl py-3 pl-10 pr-4 text-base md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                      className="login-input w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-base md:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#00D287]/25 focus:border-[#00D287] transition-all shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
                       {...register("tenantId")}
                     />
                   </div>
                   {errors.tenantId ? (
-                    <p className="text-xs text-red-400 ml-1">
+                    <p className="text-xs text-red-600 ml-1">
                       {errors.tenantId.message}
                     </p>
                   ) : (
-                    <p className="text-[11px] text-zinc-500 ml-1">
+                    <p className="text-[11px] text-gray-400 ml-1">
                       Provided by your organization administrator.
                     </p>
                   )}
@@ -272,7 +272,7 @@ export default function AppLoginPage() {
 
                 {/* Divider */}
                 <div
-                  className="h-px w-full bg-gradient-to-r from-transparent via-zinc-800 to-transparent"
+                  className="h-px w-full bg-gradient-to-r from-transparent via-gray-200 to-transparent"
                   aria-hidden="true"
                 />
 
@@ -282,12 +282,12 @@ export default function AppLoginPage() {
                   <div className="space-y-1.5">
                     <label
                       htmlFor="email"
-                      className="text-xs font-medium text-zinc-300 ml-1"
+                      className="text-xs font-medium text-gray-700 ml-1"
                     >
                       Email or mobile number
                     </label>
                     <div className="relative group">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500 group-focus-within:text-emerald-500 transition-colors">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[#00D287] transition-colors">
                         <Mail size={18} aria-hidden="true" />
                       </div>
                       <input
@@ -295,12 +295,12 @@ export default function AppLoginPage() {
                         type="email"
                         placeholder="name@company.com"
                         autoComplete="email"
-                        className="login-input w-full bg-zinc-950/50 border border-zinc-800 rounded-xl py-3 pl-10 pr-4 text-base md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                        className="login-input w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-base md:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#00D287]/25 focus:border-[#00D287] transition-all shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
                         {...register("email")}
                       />
                     </div>
                     {errors.email && (
-                      <p className="text-xs text-red-400 ml-1">
+                      <p className="text-xs text-red-600 ml-1">
                         {errors.email.message}
                       </p>
                     )}
@@ -311,19 +311,19 @@ export default function AppLoginPage() {
                     <div className="flex items-center justify-between ml-1">
                       <label
                         htmlFor="password"
-                        className="text-xs font-medium text-zinc-300"
+                        className="text-xs font-medium text-gray-700"
                       >
                         Password
                       </label>
                       <button
                         type="button"
-                        className="text-xs font-medium text-emerald-500 hover:text-emerald-400 transition-colors"
+                        className="text-xs font-medium text-[#00D287] hover:text-[#00bd78] transition-colors"
                       >
                         Forgot password?
                       </button>
                     </div>
                     <div className="relative group">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500 group-focus-within:text-emerald-500 transition-colors">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[#00D287] transition-colors">
                         <Lock size={18} aria-hidden="true" />
                       </div>
                       <input
@@ -331,13 +331,13 @@ export default function AppLoginPage() {
                         type={showPassword ? "text" : "password"}
                         placeholder="••••••••"
                         autoComplete="current-password"
-                        className="login-input w-full bg-zinc-950/50 border border-zinc-800 rounded-xl py-3 pl-10 pr-12 text-base md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                        className="login-input w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-12 text-base md:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#00D287]/25 focus:border-[#00D287] transition-all shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
                         {...register("password")}
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-zinc-500 hover:text-zinc-300 transition-colors focus:outline-none"
+                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
                         aria-label={
                           showPassword ? "Hide password" : "Show password"
                         }
@@ -350,7 +350,7 @@ export default function AppLoginPage() {
                       </button>
                     </div>
                     {errors.password && (
-                      <p className="text-xs text-red-400 ml-1">
+                      <p className="text-xs text-red-600 ml-1">
                         {errors.password.message}
                       </p>
                     )}
@@ -361,7 +361,7 @@ export default function AppLoginPage() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full min-h-[48px] bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 disabled:pointer-events-none text-zinc-950 font-semibold rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_0_20px_-5px_rgba(16,185,129,0.4)] hover:shadow-[0_0_25px_-5px_rgba(16,185,129,0.6)] mt-2 text-base md:text-sm"
+                  className="w-full min-h-[48px] bg-[#00D287] hover:bg-[#00bd78] disabled:opacity-60 disabled:pointer-events-none text-white font-semibold rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(0,210,135,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(0,210,135,0.6)] mt-2 text-base md:text-sm"
                 >
                   {isSubmitting ? (
                     <>
@@ -375,7 +375,7 @@ export default function AppLoginPage() {
                   ) : (
                     <>
                       Sign In to Workspace
-                      <ArrowRight size={18} className="opacity-80" />
+                      <ArrowRight size={18} className="opacity-90" />
                     </>
                   )}
                 </button>
@@ -384,17 +384,17 @@ export default function AppLoginPage() {
               {/* SSO Options */}
               <div className="mt-8">
                 <div className="relative flex items-center">
-                  <div className="flex-grow border-t border-zinc-800" />
-                  <span className="flex-shrink-0 mx-4 text-xs text-zinc-500 font-medium">
+                  <div className="flex-grow border-t border-gray-200" />
+                  <span className="flex-shrink-0 mx-4 text-xs text-gray-400 font-medium">
                     OR CONTINUE WITH
                   </span>
-                  <div className="flex-grow border-t border-zinc-800" />
+                  <div className="flex-grow border-t border-gray-200" />
                 </div>
 
                 <div className="mt-6 grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    className="flex items-center justify-center gap-2 py-2.5 px-4 bg-zinc-950/50 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-sm font-medium text-zinc-300 transition-colors min-h-[44px]"
+                    className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white hover:bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 transition-colors min-h-[44px] shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
                   >
                     <svg
                       className="w-4 h-4"
@@ -423,7 +423,7 @@ export default function AppLoginPage() {
                   </button>
                   <button
                     type="button"
-                    className="flex items-center justify-center gap-2 py-2.5 px-4 bg-zinc-950/50 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-sm font-medium text-zinc-300 transition-colors min-h-[44px]"
+                    className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white hover:bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 transition-colors min-h-[44px] shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
                   >
                     <svg
                       className="w-4 h-4"
@@ -448,16 +448,16 @@ export default function AppLoginPage() {
         <div className="mt-8 flex flex-col items-center space-y-4">
           <Link
             href="/support"
-            className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-emerald-400 transition-colors"
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors"
           >
             <HelpCircle size={16} aria-hidden="true" />
             Get Help & Support
           </Link>
 
-          <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+          <div className="flex items-center gap-2 text-[11px] text-gray-400">
             <ShieldCheck
               size={14}
-              className="text-emerald-500/70"
+              className="text-[#00D287]"
               aria-hidden="true"
             />
             <span>Protected by VisiChek. Your data stays secure.</span>
