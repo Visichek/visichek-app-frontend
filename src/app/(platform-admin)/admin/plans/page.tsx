@@ -102,7 +102,7 @@ export default function PlansPage() {
   const handleCloneClick = async (plan: Plan) => {
     try {
       await cloneMutation.mutateAsync({
-        sourcePlanId: plan.Id,
+        sourcePlanId: plan.id,
         newName: `${plan.name} (Copy)`,
         newDisplayName: `${plan.displayName || plan.name} (Copy)`,
       });
@@ -117,7 +117,7 @@ export default function PlansPage() {
   const handleDeleteConfirm = async () => {
     if (!planToDelete) return;
     try {
-      await deleteMutation.mutateAsync(planToDelete.Id);
+      await deleteMutation.mutateAsync(planToDelete.id);
       toast.success("Plan deleted successfully");
       setDeleteDialogOpen(false);
       setPlanToDelete(undefined);
@@ -131,7 +131,7 @@ export default function PlansPage() {
   const handleActivateConfirm = async () => {
     if (!planToActivate) return;
     try {
-      await activateMutation.mutateAsync(planToActivate.Id);
+      await activateMutation.mutateAsync(planToActivate.id);
       toast.success("Plan activated successfully");
       setActivateDialogOpen(false);
       setPlanToActivate(undefined);
@@ -145,7 +145,7 @@ export default function PlansPage() {
   const handleArchiveConfirm = async () => {
     if (!planToArchive) return;
     try {
-      await archiveMutation.mutateAsync(planToArchive.Id);
+      await archiveMutation.mutateAsync(planToArchive.id);
       toast.success("Plan archived successfully");
       setArchiveDialogOpen(false);
       setPlanToArchive(undefined);

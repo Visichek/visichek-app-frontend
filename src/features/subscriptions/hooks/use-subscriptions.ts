@@ -72,7 +72,7 @@ export function useChangePlan() {
     onSuccess: (subscription) => {
       queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
       queryClient.invalidateQueries({
-        queryKey: ["subscriptions", subscription.Id],
+        queryKey: ["subscriptions", subscription.id],
       });
       queryClient.invalidateQueries({
         queryKey: ["subscriptions", "tenant", subscription.tenantId, "active"],
@@ -92,7 +92,7 @@ export function useCancelSubscription() {
     onSuccess: (subscription) => {
       queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
       queryClient.invalidateQueries({
-        queryKey: ["subscriptions", subscription.Id],
+        queryKey: ["subscriptions", subscription.id],
       });
       queryClient.invalidateQueries({
         queryKey: ["subscriptions", "tenant", subscription.tenantId, "active"],

@@ -161,7 +161,7 @@ interface PlanFormModalProps {
 export function PlanFormModal({ open, onOpenChange, plan }: PlanFormModalProps) {
   const isEdit = !!plan;
   const createMutation = useCreatePlan();
-  const updateMutation = useUpdatePlan(plan?.Id ?? "");
+  const updateMutation = useUpdatePlan(plan?.id ?? "");
 
   const isPending = isEdit ? updateMutation.isPending : createMutation.isPending;
 

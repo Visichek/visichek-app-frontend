@@ -92,7 +92,7 @@ export interface SuperAdminGlobalLoginResponse {
  * Backend returns camelCase for admin endpoints.
  */
 export interface AdminLoginResponse {
-  Id: string;
+  id: string;
   fullName: string;
   email: string;
   accessToken: string;

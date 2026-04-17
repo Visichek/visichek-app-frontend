@@ -48,7 +48,7 @@ export async function bootstrapSession(): Promise<boolean> {
 
     if (sessionType === "admin") {
       const profile: AdminProfile = {
-        id: (data.Id as string) ?? (data.id as string) ?? "",
+        id: (data.id as string) ?? (data.id as string) ?? "",
         fullName: (data.fullName as string) ?? (data.full_name as string) ?? "",
         email: (data.email as string) ?? "",
       };

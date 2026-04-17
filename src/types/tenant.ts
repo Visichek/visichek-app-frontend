@@ -1,7 +1,7 @@
 import type { LawfulBasis, NoticeDisplayMode, DeletionAction, BranchStatus, LogoPosition } from "./enums";
 
 export interface Tenant {
-  Id: string;
+  id: string;
   companyName: string;
   lawfulBasis?: LawfulBasis;
   noticeDisplayMode?: NoticeDisplayMode;

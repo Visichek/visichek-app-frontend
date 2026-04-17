@@ -116,7 +116,7 @@ export default function SelectTenantPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filteredTenants.map((tenant) => (
               <div
-                key={tenant.Id}
+                key={tenant.id}
                 className="group relative rounded-lg border border-border bg-card p-6 transition-all hover:border-primary hover:shadow-md"
               >
                 {/* Logo area */}
@@ -134,12 +134,12 @@ export default function SelectTenantPage() {
                 </h3>
 
                 {/* Tenant ID */}
-                <p className="mb-4 text-xs text-muted-foreground">{tenant.Id}</p>
+                <p className="mb-4 text-xs text-muted-foreground">{tenant.id}</p>
 
                 {/* Select button */}
                 <LoadingButton
-                  onClick={() => handleSelectTenant(tenant.Id)}
-                  isLoading={loadingTenantId === tenant.Id}
+                  onClick={() => handleSelectTenant(tenant.id)}
+                  isLoading={loadingTenantId === tenant.id}
                   loadingText="Switching..."
                   className="w-full"
                   size="sm"

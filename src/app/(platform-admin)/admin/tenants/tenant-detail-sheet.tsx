@@ -53,7 +53,7 @@ function OverviewTab({ tenant }: { tenant: AdminTenant }) {
       <Section title="Identity">
         <Field label="Company Name" value={tenant.companyName} />
         <Field label="Tenant ID" value={
-          <span className="font-mono text-xs break-all">{tenant.Id}</span>
+          <span className="font-mono text-xs break-all">{tenant.id}</span>
         } />
         <Field label="Status" value={
           tenant.isActive
@@ -174,7 +174,7 @@ function SubscriptionTab({ tenantId }: { tenantId: string }) {
         } />
         <Field label="Billing Cycle" value={sub.billingCycle} />
         <Field label="Trial Days" value={sub.trialDays ?? "—"} />
-        <Field label="Subscription ID" value={<span className="font-mono text-xs">{sub.Id}</span>} />
+        <Field label="Subscription ID" value={<span className="font-mono text-xs">{sub.id}</span>} />
         <Field label="Created" value={sub.createdAt ? formatDate(sub.createdAt) : "—"} />
         <Field label="Updated" value={sub.updatedAt ? formatDate(sub.updatedAt) : "—"} />
       </Section>
@@ -282,7 +282,7 @@ export function TenantDetailSheet({ tenant, open, onOpenChange }: TenantDetailSh
       <SheetContent side="right" className="w-full sm:max-w-lg flex flex-col gap-0 p-0">
         <SheetHeader className="px-6 py-4 border-b">
           <SheetTitle>{tenant.companyName}</SheetTitle>
-          <SheetDescription className="font-mono text-xs">{tenant.Id}</SheetDescription>
+          <SheetDescription className="font-mono text-xs">{tenant.id}</SheetDescription>
         </SheetHeader>
 
         <Tabs defaultValue="overview" className="flex flex-col flex-1 overflow-hidden">
@@ -297,10 +297,10 @@ export function TenantDetailSheet({ tenant, open, onOpenChange }: TenantDetailSh
               <OverviewTab tenant={tenant} />
             </TabsContent>
             <TabsContent value="subscription" className="mt-0">
-              <SubscriptionTab tenantId={tenant.Id} />
+              <SubscriptionTab tenantId={tenant.id} />
             </TabsContent>
             <TabsContent value="usage" className="mt-0">
-              <UsageTab tenantId={tenant.Id} />
+              <UsageTab tenantId={tenant.id} />
             </TabsContent>
           </div>
         </Tabs>

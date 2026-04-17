@@ -110,7 +110,7 @@ export function useBootstrapTenant() {
       queryClient.invalidateQueries({ queryKey: adminKeys.tenants() });
       // Cache the new tenant
       queryClient.setQueryData(
-        adminKeys.tenantDetail(newTenant.Id),
+        adminKeys.tenantDetail(newTenant.id),
         newTenant
       );
     },

@@ -92,7 +92,7 @@ function SubscribeModal({ tenant, open, onOpenChange }: SubscribeModalProps) {
 
     toast.promise(
       createSubscription.mutateAsync({
-        tenantId: tenant.Id,
+        tenantId: tenant.id,
         planId,
         billingCycle,
       }),
@@ -129,7 +129,7 @@ function SubscribeModal({ tenant, open, onOpenChange }: SubscribeModalProps) {
               </SelectTrigger>
               <SelectContent>
                 {plans.map((plan) => (
-                  <SelectItem key={plan.Id} value={plan.Id}>
+                  <SelectItem key={plan.id} value={plan.id}>
                     {plan.displayName || plan.name}
                   </SelectItem>
                 ))}
@@ -204,7 +204,7 @@ function TenantActions({ tenant, onViewDetails, onSubscribe, onOffboard }: Tenan
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() =>
-            navigate(`/admin/subscriptions?tenantId=${tenant.Id}`)
+            navigate(`/admin/subscriptions?tenantId=${tenant.id}`)
           }
         >
           <ListChecks className="mr-2 h-4 w-4" />
@@ -216,7 +216,7 @@ function TenantActions({ tenant, onViewDetails, onSubscribe, onOffboard }: Tenan
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() =>
-            navigate(`/admin/subscriptions?tenantId=${tenant.Id}&tab=usage`)
+            navigate(`/admin/subscriptions?tenantId=${tenant.id}&tab=usage`)
           }
         >
           <BarChart2 className="mr-2 h-4 w-4" />
@@ -256,7 +256,7 @@ export default function TenantsPage() {
   function handleOffboardConfirm() {
     if (!offboardTarget) return;
     toast.promise(
-      offboardTenant.mutateAsync(offboardTarget.Id),
+      offboardTenant.mutateAsync(offboardTarget.id),
       {
         loading: "Starting offboarding…",
         success: () => {

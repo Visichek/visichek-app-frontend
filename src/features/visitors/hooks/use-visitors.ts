@@ -23,14 +23,14 @@ import type {
 } from '@/types/public';
 
 /**
- * Normalize backend session shape: maps `Id` -> `id`, `checkInTime` -> `checkedInAt`,
+ * Normalize backend session shape: maps `id` -> `id`, `checkInTime` -> `checkedInAt`,
  * `checkOutTime` -> `checkedOutAt` so the UI can rely on a single canonical shape.
  */
 function normalizeSession(raw: unknown): VisitSession {
   const r = (raw ?? {}) as Record<string, unknown>;
   return {
     ...(r as object),
-    id: (r.id ?? r.Id ?? r._id ?? '') as string,
+    id: (r.id ?? r.id ?? r._id ?? '') as string,
     checkedInAt: (r.checkedInAt ?? r.checkInTime ?? r.dateCreated) as number,
     checkedOutAt: (r.checkedOutAt ?? r.checkOutTime) as number | undefined,
   } as VisitSession;

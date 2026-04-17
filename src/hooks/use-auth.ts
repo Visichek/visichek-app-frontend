@@ -87,7 +87,7 @@ export function useAuth() {
         refreshToken: loginData.refreshToken,
       };
       const profile = {
-        id: loginData.Id,
+        id: loginData.id,
         fullName: loginData.fullName,
         email: loginData.email,
       };
@@ -213,7 +213,7 @@ export function useAuth() {
           refreshToken: adminData.refreshToken,
         };
         const profile = {
-          id: adminData.Id,
+          id: adminData.id,
           fullName: adminData.fullName,
           email: adminData.email,
         };

@@ -113,7 +113,7 @@ function SubscriptionActions({
         variant="destructive"
         isLoading={isLoading}
         onConfirm={() => {
-          onCancel(subscription.Id);
+          onCancel(subscription.id);
           setConfirmOpen(false);
         }}
       />
@@ -149,7 +149,7 @@ function CreateSubscriptionModal({ open, onOpenChange }: CreateSubscriptionModal
   function handleSubmit() {
     if (!tenantId || !planId) return;
 
-    const tenant = tenants.find((t) => t.Id === tenantId);
+    const tenant = tenants.find((t) => t.id === tenantId);
     toast.promise(
       createSubscription.mutateAsync({ tenantId, planId, billingCycle }),
       {
@@ -184,7 +184,7 @@ function CreateSubscriptionModal({ open, onOpenChange }: CreateSubscriptionModal
               </SelectTrigger>
               <SelectContent>
                 {tenants.map((tenant) => (
-                  <SelectItem key={tenant.Id} value={tenant.Id}>
+                  <SelectItem key={tenant.id} value={tenant.id}>
                     {tenant.companyName}
                   </SelectItem>
                 ))}
@@ -202,7 +202,7 @@ function CreateSubscriptionModal({ open, onOpenChange }: CreateSubscriptionModal
               </SelectTrigger>
               <SelectContent>
                 {plans.map((plan) => (
-                  <SelectItem key={plan.Id} value={plan.Id}>
+                  <SelectItem key={plan.id} value={plan.id}>
                     {plan.displayName || plan.name}
                   </SelectItem>
                 ))}
@@ -261,7 +261,7 @@ export default function SubscriptionsPage() {
   const subscriptions = data ?? [];
 
   const handleCancel = (subscriptionId: string) => {
-    const subscription = subscriptions.find((s) => s.Id === subscriptionId);
+    const subscription = subscriptions.find((s) => s.id === subscriptionId);
     if (!subscription) return;
 
     cancelSubscription(

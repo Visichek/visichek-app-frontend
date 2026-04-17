@@ -23,12 +23,12 @@ export function useDepartments(filters?: Record<string, unknown>) {
   return useQuery({
     queryKey: departmentKeys.list(filters),
     queryFn: async () => {
-      const data = await apiGet<Array<Department & { Id?: string }>>(
+      const data = await apiGet<Array<Department & { id?: string }>>(
         '/departments',
         filters
       );
-      // Backend returns `Id` (capital). Normalize to `id`.
-      return data.map((d) => ({ ...d, id: d.id ?? d.Id ?? '' })) as Department[];
+      // Backend returns `id` (capital). Normalize to `id`.
+      return data.map((d) => ({ ...d, id: d.id ?? d.id ?? '' })) as Department[];
     },
     staleTime: 30000,
   });

@@ -75,9 +75,9 @@ function DiscountActions({
 
   const handleConfirm = () => {
     if (confirmAction === "disable") {
-      onDisable(discount.Id);
+      onDisable(discount.id);
     } else if (confirmAction === "delete") {
-      onDelete(discount.Id);
+      onDelete(discount.id);
     }
     setConfirmAction(null);
   };
@@ -96,7 +96,7 @@ function DiscountActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => onEdit(discount.Id)} disabled>
+          <DropdownMenuItem onClick={() => onEdit(discount.id)} disabled>
             Edit
           </DropdownMenuItem>
           {discount.status === "active" && (
@@ -159,7 +159,7 @@ export default function DiscountsPage() {
   };
 
   const handleDisable = (discountId: string) => {
-    const discount = discounts.find((d) => d.Id === discountId);
+    const discount = discounts.find((d) => d.id === discountId);
     if (!discount) return;
 
     disableDiscount(discountId, {
@@ -175,7 +175,7 @@ export default function DiscountsPage() {
   };
 
   const handleDelete = (discountId: string) => {
-    const discount = discounts.find((d) => d.Id === discountId);
+    const discount = discounts.find((d) => d.id === discountId);
     if (!discount) return;
 
     deleteDiscount(discountId, {
