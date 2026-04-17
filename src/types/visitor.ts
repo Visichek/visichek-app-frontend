@@ -5,22 +5,16 @@ import type {
   VerificationStatus,
   AppointmentStatus,
   ProfilingPreference,
-  BadgeFormat,
 } from "./enums";
 
-export interface CheckInRequest {
-  phone: string;
-  fullName: string;
-  company?: string;
-  departmentId: string;
-  hostId?: string;
-  purpose?: string;
-  appointmentId?: string;
-  checkInMethod?: CheckInMethod;
-  photoObjectKey?: string;
-  idImageObjectKey?: string;
-  consentGranted?: boolean;
-}
+/**
+ * Visitor-adjacent types kept after the check-in rewrite.
+ *
+ * All request/response shapes for the staged check-in flow (CheckInRequest,
+ * ConfirmCheckInRequest/Response, DenyVisitorRequest, ApplyIdScanRequest,
+ * UpdateDraftSessionRequest) have moved to src/types/checkin.ts under new
+ * names. Anything staged-flow-specific has been removed from this file.
+ */
 
 export interface CheckOutRequest {
   badgeQrToken?: string;
@@ -85,35 +79,4 @@ export interface AppointmentRequest {
   scheduledDatetime: number;
   purpose?: string;
   status?: AppointmentStatus;
-}
-
-export interface ConfirmCheckInRequest {
-  badgeFormat?: BadgeFormat;
-  purpose?: string;
-  hostId?: string;
-}
-
-export interface ConfirmCheckInResponse {
-  session: VisitSession;
-  badgePdfBase64: string;
-  badgeQrToken: string;
-}
-
-export interface DenyVisitorRequest {
-  reason: string;
-}
-
-export interface ApplyIdScanRequest {
-  idType: string;
-  idNumber: string;
-  idImageObjectKey?: string;
-}
-
-export interface UpdateDraftSessionRequest {
-  fullName?: string;
-  phone?: string;
-  company?: string;
-  departmentId?: string;
-  hostId?: string;
-  purpose?: string;
 }

@@ -24,7 +24,7 @@ export function useDepartments(filters?: Record<string, unknown>) {
     queryKey: departmentKeys.list(filters),
     queryFn: async () => {
       const data = await apiGet<Array<Department & { Id?: string }>>(
-        '/departments/',
+        '/departments',
         filters
       );
       // Backend returns `Id` (capital). Normalize to `id`.
@@ -60,7 +60,7 @@ export function useCreateDepartment() {
 
   return useMutation({
     mutationFn: async (request: Omit<Department, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>) => {
-      const data = await apiPost<Department>('/departments/', request);
+      const data = await apiPost<Department>('/departments', request);
       return data;
     },
     onSuccess: (newDepartment) => {

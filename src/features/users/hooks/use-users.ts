@@ -35,7 +35,7 @@ export function useSystemUsers(filters?: Record<string, unknown>) {
   return useQuery({
     queryKey: userKeys.list(filters),
     queryFn: async () => {
-      const data = await apiGet<SystemUser[]>('/system-users/', filters);
+      const data = await apiGet<SystemUser[]>('/system-users', filters);
       return data;
     },
     staleTime: 30000,

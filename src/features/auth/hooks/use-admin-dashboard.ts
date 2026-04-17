@@ -67,7 +67,7 @@ export function useTenantList(filters?: Record<string, unknown>) {
   return useQuery({
     queryKey: adminKeys.tenantList(filters),
     queryFn: async () => {
-      const data = await apiGet<AdminTenant[]>('/tenants/', filters);
+      const data = await apiGet<AdminTenant[]>('/tenants', filters);
       return data;
     },
     staleTime: 30000,

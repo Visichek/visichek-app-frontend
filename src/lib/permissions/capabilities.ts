@@ -11,6 +11,14 @@ export const CAPABILITIES = {
   VISITOR_VIEW_PROFILES: "visitor:view_profiles",
   VISITOR_EDIT_PROFILE: "visitor:edit_profile",
 
+  // Check-in approval (pending → approved/rejected)
+  CHECKIN_APPROVE: "checkin:approve",
+  CHECKIN_VIEW: "checkin:view",
+
+  // Check-in config management
+  CHECKIN_CONFIG_VIEW: "checkin_config:view",
+  CHECKIN_CONFIG_EDIT: "checkin_config:edit",
+
   // Appointments
   APPOINTMENT_CREATE: "appointment:create",
   APPOINTMENT_VIEW: "appointment:view",

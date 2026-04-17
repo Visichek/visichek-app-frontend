@@ -23,7 +23,7 @@ export function useAppointments(filters?: Record<string, unknown>) {
   return useQuery({
     queryKey: appointmentKeys.list(filters),
     queryFn: async () => {
-      const data = await apiGet<Appointment[]>('/appointments/', filters);
+      const data = await apiGet<Appointment[]>('/appointments', filters);
       return data;
     },
     staleTime: 30000,
@@ -56,7 +56,7 @@ export function useCreateAppointment() {
 
   return useMutation({
     mutationFn: async (request: AppointmentRequest) => {
-      const data = await apiPost<Appointment>('/appointments/', request);
+      const data = await apiPost<Appointment>('/appointments', request);
       return data;
     },
     onSuccess: (newAppointment) => {

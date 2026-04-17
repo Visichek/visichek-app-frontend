@@ -2,7 +2,7 @@ export {
   useActiveVisitors,
   useVisitorSessions,
   useVisitorSession,
-  useCheckIn,
+  useVisitorBadge,
   useCheckOut,
   useSearchVisitorProfiles,
   useMintRegistrationQr,

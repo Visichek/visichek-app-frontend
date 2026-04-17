@@ -1,18 +1,27 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { ColumnDef } from "@tanstack/react-table";
-import Link from "next/link";
 import {
-  UserPlus,
-  UserMinus,
+  useState,
+  useCallback,
+  useMemo,
+  useTransition,
+  type ReactNode,
+} from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import Link from "next/link";
+import { toast } from "sonner";
+import {
   MoreHorizontal,
-  Globe,
-  Monitor,
   Eye,
-  ScanLine,
+  CheckCircle2,
+  XCircle,
   QrCode,
+  Printer,
+  Download,
+  Loader2,
+  ShieldCheck,
 } from "lucide-react";
+
 import {
   Tooltip,
   TooltipContent,
@@ -21,9 +30,7 @@ import {
 import { cn } from "@/lib/utils/cn";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
-import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,563 +38,649 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CheckInModal } from "@/features/visitors/components/check-in-modal";
-import { CheckOutModal } from "@/features/visitors/components/check-out-modal";
-import { ConfirmCheckInModal } from "@/features/visitors/components/confirm-check-in-modal";
-import { DenyVisitorModal } from "@/features/visitors/components/deny-visitor-modal";
-import { SessionDetailSheet } from "@/features/visitors/components/session-detail-sheet";
-import { OcrVerificationModal } from "@/features/visitors/components/ocr-verification-modal";
-import { VisitStatusBadge } from "@/features/visitors/components/verification-badges";
 import {
-  useActiveVisitors,
-  useCheckOut,
-  usePendingVisitorSessions,
-} from "@/features/visitors/hooks/use-visitors";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  CheckinStateBadge,
+  CheckinDetailSheet,
+  ConfirmCheckinModal,
+} from "@/features/checkins";
+import { useTenantCheckins } from "@/features/checkins/hooks";
+import { useSession } from "@/hooks/use-session";
 import { formatDateTime } from "@/lib/utils/format-date";
-import { useActionParam } from "@/hooks/use-action-param";
-import type { VisitSession } from "@/types/visitor";
+import type {
+  CheckinConfirmAction,
+  CheckinOut,
+  CheckinState,
+} from "@/types/checkin";
 
-type TabView = "active" | "pending";
+// ── Tab Model ───────────────────────────────────────────────────────
 
-// ── Origin Badge ────────────────────────────────────────────────────
-
-function OriginBadge({ method }: { method?: string }) {
-  if (method === "qr_registration") {
-    return (
-      <Badge variant="outline" className="text-xs gap-1">
-        <Globe className="h-3 w-3" aria-hidden="true" />
-        Self-reg
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="outline" className="text-xs gap-1">
-      <Monitor className="h-3 w-3" aria-hidden="true" />
-      Staff
-    </Badge>
-  );
+interface TabDef {
+  id: CheckinState;
+  label: string;
+  emptyTitle: string;
+  emptyDescription: string;
 }
 
-// ── Page Component ──────────────────────────────────────────────────
+const TABS: readonly TabDef[] = [
+  {
+    id: "pending_approval",
+    label: "Pending approval",
+    emptyTitle: "No pending check-ins",
+    emptyDescription: "New submissions appear here automatically.",
+  },
+  {
+    id: "approved",
+    label: "Approved",
+    emptyTitle: "No approved check-ins yet",
+    emptyDescription:
+      "Once you approve a pending check-in it will show up here.",
+  },
+  {
+    id: "rejected",
+    label: "Rejected",
+    emptyTitle: "No rejected check-ins",
+    emptyDescription: "Rejected check-ins will show here with their reason.",
+  },
+  {
+    id: "checked_out",
+    label: "Checked out",
+    emptyTitle: "No checked-out visitors yet",
+    emptyDescription:
+      "Visitors appear here after their visit ends.",
+  },
+] as const;
+
+// ── Badge utilities ─────────────────────────────────────────────────
+
+function base64ToBlob(base64: string, mime: string) {
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  return new Blob([new Uint8Array(byteNumbers)], { type: mime });
+}
+
+function downloadBadgePdf(base64: string, visitorName: string) {
+  const blob = base64ToBlob(base64, "application/pdf");
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `badge-${visitorName.replace(/\s+/g, "-").toLowerCase() || "visitor"}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function printBadgePdf(base64: string) {
+  const blob = base64ToBlob(base64, "application/pdf");
+  const url = URL.createObjectURL(blob);
+  const printWindow = window.open(url, "_blank");
+  if (printWindow) {
+    printWindow.addEventListener("load", () => {
+      printWindow.print();
+    });
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+
+// ── Page ────────────────────────────────────────────────────────────
 
 export default function VisitorsPage() {
-  const { data: activeVisitors = [], isLoading: activeLoading } =
-    useActiveVisitors();
-  const { data: pendingSessions = [], isLoading: pendingLoading } =
-    usePendingVisitorSessions();
-  const checkOutMutation = useCheckOut();
+  const { tenantId } = useSession();
 
-  // Tab state
-  const [activeTab, setActiveTab] = useState<TabView>("active");
+  // Active tab & smooth tab switch loading
+  const [activeTab, setActiveTab] = useState<CheckinState>("pending_approval");
+  const [switchingTo, setSwitchingTo] = useState<CheckinState | null>(null);
+  const [isPending, startTransition] = useTransition();
 
-  // Modal states
-  const [showCheckInModal, setShowCheckInModal] = useState(false);
-  const [showCheckOutModal, setShowCheckOutModal] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [showDenyModal, setShowDenyModal] = useState(false);
-  const [showDetailSheet, setShowDetailSheet] = useState(false);
-  const [showOcrModal, setShowOcrModal] = useState(false);
-  const [confirmCheckOutOpen, setConfirmCheckOutOpen] = useState(false);
+  function switchTab(next: CheckinState) {
+    if (next === activeTab) return;
+    setSwitchingTo(next);
+    startTransition(() => {
+      setActiveTab(next);
+      setSwitchingTo(null);
+    });
+  }
 
-  // Selected session for modals
-  const [selectedSession, setSelectedSession] = useState<VisitSession | null>(
-    null
-  );
-  const [selectedCheckOutId, setSelectedCheckOutId] = useState<string>("");
-
-  // Open the relevant modal when navigated from a "Quick Action" card.
-  useActionParam({
-    create: () => setShowCheckInModal(true),
-    checkout: () => setShowCheckOutModal(true),
+  // Data for the currently visible tab
+  const { data: checkins = [], isLoading } = useTenantCheckins(tenantId ?? undefined, {
+    state: activeTab,
   });
 
-  // ── Handlers ──────────────────────────────────────────────────────
+  // Also fetch just the pending count so the tab badge stays accurate
+  // across tabs. Polls on its own 5s schedule inside the hook.
+  const { data: pendingForCount = [] } = useTenantCheckins(
+    tenantId ?? undefined,
+    { state: "pending_approval" }
+  );
+  const pendingCount = pendingForCount.length;
 
-  const handleConfirmCheckIn = useCallback((session: VisitSession) => {
-    setSelectedSession(session);
-    setShowConfirmModal(true);
+  // Detail sheet / confirm modal state
+  const [selected, setSelected] = useState<CheckinOut | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] =
+    useState<CheckinConfirmAction>("approve");
+
+  // Badge dialog shown after a successful approve
+  const [badge, setBadge] = useState<{
+    pdfBase64?: string;
+    qrToken: string;
+    visitorName: string;
+  } | null>(null);
+
+  const handleView = useCallback((checkin: CheckinOut) => {
+    setSelected(checkin);
+    setDetailOpen(true);
   }, []);
 
-  const handleDenyVisitor = useCallback((session: VisitSession) => {
-    setSelectedSession(session);
-    setShowDenyModal(true);
+  const handleApprove = useCallback((checkin: CheckinOut) => {
+    setSelected(checkin);
+    setConfirmAction("approve");
+    setDetailOpen(false);
+    setConfirmOpen(true);
   }, []);
 
-  const handleViewDetails = useCallback((session: VisitSession) => {
-    setSelectedSession(session);
-    setShowDetailSheet(true);
+  const handleReject = useCallback((checkin: CheckinOut) => {
+    setSelected(checkin);
+    setConfirmAction("reject");
+    setDetailOpen(false);
+    setConfirmOpen(true);
   }, []);
 
-  const handleStartOcrVerification = useCallback((session: VisitSession) => {
-    setSelectedSession(session);
-    setShowOcrModal(true);
-  }, []);
-
-  const handleCloseConfirmModal = useCallback((open: boolean) => {
-    setShowConfirmModal(open);
-    if (!open) setSelectedSession(null);
-  }, []);
-
-  const handleCloseDenyModal = useCallback((open: boolean) => {
-    setShowDenyModal(open);
-    if (!open) setSelectedSession(null);
-  }, []);
-
-  const handleCloseDetailSheet = useCallback((open: boolean) => {
-    setShowDetailSheet(open);
-    if (!open) setSelectedSession(null);
-  }, []);
-
-  const handleCloseOcrModal = useCallback((open: boolean) => {
-    setShowOcrModal(open);
-    if (!open) setSelectedSession(null);
-  }, []);
-
-  const handleCheckOutClick = useCallback((sessionId: string) => {
-    setSelectedCheckOutId(sessionId);
-    setConfirmCheckOutOpen(true);
-  }, []);
-
-  const handleConfirmCheckOut = async () => {
-    try {
-      await checkOutMutation.mutateAsync({
-        sessionId: selectedCheckOutId,
-        checkOutMethod: "manual",
+  const handleApproved = useCallback(
+    (approved: { badgeQrToken: string; badgePdfBase64?: string }) => {
+      const name = selected?.visitor?.fullName || "Visitor";
+      setBadge({
+        pdfBase64: approved.badgePdfBase64,
+        qrToken: approved.badgeQrToken,
+        visitorName: name,
       });
-      setConfirmCheckOutOpen(false);
-      setSelectedCheckOutId("");
-    } catch {
-      // Error handled by mutation hook
-    }
+    },
+    [selected]
+  );
+
+  // ── Shared row helpers ─────────────────────────────────────────────
+
+  const visitorName = (row: CheckinOut) =>
+    row.visitor?.fullName || "Unnamed visitor";
+
+  // ── Columns ────────────────────────────────────────────────────────
+
+  const columns: ColumnDef<CheckinOut>[] = useMemo(
+    () => [
+      {
+        accessorKey: "visitor.fullName",
+        id: "visitorName",
+        header: "Visitor",
+        cell: ({ row }) => (
+          <div className="flex items-center gap-3 min-w-0">
+            {row.original.visitor?.portraitUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={row.original.visitor.portraitUrl}
+                alt=""
+                className="h-8 w-8 rounded-full object-cover border"
+              />
+            ) : (
+              <div className="h-8 w-8 rounded-full bg-muted" aria-hidden="true" />
+            )}
+            <div className="min-w-0">
+              <p className="font-medium truncate">{visitorName(row.original)}</p>
+              {row.original.visitor?.email && (
+                <p className="text-xs text-muted-foreground truncate">
+                  {row.original.visitor.email}
+                </p>
+              )}
+            </div>
+          </div>
+        ),
+        enableSorting: true,
+      },
+      {
+        accessorKey: "purpose.purpose",
+        id: "purpose",
+        header: "Purpose",
+        cell: ({ row }) => (
+          <span className="text-sm">{row.original.purpose.purpose}</span>
+        ),
+      },
+      {
+        accessorKey: "verified",
+        id: "verified",
+        header: "ID",
+        cell: ({ row }) =>
+          row.original.verified ? (
+            <span className="inline-flex items-center gap-1 text-xs text-success">
+              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+              Verified
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">Not verified</span>
+          ),
+      },
+      {
+        accessorKey: "dateCreated",
+        id: "dateCreated",
+        header: "Submitted",
+        cell: ({ row }) => (
+          <span className="text-muted-foreground text-sm">
+            {formatDateTime(row.original.dateCreated)}
+          </span>
+        ),
+        enableSorting: true,
+      },
+      {
+        accessorKey: "state",
+        id: "state",
+        header: "Status",
+        cell: ({ row }) => <CheckinStateBadge state={row.original.state} />,
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => {
+          const isPendingRow = row.original.state === "pending_approval";
+          return (
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 w-9 p-0 min-h-[44px] md:min-h-0"
+                      aria-label="Row actions"
+                    >
+                      <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="left">
+                  Open actions for this check-in
+                </TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleView(row.original)}>
+                  <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
+                  View details
+                </DropdownMenuItem>
+                {isPendingRow && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => handleApprove(row.original)}
+                    >
+                      <CheckCircle2
+                        className="mr-2 h-4 w-4"
+                        aria-hidden="true"
+                      />
+                      Approve
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleReject(row.original)}
+                      className="text-destructive"
+                    >
+                      <XCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+                      Reject
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        },
+      },
+    ],
+    [handleView, handleApprove, handleReject]
+  );
+
+  // ── Mobile card ────────────────────────────────────────────────────
+
+  const mobileCard = (checkin: CheckinOut): ReactNode => {
+    const isPendingRow = checkin.state === "pending_approval";
+    return (
+      <div className="rounded-lg border p-4 space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex items-center gap-3">
+            {checkin.visitor?.portraitUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={checkin.visitor.portraitUrl}
+                alt=""
+                className="h-9 w-9 rounded-full object-cover border"
+              />
+            ) : (
+              <div
+                className="h-9 w-9 rounded-full bg-muted"
+                aria-hidden="true"
+              />
+            )}
+            <div className="min-w-0">
+              <p className="font-medium text-sm truncate">
+                {visitorName(checkin)}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {checkin.purpose.purpose}
+              </p>
+            </div>
+          </div>
+          <CheckinStateBadge state={checkin.state} />
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Submitted {formatDateTime(checkin.dateCreated)}
+        </div>
+        <div className="flex gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleView(checkin)}
+                className="min-h-[44px]"
+              >
+                <Eye className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                Details
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              Open the full details for this check-in
+            </TooltipContent>
+          </Tooltip>
+          {isPendingRow && (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    onClick={() => handleApprove(checkin)}
+                    className="flex-1 min-h-[44px]"
+                  >
+                    <CheckCircle2
+                      className="mr-1 h-3.5 w-3.5"
+                      aria-hidden="true"
+                    />
+                    Approve
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  Let this visitor in and issue a badge
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => handleReject(checkin)}
+                    className="min-h-[44px]"
+                  >
+                    <XCircle
+                      className="mr-1 h-3.5 w-3.5"
+                      aria-hidden="true"
+                    />
+                    Reject
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  Deny this visitor entry and notify their host
+                </TooltipContent>
+              </Tooltip>
+            </>
+          )}
+        </div>
+      </div>
+    );
   };
 
-  // ── Active Visitors Columns ───────────────────────────────────────
-
-  const activeVisitorsColumns: ColumnDef<VisitSession>[] = [
-    {
-      accessorKey: "visitorNameSnapshot",
-      header: "Visitor Name",
-      cell: ({ row }) => (
-        <span className="font-medium">
-          {row.original.visitorNameSnapshot ||
-            row.original.visitorProfileId ||
-            "—"}
-        </span>
-      ),
-      enableSorting: true,
-    },
-    {
-      accessorKey: "departmentId",
-      header: "Department",
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">
-          {row.original.departmentId || "—"}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "checkedInAt",
-      header: "Checked In",
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">
-          {formatDateTime(row.original.checkedInAt)}
-        </span>
-      ),
-      enableSorting: true,
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => (
-        <VisitStatusBadge status={row.original.status} />
-      ),
-    },
-    {
-      id: "actions",
-      header: "Actions",
-      cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
-              <span className="sr-only">Open menu</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={() => handleViewDetails(row.original)}
-            >
-              <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
-              View Details
-            </DropdownMenuItem>
-            {row.original.status === "checked_in" && (
-              <DropdownMenuItem
-                onClick={() => handleCheckOutClick(row.original.id)}
-              >
-                <UserMinus className="mr-2 h-4 w-4" aria-hidden="true" />
-                Check Out
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
-    },
-  ];
-
-  // ── Pending Sessions Columns ──────────────────────────────────────
-
-  const pendingSessionsColumns: ColumnDef<VisitSession>[] = [
-    {
-      accessorKey: "visitorNameSnapshot",
-      header: "Visitor Name",
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <span className="font-medium">
-            {row.original.visitorNameSnapshot ||
-              row.original.visitorProfileId ||
-              "—"}
-          </span>
-          <OriginBadge method={row.original.checkInMethod} />
-        </div>
-      ),
-      enableSorting: true,
-    },
-    {
-      accessorKey: "departmentId",
-      header: "Department",
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">
-          {row.original.departmentId || "—"}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "checkedInAt",
-      header: "Registered",
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">
-          {formatDateTime(row.original.checkedInAt)}
-        </span>
-      ),
-      enableSorting: true,
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => (
-        <VisitStatusBadge status={row.original.status} />
-      ),
-    },
-    {
-      id: "actions",
-      header: "Actions",
-      cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
-              <span className="sr-only">Open menu</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={() => handleViewDetails(row.original)}
-            >
-              <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
-              View Details
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handleStartOcrVerification(row.original)}
-            >
-              <ScanLine className="mr-2 h-4 w-4" aria-hidden="true" />
-              Scan ID
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => handleConfirmCheckIn(row.original)}
-            >
-              Confirm Check-In
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handleDenyVisitor(row.original)}
-              className="text-destructive"
-            >
-              Deny Entry
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
-    },
-  ];
-
-  // ── Mobile Card Renderers ─────────────────────────────────────────
-
-  const mobileActiveCard = (visitor: VisitSession) => (
-    <div className="rounded-lg border p-4 space-y-3">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="font-medium text-sm">
-            {visitor.visitorNameSnapshot ||
-              visitor.visitorProfileId ||
-              "Visitor"}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {visitor.departmentId || "—"}
-          </p>
-        </div>
-        <VisitStatusBadge status={visitor.status} />
-      </div>
-      <div className="text-xs text-muted-foreground space-y-1">
-        <p>Checked in: {formatDateTime(visitor.checkedInAt)}</p>
-      </div>
-      <div className="flex gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => handleViewDetails(visitor)}
-          className="flex-1 min-h-[44px]"
-        >
-          <Eye className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-          Details
-        </Button>
-        {visitor.status === "checked_in" && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleCheckOutClick(visitor.id)}
-            className="flex-1 min-h-[44px]"
-          >
-            Check Out
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-
-  const mobilePendingCard = (session: VisitSession) => (
-    <div className="rounded-lg border p-4 space-y-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="space-y-1">
-          <p className="font-medium text-sm">
-            {session.visitorNameSnapshot ||
-              session.visitorProfileId ||
-              "Visitor"}
-          </p>
-          <div className="flex items-center gap-2">
-            <p className="text-xs text-muted-foreground">
-              {session.departmentId || "—"}
-            </p>
-            <OriginBadge method={session.checkInMethod} />
-          </div>
-        </div>
-        <VisitStatusBadge status={session.status} />
-      </div>
-      <div className="text-xs text-muted-foreground space-y-1">
-        <p>Registered: {formatDateTime(session.checkedInAt)}</p>
-      </div>
-      <div className="flex gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => handleViewDetails(session)}
-          className="min-h-[44px]"
-        >
-          <Eye className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-          Details
-        </Button>
-        <Button
-          size="sm"
-          variant="default"
-          onClick={() => handleConfirmCheckIn(session)}
-          className="flex-1 min-h-[44px]"
-        >
-          Confirm
-        </Button>
-        <Button
-          size="sm"
-          variant="destructive"
-          onClick={() => handleDenyVisitor(session)}
-          className="min-h-[44px]"
-        >
-          Deny
-        </Button>
-      </div>
-    </div>
-  );
-
-  // ── Render ────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Visitors"
-        description="Manage visitor check-ins and sessions"
+        description="Review pending check-ins, approve or reject visitors, and see past activity."
         actions={
-          <div className="flex gap-2 w-full md:w-auto">
-            <Button
-              onClick={() => setShowCheckInModal(true)}
-              className="flex-1 md:flex-none min-h-[44px]"
-            >
-              <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
-              Register Visitor
-            </Button>
-            <Button
-              onClick={() => setShowCheckOutModal(true)}
-              variant="outline"
-              className="flex-1 md:flex-none min-h-[44px]"
-            >
-              <UserMinus className="mr-2 h-4 w-4" aria-hidden="true" />
-              Check Out
-            </Button>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  asChild
-                  variant="outline"
-                  className="flex-1 md:flex-none min-h-[44px]"
-                >
-                  <Link href="/app/visitors/qr">
-                    <QrCode className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Registration QR
-                  </Link>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                Generate a QR code visitors can scan to self-register from
-                their phone
-              </TooltipContent>
-            </Tooltip>
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                asChild
+                variant="outline"
+                className="flex-1 md:flex-none min-h-[44px]"
+              >
+                <Link href="/app/visitors/qr">
+                  <QrCode className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Registration QR
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              Generate a QR code visitors can scan to self-register from their
+              phone
+            </TooltipContent>
+          </Tooltip>
         }
       />
 
       {/* Tab Navigation */}
-      <div className="flex gap-2 border-b">
-        <button
-          onClick={() => setActiveTab("active")}
-          className={cn(
-            "pb-2 px-1 text-sm font-medium border-b-2 transition-colors",
-            activeTab === "active"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          Active Visitors
-        </button>
-        <button
-          onClick={() => setActiveTab("pending")}
-          className={cn(
-            "pb-2 px-1 text-sm font-medium border-b-2 transition-colors relative",
-            activeTab === "pending"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          Pending Check-ins
-          {pendingSessions.length > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-warning text-warning-foreground text-xs font-semibold h-5 min-w-[20px] px-1.5">
-              {pendingSessions.length}
-            </span>
-          )}
-        </button>
+      <div
+        className="flex gap-2 border-b overflow-x-auto"
+        role="tablist"
+        aria-label="Check-in states"
+      >
+        {TABS.map((tab) => {
+          const isActive = activeTab === tab.id;
+          const isSpinning = isPending && switchingTo === tab.id;
+          const showPendingCount =
+            tab.id === "pending_approval" && pendingCount > 0;
+          return (
+            <Tooltip key={tab.id}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => switchTab(tab.id)}
+                  className={cn(
+                    "pb-2 px-1 text-sm font-medium border-b-2 transition-colors relative whitespace-nowrap inline-flex items-center gap-1.5 min-h-[44px]",
+                    isActive
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {isSpinning && (
+                    <Loader2
+                      className="h-3.5 w-3.5 animate-spin"
+                      aria-hidden="true"
+                    />
+                  )}
+                  {tab.label}
+                  {showPendingCount && (
+                    <span
+                      className="ml-1 inline-flex items-center justify-center rounded-full bg-warning text-warning-foreground text-xs font-semibold h-5 min-w-[20px] px-1.5"
+                      aria-label={`${pendingCount} pending`}
+                    >
+                      {pendingCount}
+                    </span>
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {tab.id === "pending_approval"
+                  ? "Check-ins awaiting your review"
+                  : tab.id === "approved"
+                    ? "Visitors you've let in"
+                    : tab.id === "rejected"
+                      ? "Check-ins you've denied and why"
+                      : "Visitors whose visit has ended"}
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
       </div>
 
-      {/* Active Visitors Tab */}
-      {activeTab === "active" && (
-        <DataTable
-          columns={activeVisitorsColumns}
-          data={activeVisitors}
-          isLoading={activeLoading}
-          searchKey="visitorNameSnapshot"
-          searchPlaceholder="Search visitors..."
-          pagination={true}
-          pageSize={10}
-          mobileCard={mobileActiveCard}
-          emptyTitle="No active visitors"
-          emptyDescription="Check in a visitor to see them appear here."
+      {/* Table */}
+      {TABS.map((tab) => {
+        if (tab.id !== activeTab) return null;
+        return (
+          <DataTable
+            key={tab.id}
+            columns={columns}
+            data={checkins}
+            isLoading={isLoading}
+            searchKey="visitorName"
+            searchPlaceholder="Search by visitor name..."
+            pagination
+            pageSize={10}
+            mobileCard={mobileCard}
+            emptyTitle={tab.emptyTitle}
+            emptyDescription={tab.emptyDescription}
+          />
+        );
+      })}
+
+      {/* Detail Sheet */}
+      <CheckinDetailSheet
+        open={detailOpen}
+        onOpenChange={(next) => {
+          setDetailOpen(next);
+          if (!next) setSelected(null);
+        }}
+        checkin={selected}
+        onApprove={handleApprove}
+        onReject={handleReject}
+      />
+
+      {/* Confirm (approve / reject) */}
+      {selected && (
+        <ConfirmCheckinModal
+          open={confirmOpen}
+          onOpenChange={(next) => {
+            setConfirmOpen(next);
+            if (!next) {
+              // Keep `selected` so the detail sheet can reopen cleanly
+              // if the user dismissed without finishing.
+            }
+          }}
+          checkinId={selected.id}
+          visitorName={visitorName(selected)}
+          defaultAction={confirmAction}
+          onApproved={handleApproved}
         />
       )}
 
-      {/* Pending Check-ins Tab */}
-      {activeTab === "pending" && (
-        <DataTable
-          columns={pendingSessionsColumns}
-          data={pendingSessions}
-          isLoading={pendingLoading}
-          searchKey="visitorNameSnapshot"
-          searchPlaceholder="Search pending visitors..."
-          pagination={true}
-          pageSize={10}
-          mobileCard={mobilePendingCard}
-          emptyTitle="No pending check-ins"
-          emptyDescription="All visitors have been confirmed or denied."
-        />
-      )}
-
-      {/* Modals */}
-      <CheckInModal
-        open={showCheckInModal}
-        onOpenChange={setShowCheckInModal}
-      />
-      <CheckOutModal
-        open={showCheckOutModal}
-        onOpenChange={setShowCheckOutModal}
-      />
-
-      {selectedSession && (
-        <>
-          <ConfirmCheckInModal
-            open={showConfirmModal}
-            onOpenChange={handleCloseConfirmModal}
-            sessionId={selectedSession.id}
-            visitorName={
-              selectedSession.visitorNameSnapshot ||
-              selectedSession.visitorProfileId ||
-              "Visitor"
-            }
-          />
-          <DenyVisitorModal
-            open={showDenyModal}
-            onOpenChange={handleCloseDenyModal}
-            sessionId={selectedSession.id}
-            visitorName={
-              selectedSession.visitorNameSnapshot ||
-              selectedSession.visitorProfileId ||
-              "Visitor"
-            }
-          />
-          <SessionDetailSheet
-            open={showDetailSheet}
-            onOpenChange={handleCloseDetailSheet}
-            session={selectedSession}
-            onConfirmCheckIn={handleConfirmCheckIn}
-            onDenyEntry={handleDenyVisitor}
-            onStartOcrVerification={handleStartOcrVerification}
-          />
-          <OcrVerificationModal
-            open={showOcrModal}
-            onOpenChange={handleCloseOcrModal}
-            sessionId={selectedSession.id}
-            visitorName={
-              selectedSession.visitorNameSnapshot ||
-              selectedSession.visitorProfileId ||
-              "Visitor"
-            }
-          />
-        </>
-      )}
-
-      {/* Confirm Check Out Dialog */}
-      <ConfirmDialog
-        open={confirmCheckOutOpen}
-        onOpenChange={setConfirmCheckOutOpen}
-        title="Check Out Visitor"
-        description="Are you sure you want to check out this visitor?"
-        confirmLabel="Check Out"
-        cancelLabel="Cancel"
-        onConfirm={handleConfirmCheckOut}
-        isLoading={checkOutMutation.isPending}
-      />
+      {/* Badge dialog shown after an approve */}
+      <AlertDialog
+        open={!!badge}
+        onOpenChange={(next) => {
+          if (!next) setBadge(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Badge ready</AlertDialogTitle>
+            <AlertDialogDescription>
+              {badge?.visitorName} has been approved. Print or download their
+              badge now, or close this dialog — you can always fetch the badge
+              later from the check-in details.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex flex-col gap-2 md:flex-row">
+            {badge?.pdfBase64 && (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={() =>
+                        badge.pdfBase64 &&
+                        printBadgePdf(badge.pdfBase64)
+                      }
+                      className="min-h-[44px]"
+                    >
+                      <Printer
+                        className="mr-2 h-4 w-4"
+                        aria-hidden="true"
+                      />
+                      Print badge
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    Open the badge PDF and send it to your printer
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        badge.pdfBase64 &&
+                        downloadBadgePdf(
+                          badge.pdfBase64,
+                          badge.visitorName
+                        )
+                      }
+                      className="min-h-[44px]"
+                    >
+                      <Download
+                        className="mr-2 h-4 w-4"
+                        aria-hidden="true"
+                      />
+                      Download PDF
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    Save the badge as a PDF to your computer
+                  </TooltipContent>
+                </Tooltip>
+              </>
+            )}
+            {!badge?.pdfBase64 && badge?.qrToken && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={() => {
+                      navigator.clipboard
+                        .writeText(badge.qrToken)
+                        .then(() => toast.success("Token copied"))
+                        .catch(() =>
+                          toast.error("Couldn't copy to clipboard")
+                        );
+                    }}
+                    className="min-h-[44px]"
+                  >
+                    Copy badge token
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  Copy the badge QR token to share or paste into another
+                  system
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogCancel className="min-h-[44px]">Close</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => setBadge(null)}
+              className="min-h-[44px]"
+            >
+              Done
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

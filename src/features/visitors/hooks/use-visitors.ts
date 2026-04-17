@@ -1,17 +1,21 @@
 'use client';
 
+/**
+ * Visitor-adjacent hooks still needed by the app after the check-in
+ * rewrite. The old staged-flow hooks (register, confirm, deny,
+ * apply-id-scan, verify-id-scan, pending sessions, update-draft-session,
+ * host-approve) have been removed — use src/features/checkins instead.
+ *
+ * What remains here is read-only history, check-out, and the QR mint
+ * used by /app/visitors/qr.
+ */
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost, apiPatch } from '@/lib/api/request';
+import { apiGet, apiPost } from '@/lib/api/request';
 import type {
   VisitSession,
   VisitorProfile,
-  CheckInRequest,
   CheckOutRequest,
-  ConfirmCheckInRequest,
-  ConfirmCheckInResponse,
-  DenyVisitorRequest,
-  ApplyIdScanRequest,
-  UpdateDraftSessionRequest,
 } from '@/types/visitor';
 import type {
   MintRegistrationQrRequest,
@@ -33,7 +37,7 @@ function normalizeSession(raw: unknown): VisitSession {
 }
 
 /**
- * Query key factory for visitor-related queries
+ * Query key factory for the surviving visitor-adjacent queries.
  */
 const visitorKeys = {
   all: ['visitors'] as const,
@@ -47,7 +51,6 @@ const visitorKeys = {
     departmentId?: string;
   }) => ['visitors', 'sessions', params] as const,
   session: (sessionId: string) => ['visitors', 'sessions', sessionId] as const,
-  pending: ['visitors', 'sessions', 'pending'] as const,
   badge: (sessionId: string) => ['visitors', 'sessions', sessionId, 'badge'] as const,
   profiles: ['visitor-profiles'] as const,
   profilesSearch: (query: string) =>
@@ -109,207 +112,6 @@ export function useVisitorSession(sessionId: string) {
 }
 
 /**
- * Fetch pending visitor sessions (status REGISTERED or PENDING_VERIFICATION).
- * Auto-refreshes every 10 seconds.
- */
-export function usePendingVisitorSessions() {
-  return useQuery({
-    queryKey: visitorKeys.pending,
-    queryFn: async () => {
-      const data = await apiGet<VisitSession[]>('/visitors/sessions/pending');
-      return (data ?? []).map(normalizeSession);
-    },
-    refetchInterval: 10000,
-    staleTime: 5000,
-  });
-}
-
-/**
- * Mutation for checking in a visitor (initial registration).
- * Creates session with status=REGISTERED.
- * Invalidates active visitors and sessions on success.
- */
-export function useCheckIn() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (request: CheckInRequest) => {
-      const data = await apiPost<VisitSession>(
-        '/visitors/check-in',
-        request
-      );
-      return data;
-    },
-    onSuccess: (newSession) => {
-      // Invalidate active visitors list
-      queryClient.invalidateQueries({ queryKey: visitorKeys.active });
-      // Invalidate all sessions queries
-      queryClient.invalidateQueries({ queryKey: visitorKeys.sessions });
-      // Invalidate pending sessions
-      queryClient.invalidateQueries({ queryKey: visitorKeys.pending });
-      // Optionally set the new session in the cache
-      queryClient.setQueryData(
-        visitorKeys.session(newSession.id),
-        newSession
-      );
-    },
-  });
-}
-
-/**
- * Mutation for confirming a visitor check-in.
- * Validates and generates badge, sets status=CHECKED_IN.
- * Invalidates sessions on success.
- */
-export function useConfirmCheckIn() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      sessionId,
-      ...rest
-    }: {
-      sessionId: string;
-    } & ConfirmCheckInRequest) => {
-      const data = await apiPost<ConfirmCheckInResponse>(
-        `/visitors/sessions/${sessionId}/confirm`,
-        rest
-      );
-      return data;
-    },
-    onSuccess: (response, { sessionId }) => {
-      // Update the session in cache
-      queryClient.setQueryData(
-        visitorKeys.session(sessionId),
-        response.session
-      );
-      // Invalidate active visitors list
-      queryClient.invalidateQueries({ queryKey: visitorKeys.active });
-      // Invalidate all sessions queries
-      queryClient.invalidateQueries({ queryKey: visitorKeys.sessions });
-      // Invalidate pending sessions
-      queryClient.invalidateQueries({ queryKey: visitorKeys.pending });
-    },
-  });
-}
-
-/**
- * Mutation for denying a visitor.
- * Sets status=DENIED with reason.
- * Invalidates sessions on success.
- */
-export function useDenyVisitor() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      sessionId,
-      reason,
-    }: {
-      sessionId: string;
-    } & DenyVisitorRequest) => {
-      const data = await apiPost<VisitSession>(
-        `/visitors/sessions/${sessionId}/deny`,
-        { reason }
-      );
-      return data;
-    },
-    onSuccess: (updatedSession, { sessionId }) => {
-      // Update the session in cache
-      queryClient.setQueryData(
-        visitorKeys.session(sessionId),
-        updatedSession
-      );
-      // Invalidate all sessions queries
-      queryClient.invalidateQueries({ queryKey: visitorKeys.sessions });
-      // Invalidate pending sessions
-      queryClient.invalidateQueries({ queryKey: visitorKeys.pending });
-    },
-  });
-}
-
-/**
- * Mutation for requesting host approval.
- * Invalidates sessions on success.
- */
-export function useHostApprove() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (sessionId: string) => {
-      const data = await apiPost<VisitSession>(
-        `/visitors/sessions/${sessionId}/host-approve`,
-        {}
-      );
-      return data;
-    },
-    onSuccess: (updatedSession, sessionId) => {
-      // Update the session in cache
-      queryClient.setQueryData(
-        visitorKeys.session(sessionId),
-        updatedSession
-      );
-      // Invalidate all sessions queries
-      queryClient.invalidateQueries({ queryKey: visitorKeys.sessions });
-      // Invalidate pending sessions
-      queryClient.invalidateQueries({ queryKey: visitorKeys.pending });
-    },
-  });
-}
-
-/**
- * Mutation for applying ID scan results to a session.
- * Invalidates sessions on success.
- */
-export function useApplyIdScan() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      sessionId,
-      idType,
-      idNumber,
-      idImageObjectKey,
-    }: {
-      sessionId: string;
-    } & ApplyIdScanRequest) => {
-      const data = await apiPost<VisitSession>(
-        `/visitors/sessions/${sessionId}/apply-id-scan`,
-        { idType, idNumber, idImageObjectKey }
-      );
-      return data;
-    },
-    onSuccess: (updatedSession, { sessionId }) => {
-      // Update the session in cache
-      queryClient.setQueryData(
-        visitorKeys.session(sessionId),
-        updatedSession
-      );
-      // Invalidate all sessions queries
-      queryClient.invalidateQueries({ queryKey: visitorKeys.sessions });
-      // Invalidate pending sessions
-      queryClient.invalidateQueries({ queryKey: visitorKeys.pending });
-    },
-  });
-}
-
-/**
- * Mutation for verifying an ID scan.
- * Uploads ID image and extracts fields.
- */
-export function useVerifyIdScan() {
-  return useMutation({
-    mutationFn: async (request: FormData) => {
-      const data = await apiPost<Record<string, unknown>>(
-        '/visitors/verify/id-scan',
-        request
-      );
-      return data;
-    },
-  });
-}
-
-/**
  * Fetch visitor badge PDF (manual trigger).
  * Enabled is false by default, manually request when needed.
  */
@@ -323,41 +125,6 @@ export function useVisitorBadge(sessionId: string) {
       return data;
     },
     enabled: false,
-  });
-}
-
-/**
- * Mutation for updating a draft visitor session.
- * Allows updating session fields before confirmation.
- * Invalidates sessions on success.
- */
-export function useUpdateDraftSession() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      sessionId,
-      ...updateData
-    }: {
-      sessionId: string;
-    } & UpdateDraftSessionRequest) => {
-      const data = await apiPatch<VisitSession>(
-        `/visitors/sessions/${sessionId}/update-draft`,
-        updateData
-      );
-      return data;
-    },
-    onSuccess: (updatedSession, { sessionId }) => {
-      // Update the session in cache
-      queryClient.setQueryData(
-        visitorKeys.session(sessionId),
-        updatedSession
-      );
-      // Invalidate all sessions queries
-      queryClient.invalidateQueries({ queryKey: visitorKeys.sessions });
-      // Invalidate pending sessions
-      queryClient.invalidateQueries({ queryKey: visitorKeys.pending });
-    },
   });
 }
 
@@ -377,20 +144,15 @@ export function useCheckOut() {
       return data;
     },
     onSuccess: () => {
-      // Invalidate active visitors list
       queryClient.invalidateQueries({ queryKey: visitorKeys.active });
-      // Invalidate all sessions queries
       queryClient.invalidateQueries({ queryKey: visitorKeys.sessions });
-      // Invalidate pending sessions
-      queryClient.invalidateQueries({ queryKey: visitorKeys.pending });
+      // Check-in lists live under a different key — invalidate the whole
+      // "checkins" namespace so the Visitors page refreshes.
+      queryClient.invalidateQueries({ queryKey: ['checkins'] });
     },
   });
 }
 
-/**
- * Search visitor profiles by query string.
- * Only enabled when query length >= 2.
- */
 /**
  * Mint a registration QR token (receptionist / dept_admin / super_admin).
  */
@@ -401,6 +163,10 @@ export function useMintRegistrationQr() {
   });
 }
 
+/**
+ * Search visitor profiles by query string.
+ * Only enabled when query length >= 2.
+ */
 export function useSearchVisitorProfiles(query: string) {
   return useQuery({
     queryKey: visitorKeys.profilesSearch(query),
