@@ -49,8 +49,8 @@ export interface TenantCapLimit {
 }
 
 export interface Plan {
-  /** Backend returns capital-I Id (MongoDB _id quirk) */
-  Id: string;
+ 
+  id: string;
   name: string;
   displayName?: string;
   tier: PlanTier;
@@ -106,8 +106,8 @@ export interface SubscriptionPlanEmbed {
 }
 
 export interface Subscription {
-  /** Backend returns capital-I Id (MongoDB _id quirk) */
-  Id: string;
+  
+  id: string;
   tenantId: string;
   planId: string;
   status: SubscriptionStatus;
@@ -157,8 +157,8 @@ export interface CancelSubscriptionRequest {
 
 // ── Discounts ─────────────────────────────────────────────────────────
 export interface Discount {
-  /** Backend returns capital-I Id (MongoDB _id quirk) */
-  Id: string;
+   
+  id: string;
   code: string;
   name: string;
   description?: string | null;
