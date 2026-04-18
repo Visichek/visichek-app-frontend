@@ -303,9 +303,9 @@ export interface TenantUsageSummary {
   entityCounts: Record<string, number>;
   entityCaps: Record<string, number | null>;
   storage: {
-    documentsUsed: number;
-    documentsLimit: number | null;
-    storageMbUsed: number;
-    storageMbLimit: number | null;
+    documentsUsed?: number;
+    documentsLimit?: number | null;
+    storageMbUsed?: number;
+    storageMbLimit?: number | null;
   };
 }

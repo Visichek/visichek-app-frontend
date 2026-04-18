@@ -229,72 +229,78 @@ export default function BillingPage() {
         </div>
 
         {/* Storage Usage Card */}
-        {usage?.storage && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Storage</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Documents */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Documents</span>
-                  <span className="text-sm text-muted-foreground">
-                    {usage.storage.documentsUsed}
-                    {usage.storage.documentsLimit != null &&
-                      ` / ${usage.storage.documentsLimit}`}
-                  </span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-secondary">
-                  <div
-                    className="h-full bg-primary transition-all"
-                    style={{
-                      width:
-                        usage.storage.documentsLimit &&
-                        usage.storage.documentsLimit > 0
-                          ? `${Math.min(
-                              (usage.storage.documentsUsed /
-                                usage.storage.documentsLimit) *
-                                100,
-                              100
-                            )}%`
-                          : "0%",
-                    }}
-                  />
-                </div>
-              </div>
+        {usage?.storage &&
+          (typeof usage.storage.documentsUsed === "number" ||
+            typeof usage.storage.storageMbUsed === "number") && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Storage</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Documents */}
+                {typeof usage.storage.documentsUsed === "number" && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Documents</span>
+                      <span className="text-sm text-muted-foreground">
+                        {usage.storage.documentsUsed}
+                        {usage.storage.documentsLimit != null &&
+                          ` / ${usage.storage.documentsLimit}`}
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-secondary">
+                      <div
+                        className="h-full bg-primary transition-all"
+                        style={{
+                          width:
+                            usage.storage.documentsLimit &&
+                            usage.storage.documentsLimit > 0
+                              ? `${Math.min(
+                                  (usage.storage.documentsUsed /
+                                    usage.storage.documentsLimit) *
+                                    100,
+                                  100
+                                )}%`
+                              : "0%",
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
 
-              {/* Storage MB */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Storage</span>
-                  <span className="text-sm text-muted-foreground">
-                    {usage.storage.storageMbUsed.toFixed(1)} MB
-                    {usage.storage.storageMbLimit != null &&
-                      ` / ${usage.storage.storageMbLimit} MB`}
-                  </span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-secondary">
-                  <div
-                    className="h-full bg-primary transition-all"
-                    style={{
-                      width:
-                        usage.storage.storageMbLimit &&
-                        usage.storage.storageMbLimit > 0
-                          ? `${Math.min(
-                              (usage.storage.storageMbUsed /
-                                usage.storage.storageMbLimit) *
-                                100,
-                              100
-                            )}%`
-                          : "0%",
-                    }}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                {/* Storage MB */}
+                {typeof usage.storage.storageMbUsed === "number" && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Storage</span>
+                      <span className="text-sm text-muted-foreground">
+                        {usage.storage.storageMbUsed.toFixed(1)} MB
+                        {usage.storage.storageMbLimit != null &&
+                          ` / ${usage.storage.storageMbLimit} MB`}
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-secondary">
+                      <div
+                        className="h-full bg-primary transition-all"
+                        style={{
+                          width:
+                            usage.storage.storageMbLimit &&
+                            usage.storage.storageMbLimit > 0
+                              ? `${Math.min(
+                                  (usage.storage.storageMbUsed /
+                                    usage.storage.storageMbLimit) *
+                                    100,
+                                  100
+                                )}%`
+                              : "0%",
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
         {/* Invoices Table */}
         <Card>
