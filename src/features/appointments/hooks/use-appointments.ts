@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api/request';
 import type { Appointment, AppointmentRequest } from '@/types/visitor';
 
@@ -27,6 +27,7 @@ export function useAppointments(filters?: Record<string, unknown>) {
       return data;
     },
     staleTime: 30000,
+    placeholderData: keepPreviousData,
   });
 }
 

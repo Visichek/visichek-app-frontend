@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api/request";
 import type { AuditLog, AuditLogFilters } from "@/types/audit";
 
@@ -21,5 +21,6 @@ export function useAuditLogs(params?: AuditLogFilters) {
     queryKey: ["audit-logs", params],
     queryFn: () =>
       apiGet<PaginatedResponse<AuditLog>>("/audit-logs", params as Record<string, unknown> | undefined),
+    placeholderData: keepPreviousData,
   });
 }

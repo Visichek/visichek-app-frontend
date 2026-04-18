@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api/request";
 import type { Plan } from "@/types/billing";
 
@@ -19,6 +19,8 @@ export function usePlans(params?: UsePlansParams) {
   return useQuery<Plan[]>({
     queryKey: ["plans", params],
     queryFn: () => apiGet<Plan[]>("/plans", params),
+    staleTime: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -30,6 +32,7 @@ export function usePlan(planId: string) {
     queryKey: ["plans", planId],
     queryFn: () => apiGet<Plan>(`/plans/${planId}`),
     enabled: !!planId,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

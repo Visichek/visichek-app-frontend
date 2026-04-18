@@ -26,7 +26,7 @@ export function useBranches(filters?: Record<string, unknown>) {
       const data = await apiGet<Branch[]>('/branches', filters);
       return data;
     },
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -41,7 +41,7 @@ export function useBranch(branchId: string) {
       return data;
     },
     enabled: !!branchId,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

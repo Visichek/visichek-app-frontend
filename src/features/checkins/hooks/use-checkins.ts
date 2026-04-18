@@ -40,6 +40,7 @@ export function useTenantCheckins(
       apiGet<CheckinOut[]>(checkinListPath(tenantId!), params),
     enabled: !!tenantId,
     refetchInterval: isPending ? 5000 : false,
+    refetchIntervalInBackground: false,
     staleTime: isPending ? 2000 : 30_000,
   });
 }

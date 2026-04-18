@@ -1,63 +1,34 @@
-"use client";
+import { getServerTenantSession } from "@/lib/auth/server-session";
+import { serverApiGet } from "@/lib/api/server-client";
+import {
+  createServerQueryClient,
+  dehydrateState,
+  ssrPrefetch,
+} from "@/lib/api/server-prefetch";
+import { HydrationBoundary } from "@/components/hydration-boundary";
+import {
+  DashboardPageClient,
+  type DashboardStats,
+} from "./dashboard-page-client";
 
-import { Users, UserCheck, Clock, CalendarDays } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { PageHeader } from "@/components/recipes/page-header";
-import { StatCard } from "@/components/recipes/stat-card";
-import { QuickActions } from "@/components/tenant/quick-actions";
-import { PageSkeleton } from "@/components/feedback/page-skeleton";
-import { ErrorState } from "@/components/feedback/error-state";
-import { apiGet } from "@/lib/api/request";
+export const dynamic = "force-dynamic";
 
-interface DashboardStats {
-  checked_in_today: number;
-  active_now: number;
-  peak_hour: string;
-  appointments_today: number;
-}
+export default async function TenantDashboardPage() {
+  const session = await getServerTenantSession();
+  const qc = createServerQueryClient();
 
-export default function TenantDashboardPage() {
-  const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["tenant", "dashboard", "stats"],
-    queryFn: () => apiGet<DashboardStats>("/dashboard/stats"),
-  });
-
-  if (isLoading) return <PageSkeleton />;
-  if (isError) return <ErrorState error={error} onRetry={refetch} />;
+  if (session) {
+    await ssrPrefetch(qc, ["tenant", "dashboard", "stats"], () =>
+      serverApiGet<DashboardStats>("/dashboard/stats", {
+        accessToken: session.accessToken,
+        cookieHeader: session.cookieHeader,
+      })
+    );
+  }
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        title="Dashboard"
-        description="Today's visitor activity at a glance"
-      />
-
-      {/* ── Quick Actions ─────────────────────────────────── */}
-      <QuickActions />
-
-      {/* ── Stats Grid ────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Checked In Today"
-          value={data?.checked_in_today ?? 0}
-          icon={<Users className="h-4 w-4" />}
-        />
-        <StatCard
-          title="Active Now"
-          value={data?.active_now ?? 0}
-          icon={<UserCheck className="h-4 w-4" />}
-        />
-        <StatCard
-          title="Peak Hour"
-          value={data?.peak_hour ?? "—"}
-          icon={<Clock className="h-4 w-4" />}
-        />
-        <StatCard
-          title="Appointments Today"
-          value={data?.appointments_today ?? 0}
-          icon={<CalendarDays className="h-4 w-4" />}
-        />
-      </div>
-    </div>
+    <HydrationBoundary state={dehydrateState(qc)}>
+      <DashboardPageClient />
+    </HydrationBoundary>
   );
 }

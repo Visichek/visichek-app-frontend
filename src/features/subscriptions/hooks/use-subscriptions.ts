@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPut } from "@/lib/api/request";
 import type { Subscription, SubscribeTenantRequest, ChangePlanRequest, CancelSubscriptionRequest } from "@/types/billing";
 
@@ -19,6 +19,7 @@ export function useSubscriptions(params?: UseSubscriptionsParams) {
   return useQuery<Subscription[]>({
     queryKey: ["subscriptions", params],
     queryFn: () => apiGet<Subscription[]>("/subscriptions", params),
+    placeholderData: keepPreviousData,
   });
 }
 

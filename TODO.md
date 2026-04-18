@@ -1,627 +1,123 @@
-# Premium Interaction Spec For Admin Surfaces
+# SSR Migration — Todo
 
-This file replaces a rough motion request with an explicit product and implementation guide for premium-feeling admin interactions in VisiChek.
+Goal: eliminate the client-side hydration + fetch round-trip that currently delays first paint on every page. Ship HTML with data already resolved, then let React Query take over on the client.
 
-The goal is not "more animation." The goal is to make the interface feel considerate, calm, and well-crafted. Motion should reassure the user that the product is alive and attentive. It should never feel ornamental, noisy, or sales-driven.
+**Do NOT attempt this as one big-bang PR.** Phases 1–3 are the whole commitment; phases 4+ are optional based on measured wins.
 
-## Product Intent
+---
 
-The admin experience should communicate:
+## ⚠️ Blocker discovered during Phase 1
 
-- this product is precise
-- this product respects the user's focus
-- this product acknowledges every action
-- this product cares about the quality of the experience, not only the transaction
+The httpOnly auth cookies are scoped to the API origin (`api.visichek.app`), not the frontend domain. That means the Next.js server **cannot read** the refresh-token cookie via `cookies()` from `next/headers`, so `POST /auth/refresh` on the server has no token to send.
 
-That means:
+Until one of these changes lands, no authenticated page can be SSR-prefetched:
 
-- no ambient decorative motion
-- no repeated bouncing or pulsing loops
-- no flashy transitions across dense data views
-- no animation that delays comprehension
+1. Introduce a BFF session cookie on the frontend domain that the server can exchange for an API access token.
+2. Proxy API calls through Next.js route handlers that keep a session server-side.
+3. Host frontend and API under a shared parent domain so one cookie is visible to both.
 
-For application admin, motion intensity stays low. "Premium" here means refinement, not spectacle.
+Phase 1 infra is still built and useful (`server-session.ts` will start working automatically once the blocker is resolved — see its inline TODO). Phase 2+ is paused because building it now with a broken auth path would add complexity for zero perf win, which is exactly what findings.md warned against.
 
-## Core Motion Philosophy
+---
 
-Follow the shared rules already established in `frontend-docs/design-docs/shared/design-rules.md` and `frontend-docs/design-docs/application-admin/design-system.md`.
+## Phase 0 — Baseline (do this first or the rest is guesswork)
 
-Interpret them this way:
+- [ ] **Record a perf baseline** on 3 representative pages: `/app/dashboard`, `/app/billing`, `/app/visitors`. For each, capture in Chrome DevTools Performance panel (Fast 3G throttle, 4× CPU slowdown):
+  - Time to First Contentful Paint (FCP)
+  - Time to Largest Contentful Paint (LCP)
+  - Time from navigation start → first data-dependent element visible
+  - Save screenshots / trace files in a gist or `perf-baseline/` (untracked)
+- [ ] **Decide the success bar** before starting work: e.g., "LCP on /app/billing drops by ≥400ms". If the pilot doesn't hit it, don't expand.
+- _(Skipped in this pass — requires running the app in a browser.)_
 
-- motion is used for acknowledgement, orientation, and polish
-- motion should cluster around state changes, not idle states
-- the strongest animation on the page should happen rarely
-- dense tables remain quiet
-- micro-interactions should reward attention without competing for it
+---
 
-## Motion Budget
+## Phase 1 — Server-side infrastructure
 
-Use these timings as defaults unless a component has a strong reason not to:
+These pieces are needed before any page can be converted. Build them once, reuse everywhere.
 
-- hover and focus feedback: `140-180ms`
-- icon state swaps: `160-220ms`
-- dropdown, popover, and sheet entrances: `180-240ms`
-- theme transition reveal: `420-560ms`
-- notification arrival emphasis: `360-520ms` total, then stop completely
+- [x] **1.1 Server-only API client** at `src/lib/api/server-client.ts` — built with `fetch`, forwards cookies, unwraps envelope, throws `ApiError` for non-success.
 
-Use these easing patterns:
+- [x] **1.2 Server auth helper** at `src/lib/auth/server-session.ts` — built, but returns `null` today because of the cookie-domain blocker above. Inline TODO flags where to fix once the blocker is resolved. Memoised with React's `cache()` so multiple prefetches share one refresh.
 
-- standard UI feedback: `ease-out`
-- premium reveal moments: gentle custom ease or soft spring
-- nothing should feel elastic, rubbery, or playful in a consumer-app way
+- [x] **1.3 Server prefetch helper** at `src/lib/api/server-prefetch.ts` — `createServerQueryClient`, `ssrPrefetch` (never-throw wrapper), `dehydrateState`.
 
-Animate primarily:
+- [x] **1.4 Shared `HydrationBoundary` wrapper** at `src/components/hydration-boundary.tsx` — thin client wrapper over TanStack's.
 
-- `opacity`
-- `transform`
-- very light `filter` or `backdrop` accents only if performance remains stable
+- [ ] **1.5 Smoke test the infra** — _(skipped: requires running the dev server and inspecting DevTools. Once the cookie blocker is resolved, drop a throwaway page under `src/app/(public)/_ssr-test/page.tsx` that prefetches `GET /v1/plans?status=active` and inspect the HTML payload for the dehydrated queryCache.)_
 
-Avoid animating:
+---
 
-- layout-heavy properties
-- shadows with large blur changes on repeated surfaces
-- table row heights for decorative reasons
-- background effects that constantly move
+## Phase 2 — Pilot on `/app/billing` (code prepped; prefetch is no-op until cookie change lands)
 
-## Theme Change: Desired Experience
+Picked because its queries are independent, the page already exists, and the data isn't polling-critical (good fit for SSR). Because the client hooks haven't changed, the page works identically to before while `getServerTenantSession()` returns `null`; the moment the backend sets the refresh cookie on `.visichek.app`, the server prefetch activates with zero further code changes.
 
-There are two approved theme-change modes.
+- [x] **2.1 Split the page into server + client.** `src/app/(tenant)/app/billing/page.tsx` is now a server component that calls `getServerTenantSession()`, runs four parallel prefetches (`/usage/my-usage`, `/invoices/tenant/{id}`, `/subscriptions/tenant/{id}/active`, `/checkout/sessions?limit=50`), dehydrates, and wraps `<BillingPageClient />` in `<HydrationBoundary>`. The client UI moved to `billing-page-client.tsx` (same logic as before, named export instead of default).
 
-### 1. Topbar theme toggle: signature transition
+- [x] **2.2 Query-key alignment confirmed.** Server prefetches use exactly the same keys the client hooks use:
+  - `useMyUsage` → `['usage', 'my-usage']`
+  - `useTenantInvoices(tenantId)` → `['invoices', 'tenant', tenantId]`
+  - `useActiveSubscription(tenantId)` → `['subscriptions', 'tenant', tenantId, 'active']`
+  - `useCheckoutSessions({ limit: 50 })` → `['checkout', 'sessions', 'list', { limit: 50 }]` (matches the default "all" filter in `CheckoutHistoryTable`)
 
-When the user clicks the sun or moon icon in the topbar, the theme change should feel intentional and delightful.
+- [x] **2.3 Auth failure path = graceful no-op.** Chose this over a hard redirect so the page degrades cleanly today (`getServerTenantSession()` returns `null`, prefetch skipped, client hooks run normally). Once the backend change lands and auth succeeds, a session gets returned and prefetches activate. The client interceptor still handles runtime 401s for refresh expiry.
 
-Desired behavior:
+- [ ] **2.4 Re-measure against the Phase 0 baseline.** _(Pending — requires running the app after the backend cookie change is deployed. Target: LCP on `/app/billing` drops by ≥200ms. If not, stop.)_
 
-- the transition originates from the toggle button itself
-- a circular reveal expands from the exact toggle hit area
-- the reveal carries the incoming theme tone, not a random accent color
-- the rest of the UI updates as the circle expands, not before it
-- the effect should feel smooth and premium, not fast and gimmicky
+---
 
-Emotional target:
+## Phase 3 — Expand to high-traffic pages (prepped in parallel with Phase 2)
 
-- "the app noticed my choice and is carefully reshaping itself"
+All three pages split into server + client components with the same graceful-degradation pattern as billing. Each activates the moment `getServerTenantSession()` returns a session.
 
-Not acceptable:
+- [x] **3.1 `/app/dashboard`** — server prefetches `['tenant','dashboard','stats']` via `GET /dashboard/stats`. Client moved to `dashboard-page-client.tsx`.
+- [x] **3.2 `/app/visitors`** — server prefetches `['checkins','list',tenantId,{state:'pending_approval'}]` via `GET /tenants/{tenantId}/checkins?state=pending_approval`. Feeds both the active-tab query and the pending-count badge query (same key). Client-side 5s polling continues after hydration. Client moved to `visitors-page-client.tsx`.
+- [x] **3.3 `/app/appointments`** — server prefetches `['appointments','list',undefined]` via `GET /appointments`. Client moved to `appointments-page-client.tsx`.
+- [ ] **3.4 Re-measure** after each page. _(Pending — requires the backend cookie change + a running browser. Target: LCP drops ≥200ms per page. If any page shows negligible improvement, revert that one rather than carrying dead complexity.)_
 
-- instant hard swap with no transition
-- dramatic flash or strobe-like inversion
-- exaggerated zoom or long theatrical reveal
-- a reveal so slow that the app feels blocked
+---
 
-### 2. Settings page theme change: quiet fade
+## Phase 4 — Convert the tenant layout to a server component (done)
 
-If the user changes theme from settings, use a much calmer transition.
+- [x] **4.1** Interactive shell extracted to `src/app/(tenant)/app/tenant-shell.tsx` (`"use client"`) — keeps mobile-nav state, command launcher, sidebar collapse, branding bootstrap, theme sync, role-filtered nav items, Cmd+K listener.
+- [x] **4.2** `src/app/(tenant)/app/layout.tsx` is now a server component that just renders `<TenantShell>{children}</TenantShell>`.
+- [ ] **4.3** Fetch branding on the server in the layout — _(deferred: the tenant-scoped branding endpoint requires auth, so it's blocked on the same cookie change that unblocks page-level SSR. `useTenantBranding()` still runs on the client for now.)_
 
-Desired behavior:
+- [ ] **4.1** The current `src/app/(tenant)/app/layout.tsx:1` is `"use client"` because of `useTenantBranding()`, `useThemeSync()`, and the mobile-nav / command-launcher state.
+- [ ] **4.2** Extract the interactive shell (sidebar state, command launcher, mobile sheet, theme sync, branding bootstrap) into a client component `TenantShell` that wraps `{children}`.
+- [ ] **4.3** Convert `layout.tsx` itself to a server component that renders `<TenantShell>{children}</TenantShell>`. This lets child pages remain server components without being forced into a client boundary by the layout.
+- [ ] **4.4** Fetch branding on the server in the layout (`GET /v1/branding/tenant/{tenantId}`) and hydrate it into the Redux store via an initializer, instead of fetching in a client `useEffect`. Saves one round-trip per session.
 
-- short cross-fade between theme states
-- no expanding circle
-- no flourish competing with the settings task
-- state should feel confirmed, but subdued
+---
 
-Emotional target:
+## Phase 5 — Admin shell (done)
 
-- "setting saved and applied cleanly"
+- [x] **5.1** Interactive shell extracted to `src/app/(platform-admin)/admin/admin-shell.tsx`; `admin/layout.tsx` is now a server component.
+- [x] **5.2** `getServerAdminSession()` helper added to `src/lib/auth/server-session.ts` — calls `/admins/profile` on top of the base session.
+- [x] **5.3** Data-driven admin pages split into server + client with the same graceful-degradation pattern:
+  - `/admin/dashboard` — prefetches `['admin','dashboard','stats']` via `GET /admins/dashboard/stats`
+  - `/admin/tenants` — prefetches `['admin','tenants','list',undefined]` via `GET /tenants`
+  - `/admin/plans` — prefetches `['plans',{skip:0,limit:50}]` via `GET /plans?skip=0&limit=50`
+  - `/admin/subscriptions` — prefetches `['subscriptions',undefined]` via `GET /subscriptions`
+  - `/admin/discounts` — prefetches `['discounts']` via `GET /discounts`
+  - `/admin/payments` — prefetches `['invoices','admin']` via `GET /invoices/admin`
+- [ ] **5.4** `/admin/settings` intentionally left as client-only — it uses a manifest-driven tab system with no single primary data fetch, so the server-split pattern doesn't apply cleanly. Skip unless a measured bottleneck appears.
 
-## Theme Change: Explicit Design Decisions
+---
 
-### Visual source
+## Risks to watch for
 
-The reveal must originate from the topbar theme toggle button in `src/components/theme/theme-toggle.tsx`, not from screen center.
+- **Cookie forwarding gotcha**: Next.js' `cookies()` returns the incoming request cookies. Make sure your server client passes them as a `Cookie` header on outbound calls — this is easy to forget and silently produces an unauthenticated request that the backend rejects with 401.
+- **Query key drift**: Any rename of queryKeys on the client-side hooks AFTER server prefetch is wired will silently cause duplicate fetches. Add a simple test (or a runtime console warning in dev) that fails if a page's dehydrated queries are re-fetched on mount.
+- **Dynamic rendering default**: Using `cookies()` in a server component makes the route dynamic (no static cache). That's what we want here — just don't accidentally opt into `force-static`.
+- **Bundle size**: Server components reduce client JS. Keep an eye on the `.next/analyze` output if you run `@next/bundle-analyzer` to confirm the refactor is actually trimming client bundles.
+- **Error boundaries**: A failed server prefetch shouldn't crash the whole page. Wrap each prefetch in try/catch and let the client hook retry — that way the server path is a "nice-to-have" optimization, not a new failure mode.
 
-### Reveal shape
+---
 
-Use a perfect circle, not a blob, wave, or radial burst.
+## Deliverable checklist
 
-Reason:
-
-- a circle feels precise
-- it maps cleanly to the icon button
-- it reads as controlled rather than decorative
-
-### Color treatment
-
-The reveal color should be derived from the incoming theme background.
-
-Use:
-
-- light mode transition: reveal with the incoming light surface/background tone
-- dark mode transition: reveal with the incoming dark surface/background tone
-
-Do not use:
-
-- brand gradients
-- saturated accent colors
-- rainbow interpolation
-
-This is a theme transition, not a marketing animation.
-
-### Content response during reveal
-
-As the reveal expands:
-
-- background surfaces should appear to transform with it
-- icons and text may cross-fade slightly to avoid a harsh palette snap
-- the icon inside the toggle should rotate or morph subtly while swapping
-
-Do not:
-
-- animate every child independently
-- stagger table cells
-- create a chain reaction through cards and widgets
-
-### Timing
-
-Target total duration: `420-560ms`
-
-Suggested pacing:
-
-- first `80-120ms`: toggle press acknowledgement
-- next `320-420ms`: circular reveal expansion and theme variable swap
-- final `40-80ms`: small settle on icon/state
-
-### Icon behavior
-
-The sun/moon icon should not just disappear and pop in.
-
-Preferred behavior:
-
-- slight rotate plus fade between states
-- tiny scale shift, no more than about `0.92 -> 1.0` or `1.0 -> 0.92 -> 1.0`
-
-The icon animation should support the reveal, not become the main event.
-
-## Theme Change: Engineering Notes
-
-### Component ownership
-
-Current relevant surfaces:
-
-- topbar trigger: `src/components/theme/theme-toggle.tsx`
-- topbar container: `src/components/navigation/topbar.tsx`
-- settings theme picker: `src/app/(platform-admin)/admin/settings/page.tsx`
-- oosettings theme picker: `src/app/(tenant)/app/settings/page.tsx`
-
-### Recommended implementation direction
-
-Use `motion/react` only. Do not add another animation system for this.
-
-Recommended structure:
-
-1. capture the toggle button bounding rect on click
-2. render a fixed overlay reveal layer above the app shell
-3. compute the radius needed to cover the viewport from the click origin
-4. begin the reveal animation
-5. switch theme during the reveal, not long before it
-6. remove the overlay as soon as the transition completes
-
-The overlay should be:
-
-- fixed
-- pointer-events none
-- isolated from layout
-- short-lived
-
-### Theme swap timing rule
-
-If the theme variables swap too early, the reveal looks fake.
-If they swap too late, the UI flashes.
-
-The implementation should switch theme around the early-middle of the reveal, when the expanding circle has already established visual ownership of the transition.
-
-### Fallback behavior
-
-If geometry capture fails for any reason:
-
-- fall back to a simple opacity transition
-- do not block theme switching
-
-### Hydration and first paint
-
-Do not animate:
-
-- initial theme hydration
-- server/client reconciliation
-- automatic sync from stored user preference on app boot
-
-The signature reveal is only for direct user-triggered theme toggles from the topbar.
-
-## Notification Bell: Desired Experience
-
-The notifications button in `src/components/navigation/notification-dropdown.tsx` should acknowledge new unread notifications in a tasteful way.
-
-The request is for the button to "jump" when there is a new notification. That should be interpreted carefully.
-
-Desired behavior:
-
-- when unread count increases, the bell performs one brief upward pop or soft nudge
-- the badge appears or updates with crisp emphasis
-- the effect happens once per newly received notification event batch
-- the interaction stops completely after the acknowledgment
-
-Emotional target:
-
-- "something new arrived"
-- not "click me now"
-
-## Notification Bell: Explicit Design Decisions
-
-### Bell motion style
-
-Use a restrained vertical pop with a tiny rotational accent if needed.
-
-Good:
-
-- 1 quick upward movement
-- 1 controlled return
-- optional tiny ring-like tilt
-
-Bad:
-
-- infinite bounce
-- cartoon wobble
-- attention-seeking shake
-- repeated pulsing while unread count remains non-zero
-
-### Badge behavior
-
-The unread badge should feel more precise than loud.
-
-Use:
-
-- a quick scale-in when the badge first appears
-- a subtle number update transition when count changes
-
-Avoid:
-
-- explosive badge growth
-- repeated pulse loops
-- harsh color flash
-
-### Trigger condition
-
-Animate only when unread count increases compared to the last known count.
-
-Do not animate when:
-
-- the component first mounts with existing unread notifications
-- polling returns the same unread count
-- unread count decreases because the user reads items
-- the dropdown is merely opened
-
-This avoids the cheap feeling of recycled attention hooks.
-
-### Timing
-
-Target total duration: `360-520ms`
-
-Suggested sequence:
-
-- bell pop: `180-240ms`
-- badge settle: `140-220ms`
-
-This should read as one composed event, not two disconnected animations.
-
-## Notification Bell: Engineering Notes
-
-Recommended state logic:
-
-- keep previous unread count in a ref
-- compare previous and current count after each successful unread-count fetch
-- animate only if `current > previous` and the previous value is not the initial unknown state
-
-Animation implementation guidance:
-
-- prefer a one-shot motion value or keyed animation state
-- reset cleanly after completion
-- keep the button target size and layout stable
-
-The button must remain fully usable during the animation.
-
-## Premium Micro-Interaction Rules Across The Admin App
-
-These rules should shape future polish work, not just the two requested interactions.
-
-### Buttons
-
-- primary buttons should acknowledge press immediately
-- loading buttons must preserve width
-- hover changes should feel crisp, never syrupy
-- destructive buttons should gain clarity, not drama
-
-### Menus and dropdowns
-
-- open with quick fade + slight translate
-- no overshoot
-- no long scale animations
-- row action menus should feel instant and controlled
-
-### Tables
-
-- no decorative row hover dancing
-- row hover may use a light surface tint only
-- pending row actions should use inline status, not page-wide spinners
-- refreshed data can use a very soft opacity refresh if necessary
-
-### Sheets and dialogs
-
-- short entrance, strong readability
-- background dimming should support focus, not create spectacle
-- close interactions should feel faster than open interactions
-
-### Inputs and filters
-
-- search should acknowledge pending fetch without clearing existing results
-- focus rings must feel deliberate and visible
-- filter chips and badges may animate in lightly, but never bounce
-
-## Accessibility And Trust Rules
-
-Premium means accessible and respectful.
-
-Mandatory:
-
-- support `prefers-reduced-motion`
-- preserve keyboard usability during all animated states
-- keep icon-only controls labeled
-- never communicate state change through motion alone
-- keep all touch targets at or above `44x44`
-
-Reduced motion behavior:
-
-- topbar theme toggle uses quick fade instead of circular reveal
-- settings theme change stays a quick fade
-- notification bell uses opacity or tiny scale emphasis only, or no movement if needed
-
-## Performance Rules
-
-These interactions must feel expensive in craft, not expensive in frame time.
-
-Required:
-
-- no frame drops on common admin hardware
-- no heavy paints on every render
-- no persistent animation loops
-- no global reflow-heavy choreography
-
-Prefer:
-
-- fixed overlay for the theme reveal
-- transforms over layout changes
-- small isolated motion surfaces
-
-## Acceptance Criteria
-
-The work is successful when all of the following are true:
-
-- clicking the topbar theme toggle produces a circular reveal from the toggle origin
-- the reveal feels smooth, not flashy
-- changing theme from settings uses only a short fade
-- unread notification increases cause one tasteful bell acknowledgment
-- the bell does not bounce repeatedly while unread notifications remain
-- reduced-motion users get simpler equivalents
-- no core admin workflow feels slower because of the motion
-- the result feels premium, calm, and user-respectful
-
-## Anti-Goals
-
-Do not turn the admin app into:
-
-- a showcase animation site
-- a playful consumer social app
-- a dashboard with ambient motion noise
-- a product that begs for attention
-
-The standard is quiet delight.
-The user should feel cared for, not manipulated.
-
-
-
-
-# Discount Creation
-
-## How discounts are created
-
-Discounts are created by application admins through:
-
-- `POST /v1/discounts`
-
-This endpoint accepts a `DiscountCreate` payload and creates a discount code that can later be applied to subscriptions.
-
-## Who can create discounts
-
-Only application admins can create and manage discounts. Tenant users cannot create discounts.
-
-## Minimum fields required
-
-At minimum, a discount needs:
-
-- `code`
-- `name`
-- `value`
-
-Example:
-
-```json
-{
-  "code": "LAUNCH50",
-  "name": "Launch Discount",
-  "value": 50
-}
-```
-
-## What can be configured during creation
-
-When creating a discount, the admin can also define:
-
-- `description`
-- `discount_type` as `percentage` or `fixed`
-- `scope` as `global`, `tenant`, or `plan`
-- `status`
-- `target_tenant_id`
-- `target_plan_ids`
-- `valid_from`
-- `valid_until`
-- `max_redemptions`
-- `stackable`
-- `min_subscription_value`
-
-## Discount scopes
-
-- `global` means the code can be used across tenants
-- `tenant` means the code is only for one tenant and requires `target_tenant_id`
-- `plan` means the code is limited to specific plans and uses `target_plan_ids`
-
-## Important creation rules
-
-- Discount `code` must be unique
-- Discount `code` must contain only letters, numbers, underscores, or hyphens
-- If `discount_type` is `percentage`, `value` must be between `0` and `100`
-- If `discount_type` is `fixed`, `value` cannot be negative
-- If `scope` is `tenant`, `target_tenant_id` is required
-- If no status is provided, the discount is created as `active`
-- `current_redemptions` starts at `0`
-
-## How discounts are validated later
-
-Before a discount is applied, the system checks:
-
-- the code exists
-- the discount is `active`
-- the current time is within `valid_from` and `valid_until`
-- the redemption limit has not been reached
-- the tenant matches if the discount is tenant-scoped
-- the plan matches if the discount is plan-scoped
-- the subscription value meets `min_subscription_value` if one is set
-
-Validation is done through:
-
-- `POST /v1/discounts/validate`
-
-## What happens after creation
-
-Once created, the discount can be used during subscription creation if it passes validation.
-
-After that, an application admin can:
-
-- update it with `PUT /v1/discounts/{discount_id}`
-- disable it with `POST /v1/discounts/{discount_id}/disable`
-- delete it with `DELETE /v1/discounts/{discount_id}`
-
-Deletion is only allowed when the discount is not active and has never been redeemed.
-
-## Short summary
-
-Discounts are created by application admins through `POST /v1/discounts`. A discount can be global, tenant-specific, or plan-specific, and it can be percentage-based or fixed-value. The system enforces uniqueness, scope rules, validity windows, and redemption limits before the discount is applied.
-
-
-# Plan Creation
-
-## How plans are created
-
-Plans are created by application admins through:
-
-- `POST /v1/plans`
-
-This endpoint accepts a `PlanCreate` payload and creates a new subscription plan in the `plans` collection.
-
-## Who can create plans
-
-Only application admins can create and manage plans. Tenant users cannot create plans.
-
-## Minimum fields required
-
-At minimum, a plan needs:
-
-- `name`
-- `display_name`
-
-Example:
-
-```json
-{
-  "name": "professional-plan",
-  "display_name": "Professional Plan"
-}
-```
-
-## What can be configured during creation
-
-When creating a plan, the admin can also define:
-
-- `tier` such as `free`, `starter`, `professional`, `enterprise`, or `custom`
-- `description`
-- `status`
-- `base_price_monthly`
-- `base_price_yearly`
-- `currency`
-- `feature_rules`
-- `crud_limits`
-- `retrieval_quotas`
-- `storage_limits`
-- `tenant_caps`
-- `priority_support`
-- `sla_response_hours`
-- `custom_branding`
-- `api_access`
-- `is_public`
-- `sort_order`
-
-These fields control what subscribed tenants are allowed to access and how much they can use.
-
-## Important creation rules
-
-- Plan `name` must be unique
-- Plan `name` must be slug-like and only contain letters, numbers, hyphens, or underscores
-- `base_price_monthly` and `base_price_yearly` cannot be negative
-- If no status is provided, the plan is created as `draft`
-
-## What happens after creation
-
-Once created, the plan is stored and returned in the response. The system also records an audit event for plan creation.
-
-After that, an application admin can:
-
-- activate the plan with `POST /v1/plans/{plan_id}/activate`
-- update it with `PUT /v1/plans/{plan_id}`
-- archive it with `POST /v1/plans/{plan_id}/archive`
-- clone it with `POST /v1/plans/{source_plan_id}/clone`
-
-## Short summary
-
-Plans are created by application admins through `POST /v1/plans`. A plan can be created with just `name` and `display_name`, but it can also include pricing, feature access, quotas, storage limits, and tenant caps. New plans default to `draft` unless another status is provided.
-
-
-
-# Tenant And System User Creation
-
-## How tenants are created
-
-There are two supported flows:
-
-1. `POST /v1/tenants/`
-   This creates only the tenant record. It is meant for application admins.
-
-2. `POST /v1/admins/tenants/bootstrap`
-   This creates the tenant and the first tenant user together. The first tenant user is always a `super_admin`. If creating the `super_admin` fails, the tenant creation is rolled back so the system does not leave an orphaned tenant behind.
-
-## How system users are created for tenants
-
-System users belong to a specific tenant through `tenant_id`.
-
-After a tenant has been bootstrapped and has its first `super_admin`, that `super_admin` can create other tenant users through `POST /v1/system-users/signup`.
-
-The created user is attached to the same tenant, and the system assigns permissions automatically based on the selected role, such as:
-
-- `super_admin`
-- `dept_admin`
-- `receptionist`
-- `auditor`
-- `security_officer`
-- `dpo`
-
-## Short summary
-
-Application admins create tenants. The bootstrap endpoint is the main setup flow because it creates both the tenant and its first `super_admin`. After that, the tenant's `super_admin` creates the rest of the tenant's system users.
+- [ ] Phase 0 baseline numbers recorded somewhere you can find again.
+- [ ] Phases 1–3 merged as **separate** PRs (one for infra, one for billing pilot, one per expanded page). Do not bundle.
+- [ ] Each PR includes a before/after LCP screenshot or number in the description.
+- [ ] If you abandon the migration partway, remove the server-only files from Phase 1 so they don't rot.

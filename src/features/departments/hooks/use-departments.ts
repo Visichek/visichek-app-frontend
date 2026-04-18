@@ -27,10 +27,9 @@ export function useDepartments(filters?: Record<string, unknown>) {
         '/departments',
         filters
       );
-      // Backend returns `id` (capital). Normalize to `id`.
-      return data.map((d) => ({ ...d, id: d.id ?? d.id ?? '' })) as Department[];
+      return data.map((d) => ({ ...d, id: d.id ?? '' })) as Department[];
     },
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -47,7 +46,7 @@ export function useDepartment(departmentId: string) {
       return data;
     },
     enabled: !!departmentId,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

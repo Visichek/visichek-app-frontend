@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/api/request";
 import type {
   CheckoutSession,
@@ -75,6 +75,7 @@ export function useCheckoutSessions(params?: UseCheckoutSessionsParams) {
     queryKey: ["checkout", "sessions", "list", params],
     queryFn: () =>
       apiGet<CheckoutSession[]>("/checkout/sessions", params),
+    placeholderData: keepPreviousData,
   });
 }
 

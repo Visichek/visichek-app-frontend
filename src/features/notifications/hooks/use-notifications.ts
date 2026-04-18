@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiGet, apiPatch, apiPost, apiDelete, apiPut } from "@/lib/api/request";
 import type {
   NotificationOut,
@@ -36,6 +36,7 @@ export function useNotifications(params?: {
         limit: params?.limit,
         read: params?.read,
       }),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -45,7 +46,8 @@ export function useUnreadCount() {
   return useQuery({
     queryKey: notificationKeys.unreadCount,
     queryFn: () => apiGet<UnreadCountResponse>("/notifications/unread-count"),
-    refetchInterval: 30_000, // Poll every 30 seconds
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
     staleTime: 15_000,
   });
 }

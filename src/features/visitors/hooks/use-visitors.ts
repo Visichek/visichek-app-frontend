@@ -30,7 +30,7 @@ function normalizeSession(raw: unknown): VisitSession {
   const r = (raw ?? {}) as Record<string, unknown>;
   return {
     ...(r as object),
-    id: (r.id ?? r.id ?? r._id ?? '') as string,
+    id: (r.id ?? r._id ?? '') as string,
     checkedInAt: (r.checkedInAt ?? r.checkInTime ?? r.dateCreated) as number,
     checkedOutAt: (r.checkedOutAt ?? r.checkOutTime) as number | undefined,
   } as VisitSession;
@@ -71,6 +71,7 @@ export function useActiveVisitors(departmentId?: string) {
       return (data ?? []).map(normalizeSession);
     },
     refetchInterval: 5000,
+    refetchIntervalInBackground: false,
     staleTime: 2000,
   });
 }
