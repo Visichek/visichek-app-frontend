@@ -212,6 +212,61 @@ export interface Invoice {
   lastUpdated?: number;
 }
 
+// ── Checkout Sessions ─────────────────────────────────────────────────
+export type CheckoutSessionStatus =
+  | "pending"
+  | "succeeded"
+  | "failed"
+  | "expired"
+  | "cancelled";
+
+export type CheckoutProvider = "stripe" | "flutterwave" | "app";
+
+export interface CheckoutBreakdown {
+  basePrice: number;
+  billingCycle: BillingCycle;
+  currency: string;
+  appliedDiscountIds: string[];
+  totalPercentageOff: number;
+  totalFixedOff: number;
+  finalPrice: number;
+  amountMinor: number;
+}
+
+export interface CheckoutSession {
+  id: string;
+  tenantId: string;
+  planId: string;
+  billingCycle: BillingCycle;
+  currency: string;
+  amountMinor: number;
+  provider: CheckoutProvider;
+  status: CheckoutSessionStatus;
+  checkoutUrl: string | null;
+  providerReference: string | null;
+  providerPayload: Record<string, unknown> | null;
+  breakdown: CheckoutBreakdown;
+  appliedDiscountIds: string[];
+  createdByUserId: string;
+  expiresAt: number;
+  completedAt: number | null;
+  subscriptionId: string | null;
+  failureReason: string | null;
+  metadata: Record<string, unknown> | null;
+  trialDays: number;
+  dateCreated: number;
+  lastUpdated: number;
+}
+
+export interface CreateCheckoutSessionRequest {
+  planId: string;
+  billingCycle: BillingCycle;
+  discountIds?: string[];
+  preferredProvider?: CheckoutProvider;
+  trialDays?: number;
+  metadata?: Record<string, unknown>;
+}
+
 // ── Payments ──────────────────────────────────────────────────────────
 export interface PaymentIntentRequest {
   amountMinor: number;
