@@ -63,6 +63,10 @@ export function useNotifications(params?: {
       return normalizeNotificationList(raw);
     },
     placeholderData: keepPreviousData,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    staleTime: 15_000,
   });
 }
 

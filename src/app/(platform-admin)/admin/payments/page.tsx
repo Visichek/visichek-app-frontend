@@ -7,12 +7,7 @@ import {
 } from "@/lib/api/server-prefetch";
 import { HydrationBoundary } from "@/components/hydration-boundary";
 import { PaymentsPageClient } from "./payments-page-client";
-import type { Invoice } from "@/types/billing";
-
-interface InvoicesResponse {
-  data: Invoice[];
-  meta?: { total?: number; skip?: number; limit?: number };
-}
+import type { InvoiceWithSummary } from "@/features/invoices/hooks/use-invoices";
 
 export const dynamic = "force-dynamic";
 
@@ -21,13 +16,19 @@ export default async function PaymentsPage() {
   const qc = createServerQueryClient();
 
   if (session) {
-    // Key matches `useAllInvoices()` — see
-    // src/features/invoices/hooks/use-invoices.ts.
-    await ssrPrefetch(qc, ["invoices", "admin"], () =>
-      serverApiGet<InvoicesResponse>("/invoices/admin", {
-        accessToken: session.accessToken,
-        cookieHeader: session.cookieHeader,
-      })
+    // Prefetch the unfiltered first page — matches `useAllInvoices()`'s
+    // default query key in src/features/invoices/hooks/use-invoices.ts.
+    // The server envelope parser already unwraps `.data`, so the cached
+    // payload is the flat InvoiceWithSummary[] the client hook expects.
+    await ssrPrefetch(
+      qc,
+      ["invoices", "admin", { start: 0, stop: 50 }],
+      () =>
+        serverApiGet<InvoiceWithSummary[]>("/invoices/admin", {
+          accessToken: session.accessToken,
+          cookieHeader: session.cookieHeader,
+          params: { start: 0, stop: 50 },
+        })
     );
   }
 
