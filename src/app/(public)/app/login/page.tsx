@@ -19,6 +19,7 @@ import {
   KeyRound,
 } from "lucide-react";
 import { useAuth, type LoginResult } from "@/hooks/use-auth";
+import { useRedirectIfAuthenticated } from "@/hooks/use-redirect-if-authenticated";
 import { ApiError } from "@/types/api";
 import { OtpInput } from "@/components/ui/otp-input";
 
@@ -31,6 +32,7 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function AppLoginPage() {
+  const { isChecking } = useRedirectIfAuthenticated();
   const { loginSystemUser, verifyOtp } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -114,6 +116,14 @@ export default function AppLoginPage() {
     setOtpChallengeId(null);
     setOtpCode("");
     setError(null);
+  }
+
+  if (isChecking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
+      </div>
+    );
   }
 
   return (
