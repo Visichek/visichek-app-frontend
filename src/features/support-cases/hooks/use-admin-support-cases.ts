@@ -17,6 +17,7 @@ import type {
   AsyncJobAck,
   AdminSupportCaseListParams,
 } from "@/types/support-case";
+import type { AdminSearchResult } from "@/types/admin";
 
 export const adminSupportCaseKeys = {
   all: ["admin-support-cases"] as const,
@@ -25,6 +26,10 @@ export const adminSupportCaseKeys = {
   sla: ["admin-support-cases", "approaching-sla"] as const,
   detail: (id: string) => ["admin-support-cases", "detail", id] as const,
   messages: (id: string) => ["admin-support-cases", "messages", id] as const,
+};
+
+export const adminSearchKeys = {
+  search: (query: string) => ["admins", "search", query] as const,
 };
 
 // ── Queries ───────────────────────────────────────────────────────────
@@ -92,6 +97,27 @@ export function useAdminReplySupportCase(caseId: string) {
       queryClient.invalidateQueries({ queryKey: adminSupportCaseKeys.messages(caseId) });
       queryClient.invalidateQueries({ queryKey: adminSupportCaseKeys.all });
     },
+  });
+}
+
+/**
+ * Search application admins by id, email, or name.
+ * Only enabled when the trimmed query has at least one character.
+ * Results are cached briefly to keep keystroke-driven refetches cheap.
+ */
+export function useSearchAdmins(query: string) {
+  const trimmed = query.trim();
+  return useQuery<AdminSearchResult[]>({
+    queryKey: adminSearchKeys.search(trimmed),
+    queryFn: () =>
+      apiGet<AdminSearchResult[]>("/admins/search", {
+        q: trimmed,
+        start: 0,
+        stop: 20,
+      }),
+    enabled: trimmed.length >= 1,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
   });
 }
 

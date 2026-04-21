@@ -1,5 +1,19 @@
 import type { Tenant, TenantBootstrapRequest } from './tenant';
-import type { PlanTier, SubscriptionStatus, BillingCycle } from './enums';
+import type { PlanTier, SubscriptionStatus, BillingCycle, AccountStatus } from './enums';
+
+/**
+ * Lightweight admin summary returned by GET /admins/search.
+ * Has only the fields needed to identify an admin — no tokens or permissions.
+ */
+export interface AdminSearchResult {
+  id: string;
+  fullName: string;
+  email: string;
+  accountStatus: AccountStatus;
+  mfaEnabled: boolean;
+  dateCreated?: number;
+  lastUpdated?: number;
+}
 
 /**
  * Admin Dashboard Stats
