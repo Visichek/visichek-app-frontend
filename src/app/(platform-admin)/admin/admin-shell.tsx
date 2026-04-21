@@ -12,6 +12,7 @@ import {
   Wallet,
   LifeBuoy,
   AlarmClock,
+  Activity,
   Settings,
 } from "lucide-react";
 import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
@@ -78,6 +79,12 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     href: "/admin/support-cases/sla-watch",
     icon: AlarmClock,
     description: "Cases whose SLA deadline falls in the next 24 hours; work these first to stay in compliance",
+  },
+  {
+    label: "Recent Activity",
+    href: "/admin/jobs",
+    icon: Activity,
+    description: "Review the background writes you've triggered — pending, succeeded, or failed — and open any failure to debug it",
   },
   {
     label: "Settings",

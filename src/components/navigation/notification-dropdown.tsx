@@ -33,6 +33,7 @@ import {
   useMarkAllAsRead,
   useDeleteNotification,
 } from "@/features/notifications/hooks";
+import { useSession } from "@/hooks/use-session";
 import type { NotificationType } from "@/types/notification";
 
 const TYPE_CONFIG: Record<
@@ -119,6 +120,7 @@ function UnreadBadge({ count }: { count: number }) {
 
 export function NotificationDropdown() {
   const { navigate } = useNavigationLoading();
+  const { isAdmin } = useSession();
 
   const { data: unreadData } = useUnreadCount();
   const {
@@ -146,7 +148,13 @@ export function NotificationDropdown() {
       markAsRead.mutate(id);
     }
     if (link) {
-      navigate(link);
+      // Notifications are emitted by the backend with tenant-shell paths.
+      // When a platform admin opens one, swap /app/* for the admin shell so
+      // the sidebar and role guards match up.
+      const target = isAdmin && link.startsWith("/app/")
+        ? link.replace(/^\/app\//, "/admin/")
+        : link;
+      navigate(target);
     }
   };
 

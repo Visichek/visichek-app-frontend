@@ -67,7 +67,7 @@ export default function SupportCasesPage() {
 
   const { data, isLoading, isError, refetch } = useSupportCases(params);
 
-  const cases = data?.data ?? [];
+  const cases = Array.isArray(data) ? data : [];
 
   // Count open cases against the cap regardless of current filter.
   const openCases = useMemo(

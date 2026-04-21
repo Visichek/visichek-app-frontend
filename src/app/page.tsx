@@ -4,10 +4,12 @@ import {
   ArrowRight,
   Building2,
 } from "lucide-react";
+import { AuthenticatedRedirect } from "@/components/auth/authenticated-redirect";
 
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center relative overflow-hidden font-sans selection:bg-[#00D287]/20">
+      <AuthenticatedRedirect />
       {/* Soft ambient glows — calm, light, not loud */}
       <div
         className="absolute top-[-15%] right-[-10%] w-[55%] h-[55%] bg-[#00D287]/10 rounded-full blur-[140px] pointer-events-none"

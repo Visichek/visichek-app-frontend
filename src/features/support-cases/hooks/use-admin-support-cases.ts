@@ -18,15 +18,6 @@ import type {
   AdminSupportCaseListParams,
 } from "@/types/support-case";
 
-interface PaginatedResponse<T> {
-  data: T[];
-  meta?: {
-    total?: number;
-    start?: number;
-    stop?: number;
-  };
-}
-
 export const adminSupportCaseKeys = {
   all: ["admin-support-cases"] as const,
   list: (params?: AdminSupportCaseListParams) =>
@@ -40,13 +31,10 @@ export const adminSupportCaseKeys = {
 
 /** Admin list across all tenants. */
 export function useAdminSupportCases(params?: AdminSupportCaseListParams) {
-  return useQuery<PaginatedResponse<SupportCase>>({
+  return useQuery<SupportCase[]>({
     queryKey: adminSupportCaseKeys.list(params),
     queryFn: () =>
-      apiGet<PaginatedResponse<SupportCase>>(
-        "/admins/support-cases",
-        params,
-      ),
+      apiGet<SupportCase[]>("/admins/support-cases", params),
     placeholderData: keepPreviousData,
   });
 }
@@ -56,12 +44,10 @@ export function useAdminSupportCases(params?: AdminSupportCaseListParams) {
  * dashboard warning ribbon. Auto-refreshes every minute.
  */
 export function useApproachingSla() {
-  return useQuery<PaginatedResponse<SupportCase>>({
+  return useQuery<SupportCase[]>({
     queryKey: adminSupportCaseKeys.sla,
     queryFn: () =>
-      apiGet<PaginatedResponse<SupportCase>>(
-        "/admins/support-cases/approaching-sla",
-      ),
+      apiGet<SupportCase[]>("/admins/support-cases/approaching-sla"),
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
     staleTime: 30_000,

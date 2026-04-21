@@ -26,7 +26,7 @@ export default function AdminSlaWatchPage() {
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
   const { data, isLoading, isError, refetch } = useApproachingSla();
-  const cases = data?.data ?? [];
+  const cases = Array.isArray(data) ? data : [];
 
   const columns: ColumnDef<SupportCase>[] = [
     {

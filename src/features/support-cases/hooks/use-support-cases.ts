@@ -20,15 +20,6 @@ import type {
   SupportCaseListParams,
 } from "@/types/support-case";
 
-interface PaginatedResponse<T> {
-  data: T[];
-  meta?: {
-    total?: number;
-    start?: number;
-    stop?: number;
-  };
-}
-
 // ── Centralised query keys (keeps invalidation honest) ────────────────
 export const supportCaseKeys = {
   all: ["support-cases"] as const,
@@ -42,10 +33,9 @@ export const supportCaseKeys = {
 
 /** List this tenant's support cases with optional filters. */
 export function useSupportCases(params?: SupportCaseListParams) {
-  return useQuery<PaginatedResponse<SupportCase>>({
+  return useQuery<SupportCase[]>({
     queryKey: supportCaseKeys.list(params),
-    queryFn: () =>
-      apiGet<PaginatedResponse<SupportCase>>("/support-cases", params),
+    queryFn: () => apiGet<SupportCase[]>("/support-cases", params),
     placeholderData: keepPreviousData,
   });
 }
