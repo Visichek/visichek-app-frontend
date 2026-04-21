@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Edit2, Trash2, MoreHorizontal } from "lucide-react";
+import Link from "next/link";
+import { Plus, Edit2, Trash2, MoreHorizontal, Loader2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
@@ -13,43 +14,31 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LoadingButton } from "@/components/feedback/loading-button";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import {
   useDepartments,
   useDeleteDepartment,
 } from "@/features/departments/hooks/use-departments";
-import { DepartmentFormModal } from "@/features/departments/components/department-form-modal";
 import { useCapabilities } from "@/hooks/use-capabilities";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
-import { useActionParam } from "@/hooks/use-action-param";
 import type { Department } from "@/types/tenant";
 
 export default function DepartmentsPage() {
   const { hasCapability } = useCapabilities();
   const canCreate = hasCapability(CAPABILITIES.DEPARTMENT_CREATE);
+  const { loadingHref, handleNavClick } = useNavigationLoading();
 
-  const { data, isLoading, isError, refetch } = useDepartments();
+  const { data, isLoading } = useDepartments();
   const deleteQuery = useDeleteDepartment();
 
-  const [formOpen, setFormOpen] = useState(false);
-  const [selectedDept, setSelectedDept] = useState<Department | undefined>();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deptToDelete, setDeptToDelete] = useState<Department | undefined>();
-
-  // Open create modal when navigated from a "Quick Action" card.
-  useActionParam({
-    create: () => {
-      if (!canCreate) return;
-      setSelectedDept(undefined);
-      setFormOpen(true);
-    },
-  });
-
-  const handleEdit = (dept: Department) => {
-    setSelectedDept(dept);
-    setFormOpen(true);
-  };
 
   const handleDeleteClick = (dept: Department) => {
     setDeptToDelete(dept);
@@ -80,27 +69,12 @@ export default function DepartmentsPage() {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-              <span className="sr-only">Actions</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleEdit(row.original)}>
-              <Edit2 className="mr-2 h-4 w-4" />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handleDeleteClick(row.original)}
-              className="text-destructive"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <RowActions
+          dept={row.original}
+          onDelete={handleDeleteClick}
+          loadingHref={loadingHref}
+          handleNavClick={handleNavClick}
+        />
       ),
       enableHiding: false,
     },
@@ -109,27 +83,12 @@ export default function DepartmentsPage() {
   const mobileCard = (dept: Department) => (
     <div className="rounded-lg border p-4 flex items-center justify-between">
       <span className="font-medium">{dept.name}</span>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-            <MoreHorizontal className="h-4 w-4" />
-            <span className="sr-only">Actions</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => handleEdit(dept)}>
-            <Edit2 className="mr-2 h-4 w-4" />
-            Edit
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => handleDeleteClick(dept)}
-            className="text-destructive"
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <RowActions
+        dept={dept}
+        onDelete={handleDeleteClick}
+        loadingHref={loadingHref}
+        handleNavClick={handleNavClick}
+      />
     </div>
   );
 
@@ -140,16 +99,26 @@ export default function DepartmentsPage() {
         description="Manage your organization's departments"
         actions={
           canCreate ? (
-            <Button
-              className="w-full md:w-auto min-h-[44px]"
-              onClick={() => {
-                setSelectedDept(undefined);
-                setFormOpen(true);
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-              Add Department
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button asChild className="w-full md:w-auto min-h-[44px]">
+                  <Link
+                    href="/app/departments/new"
+                    onClick={() => handleNavClick("/app/departments/new")}
+                  >
+                    {loadingHref === "/app/departments/new" ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                    )}
+                    Add Department
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Open the new-department form to add a department
+              </TooltipContent>
+            </Tooltip>
           ) : undefined
         }
       />
@@ -167,17 +136,6 @@ export default function DepartmentsPage() {
         mobileCard={mobileCard}
       />
 
-      <DepartmentFormModal
-        open={formOpen}
-        onOpenChange={(open) => {
-          setFormOpen(open);
-          if (!open) {
-            setSelectedDept(undefined);
-          }
-        }}
-        department={selectedDept}
-      />
-
       <ConfirmDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
@@ -189,5 +147,60 @@ export default function DepartmentsPage() {
         onConfirm={handleDeleteConfirm}
       />
     </div>
+  );
+}
+
+function RowActions({
+  dept,
+  onDelete,
+  loadingHref,
+  handleNavClick,
+}: {
+  dept: Department;
+  onDelete: (d: Department) => void;
+  loadingHref: string | null;
+  handleNavClick: (href: string) => void;
+}) {
+  const editHref = `/app/departments/${dept.id}/edit`;
+  const isLoadingEdit = loadingHref === editHref;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <MoreHorizontal className="h-4 w-4" />
+              <span className="sr-only">Actions</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left">
+            Open actions for this department
+          </TooltipContent>
+        </Tooltip>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem asChild>
+          <Link
+            href={editHref}
+            onClick={() => handleNavClick(editHref)}
+            className="flex items-center"
+          >
+            {isLoadingEdit ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Edit2 className="mr-2 h-4 w-4" />
+            )}
+            Edit
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => onDelete(dept)}
+          className="text-destructive"
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

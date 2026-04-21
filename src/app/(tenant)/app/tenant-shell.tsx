@@ -14,6 +14,8 @@ import {
   ScrollText,
   Shield,
   CreditCard,
+  LifeBuoy,
+  Activity,
   Settings,
 } from "lucide-react";
 import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
@@ -94,6 +96,18 @@ const ALL_TENANT_NAV_ITEMS: NavItem[] = [
     href: "/app/billing",
     icon: CreditCard,
     description: "View your subscription plan, invoices, and manage payment details",
+  },
+  {
+    label: "Support Cases",
+    href: "/app/support-cases",
+    icon: LifeBuoy,
+    description: "Open support tickets, reply to the VisiChek team, and track resolution of issues",
+  },
+  {
+    label: "Recent Activity",
+    href: "/app/jobs",
+    icon: Activity,
+    description: "Review the background writes you've triggered — pending, succeeded, or failed — and open any failure to debug it",
   },
   {
     label: "Settings",

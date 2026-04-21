@@ -1,8 +1,15 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
-import { Plus, MoreHorizontal } from "lucide-react";
+import {
+  Plus,
+  MoreHorizontal,
+  Edit2,
+  Trash2,
+  Loader2,
+} from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
@@ -14,13 +21,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { AppointmentFormModal } from "@/features/appointments/components/appointment-form-modal";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 import {
   useAppointments,
   useDeleteAppointment,
 } from "@/features/appointments/hooks/use-appointments";
+import { useCapabilities } from "@/hooks/use-capabilities";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
+import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import { formatDateTime } from "@/lib/utils/format-date";
-import { useActionParam } from "@/hooks/use-action-param";
 import type { Appointment } from "@/types/visitor";
 import type { AppointmentStatus } from "@/types/enums";
 
@@ -38,36 +51,15 @@ function statusVariant(status: AppointmentStatus) {
 }
 
 export function AppointmentsPageClient() {
+  const { hasCapability } = useCapabilities();
+  const canCreate = hasCapability(CAPABILITIES.APPOINTMENT_CREATE);
+  const { loadingHref, handleNavClick } = useNavigationLoading();
+
   const { data: appointments = [], isLoading } = useAppointments();
   const deleteAppointmentMutation = useDeleteAppointment();
 
-  const [formModalOpen, setFormModalOpen] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | undefined>(
-    undefined
-  );
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [appointmentToDelete, setAppointmentToDelete] = useState<string>("");
-
-  const handleEditAppointment = useCallback((appointment: Appointment) => {
-    setSelectedAppointment(appointment);
-    setFormModalOpen(true);
-  }, []);
-
-  const handleCreateAppointment = useCallback(() => {
-    setSelectedAppointment(undefined);
-    setFormModalOpen(true);
-  }, []);
-
-  useActionParam({
-    create: handleCreateAppointment,
-  });
-
-  const handleFormModalClose = useCallback((open: boolean) => {
-    if (!open) {
-      setSelectedAppointment(undefined);
-    }
-    setFormModalOpen(open);
-  }, []);
 
   const handleDeleteClick = useCallback((appointmentId: string) => {
     setAppointmentToDelete(appointmentId);
@@ -130,66 +122,72 @@ export function AppointmentsPageClient() {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
-              <span className="sr-only">Open menu</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleEditAppointment(row.original)}>
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handleDeleteClick(row.original.id)}
-              className="text-destructive"
-            >
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <RowActions
+          appointment={row.original}
+          onDelete={handleDeleteClick}
+          loadingHref={loadingHref}
+          handleNavClick={handleNavClick}
+        />
       ),
     },
   ];
 
-  const mobileCard = (appointment: Appointment) => (
-    <div className="rounded-lg border p-4 space-y-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1">
-          <p className="font-medium text-sm">{appointment.visitorNameSnapshot || "Visitor"}</p>
-          <p className="text-xs text-muted-foreground">
-            with {appointment.hostNameSnapshot || "Host"}
-          </p>
+  const mobileCard = (appointment: Appointment) => {
+    const editHref = `/app/appointments/${appointment.id}/edit`;
+    const isLoadingEdit = loadingHref === editHref;
+    return (
+      <div className="rounded-lg border p-4 space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1">
+            <p className="font-medium text-sm">
+              {appointment.visitorNameSnapshot || "Visitor"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              with {appointment.hostNameSnapshot || "Host"}
+            </p>
+          </div>
+          <Badge variant={statusVariant(appointment.status)}>
+            {appointment.status.replace(/_/g, " ")}
+          </Badge>
         </div>
-        <Badge variant={statusVariant(appointment.status)}>
-          {appointment.status.replace(/_/g, " ")}
-        </Badge>
+        <div className="text-xs text-muted-foreground space-y-1">
+          <p>Scheduled: {formatDateTime(appointment.scheduledDatetime)}</p>
+          {appointment.departmentId && <p>Department: {appointment.departmentId}</p>}
+        </div>
+        <div className="flex gap-2 pt-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" variant="outline" asChild className="flex-1 min-h-[44px]">
+                <Link href={editHref} onClick={() => handleNavClick(editHref)}>
+                  {isLoadingEdit ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Edit2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                  )}
+                  Edit
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Open this appointment&apos;s edit form</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleDeleteClick(appointment.id)}
+                className="flex-1 text-destructive min-h-[44px]"
+              >
+                <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                Delete
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Delete this appointment</TooltipContent>
+          </Tooltip>
+        </div>
       </div>
-      <div className="text-xs text-muted-foreground space-y-1">
-        <p>Scheduled: {formatDateTime(appointment.scheduledDatetime)}</p>
-        {appointment.departmentId && <p>Department: {appointment.departmentId}</p>}
-      </div>
-      <div className="flex gap-2 pt-2">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => handleEditAppointment(appointment)}
-          className="flex-1"
-        >
-          Edit
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => handleDeleteClick(appointment.id)}
-          className="flex-1 text-destructive"
-        >
-          Delete
-        </Button>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -197,13 +195,28 @@ export function AppointmentsPageClient() {
         title="Appointments"
         description="Scheduled and past appointments"
         actions={
-          <Button
-            onClick={handleCreateAppointment}
-            className="w-full md:w-auto min-h-[44px]"
-          >
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            New Appointment
-          </Button>
+          canCreate ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button asChild className="w-full md:w-auto min-h-[44px]">
+                  <Link
+                    href="/app/appointments/new"
+                    onClick={() => handleNavClick("/app/appointments/new")}
+                  >
+                    {loadingHref === "/app/appointments/new" ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                    )}
+                    New Appointment
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Open the scheduling form to create a new appointment
+              </TooltipContent>
+            </Tooltip>
+          ) : undefined
         }
       />
 
@@ -220,12 +233,6 @@ export function AppointmentsPageClient() {
         emptyDescription="Schedule an appointment to get started."
       />
 
-      <AppointmentFormModal
-        open={formModalOpen}
-        onOpenChange={handleFormModalClose}
-        appointment={selectedAppointment}
-      />
-
       <ConfirmDialog
         open={confirmDeleteOpen}
         onOpenChange={setConfirmDeleteOpen}
@@ -238,5 +245,60 @@ export function AppointmentsPageClient() {
         isLoading={deleteAppointmentMutation.isPending}
       />
     </div>
+  );
+}
+
+function RowActions({
+  appointment,
+  onDelete,
+  loadingHref,
+  handleNavClick,
+}: {
+  appointment: Appointment;
+  onDelete: (id: string) => void;
+  loadingHref: string | null;
+  handleNavClick: (href: string) => void;
+}) {
+  const editHref = `/app/appointments/${appointment.id}/edit`;
+  const isLoadingEdit = loadingHref === editHref;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+              <span className="sr-only">Open menu</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left">
+            Open actions for this appointment
+          </TooltipContent>
+        </Tooltip>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem asChild>
+          <Link
+            href={editHref}
+            onClick={() => handleNavClick(editHref)}
+            className="flex items-center"
+          >
+            {isLoadingEdit ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Edit2 className="mr-2 h-4 w-4" />
+            )}
+            Edit
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => onDelete(appointment.id)}
+          className="text-destructive"
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

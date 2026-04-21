@@ -33,7 +33,15 @@ export function setupInterceptors(client: AxiosInstance) {
   // ── Response: unwrap envelope, handle 401 refresh ─────────────────
   client.interceptors.response.use(
     (response) => {
-      // Unwrap the success envelope — return just the data payload
+      // Unwrap the success envelope — return just the data payload.
+      //
+      // This branch also handles the `202 Accepted` queued-write contract:
+      // axios treats any 2xx as success, so a 202 with body
+      //   { success: true, data: { id, jobId, status: "queued" }, ... }
+      // resolves to `{ id, jobId, status }` as the caller's data. From here
+      // it's up to the calling hook (see `enqueueAndConfirm` /
+      // `useAsyncMutation`) to poll GET /v1/jobs/{jobId} for the terminal
+      // state. Do not special-case 202 here.
       if (response.data?.success === true) {
         return {
           ...response,

@@ -2,24 +2,21 @@
 
 import {
   useState,
-  useCallback,
   useMemo,
   useTransition,
   type ReactNode,
 } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
-import { toast } from "sonner";
 import {
   MoreHorizontal,
   Eye,
   CheckCircle2,
   XCircle,
   QrCode,
-  Printer,
-  Download,
   Loader2,
   ShieldCheck,
+  UserMinus,
 } from "lucide-react";
 
 import {
@@ -38,29 +35,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  CheckinStateBadge,
-  CheckinDetailSheet,
-  ConfirmCheckinModal,
-} from "@/features/checkins";
+import { CheckinStateBadge } from "@/features/checkins";
 import { useTenantCheckins } from "@/features/checkins/hooks";
 import { useSession } from "@/hooks/use-session";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { formatDateTime } from "@/lib/utils/format-date";
-import type {
-  CheckinConfirmAction,
-  CheckinOut,
-  CheckinState,
-} from "@/types/checkin";
+import type { CheckinOut, CheckinState } from "@/types/checkin";
 
 interface TabDef {
   id: CheckinState;
@@ -93,46 +73,21 @@ const TABS: readonly TabDef[] = [
     id: "checked_out",
     label: "Checked out",
     emptyTitle: "No checked-out visitors yet",
-    emptyDescription:
-      "Visitors appear here after their visit ends.",
+    emptyDescription: "Visitors appear here after their visit ends.",
   },
 ] as const;
 
-function base64ToBlob(base64: string, mime: string) {
-  const byteCharacters = atob(base64);
-  const byteNumbers = new Array(byteCharacters.length);
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteNumbers[i] = byteCharacters.charCodeAt(i);
-  }
-  return new Blob([new Uint8Array(byteNumbers)], { type: mime });
+function confirmHref(id: string, action: "approve" | "reject") {
+  return `/app/visitors/${id}/confirm?action=${action}`;
 }
 
-function downloadBadgePdf(base64: string, visitorName: string) {
-  const blob = base64ToBlob(base64, "application/pdf");
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `badge-${visitorName.replace(/\s+/g, "-").toLowerCase() || "visitor"}.pdf`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
-function printBadgePdf(base64: string) {
-  const blob = base64ToBlob(base64, "application/pdf");
-  const url = URL.createObjectURL(blob);
-  const printWindow = window.open(url, "_blank");
-  if (printWindow) {
-    printWindow.addEventListener("load", () => {
-      printWindow.print();
-    });
-  }
-  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+function detailHref(id: string) {
+  return `/app/visitors/${id}`;
 }
 
 export function VisitorsPageClient() {
   const { tenantId } = useSession();
+  const { loadingHref, handleNavClick } = useNavigationLoading();
 
   const [activeTab, setActiveTab] = useState<CheckinState>("pending_approval");
   const [switchingTo, setSwitchingTo] = useState<CheckinState | null>(null);
@@ -147,58 +102,16 @@ export function VisitorsPageClient() {
     });
   }
 
-  const { data: checkins = [], isLoading } = useTenantCheckins(tenantId ?? undefined, {
-    state: activeTab,
-  });
+  const { data: checkins = [], isLoading } = useTenantCheckins(
+    tenantId ?? undefined,
+    { state: activeTab },
+  );
 
   const { data: pendingForCount = [] } = useTenantCheckins(
     tenantId ?? undefined,
-    { state: "pending_approval" }
+    { state: "pending_approval" },
   );
   const pendingCount = pendingForCount.length;
-
-  const [selected, setSelected] = useState<CheckinOut | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmAction, setConfirmAction] =
-    useState<CheckinConfirmAction>("approve");
-
-  const [badge, setBadge] = useState<{
-    pdfBase64?: string;
-    qrToken: string;
-    visitorName: string;
-  } | null>(null);
-
-  const handleView = useCallback((checkin: CheckinOut) => {
-    setSelected(checkin);
-    setDetailOpen(true);
-  }, []);
-
-  const handleApprove = useCallback((checkin: CheckinOut) => {
-    setSelected(checkin);
-    setConfirmAction("approve");
-    setDetailOpen(false);
-    setConfirmOpen(true);
-  }, []);
-
-  const handleReject = useCallback((checkin: CheckinOut) => {
-    setSelected(checkin);
-    setConfirmAction("reject");
-    setDetailOpen(false);
-    setConfirmOpen(true);
-  }, []);
-
-  const handleApproved = useCallback(
-    (approved: { badgeQrToken: string; badgePdfBase64?: string }) => {
-      const name = selected?.visitor?.fullName || "Visitor";
-      setBadge({
-        pdfBase64: approved.badgePdfBase64,
-        qrToken: approved.badgeQrToken,
-        visitorName: name,
-      });
-    },
-    [selected]
-  );
 
   const visitorName = (row: CheckinOut) =>
     row.visitor?.fullName || "Unnamed visitor";
@@ -219,10 +132,15 @@ export function VisitorsPageClient() {
                 className="h-8 w-8 rounded-full object-cover border"
               />
             ) : (
-              <div className="h-8 w-8 rounded-full bg-muted" aria-hidden="true" />
+              <div
+                className="h-8 w-8 rounded-full bg-muted"
+                aria-hidden="true"
+              />
             )}
             <div className="min-w-0">
-              <p className="font-medium truncate">{visitorName(row.original)}</p>
+              <p className="font-medium truncate">
+                {visitorName(row.original)}
+              </p>
               {row.original.visitor?.email && (
                 <p className="text-xs text-muted-foreground truncate">
                   {row.original.visitor.email}
@@ -277,6 +195,9 @@ export function VisitorsPageClient() {
         header: "Actions",
         cell: ({ row }) => {
           const isPendingRow = row.original.state === "pending_approval";
+          const approveHref = confirmHref(row.original.id, "approve");
+          const rejectHref = confirmHref(row.original.id, "reject");
+          const viewHref = detailHref(row.original.id);
           return (
             <DropdownMenu>
               <Tooltip>
@@ -297,28 +218,65 @@ export function VisitorsPageClient() {
                 </TooltipContent>
               </Tooltip>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleView(row.original)}>
-                  <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
-                  View details
+                <DropdownMenuItem asChild>
+                  <Link
+                    href={viewHref}
+                    onClick={() => handleNavClick(viewHref)}
+                    className="flex items-center"
+                  >
+                    {loadingHref === viewHref ? (
+                      <Loader2
+                        className="mr-2 h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
+                    )}
+                    View details
+                  </Link>
                 </DropdownMenuItem>
                 {isPendingRow && (
                   <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => handleApprove(row.original)}
-                    >
-                      <CheckCircle2
-                        className="mr-2 h-4 w-4"
-                        aria-hidden="true"
-                      />
-                      Approve
+                    <DropdownMenuItem asChild>
+                      <Link
+                        href={approveHref}
+                        onClick={() => handleNavClick(approveHref)}
+                        className="flex items-center"
+                      >
+                        {loadingHref === approveHref ? (
+                          <Loader2
+                            className="mr-2 h-4 w-4 animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <CheckCircle2
+                            className="mr-2 h-4 w-4"
+                            aria-hidden="true"
+                          />
+                        )}
+                        Approve
+                      </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleReject(row.original)}
-                      className="text-destructive"
-                    >
-                      <XCircle className="mr-2 h-4 w-4" aria-hidden="true" />
-                      Reject
+                    <DropdownMenuItem asChild>
+                      <Link
+                        href={rejectHref}
+                        onClick={() => handleNavClick(rejectHref)}
+                        className="flex items-center text-destructive"
+                      >
+                        {loadingHref === rejectHref ? (
+                          <Loader2
+                            className="mr-2 h-4 w-4 animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <XCircle
+                            className="mr-2 h-4 w-4"
+                            aria-hidden="true"
+                          />
+                        )}
+                        Reject
+                      </Link>
                     </DropdownMenuItem>
                   </>
                 )}
@@ -328,11 +286,14 @@ export function VisitorsPageClient() {
         },
       },
     ],
-    [handleView, handleApprove, handleReject]
+    [handleNavClick, loadingHref],
   );
 
   const mobileCard = (checkin: CheckinOut): ReactNode => {
     const isPendingRow = checkin.state === "pending_approval";
+    const approveHref = confirmHref(checkin.id, "approve");
+    const rejectHref = confirmHref(checkin.id, "reject");
+    const viewHref = detailHref(checkin.id);
     return (
       <div className="rounded-lg border p-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
@@ -364,17 +325,29 @@ export function VisitorsPageClient() {
         <div className="text-xs text-muted-foreground">
           Submitted {formatDateTime(checkin.dateCreated)}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => handleView(checkin)}
+                asChild
                 className="min-h-[44px]"
               >
-                <Eye className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-                Details
+                <Link
+                  href={viewHref}
+                  onClick={() => handleNavClick(viewHref)}
+                >
+                  {loadingHref === viewHref ? (
+                    <Loader2
+                      className="mr-1 h-3.5 w-3.5 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Eye className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                  )}
+                  Details
+                </Link>
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
@@ -387,14 +360,26 @@ export function VisitorsPageClient() {
                 <TooltipTrigger asChild>
                   <Button
                     size="sm"
-                    onClick={() => handleApprove(checkin)}
+                    asChild
                     className="flex-1 min-h-[44px]"
                   >
-                    <CheckCircle2
-                      className="mr-1 h-3.5 w-3.5"
-                      aria-hidden="true"
-                    />
-                    Approve
+                    <Link
+                      href={approveHref}
+                      onClick={() => handleNavClick(approveHref)}
+                    >
+                      {loadingHref === approveHref ? (
+                        <Loader2
+                          className="mr-1 h-3.5 w-3.5 animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <CheckCircle2
+                          className="mr-1 h-3.5 w-3.5"
+                          aria-hidden="true"
+                        />
+                      )}
+                      Approve
+                    </Link>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top">
@@ -406,14 +391,26 @@ export function VisitorsPageClient() {
                   <Button
                     size="sm"
                     variant="destructive"
-                    onClick={() => handleReject(checkin)}
+                    asChild
                     className="min-h-[44px]"
                   >
-                    <XCircle
-                      className="mr-1 h-3.5 w-3.5"
-                      aria-hidden="true"
-                    />
-                    Reject
+                    <Link
+                      href={rejectHref}
+                      onClick={() => handleNavClick(rejectHref)}
+                    >
+                      {loadingHref === rejectHref ? (
+                        <Loader2
+                          className="mr-1 h-3.5 w-3.5 animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <XCircle
+                          className="mr-1 h-3.5 w-3.5"
+                          aria-hidden="true"
+                        />
+                      )}
+                      Reject
+                    </Link>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top">
@@ -433,24 +430,70 @@ export function VisitorsPageClient() {
         title="Visitors"
         description="Review pending check-ins, approve or reject visitors, and see past activity."
         actions={
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                asChild
-                variant="outline"
-                className="flex-1 md:flex-none min-h-[44px]"
-              >
-                <Link href="/app/visitors/qr">
-                  <QrCode className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Registration QR
-                </Link>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              Generate a QR code visitors can scan to self-register from their
-              phone
-            </TooltipContent>
-          </Tooltip>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="flex-1 sm:flex-none min-h-[44px]"
+                >
+                  <Link
+                    href="/app/visitors/checkout"
+                    onClick={() => handleNavClick("/app/visitors/checkout")}
+                  >
+                    {loadingHref === "/app/visitors/checkout" ? (
+                      <Loader2
+                        className="mr-2 h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <UserMinus
+                        className="mr-2 h-4 w-4"
+                        aria-hidden="true"
+                      />
+                    )}
+                    Check out visitor
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Record a visitor&apos;s departure by scanning their badge or
+                entering their session ID
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="flex-1 sm:flex-none min-h-[44px]"
+                >
+                  <Link
+                    href="/app/visitors/qr"
+                    onClick={() => handleNavClick("/app/visitors/qr")}
+                  >
+                    {loadingHref === "/app/visitors/qr" ? (
+                      <Loader2
+                        className="mr-2 h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <QrCode
+                        className="mr-2 h-4 w-4"
+                        aria-hidden="true"
+                      />
+                    )}
+                    Registration QR
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Generate a QR code visitors can scan to self-register from their
+                phone
+              </TooltipContent>
+            </Tooltip>
+          </div>
         }
       />
 
@@ -476,7 +519,7 @@ export function VisitorsPageClient() {
                     "pb-2 px-1 text-sm font-medium border-b-2 transition-colors relative whitespace-nowrap inline-flex items-center gap-1.5 min-h-[44px]",
                     isActive
                       ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {isSpinning && (
@@ -529,129 +572,6 @@ export function VisitorsPageClient() {
         );
       })}
 
-      <CheckinDetailSheet
-        open={detailOpen}
-        onOpenChange={(next) => {
-          setDetailOpen(next);
-          if (!next) setSelected(null);
-        }}
-        checkin={selected}
-        onApprove={handleApprove}
-        onReject={handleReject}
-      />
-
-      {selected && (
-        <ConfirmCheckinModal
-          open={confirmOpen}
-          onOpenChange={(next) => {
-            setConfirmOpen(next);
-          }}
-          checkinId={selected.id}
-          visitorName={visitorName(selected)}
-          defaultAction={confirmAction}
-          onApproved={handleApproved}
-        />
-      )}
-
-      <AlertDialog
-        open={!!badge}
-        onOpenChange={(next) => {
-          if (!next) setBadge(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Badge ready</AlertDialogTitle>
-            <AlertDialogDescription>
-              {badge?.visitorName} has been approved. Print or download their
-              badge now, or close this dialog — you can always fetch the badge
-              later from the check-in details.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="flex flex-col gap-2 md:flex-row">
-            {badge?.pdfBase64 && (
-              <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={() =>
-                        badge.pdfBase64 &&
-                        printBadgePdf(badge.pdfBase64)
-                      }
-                      className="min-h-[44px]"
-                    >
-                      <Printer
-                        className="mr-2 h-4 w-4"
-                        aria-hidden="true"
-                      />
-                      Print badge
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    Open the badge PDF and send it to your printer
-                  </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        badge.pdfBase64 &&
-                        downloadBadgePdf(
-                          badge.pdfBase64,
-                          badge.visitorName
-                        )
-                      }
-                      className="min-h-[44px]"
-                    >
-                      <Download
-                        className="mr-2 h-4 w-4"
-                        aria-hidden="true"
-                      />
-                      Download PDF
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    Save the badge as a PDF to your computer
-                  </TooltipContent>
-                </Tooltip>
-              </>
-            )}
-            {!badge?.pdfBase64 && badge?.qrToken && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={() => {
-                      navigator.clipboard
-                        .writeText(badge.qrToken)
-                        .then(() => toast.success("Token copied"))
-                        .catch(() =>
-                          toast.error("Couldn't copy to clipboard")
-                        );
-                    }}
-                    className="min-h-[44px]"
-                  >
-                    Copy badge token
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  Copy the badge QR token to share or paste into another
-                  system
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-          <AlertDialogFooter className="mt-4">
-            <AlertDialogCancel className="min-h-[44px]">Close</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => setBadge(null)}
-              className="min-h-[44px]"
-            >
-              Done
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

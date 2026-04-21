@@ -69,3 +69,30 @@ export type InvoiceStatus = "draft" | "issued" | "paid" | "void" | "refunded";
 
 // ── Usage Tracking ────────────────────────────────────────────────────
 export type OperationType = "create" | "read" | "update" | "delete";
+
+// ── Support Cases ─────────────────────────────────────────────────────
+export type SupportCaseStatus =
+  | "open"
+  | "acknowledged"
+  | "in_progress"
+  | "awaiting_tenant"
+  | "resolved"
+  | "closed"
+  | "reopened";
+
+export type SupportCasePriority = "low" | "medium" | "high" | "critical";
+
+export type SupportCaseCategory =
+  | "billing"
+  | "technical"
+  | "account"
+  | "feature_request"
+  | "data_privacy"
+  | "other";
+
+export type SupportCaseAuthorType = "tenant" | "admin" | "system";
+
+export type SupportTier = "none" | "standard" | "priority";
+
+// ── Async Jobs ────────────────────────────────────────────────────────
+export type JobStatus = "queued" | "processing" | "succeeded" | "failed";

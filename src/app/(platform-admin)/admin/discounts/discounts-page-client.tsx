@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { MoreHorizontal, Plus } from "lucide-react";
-import { DiscountFormModal } from "@/features/discounts/components/discount-form-modal";
+import { Loader2, MoreHorizontal, Plus } from "lucide-react";
 import {
   useDiscounts,
   useDeleteDiscount,
@@ -20,10 +20,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
-import { useActionParam } from "@/hooks/use-action-param";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import type { Discount } from "@/types/billing";
 import type { DiscountStatus } from "@/types/enums";
+
+const NEW_DISCOUNT_HREF = "/admin/discounts/new";
 
 function statusVariant(status: DiscountStatus | undefined) {
   switch (status) {
@@ -140,18 +147,14 @@ function DiscountActions({
 }
 
 export function DiscountsPageClient() {
+  const { loadingHref, handleNavClick } = useNavigationLoading();
   const { data: discounts = [], isLoading, isError, refetch } = useDiscounts();
   const { mutate: deleteDiscount, isPending: isDeletePending } =
     useDeleteDiscount();
   const { mutate: disableDiscount, isPending: isDisablePending } =
     useDisableDiscount();
 
-  const [createModalOpen, setCreateModalOpen] = React.useState(false);
   const isLoading_ = isDeletePending || isDisablePending;
-
-  useActionParam({
-    create: () => setCreateModalOpen(true),
-  });
 
   const handleEdit = (_id: string) => {
     toast.info("Edit functionality will be available soon.");
@@ -251,24 +254,40 @@ export function DiscountsPageClient() {
     },
   ];
 
+  const isNavigatingToNew = loadingHref === NEW_DISCOUNT_HREF;
+
   return (
     <div className="space-y-6">
-      <DiscountFormModal
-        open={createModalOpen}
-        onOpenChange={setCreateModalOpen}
-      />
-
       <PageHeader
         title="Discounts"
         description="Manage discount codes and promotions"
         actions={
-          <Button
-            className="w-full md:w-auto min-h-[44px]"
-            onClick={() => setCreateModalOpen(true)}
-          >
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            <span>Create Discount</span>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                asChild
+                className="w-full md:w-auto min-h-[44px]"
+              >
+                <Link
+                  href={NEW_DISCOUNT_HREF}
+                  onClick={() => handleNavClick(NEW_DISCOUNT_HREF)}
+                >
+                  {isNavigatingToNew ? (
+                    <Loader2
+                      className="mr-2 h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                  )}
+                  <span>Create Discount</span>
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              Open the discount creation wizard to add a new promo code
+            </TooltipContent>
+          </Tooltip>
         }
       />
 

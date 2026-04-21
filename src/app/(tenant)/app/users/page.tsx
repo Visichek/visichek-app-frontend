@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { UserPlus, Edit2, Trash2, MoreHorizontal } from "lucide-react";
+import Link from "next/link";
+import { UserPlus, Edit2, Trash2, MoreHorizontal, Loader2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
@@ -14,27 +15,26 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import {
   useSystemUsers,
   useDeleteSystemUser,
 } from "@/features/users/hooks/use-users";
-import { UserFormModal } from "@/features/users/components/user-form-modal";
-import { useActionParam } from "@/hooks/use-action-param";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import type { SystemUser } from "@/types/user";
 
 export default function UsersPage() {
   const { data, isLoading } = useSystemUsers();
   const deleteMutation = useDeleteSystemUser();
+  const { loadingHref, handleNavClick } = useNavigationLoading();
 
-  const [formOpen, setFormOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<SystemUser | undefined>();
-
-  // Open create modal when navigated from a "Quick Action" card.
-  useActionParam({
-    create: () => setFormOpen(true),
-  });
 
   const handleDeleteClick = (user: SystemUser) => {
     setUserToDelete(user);
@@ -60,13 +60,9 @@ export default function UsersPage() {
       case "super_admin":
         return "default" as const;
       case "dept_admin":
-        return "outline" as const;
       case "receptionist":
-        return "outline" as const;
       case "auditor":
-        return "outline" as const;
       case "security_officer":
-        return "outline" as const;
       case "dpo":
         return "outline" as const;
       default:
@@ -102,10 +98,17 @@ export default function UsersPage() {
       cell: ({ row }) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-              <span className="sr-only">Actions</span>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                  <span className="sr-only">Actions</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                Open actions for this user
+              </TooltipContent>
+            </Tooltip>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem disabled>
@@ -137,10 +140,17 @@ export default function UsersPage() {
       <div className="text-sm text-muted-foreground">{user.email}</div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-            <MoreHorizontal className="h-4 w-4" />
-            <span className="sr-only">Actions</span>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="sr-only">Actions</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="left">
+              Open actions for this user
+            </TooltipContent>
+          </Tooltip>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem disabled>
@@ -165,13 +175,26 @@ export default function UsersPage() {
         title="Users"
         description="Manage staff accounts and roles"
         actions={
-          <Button
-            className="w-full md:w-auto min-h-[44px]"
-            onClick={() => setFormOpen(true)}
-          >
-            <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Invite User
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button asChild className="w-full md:w-auto min-h-[44px]">
+                <Link
+                  href="/app/users/new"
+                  onClick={() => handleNavClick("/app/users/new")}
+                >
+                  {loadingHref === "/app/users/new" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+                  )}
+                  Invite User
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              Open the new-user form to invite a new staff member
+            </TooltipContent>
+          </Tooltip>
         }
       />
 
@@ -187,8 +210,6 @@ export default function UsersPage() {
         emptyDescription="Invite your first team member to get started."
         mobileCard={mobileCard}
       />
-
-      <UserFormModal open={formOpen} onOpenChange={setFormOpen} />
 
       <ConfirmDialog
         open={deleteDialogOpen}

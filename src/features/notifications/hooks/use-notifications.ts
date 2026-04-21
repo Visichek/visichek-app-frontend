@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tansta
 import { apiGet, apiPatch, apiPost, apiDelete, apiPut } from "@/lib/api/request";
 import type {
   NotificationOut,
+  NotificationListPage,
   UnreadCountResponse,
   MarkAllReadResponse,
   DeleteNotificationResponse,
@@ -23,6 +24,26 @@ export const notificationKeys = {
 
 // ── List Notifications ───────────────────────────────────────────────
 
+/**
+ * Normalize whatever the list endpoint returns into a flat array.
+ *
+ * The response interceptor already strips the outer `{ success, data, meta }`
+ * envelope. But `GET /v1/notifications` can come out two ways depending on
+ * backend version:
+ *   - legacy: the envelope's `data` is the array itself → we see `[...]`
+ *   - paginated: the envelope's `data` is `{ data: [...], meta: {...} }`
+ * Accepting either shape keeps the dropdown from silently showing "No
+ * notifications" when the backend flips on pagination.
+ */
+function normalizeNotificationList(
+  raw: NotificationOut[] | NotificationListPage | null | undefined,
+): NotificationOut[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(raw.data)) return raw.data;
+  return [];
+}
+
 export function useNotifications(params?: {
   skip?: number;
   limit?: number;
@@ -30,12 +51,17 @@ export function useNotifications(params?: {
 }) {
   return useQuery({
     queryKey: notificationKeys.list(params),
-    queryFn: () =>
-      apiGet<NotificationOut[]>("/notifications", {
-        skip: params?.skip,
-        limit: params?.limit,
-        read: params?.read,
-      }),
+    queryFn: async () => {
+      const raw = await apiGet<NotificationOut[] | NotificationListPage>(
+        "/notifications",
+        {
+          skip: params?.skip,
+          limit: params?.limit,
+          read: params?.read,
+        },
+      );
+      return normalizeNotificationList(raw);
+    },
     placeholderData: keepPreviousData,
   });
 }
@@ -46,8 +72,12 @@ export function useUnreadCount() {
   return useQuery({
     queryKey: notificationKeys.unreadCount,
     queryFn: () => apiGet<UnreadCountResponse>("/notifications/unread-count"),
+    // Keep the bell fresh: poll every 30s, refresh when the window gets focus
+    // again, and treat any value older than 15s as stale. This matches the
+    // queued-write guide's "safety-net" behaviour for failure notifications.
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
     staleTime: 15_000,
   });
 }

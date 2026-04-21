@@ -79,6 +79,13 @@ export const CAPABILITIES = {
   // Tenant config
   TENANT_CONFIG_VIEW: "tenant_config:view",
   TENANT_CONFIG_EDIT: "tenant_config:edit",
+
+  // Support cases (tenant side — all 6 tenant roles can open & participate)
+  SUPPORT_CASE_CREATE: "support_case:create",
+  SUPPORT_CASE_VIEW: "support_case:view",
+  SUPPORT_CASE_REPLY: "support_case:reply",
+  SUPPORT_CASE_CLOSE: "support_case:close",
+  SUPPORT_CASE_REOPEN: "support_case:reopen",
 } as const;
 
 export type Capability = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];

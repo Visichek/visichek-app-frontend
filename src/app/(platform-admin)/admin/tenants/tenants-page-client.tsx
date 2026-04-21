@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import {
   Plus,
@@ -10,10 +11,9 @@ import {
   AlertTriangle,
   ListChecks,
   Eye,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { BootstrapTenantModal } from "@/features/auth/components/bootstrap-tenant-modal";
-import { TenantDetailSheet } from "./tenant-detail-sheet";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
@@ -45,11 +45,15 @@ import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { formatDate } from "@/lib/utils/format-date";
-import { useActionParam } from "@/hooks/use-action-param";
 import {
   useTenantList,
   useOffboardTenant,
 } from "@/features/auth/hooks/use-admin-dashboard";
+
+const NEW_TENANT_HREF = "/admin/tenants/new";
+function tenantDetailHref(tenantId: string) {
+  return `/admin/tenants/${tenantId}`;
+}
 import { useCreateSubscription } from "@/features/subscriptions/hooks/use-subscriptions";
 import { usePlans } from "@/features/plans/hooks/use-plans";
 import type { AdminTenant } from "@/types/admin";
@@ -171,13 +175,13 @@ function SubscribeModal({ tenant, open, onOpenChange }: SubscribeModalProps) {
 
 interface TenantActionsProps {
   tenant: AdminTenant;
-  onViewDetails: (tenant: AdminTenant) => void;
   onSubscribe: (tenant: AdminTenant) => void;
   onOffboard: (tenant: AdminTenant) => void;
 }
 
-function TenantActions({ tenant, onViewDetails, onSubscribe, onOffboard }: TenantActionsProps) {
-  const { navigate } = useNavigationLoading();
+function TenantActions({ tenant, onSubscribe, onOffboard }: TenantActionsProps) {
+  const { loadingHref, handleNavClick, navigate } = useNavigationLoading();
+  const detailHref = tenantDetailHref(tenant.id);
 
   return (
     <DropdownMenu>
@@ -193,9 +197,18 @@ function TenantActions({ tenant, onViewDetails, onSubscribe, onOffboard }: Tenan
         <TooltipContent side="left">Open actions for {tenant.companyName}</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => onViewDetails(tenant)}>
-          <Eye className="mr-2 h-4 w-4" />
-          View Details
+        <DropdownMenuItem asChild>
+          <Link
+            href={detailHref}
+            onClick={() => handleNavClick(detailHref)}
+          >
+            {loadingHref === detailHref ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
+            )}
+            View Details
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
@@ -232,19 +245,14 @@ function TenantActions({ tenant, onViewDetails, onSubscribe, onOffboard }: Tenan
 }
 
 export function TenantsPageClient() {
+  const { loadingHref, handleNavClick } = useNavigationLoading();
   const { data, isLoading } = useTenantList();
   const tenants = data || [];
 
-  const [bootstrapModalOpen, setBootstrapModalOpen] = useState(false);
-  const [detailTarget, setDetailTarget] = useState<AdminTenant | null>(null);
   const [subscribeTarget, setSubscribeTarget] = useState<AdminTenant | null>(null);
   const [offboardTarget, setOffboardTarget] = useState<AdminTenant | null>(null);
 
   const offboardTenant = useOffboardTenant();
-
-  useActionParam({
-    create: () => setBootstrapModalOpen(true),
-  });
 
   function handleOffboardConfirm() {
     if (!offboardTarget) return;
@@ -320,7 +328,6 @@ export function TenantsPageClient() {
       cell: ({ row }) => (
         <TenantActions
           tenant={row.original}
-          onViewDetails={setDetailTarget}
           onSubscribe={setSubscribeTarget}
           onOffboard={setOffboardTarget}
         />
@@ -359,7 +366,6 @@ export function TenantsPageClient() {
         </div>
         <TenantActions
           tenant={tenant}
-          onViewDetails={setDetailTarget}
           onSubscribe={setSubscribeTarget}
           onOffboard={setOffboardTarget}
         />
@@ -367,19 +373,10 @@ export function TenantsPageClient() {
     );
   };
 
+  const isNavigatingToNew = loadingHref === NEW_TENANT_HREF;
+
   return (
     <div className="space-y-6">
-      <BootstrapTenantModal
-        open={bootstrapModalOpen}
-        onOpenChange={setBootstrapModalOpen}
-      />
-
-      <TenantDetailSheet
-        tenant={detailTarget}
-        open={!!detailTarget}
-        onOpenChange={(open) => { if (!open) setDetailTarget(null); }}
-      />
-
       <SubscribeModal
         tenant={subscribeTarget}
         open={!!subscribeTarget}
@@ -403,15 +400,26 @@ export function TenantsPageClient() {
         actions={
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                className="w-full md:w-auto min-h-[44px]"
-                onClick={() => setBootstrapModalOpen(true)}
-              >
-                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                Bootstrap Tenant
+              <Button asChild className="w-full md:w-auto min-h-[44px]">
+                <Link
+                  href={NEW_TENANT_HREF}
+                  onClick={() => handleNavClick(NEW_TENANT_HREF)}
+                >
+                  {isNavigatingToNew ? (
+                    <Loader2
+                      className="mr-2 h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                  )}
+                  Bootstrap Tenant
+                </Link>
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Create a new tenant and their first super admin account</TooltipContent>
+            <TooltipContent>
+              Create a new tenant and their first super admin account
+            </TooltipContent>
           </Tooltip>
         }
       />

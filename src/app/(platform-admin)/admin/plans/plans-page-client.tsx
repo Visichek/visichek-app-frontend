@@ -1,9 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Edit2, Copy, Trash2, MoreHorizontal } from "lucide-react";
+import Link from "next/link";
+import {
+  Plus,
+  Edit2,
+  Copy,
+  Trash2,
+  MoreHorizontal,
+  Loader2,
+} from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { PlanFormModal } from "@/features/plans/components/plan-form-modal";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
@@ -17,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { useActionParam } from "@/hooks/use-action-param";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import {
   usePlans,
   useDeletePlan,
@@ -27,6 +34,12 @@ import {
 } from "@/features/plans/hooks/use-plans";
 import type { Plan } from "@/types/billing";
 import type { PlanStatus, PlanTier } from "@/types/enums";
+
+const NEW_PLAN_HREF = "/admin/plans/new";
+
+function editPlanHref(planId: string) {
+  return `/admin/plans/${planId}/edit`;
+}
 
 function statusBadgeVariant(status: PlanStatus) {
   switch (status) {
@@ -57,6 +70,7 @@ function tierBadgeVariant(tier: PlanTier) {
 }
 
 export function PlansPageClient() {
+  const { loadingHref, handleNavClick } = useNavigationLoading();
   const { data, isLoading } = usePlans({ skip: 0, limit: 50 });
   const plans = data || [];
   const deleteMutation = useDeletePlan();
@@ -64,24 +78,12 @@ export function PlansPageClient() {
   const archiveMutation = useArchivePlan();
   const cloneMutation = useClonePlan();
 
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [activateDialogOpen, setActivateDialogOpen] = useState(false);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
-  const [planToEdit, setPlanToEdit] = useState<Plan | undefined>();
   const [planToDelete, setPlanToDelete] = useState<Plan | undefined>();
   const [planToActivate, setPlanToActivate] = useState<Plan | undefined>();
   const [planToArchive, setPlanToArchive] = useState<Plan | undefined>();
-
-  useActionParam({
-    create: () => setCreateModalOpen(true),
-  });
-
-  const handleEditClick = (plan: Plan) => {
-    setPlanToEdit(plan);
-    setEditModalOpen(true);
-  };
 
   const handleDeleteClick = (plan: Plan) => {
     setPlanToDelete(plan);
@@ -211,9 +213,18 @@ export function PlansPageClient() {
             <TooltipContent>View actions for this plan</TooltipContent>
           </Tooltip>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleEditClick(row.original)}>
-              <Edit2 className="mr-2 h-4 w-4" />
-              Edit
+            <DropdownMenuItem asChild>
+              <Link
+                href={editPlanHref(row.original.id)}
+                onClick={() => handleNavClick(editPlanHref(row.original.id))}
+              >
+                {loadingHref === editPlanHref(row.original.id) ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Edit2 className="mr-2 h-4 w-4" />
+                )}
+                Edit
+              </Link>
             </DropdownMenuItem>
             {row.original.status !== "active" && (
               <DropdownMenuItem onClick={() => handleActivateClick(row.original)}>
@@ -271,9 +282,18 @@ export function PlansPageClient() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => handleEditClick(plan)}>
-            <Edit2 className="mr-2 h-4 w-4" />
-            Edit
+          <DropdownMenuItem asChild>
+            <Link
+              href={editPlanHref(plan.id)}
+              onClick={() => handleNavClick(editPlanHref(plan.id))}
+            >
+              {loadingHref === editPlanHref(plan.id) ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Edit2 className="mr-2 h-4 w-4" />
+              )}
+              Edit
+            </Link>
           </DropdownMenuItem>
           {plan.status !== "active" && (
             <DropdownMenuItem onClick={() => handleActivateClick(plan)}>
@@ -301,34 +321,37 @@ export function PlansPageClient() {
     </div>
   );
 
+  const isNavigatingToNew = loadingHref === NEW_PLAN_HREF;
+
   return (
     <div className="space-y-6">
-      <PlanFormModal
-        open={createModalOpen}
-        onOpenChange={setCreateModalOpen}
-      />
-      {planToEdit && (
-        <PlanFormModal
-          open={editModalOpen}
-          onOpenChange={(open) => {
-            setEditModalOpen(open);
-            if (!open) setPlanToEdit(undefined);
-          }}
-          plan={planToEdit}
-        />
-      )}
-
       <PageHeader
         title="Plans"
         description="Manage subscription plans"
         actions={
-          <Button
-            className="w-full md:w-auto min-h-[44px]"
-            onClick={() => setCreateModalOpen(true)}
-          >
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Create Plan
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button asChild className="w-full md:w-auto min-h-[44px]">
+                <Link
+                  href={NEW_PLAN_HREF}
+                  onClick={() => handleNavClick(NEW_PLAN_HREF)}
+                >
+                  {isNavigatingToNew ? (
+                    <Loader2
+                      className="mr-2 h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                  )}
+                  Create Plan
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              Open the plan creation wizard to add a new subscription tier
+            </TooltipContent>
+          </Tooltip>
         }
       />
 

@@ -18,6 +18,8 @@ export const ROLE_ROUTES: Record<SystemUserRole, string[]> = {
     "/app/dpo",
     "/app/billing",
     "/app/alerts",
+    "/app/support-cases",
+    "/app/jobs",
     "/app/settings",
   ],
 
@@ -27,6 +29,8 @@ export const ROLE_ROUTES: Record<SystemUserRole, string[]> = {
     "/app/appointments",
     "/app/departments",
     "/app/alerts",
+    "/app/support-cases",
+    "/app/jobs",
     "/app/settings",
   ],
 
@@ -35,18 +39,24 @@ export const ROLE_ROUTES: Record<SystemUserRole, string[]> = {
     "/app/visitors",
     "/app/appointments",
     "/app/alerts",
+    "/app/support-cases",
+    "/app/jobs",
     "/app/settings",
   ],
 
   auditor: [
     "/app/audit",
     "/app/alerts",
+    "/app/support-cases",
+    "/app/jobs",
     "/app/settings",
   ],
 
   security_officer: [
     "/app/incidents",
     "/app/alerts",
+    "/app/support-cases",
+    "/app/jobs",
     "/app/settings",
   ],
 
@@ -54,6 +64,8 @@ export const ROLE_ROUTES: Record<SystemUserRole, string[]> = {
     "/app/dpo",
     "/app/audit",
     "/app/alerts",
+    "/app/support-cases",
+    "/app/jobs",
     "/app/settings",
   ],
 };

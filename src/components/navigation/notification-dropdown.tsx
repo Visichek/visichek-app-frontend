@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   X,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -120,7 +121,14 @@ export function NotificationDropdown() {
   const { navigate } = useNavigationLoading();
 
   const { data: unreadData } = useUnreadCount();
-  const { data: notifications, isLoading } = useNotifications({
+  const {
+    data: notifications,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isRefetching,
+  } = useNotifications({
     limit: 10,
   });
   const markAsRead = useMarkAsRead();
@@ -201,6 +209,44 @@ export function NotificationDropdown() {
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
+          ) : isError ? (
+            <div className="flex flex-col items-center justify-center py-8 px-4 text-center gap-3">
+              <AlertCircle className="h-8 w-8 text-destructive/70" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium">
+                  Couldn&apos;t load notifications
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {error instanceof Error
+                    ? error.message
+                    : "Please try again in a moment."}
+                </p>
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      refetch();
+                    }}
+                    disabled={isRefetching}
+                  >
+                    {isRefetching ? (
+                      <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3 w-3 mr-1.5" />
+                    )}
+                    Retry
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Retry fetching your recent notifications
+                </TooltipContent>
+              </Tooltip>
+            </div>
           ) : !notifications?.length ? (
             <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
               <Bell className="h-8 w-8 text-muted-foreground/40 mb-2" />
@@ -213,13 +259,17 @@ export function NotificationDropdown() {
               const config =
                 TYPE_CONFIG[notification.type] ?? TYPE_CONFIG.info;
               const Icon = config.icon;
+              // Error-type notifications (e.g. failed queued writes) deserve
+              // a stronger visual cue than "info" or "success".
+              const isError = notification.type === "error";
 
               return (
                 <div
                   key={notification.id}
                   className={cn(
-                    "flex gap-3 px-4 py-3 transition-colors hover:bg-muted/50 cursor-pointer border-b last:border-0",
-                    !notification.read && "bg-primary/[0.03]"
+                    "flex gap-3 px-4 py-3 transition-colors hover:bg-muted/50 cursor-pointer border-b last:border-0 border-l-2 border-l-transparent",
+                    !notification.read && !isError && "bg-primary/[0.03]",
+                    isError && "border-l-destructive bg-destructive/[0.04]",
                   )}
                   onClick={() =>
                     handleNotificationClick(

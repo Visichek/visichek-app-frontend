@@ -10,6 +10,8 @@ import {
   Package,
   Tags,
   Wallet,
+  LifeBuoy,
+  AlarmClock,
   Settings,
 } from "lucide-react";
 import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
@@ -64,6 +66,18 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     href: "/admin/payments",
     icon: Wallet,
     description: "View payment transactions, invoices, and revenue history",
+  },
+  {
+    label: "Support Cases",
+    href: "/admin/support-cases",
+    icon: LifeBuoy,
+    description: "Review tenant support tickets, reply, post internal notes, and move cases through the workflow",
+  },
+  {
+    label: "SLA Watch",
+    href: "/admin/support-cases/sla-watch",
+    icon: AlarmClock,
+    description: "Cases whose SLA deadline falls in the next 24 hours; work these first to stay in compliance",
   },
   {
     label: "Settings",

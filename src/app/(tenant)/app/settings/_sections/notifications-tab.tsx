@@ -62,6 +62,7 @@ export function NotificationsTab() {
               <SettingsToggle id="emailOnDsrReceived" label="Data subject requests" description="Be notified when a new data subject request arrives" checked={notifPrefs?.emailOnDsrReceived ?? true} onCheckedChange={(v) => handleNotifUpdate({ emailOnDsrReceived: v })} />
               <SettingsToggle id="emailOnSubscriptionAlert" label="Subscription alerts" description="Get notified about subscription expiry and payment issues" checked={notifPrefs?.emailOnSubscriptionAlert ?? true} onCheckedChange={(v) => handleNotifUpdate({ emailOnSubscriptionAlert: v })} />
               <SettingsToggle id="emailOnNewUser" label="New user added" description="Get notified when a new user is added to your tenant" checked={notifPrefs?.emailOnNewUser ?? false} onCheckedChange={(v) => handleNotifUpdate({ emailOnNewUser: v })} />
+              <SettingsToggle id="emailOnSupportCase" label="Support case updates" description="Get emailed when VisiChek Support replies to one of your open cases" checked={notifPrefs?.emailOnSupportCase ?? true} onCheckedChange={(v) => handleNotifUpdate({ emailOnSupportCase: v })} />
             </div>
           </section>
 

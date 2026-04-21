@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, Edit2, Trash2, MoreHorizontal } from "lucide-react";
+import Link from "next/link";
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  MoreHorizontal,
+  Loader2,
+} from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
@@ -15,10 +22,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { formatDateTime } from "@/lib/utils/format-date";
 import { useDataSubjectRequests } from "@/features/dsr/hooks/use-dsr";
-import { DSRFormModal } from "@/features/dsr/components/dsr-form-modal";
+import { useCapabilities } from "@/hooks/use-capabilities";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
+import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import type { DataSubjectRequest } from "@/types/dpo";
 import type { DSRStatus } from "@/types/enums";
 
@@ -36,18 +50,15 @@ function statusVariant(status: DSRStatus) {
 }
 
 export default function DPOPage() {
+  const { hasCapability } = useCapabilities();
+  const canCreate = hasCapability(CAPABILITIES.DSR_CREATE);
+  const { loadingHref, handleNavClick } = useNavigationLoading();
+
   const { data, isLoading } = useDataSubjectRequests();
   const requests = data?.data || [];
 
-  const [formOpen, setFormOpen] = useState(false);
-  const [selectedDSR, setSelectedDSR] = useState<DataSubjectRequest | undefined>();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [dsrToDelete, setDSRToDelete] = useState<DataSubjectRequest | undefined>();
-
-  const handleEdit = (dsr: DataSubjectRequest) => {
-    setSelectedDSR(dsr);
-    setFormOpen(true);
-  };
 
   const handleDeleteClick = (dsr: DataSubjectRequest) => {
     setDSRToDelete(dsr);
@@ -103,27 +114,12 @@ export default function DPOPage() {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-              <span className="sr-only">Actions</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleEdit(row.original)}>
-              <Edit2 className="mr-2 h-4 w-4" />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handleDeleteClick(row.original)}
-              className="text-destructive"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <RowActions
+          dsr={row.original}
+          onDelete={handleDeleteClick}
+          loadingHref={loadingHref}
+          handleNavClick={handleNavClick}
+        />
       ),
       enableHiding: false,
     },
@@ -140,27 +136,12 @@ export default function DPOPage() {
       <div className="text-sm text-muted-foreground capitalize">
         {dsr.type.replace(/_/g, " ")}
       </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-            <MoreHorizontal className="h-4 w-4" />
-            <span className="sr-only">Actions</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => handleEdit(dsr)}>
-            <Edit2 className="mr-2 h-4 w-4" />
-            Edit
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => handleDeleteClick(dsr)}
-            className="text-destructive"
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <RowActions
+        dsr={dsr}
+        onDelete={handleDeleteClick}
+        loadingHref={loadingHref}
+        handleNavClick={handleNavClick}
+      />
     </div>
   );
 
@@ -170,16 +151,28 @@ export default function DPOPage() {
         title="Data Protection"
         description="Data subject requests, retention policies, and compliance"
         actions={
-          <Button
-            className="w-full md:w-auto min-h-[44px]"
-            onClick={() => {
-              setSelectedDSR(undefined);
-              setFormOpen(true);
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            New Request
-          </Button>
+          canCreate ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button asChild className="w-full md:w-auto min-h-[44px]">
+                  <Link
+                    href="/app/dpo/requests/new"
+                    onClick={() => handleNavClick("/app/dpo/requests/new")}
+                  >
+                    {loadingHref === "/app/dpo/requests/new" ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                    )}
+                    New Request
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Open the new data subject request form
+              </TooltipContent>
+            </Tooltip>
+          ) : undefined
         }
       />
 
@@ -223,7 +216,6 @@ export default function DPOPage() {
         </Card>
       </div>
 
-      {/* DSR table */}
       <DataTable
         columns={columns}
         data={requests}
@@ -233,17 +225,6 @@ export default function DPOPage() {
         emptyTitle="No data subject requests"
         emptyDescription="Requests from data subjects will appear here."
         mobileCard={mobileCard}
-      />
-
-      <DSRFormModal
-        open={formOpen}
-        onOpenChange={(open) => {
-          setFormOpen(open);
-          if (!open) {
-            setSelectedDSR(undefined);
-          }
-        }}
-        dsr={selectedDSR}
       />
 
       <ConfirmDialog
@@ -257,5 +238,60 @@ export default function DPOPage() {
         onConfirm={handleDeleteConfirm}
       />
     </div>
+  );
+}
+
+function RowActions({
+  dsr,
+  onDelete,
+  loadingHref,
+  handleNavClick,
+}: {
+  dsr: DataSubjectRequest;
+  onDelete: (d: DataSubjectRequest) => void;
+  loadingHref: string | null;
+  handleNavClick: (href: string) => void;
+}) {
+  const editHref = `/app/dpo/requests/${dsr.id}/edit`;
+  const isLoadingEdit = loadingHref === editHref;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <MoreHorizontal className="h-4 w-4" />
+              <span className="sr-only">Actions</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left">
+            Open actions for this data subject request
+          </TooltipContent>
+        </Tooltip>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem asChild>
+          <Link
+            href={editHref}
+            onClick={() => handleNavClick(editHref)}
+            className="flex items-center"
+          >
+            {isLoadingEdit ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Edit2 className="mr-2 h-4 w-4" />
+            )}
+            Edit
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => onDelete(dsr)}
+          className="text-destructive"
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

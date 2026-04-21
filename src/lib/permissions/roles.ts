@@ -28,6 +28,11 @@ export const ROLE_CAPABILITIES: Record<SystemUserRole, Capability[]> = {
     C.DEPARTMENT_VIEW,
     C.DEPARTMENT_EDIT,
     C.DASHBOARD_VIEW,
+    C.SUPPORT_CASE_CREATE,
+    C.SUPPORT_CASE_VIEW,
+    C.SUPPORT_CASE_REPLY,
+    C.SUPPORT_CASE_CLOSE,
+    C.SUPPORT_CASE_REOPEN,
   ],
 
   receptionist: [
@@ -42,6 +47,11 @@ export const ROLE_CAPABILITIES: Record<SystemUserRole, Capability[]> = {
     C.APPOINTMENT_VIEW,
     C.APPOINTMENT_EDIT,
     C.DASHBOARD_VIEW,
+    C.SUPPORT_CASE_CREATE,
+    C.SUPPORT_CASE_VIEW,
+    C.SUPPORT_CASE_REPLY,
+    C.SUPPORT_CASE_CLOSE,
+    C.SUPPORT_CASE_REOPEN,
   ],
 
   auditor: [
@@ -50,6 +60,11 @@ export const ROLE_CAPABILITIES: Record<SystemUserRole, Capability[]> = {
     C.VISITOR_VIEW_SESSIONS,
     C.VISITOR_VIEW_PROFILES,
     C.DASHBOARD_VIEW,
+    C.SUPPORT_CASE_CREATE,
+    C.SUPPORT_CASE_VIEW,
+    C.SUPPORT_CASE_REPLY,
+    C.SUPPORT_CASE_CLOSE,
+    C.SUPPORT_CASE_REOPEN,
   ],
 
   security_officer: [
@@ -57,6 +72,11 @@ export const ROLE_CAPABILITIES: Record<SystemUserRole, Capability[]> = {
     C.INCIDENT_VIEW,
     C.INCIDENT_EDIT,
     C.DASHBOARD_VIEW,
+    C.SUPPORT_CASE_CREATE,
+    C.SUPPORT_CASE_VIEW,
+    C.SUPPORT_CASE_REPLY,
+    C.SUPPORT_CASE_CLOSE,
+    C.SUPPORT_CASE_REOPEN,
   ],
 
   dpo: [
@@ -73,6 +93,11 @@ export const ROLE_CAPABILITIES: Record<SystemUserRole, Capability[]> = {
     C.COMPLIANCE_REGISTER_EDIT,
     C.AUDIT_VIEW,
     C.DASHBOARD_VIEW,
+    C.SUPPORT_CASE_CREATE,
+    C.SUPPORT_CASE_VIEW,
+    C.SUPPORT_CASE_REPLY,
+    C.SUPPORT_CASE_CLOSE,
+    C.SUPPORT_CASE_REOPEN,
   ],
 };
 

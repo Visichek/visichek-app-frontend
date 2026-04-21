@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ExternalLink, CreditCard } from "lucide-react";
+import { ExternalLink, CreditCard, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
 import { StatCard } from "@/components/recipes/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,15 +19,17 @@ import { DataTable } from "@/components/recipes/data-table";
 import { PageSkeleton } from "@/components/feedback/page-skeleton";
 import { ErrorState } from "@/components/feedback/error-state";
 import { useSession } from "@/hooks/use-session";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useMyUsage } from "@/features/usage/hooks/use-usage";
 import { useTenantInvoices } from "@/features/invoices/hooks/use-invoices";
 import { useActiveSubscription } from "@/features/subscriptions/hooks/use-subscriptions";
-import { PlanPickerModal } from "@/features/checkout/components/plan-picker-modal";
 import { CheckoutHistoryTable } from "@/features/checkout/components/checkout-history-table";
 import { formatCurrency } from "@/lib/utils/format-currency";
 import { formatDate } from "@/lib/utils/format-date";
 import type { Invoice } from "@/types/billing";
 import type { InvoiceStatus } from "@/types/enums";
+
+const CHANGE_PLAN_HREF = "/app/billing/change-plan";
 
 function getInvoiceStatusVariant(status: InvoiceStatus): "default" | "secondary" | "destructive" | "outline" {
   switch (status) {
@@ -53,9 +56,8 @@ function formatInvoiceStatus(status: InvoiceStatus): string {
 
 export function BillingPageClient() {
   const { tenantId, currentRole } = useSession();
+  const { loadingHref, handleNavClick } = useNavigationLoading();
   const canManageBilling = currentRole === "super_admin";
-
-  const [planPickerOpen, setPlanPickerOpen] = useState(false);
 
   const {
     data: usage,
@@ -171,12 +173,24 @@ export function BillingPageClient() {
             canManageBilling ? (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    onClick={() => setPlanPickerOpen(true)}
-                    className="min-h-[44px] gap-2"
-                  >
-                    <CreditCard className="h-4 w-4" />
-                    {hasActiveSubscription ? "Change plan" : "Subscribe"}
+                  <Button asChild className="min-h-[44px] gap-2">
+                    <Link
+                      href={CHANGE_PLAN_HREF}
+                      onClick={() => handleNavClick(CHANGE_PLAN_HREF)}
+                    >
+                      {loadingHref === CHANGE_PLAN_HREF ? (
+                        <Loader2
+                          className="h-4 w-4 animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <CreditCard
+                          className="h-4 w-4"
+                          aria-hidden="true"
+                        />
+                      )}
+                      {hasActiveSubscription ? "Change plan" : "Subscribe"}
+                    </Link>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
@@ -303,14 +317,6 @@ export function BillingPageClient() {
         </Card>
 
         {canManageBilling && <CheckoutHistoryTable />}
-
-        {canManageBilling && (
-          <PlanPickerModal
-            open={planPickerOpen}
-            onOpenChange={setPlanPickerOpen}
-            currentPlanId={activeSubscription?.planId}
-          />
-        )}
       </div>
     </TooltipProvider>
   );
