@@ -22,6 +22,7 @@ import { useJob } from "@/features/jobs/hooks";
 import { JobStatusBadge } from "@/features/jobs/components";
 import { formatDateTime, formatRelative } from "@/lib/utils/format-date";
 import { formatTaskKey, parseJobError } from "@/lib/jobs";
+import type { JobResourceSummary } from "@/types/job";
 
 interface JobDetailViewProps {
   taskId: string;
@@ -141,6 +142,7 @@ export function JobDetailView({ taskId, listHref }: JobDetailViewProps) {
         <CardContent className="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
           <DetailRow label="Task id" value={job.taskId} mono />
           <DetailRow label="Task key" value={job.taskKey} mono />
+          {job.id ? <DetailRow label="Log id" value={job.id} mono /> : null}
           <DetailRow
             label="Resource type"
             value={job.resourceType ?? "—"}
@@ -160,6 +162,64 @@ export function JobDetailView({ taskId, listHref }: JobDetailViewProps) {
           />
         </CardContent>
       </Card>
+
+      {job.actorSummary ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Triggered by</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
+            <DetailRow
+              label="Full name"
+              value={job.actorSummary.fullName ?? "—"}
+            />
+            <DetailRow
+              label="Email"
+              value={job.actorSummary.email ?? "—"}
+            />
+            <DetailRow
+              label="Role"
+              value={job.actorSummary.role ?? "—"}
+            />
+            <DetailRow
+              label="User type"
+              value={job.actorSummary.userType ?? "—"}
+            />
+            <DetailRow label="Actor id" value={job.actorSummary.id} mono />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {job.tenantSummary ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Tenant</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
+            <DetailRow
+              label="Name"
+              value={job.tenantSummary.name ?? "—"}
+            />
+            <DetailRow
+              label="Slug"
+              value={job.tenantSummary.slug ?? "—"}
+              mono
+            />
+            <DetailRow label="Tenant id" value={job.tenantSummary.id} mono />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {job.resourceSummary ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Resource</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
+            {renderResourceSummaryRows(job.resourceSummary)}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {job.result ? (
         <Card>
@@ -208,6 +268,32 @@ function BackLink({
       </TooltipContent>
     </Tooltip>
   );
+}
+
+// Shape varies by resource type, so render whichever fields came back. Keeps
+// id last so the human-readable bits lead.
+function renderResourceSummaryRows(summary: JobResourceSummary) {
+  const rows: Array<{ label: string; value: string; mono?: boolean }> = [];
+
+  if (summary.type) rows.push({ label: "Type", value: summary.type });
+  if (summary.name) rows.push({ label: "Name", value: summary.name });
+  if (summary.label) rows.push({ label: "Label", value: summary.label });
+  if (summary.title) rows.push({ label: "Title", value: summary.title });
+  if (summary.fullName)
+    rows.push({ label: "Full name", value: summary.fullName });
+  if (summary.email) rows.push({ label: "Email", value: summary.email });
+  if (summary.code) rows.push({ label: "Code", value: summary.code, mono: true });
+  if (summary.status) rows.push({ label: "Status", value: summary.status });
+  rows.push({ label: "Resource id", value: summary.id, mono: true });
+
+  return rows.map((row) => (
+    <DetailRow
+      key={row.label}
+      label={row.label}
+      value={row.value}
+      mono={row.mono}
+    />
+  ));
 }
 
 function DetailRow({
