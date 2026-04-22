@@ -4,12 +4,15 @@ import { useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api/request";
 import type { JobRecord } from "@/types/job";
+import {
+  JOB_POLL_START_MS,
+  JOB_POLL_MAX_MS,
+  JOB_POLL_TIMEOUT_MS,
+  pollJob,
+} from "@/lib/jobs/poll";
 
-// Per the backend integration guide: start tight so UI "confirms" quickly,
-// cap so we don't hammer the endpoint during slow runs.
-export const JOB_POLL_START_MS = 250;
-export const JOB_POLL_MAX_MS = 2_000;
-export const JOB_POLL_TIMEOUT_MS = 30_000;
+export { JOB_POLL_START_MS, JOB_POLL_MAX_MS, JOB_POLL_TIMEOUT_MS, pollJob };
+
 const JOB_POLL_BACKOFF_FACTOR = 1.5;
 
 interface UseJobPollingOptions<TResult> {
@@ -137,63 +140,3 @@ export function useJobPolling<TResult = unknown>(
   };
 }
 
-/**
- * One-shot, Promise-based variant of `useJobPolling` for use outside React
- * (e.g. inside a mutation's `onSuccess`). Resolves when the job reaches a
- * terminal state; on timeout, resolves with the last-seen (non-terminal) row
- * so callers can decide how to handle it.
- */
-export async function pollJob<TResult = unknown>(
-  jobId: string,
-  options: {
-    initialIntervalMs?: number;
-    maxIntervalMs?: number;
-    timeoutMs?: number;
-    signal?: AbortSignal;
-  } = {},
-): Promise<JobRecord<TResult>> {
-  const {
-    initialIntervalMs = JOB_POLL_START_MS,
-    maxIntervalMs = JOB_POLL_MAX_MS,
-    timeoutMs = JOB_POLL_TIMEOUT_MS,
-    signal,
-  } = options;
-
-  const deadline = Date.now() + timeoutMs;
-  let delay = initialIntervalMs;
-  let last: JobRecord<TResult> | null = null;
-
-  // Loop at least once so we always get a fresh row back.
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    if (signal?.aborted) {
-      throw new DOMException("Job polling aborted", "AbortError");
-    }
-
-    last = await apiGet<JobRecord<TResult>>(`/jobs/${jobId}`);
-    if (last.status === "succeeded" || last.status === "failed") return last;
-
-    if (Date.now() >= deadline) return last;
-
-    await sleep(delay, signal);
-    delay = Math.min(delay * JOB_POLL_BACKOFF_FACTOR, maxIntervalMs);
-  }
-}
-
-function sleep(ms: number, signal?: AbortSignal) {
-  return new Promise<void>((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new DOMException("Job polling aborted", "AbortError"));
-      return;
-    }
-    const timer = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    const onAbort = () => {
-      clearTimeout(timer);
-      reject(new DOMException("Job polling aborted", "AbortError"));
-    };
-    signal?.addEventListener("abort", onAbort, { once: true });
-  });
-}

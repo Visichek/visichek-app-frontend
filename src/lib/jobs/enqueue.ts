@@ -1,6 +1,6 @@
-import { pollJob } from "@/hooks/use-job-polling";
 import type { AsyncJobAck, JobRecord } from "@/types/job";
 import { AsyncJobError, AsyncJobTimeoutError } from "./async-job-error";
+import { pollJob } from "./poll";
 
 export interface EnqueueAndConfirmOptions {
   initialIntervalMs?: number;

@@ -10,6 +10,7 @@
 
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/api/request";
+import { resolveDocumentUrl } from "@/lib/utils/document-url";
 import { ApiError } from "@/types/api";
 import type {
   PublicCheckinConfigOut,
@@ -18,6 +19,15 @@ import type {
   VisitorLookupQuery,
   CheckinSubmitMultipartRequest,
 } from "@/types/checkin";
+
+function normalizeCheckinConfig(
+  data: PublicCheckinConfigOut
+): PublicCheckinConfigOut {
+  return {
+    ...data,
+    logoUrl: resolveDocumentUrl(data.logoUrl) ?? data.logoUrl,
+  };
+}
 import {
   checkinConfigByTenantPath,
   checkinConfigPath,
@@ -36,8 +46,12 @@ import { checkinKeys } from "../lib/query-keys";
 export function useActiveCheckinConfigForTenant(tenantId: string | undefined) {
   return useQuery({
     queryKey: checkinKeys.publicConfigByTenant(tenantId ?? ""),
-    queryFn: () =>
-      apiGet<PublicCheckinConfigOut>(checkinConfigByTenantPath(tenantId!)),
+    queryFn: async () =>
+      normalizeCheckinConfig(
+        await apiGet<PublicCheckinConfigOut>(
+          checkinConfigByTenantPath(tenantId!)
+        )
+      ),
     enabled: !!tenantId,
     // Configs change rarely — cache generously to avoid refetches on every
     // navigation within the multi-step kiosk flow.
@@ -50,8 +64,10 @@ export function useActiveCheckinConfigForTenant(tenantId: string | undefined) {
 export function usePublicCheckinConfig(configId: string | undefined) {
   return useQuery({
     queryKey: checkinKeys.publicConfig(configId ?? ""),
-    queryFn: () =>
-      apiGet<PublicCheckinConfigOut>(checkinConfigPath(configId!)),
+    queryFn: async () =>
+      normalizeCheckinConfig(
+        await apiGet<PublicCheckinConfigOut>(checkinConfigPath(configId!))
+      ),
     enabled: !!configId,
     staleTime: 5 * 60 * 1000,
     retry: 1,

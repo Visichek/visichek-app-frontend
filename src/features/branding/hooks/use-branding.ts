@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/lib/api/client';
 import { apiGet, apiPut, apiDelete } from '@/lib/api/request';
+import { resolveDocumentUrl } from '@/lib/utils/document-url';
 import type { TenantBranding } from '@/types/tenant';
 
 // ─── Document upload helper ───────────────────────────────────────────────────
@@ -55,20 +56,20 @@ const brandingKeys = {
  * Fetch tenant branding configuration.
  * Can be called by any authenticated system user.
  */
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/v1";
-
 export function resolveObjectUrl(objectKey?: string | null): string | undefined {
   if (!objectKey) return undefined;
-  return `${API_BASE_URL.replace(/\/$/, "")}/documents/${encodeURIComponent(objectKey)}`;
+  return resolveDocumentUrl(`/v1/documents/${encodeURIComponent(objectKey)}`);
 }
 
 export function normalizeBranding(data: TenantBranding): TenantBranding {
   return {
     ...data,
     logoPosition: data.logoPosition ?? data.badgeLogoPosition,
-    logoUrl: data.logoUrl ?? resolveObjectUrl(data.logoObjectKey),
-    badgeLogoUrl: data.badgeLogoUrl ?? resolveObjectUrl(data.logoObjectKey),
+    logoUrl:
+      resolveDocumentUrl(data.logoUrl) ?? resolveObjectUrl(data.logoObjectKey),
+    badgeLogoUrl:
+      resolveDocumentUrl(data.badgeLogoUrl) ??
+      resolveObjectUrl(data.logoObjectKey),
   };
 }
 

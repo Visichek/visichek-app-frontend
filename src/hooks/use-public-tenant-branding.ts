@@ -6,6 +6,7 @@ import {
   applyDocumentBranding,
   clearDocumentBranding,
 } from "@/lib/branding/apply-branding";
+import { resolveDocumentUrl } from "@/lib/utils/document-url";
 import type { TenantBranding } from "@/types/tenant";
 
 /**
@@ -25,7 +26,7 @@ export function usePublicTenantBranding(tenantId: string | undefined | null) {
     const branding: TenantBranding = {
       tenantId: data.tenantId,
       companyName: data.companyName,
-      logoUrl: data.logoUrl,
+      logoUrl: resolveDocumentUrl(data.logoUrl),
     };
 
     applyDocumentBranding(branding);

@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPatch } from "@/lib/api/request";
+import { resolveDocumentUrl } from "@/lib/utils/document-url";
 import type {
   PublicTenantInfo,
   PublicDepartment,
@@ -101,8 +102,15 @@ export function usePublicFinalize(tenantId: string) {
 export function usePublicTenantInfo(tenantId: string) {
   return useQuery({
     queryKey: publicKeys.tenantInfo(tenantId),
-    queryFn: () =>
-      apiGet<PublicTenantInfo>(`/public/register/${tenantId}/info`),
+    queryFn: async () => {
+      const data = await apiGet<PublicTenantInfo>(
+        `/public/register/${tenantId}/info`
+      );
+      return {
+        ...data,
+        logoUrl: resolveDocumentUrl(data.logoUrl) ?? data.logoUrl,
+      };
+    },
     enabled: !!tenantId,
     staleTime: 5 * 60 * 1000, // 5 minutes — tenant info changes rarely
     retry: 1,
