@@ -13,8 +13,9 @@
  * config is resolved from the tenantId on mount.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import { cn } from "@/lib/utils/cn";
 import {
   UserCheck,
   ShieldCheck,
@@ -36,6 +37,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PhoneInput } from "@/components/ui/phone-input";
+import { parsePhone } from "@/lib/constants/countries";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
@@ -81,6 +84,23 @@ interface KioskState {
   fieldValues: Record<string, unknown>;
   purposeText: string;
   purposeDetails: string;
+}
+
+// Browser-grade email check — good enough for UX gating; the backend is the
+// authority on acceptance.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function isValidEmail(value: string): boolean {
+  return EMAIL_RE.test(value.trim());
+}
+
+// Require a parseable dial code and at least a few digits of national number.
+// E.164 allows up to 15 digits total; we accept 6..15 to reject obviously
+// empty entries while staying permissive about national formatting.
+function isValidInternationalPhone(value: string): boolean {
+  const parsed = parsePhone(value);
+  if (!parsed) return false;
+  const digits = parsed.national.replace(/[^\d]/g, "");
+  return digits.length >= 6 && digits.length <= 15;
 }
 
 const INITIAL_STATE: KioskState = {
@@ -164,16 +184,25 @@ export default function KioskCheckinPage() {
   async function handleIdentityNext() {
     setStepError(null);
 
-    if (!state.email.trim() && !state.phone.trim()) {
-      setStepError("Please enter your email or phone number.");
-      return;
-    }
-    if (!state.email.trim()) {
+    const email = state.email.trim();
+    const phone = state.phone.trim();
+
+    if (!email) {
       setStepError("Email is required.");
       return;
     }
-    if (!state.phone.trim()) {
+    if (!isValidEmail(email)) {
+      setStepError("Please enter a valid email address.");
+      return;
+    }
+    if (!phone) {
       setStepError("Phone number is required.");
+      return;
+    }
+    if (!isValidInternationalPhone(phone)) {
+      setStepError(
+        "Please enter a valid phone number with a country code."
+      );
       return;
     }
 
@@ -485,6 +514,13 @@ function IdentityStep({
   onConfirmReturning: () => void;
   onDismissReturning: () => void;
 }) {
+  // Show the inline "invalid format" hint only after the user has typed
+  // something and then blurred away — not while they're mid-typing.
+  const [emailTouched, setEmailTouched] = React.useState(false);
+  const emailTrimmed = state.email.trim();
+  const showEmailFormatError =
+    emailTouched && emailTrimmed.length > 0 && !isValidEmail(emailTrimmed);
+
   if (state.returningVisitor) {
     return (
       <ReturningVisitorCard
@@ -513,9 +549,27 @@ function IdentityStep({
           onChange={(e) =>
             setState((s) => ({ ...s, email: e.target.value }))
           }
-          className="text-base md:text-sm min-h-[44px]"
+          onBlur={() => setEmailTouched(true)}
+          aria-invalid={showEmailFormatError || undefined}
+          aria-describedby={
+            showEmailFormatError ? "kiosk-email-error" : undefined
+          }
+          className={cn(
+            "text-base md:text-sm min-h-[44px]",
+            showEmailFormatError &&
+              "border-destructive focus-visible:ring-destructive"
+          )}
           placeholder="you@example.com"
         />
+        {showEmailFormatError && (
+          <p
+            id="kiosk-email-error"
+            role="alert"
+            className="text-xs text-destructive"
+          >
+            That doesn&apos;t look like a valid email address.
+          </p>
+        )}
       </div>
 
       <div className="space-y-1.5">
@@ -525,17 +579,11 @@ function IdentityStep({
             *
           </span>
         </Label>
-        <Input
+        <PhoneInput
           id="kiosk-phone"
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
           value={state.phone}
-          onChange={(e) =>
-            setState((s) => ({ ...s, phone: e.target.value }))
-          }
-          className="text-base md:text-sm min-h-[44px]"
-          placeholder="+234 …"
+          onChange={(v) => setState((s) => ({ ...s, phone: v }))}
+          placeholder="Phone number"
         />
       </div>
 
