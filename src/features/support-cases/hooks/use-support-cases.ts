@@ -14,8 +14,6 @@ import type {
   CreateSupportCaseRequest,
   SupportCaseMessageRequest,
   SupportCaseTransitionRequest,
-  AttachmentIntentRequest,
-  AttachmentIntentResponse,
   AsyncJobAck,
   SupportCaseListParams,
 } from "@/types/support-case";
@@ -84,6 +82,11 @@ export function useCreateSupportCase() {
 /**
  * Post a reply to a case. `internalNote` is silently forced to `false` for
  * tenant callers by the server, so we don't expose it here.
+ *
+ * Endpoint routing: replies that carry attachments MUST go to
+ * `/support-cases/{id}/attachments` — that is the only endpoint that
+ * registers the uploaded object keys on the thread. Plain-text replies go
+ * to `/support-cases/{id}/messages` as before.
  */
 export function useReplySupportCase(caseId: string) {
   const queryClient = useQueryClient();
@@ -92,8 +95,13 @@ export function useReplySupportCase(caseId: string) {
     Error,
     Omit<SupportCaseMessageRequest, "internalNote">
   >({
-    mutationFn: (data) =>
-      apiPost<AsyncJobAck>(`/support-cases/${caseId}/messages`, data),
+    mutationFn: (data) => {
+      const hasAttachments = (data.attachments?.length ?? 0) > 0;
+      const path = hasAttachments
+        ? `/support-cases/${caseId}/attachments`
+        : `/support-cases/${caseId}/messages`;
+      return apiPost<AsyncJobAck>(path, data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: supportCaseKeys.detail(caseId) });
       queryClient.invalidateQueries({ queryKey: supportCaseKeys.messages(caseId) });
@@ -139,40 +147,8 @@ export function useTransitionSupportCase(caseId: string) {
   });
 }
 
-// ── Attachment flow (3 steps) ─────────────────────────────────────────
-
-/**
- * Step 1: ask the backend for a presigned S3 URL. The returned `objectKey`
- * is what we register in step 3.
- */
-export function useCreateAttachmentIntent(caseId: string) {
-  return useMutation<AttachmentIntentResponse, Error, AttachmentIntentRequest>({
-    mutationFn: (data) =>
-      apiPost<AttachmentIntentResponse>(
-        `/support-cases/${caseId}/attachments/intent`,
-        data,
-      ),
-  });
-}
-
-/**
- * Step 3: register the uploaded file(s) as a thread message. Body may be a
- * short caption; attachments array carries the object keys. Step 2 (the raw
- * S3 PUT) is done directly by `uploadSupportCaseAttachment` below.
- */
-export function useRegisterAttachment(caseId: string) {
-  const queryClient = useQueryClient();
-  return useMutation<
-    AsyncJobAck,
-    Error,
-    Omit<SupportCaseMessageRequest, "internalNote">
-  >({
-    mutationFn: (data) =>
-      apiPost<AsyncJobAck>(`/support-cases/${caseId}/attachments`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: supportCaseKeys.detail(caseId) });
-      queryClient.invalidateQueries({ queryKey: supportCaseKeys.messages(caseId) });
-      queryClient.invalidateQueries({ queryKey: supportCaseKeys.all });
-    },
-  });
-}
+// Attachment flow:
+//   1. `uploadSupportCaseAttachment` (in features/support-cases/lib) asks for
+//      a presigned URL and PUTs the file bytes directly to storage.
+//   2. `useReplySupportCase` registers the uploaded object keys by posting
+//      to `/support-cases/{id}/attachments` when attachments are present.

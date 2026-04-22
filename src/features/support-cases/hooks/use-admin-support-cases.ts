@@ -86,12 +86,24 @@ export function useAdminSupportCaseMessages(caseId: string, enabled = true) {
 
 // ── Mutations ─────────────────────────────────────────────────────────
 
-/** Admin reply. Supports `internalNote: true` for notes tenants never see. */
+/**
+ * Admin reply. Supports `internalNote: true` for notes tenants never see.
+ *
+ * Replies that carry attachments are routed to
+ * `/admins/support-cases/{id}/attachments` — `/messages` does not register
+ * uploaded object keys on the thread. Plain-text replies keep using
+ * `/messages` as before.
+ */
 export function useAdminReplySupportCase(caseId: string) {
   const queryClient = useQueryClient();
   return useMutation<AsyncJobAck, Error, SupportCaseMessageRequest>({
-    mutationFn: (data) =>
-      apiPost<AsyncJobAck>(`/admins/support-cases/${caseId}/messages`, data),
+    mutationFn: (data) => {
+      const hasAttachments = (data.attachments?.length ?? 0) > 0;
+      const path = hasAttachments
+        ? `/admins/support-cases/${caseId}/attachments`
+        : `/admins/support-cases/${caseId}/messages`;
+      return apiPost<AsyncJobAck>(path, data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminSupportCaseKeys.detail(caseId) });
       queryClient.invalidateQueries({ queryKey: adminSupportCaseKeys.messages(caseId) });

@@ -21,6 +21,7 @@ import {
 import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
 import { MobileNavSheet } from "@/components/navigation/mobile-nav-sheet";
 import { Topbar } from "@/components/navigation/topbar";
+import { AuthGuard } from "@/components/auth/auth-guard";
 import { useTenantBranding } from "@/hooks/use-tenant-branding";
 
 const CommandLauncher = dynamic(
@@ -154,51 +155,53 @@ export function TenantShell({ children }: { children: React.ReactNode }) {
   }, [currentRole]);
 
   return (
-    <div className="min-h-screen bg-background">
-      <AppSidebar
-        items={visibleNavItems}
-        header={
-          <span className="text-lg font-bold font-display tracking-tight">
-            VisiChek
-          </span>
-        }
-        userInfo={{
-          name: systemUserProfile?.fullName ?? "User",
-          detail: currentRole ? formatRole(currentRole) : systemUserProfile?.email ?? "",
-          initial: systemUserProfile?.fullName?.charAt(0) ?? "U",
-        }}
-        onSearchClick={() => setCommandOpen(true)}
-        onSettingsClick={() => navigate("/app/settings")}
-        settingsHref="/app/settings"
-        onLogoutClick={logout}
-        collapsed={sidebarCollapsed}
-        onCollapsedChange={setSidebarCollapsed}
-      />
-
-      <MobileNavSheet
-        open={mobileNavOpen}
-        onOpenChange={setMobileNavOpen}
-        items={visibleNavItems}
-      />
-
-      <div
-        className={cn(
-          "transition-[padding-left] duration-200 ease-in-out",
-          sidebarCollapsed ? "lg:pl-16" : "lg:pl-64"
-        )}
-      >
-        <Topbar
-          onMenuClick={() => setMobileNavOpen(true)}
+    <AuthGuard shell="system_user">
+      <div className="min-h-screen bg-background">
+        <AppSidebar
+          items={visibleNavItems}
+          header={
+            <span className="text-lg font-bold font-display tracking-tight">
+              VisiChek
+            </span>
+          }
+          userInfo={{
+            name: systemUserProfile?.fullName ?? "User",
+            detail: currentRole ? formatRole(currentRole) : systemUserProfile?.email ?? "",
+            initial: systemUserProfile?.fullName?.charAt(0) ?? "U",
+          }}
           onSearchClick={() => setCommandOpen(true)}
+          onSettingsClick={() => navigate("/app/settings")}
+          settingsHref="/app/settings"
+          onLogoutClick={logout}
+          collapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
         />
-        <main id="main-content" className="p-4 lg:p-6">
-          {children}
-        </main>
-      </div>
 
-      {commandOpen && (
-        <CommandLauncher externalOpen={commandOpen} onExternalOpenChange={setCommandOpen} />
-      )}
-    </div>
+        <MobileNavSheet
+          open={mobileNavOpen}
+          onOpenChange={setMobileNavOpen}
+          items={visibleNavItems}
+        />
+
+        <div
+          className={cn(
+            "transition-[padding-left] duration-200 ease-in-out",
+            sidebarCollapsed ? "lg:pl-16" : "lg:pl-64"
+          )}
+        >
+          <Topbar
+            onMenuClick={() => setMobileNavOpen(true)}
+            onSearchClick={() => setCommandOpen(true)}
+          />
+          <main id="main-content" className="p-4 lg:p-6">
+            {children}
+          </main>
+        </div>
+
+        {commandOpen && (
+          <CommandLauncher externalOpen={commandOpen} onExternalOpenChange={setCommandOpen} />
+        )}
+      </div>
+    </AuthGuard>
   );
 }

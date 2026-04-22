@@ -6,24 +6,29 @@ import type {
 } from "@/types/support-case";
 
 /**
- * Runs the 3-step support-case attachment flow for a single file and returns
- * the attachment descriptor you can drop into a message payload.
+ * Runs steps 1 and 2 of the support-case attachment flow for a single file
+ * and returns the descriptor to include in the reply hook's `attachments`
+ * array. Step 3 (registering the descriptor on the thread) is handled by
+ * `useReplySupportCase` / `useAdminReplySupportCase`, which auto-route to
+ * `/support-cases/{id}/attachments` when attachments are present.
  *
  *   1. POST /v1/support-cases/{id}/attachments/intent   → presigned URL
- *   2. PUT  <uploadUrl>                                 → raw S3 upload
- *   3. (caller) POST /v1/support-cases/{id}/messages or /attachments
- *      with the returned `SupportCaseAttachment` in the `attachments` array
+ *   2. PUT  <uploadUrl>                                 → raw bytes to storage
  *
- * Step 3 is left to the caller so they can batch multiple files into a
- * single message registration.
+ * The PUT in step 2 is a direct-to-storage call using the presigned URL's
+ * own credentials, so it must NOT carry our `Authorization` Bearer header
+ * and must send exactly the headers returned by the intent (anything else
+ * triggers a signature mismatch).
  */
 export async function uploadSupportCaseAttachment(
   caseId: string,
   file: File,
 ): Promise<SupportCaseAttachment> {
+  const mimeType = file.type || "application/octet-stream";
+
   const intentPayload: AttachmentIntentRequest = {
     fileName: file.name,
-    mimeType: file.type || "application/octet-stream",
+    mimeType,
     size: file.size,
   };
 
@@ -32,15 +37,11 @@ export async function uploadSupportCaseAttachment(
     intentPayload,
   );
 
-  const uploadOptions: RequestInit = {
+  const uploadResponse = await fetch(intent.uploadUrl, {
     method: intent.method || "PUT",
+    headers: intent.headers,
     body: file,
-  };
-  if (intent.headers) {
-    uploadOptions.headers = intent.headers;
-  }
-
-  const uploadResponse = await fetch(intent.uploadUrl, uploadOptions);
+  });
 
   if (!uploadResponse.ok) {
     throw new Error(
@@ -49,8 +50,9 @@ export async function uploadSupportCaseAttachment(
   }
 
   return {
+    documentId: crypto.randomUUID(),
     fileName: file.name,
-    mimeType: file.type || "application/octet-stream",
+    mimeType,
     size: file.size,
     objectKey: intent.objectKey,
   };
