@@ -13,7 +13,7 @@
  * config is resolved from the tenantId on mount.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -57,6 +57,7 @@ import {
   ReturningVisitorCard,
   describeCheckinError,
 } from "@/features/checkins";
+import { usePublicTenantBranding } from "@/hooks/use-public-tenant-branding";
 import type {
   IdType,
   PurposeInfo,
@@ -141,12 +142,7 @@ export default function KioskCheckinPage() {
   const [stepError, setStepError] = useState<string | null>(null);
   const [submittedId, setSubmittedId] = useState<string | null>(null);
 
-  // Apply tenant logo as a page-level visual cue only
-  useEffect(() => {
-    if (configQ.data?.logoUrl) {
-      // Kept simple — branding system handles CSS vars separately.
-    }
-  }, [configQ.data?.logoUrl]);
+  usePublicTenantBranding(tenantId);
 
   // ── Derived ──────────────────────────────────────────────────────
 
@@ -231,13 +227,27 @@ export default function KioskCheckinPage() {
       }
     }
 
+    // Seed identity values into the Details form so a new visitor doesn't
+    // have to retype email/phone if the tenant configured them as bio fields.
+    // Keys match the snake_case convention used by DEFAULT_FIELDS.
+    setState((s) => ({
+      ...s,
+      fieldValues: {
+        ...s.fieldValues,
+        email: s.fieldValues.email || email,
+        phone: s.fieldValues.phone || phone,
+      },
+    }));
+
     advance();
   }
 
   function confirmReturningVisitor() {
     const v = state.returningVisitor;
     if (!v) return;
-    // Prefill identity + bio data from the saved profile.
+    // Prefill identity + bio data from the saved profile. Seed email/phone
+    // into fieldValues too so bio fields keyed "email"/"phone" render
+    // pre-filled on the Details step.
     setState((s) => ({
       ...s,
       email: v.email || s.email,
@@ -246,6 +256,8 @@ export default function KioskCheckinPage() {
         ...s.fieldValues,
         // Map a couple of common bio keys; anything not present is ignored.
         full_name: v.fullName,
+        email: v.email || s.email,
+        phone: v.phone || s.phone,
         ...v.bioData,
       },
     }));

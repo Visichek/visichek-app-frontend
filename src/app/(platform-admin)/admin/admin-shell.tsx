@@ -31,6 +31,7 @@ const CommandLauncher = dynamic(
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils/cn";
 import { useThemeSync } from "@/hooks/use-theme-sync";
+import { clearBrandingStyles } from "@/lib/branding/apply-branding";
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
   {
@@ -104,6 +105,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const { navigate } = useNavigationLoading();
 
   useThemeSync();
+
+  // Platform admin never uses tenant branding — wipe any residual title/favicon
+  // left over from a previous tenant session on this device.
+  useEffect(() => {
+    clearBrandingStyles();
+    document.title = "VisiChek Admin";
+  }, []);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {

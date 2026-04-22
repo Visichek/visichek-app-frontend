@@ -30,6 +30,10 @@ export type RequiredFieldType =
   | "string"
   | "email"
   | "phone"
+  // Backend serializes phone fields as "tel" (HTML input-type convention)
+  // but some older configs still use "phone"; both are treated as phone
+  // inputs in the renderer.
+  | "tel"
   | "number"
   | "date"
   | "boolean"

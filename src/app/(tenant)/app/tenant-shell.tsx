@@ -23,6 +23,8 @@ import { MobileNavSheet } from "@/components/navigation/mobile-nav-sheet";
 import { Topbar } from "@/components/navigation/topbar";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useTenantBranding } from "@/hooks/use-tenant-branding";
+import { useAppSelector } from "@/lib/store/hooks";
+import { selectBranding } from "@/lib/store/branding-slice";
 
 const CommandLauncher = dynamic(
   () =>
@@ -145,6 +147,9 @@ export function TenantShell({ children }: { children: React.ReactNode }) {
 
   useTenantBranding();
   useThemeSync();
+  const branding = useAppSelector(selectBranding);
+  const workspaceName = branding?.companyName ?? "VisiChek";
+  const workspaceLogo = branding?.logoUrl;
 
   const visibleNavItems = useMemo(() => {
     if (!currentRole) return [];
@@ -160,9 +165,19 @@ export function TenantShell({ children }: { children: React.ReactNode }) {
         <AppSidebar
           items={visibleNavItems}
           header={
-            <span className="text-lg font-bold font-display tracking-tight">
-              VisiChek
-            </span>
+            <div className="flex min-w-0 items-center gap-2">
+              {workspaceLogo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={workspaceLogo}
+                  alt=""
+                  className="h-7 w-7 shrink-0 rounded object-contain"
+                />
+              ) : null}
+              <span className="truncate text-lg font-bold font-display tracking-tight">
+                {workspaceName}
+              </span>
+            </div>
           }
           userInfo={{
             name: systemUserProfile?.fullName ?? "User",

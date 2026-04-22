@@ -14,6 +14,8 @@ import { Loader2, Settings, LogOut, HelpCircle } from "lucide-react";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useSession } from "@/hooks/use-session";
 import { useAuth } from "@/hooks/use-auth";
+import { useAppSelector } from "@/lib/store/hooks";
+import { selectBranding } from "@/lib/store/branding-slice";
 import type { NavItem } from "./app-sidebar";
 
 interface MobileNavSheetProps {
@@ -32,6 +34,11 @@ export function MobileNavSheet({
   const { adminProfile, systemUserProfile, isAdmin, currentRole } =
     useSession();
   const { logout } = useAuth();
+  const branding = useAppSelector(selectBranding);
+  const workspaceName = isAdmin
+    ? "VisiChek Admin"
+    : branding?.companyName ?? "VisiChek";
+  const workspaceLogo = isAdmin ? undefined : branding?.logoUrl;
 
   const displayName = isAdmin
     ? adminProfile?.fullName
@@ -53,8 +60,20 @@ export function MobileNavSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="left" className="w-72 p-0 flex flex-col">
         <SheetHeader className="border-b px-5 py-4">
-          <SheetTitle className="text-lg font-bold font-display tracking-tight">
-            VisiChek
+          <SheetTitle asChild>
+            <div className="flex min-w-0 items-center gap-2 text-left">
+              {workspaceLogo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={workspaceLogo}
+                  alt=""
+                  className="h-7 w-7 shrink-0 rounded object-contain"
+                />
+              ) : null}
+              <span className="truncate text-lg font-bold font-display tracking-tight">
+                {workspaceName}
+              </span>
+            </div>
           </SheetTitle>
         </SheetHeader>
 

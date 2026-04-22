@@ -58,12 +58,12 @@ const brandingKeys = {
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/v1";
 
-function resolveObjectUrl(objectKey?: string | null): string | undefined {
+export function resolveObjectUrl(objectKey?: string | null): string | undefined {
   if (!objectKey) return undefined;
   return `${API_BASE_URL.replace(/\/$/, "")}/documents/${encodeURIComponent(objectKey)}`;
 }
 
-function normalizeBranding(data: TenantBranding): TenantBranding {
+export function normalizeBranding(data: TenantBranding): TenantBranding {
   return {
     ...data,
     logoPosition: data.logoPosition ?? data.badgeLogoPosition,

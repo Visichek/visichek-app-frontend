@@ -62,6 +62,8 @@ export interface Department {
 
 export interface TenantBranding {
   tenantId: string;
+  /** Tenant's display name — sourced from PublicTenantInfo and used in titles/headers */
+  companyName?: string;
   primaryColor?: string;
   secondaryColor?: string;
   accentColor?: string;

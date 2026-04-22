@@ -2,6 +2,7 @@
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -150,14 +151,14 @@ function renderInput(
         />
       );
     case "phone":
+    case "tel":
       return (
-        <Input
-          {...common}
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
+        <PhoneInput
+          id={id}
           value={(value as string) ?? ""}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(v) => onChange(v)}
+          disabled={readOnly}
+          placeholder={field.placeholder ?? "Phone number"}
         />
       );
     case "number":
