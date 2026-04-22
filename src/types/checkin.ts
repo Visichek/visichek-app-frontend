@@ -36,15 +36,20 @@ export type RequiredFieldType =
   | "select";
 
 /**
- * Where a required field ends up in the payload.
- *   - bio_data: personal info (name, DOB, …); may be auto-filled from OCR.
- *   - tenant_specific_data: custom fields defined by the tenant.
- *   - purpose: visit purpose fields.
+ * Which bucket a required field belongs to. Matches the backend
+ * `CheckinFieldCategory` enum (schemas/imports.py) — only these two
+ * string values are accepted on create and emitted on read.
+ *
+ *   - bio: personal info (name, DOB, …); saved on the visitor profile and
+ *     pre-filled on return visits. May be auto-filled from OCR.
+ *   - tenant_specific: visit-scoped fields (host, purpose, etc.) collected
+ *     fresh every visit.
+ *
+ * Note: `bio_data` / `tenant_specific_data` appear elsewhere in the
+ * codebase as **submit-payload field names** — those are unrelated to this
+ * category enum despite the similar wording.
  */
-export type RequiredFieldCategory =
-  | "bio_data"
-  | "tenant_specific_data"
-  | "purpose";
+export type RequiredFieldCategory = "bio" | "tenant_specific";
 
 // ── Config ───────────────────────────────────────────────────────────
 

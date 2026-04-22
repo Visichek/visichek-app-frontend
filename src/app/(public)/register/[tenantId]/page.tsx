@@ -102,8 +102,18 @@ export default function KioskCheckinPage() {
   const tenantId = params.tenantId as string;
 
   const configQ = useActiveCheckinConfigForTenant(tenantId);
-  const lookupMutation = useVisitorLookup(configQ.data?.checkinConfigId);
-  const submitMutation = useSubmitCheckin(configQ.data?.checkinConfigId);
+  // `checkinConfigId === ""` is the documented "default mode" signal — the
+  // tenant has not customized their config yet, so the backend returns a
+  // sensible default payload. In that mode there is no config to scope the
+  // returning-visitor lookup against, so we skip the lookup step.
+  const configId = configQ.data?.checkinConfigId || undefined;
+  const isDefaultsMode = configQ.data != null && !configId;
+  const lookupMutation = useVisitorLookup(configId);
+  // Per the doc, the tenant-scoped submit endpoint is the preferred path for
+  // any kiosk that only knows the tenant_id (our case — the URL is
+  // /register/[tenantId]). It resolves the tenant's active config server-side
+  // and falls back to defaults when none exists, so we always use it here.
+  const submitMutation = useSubmitCheckin({ configId: undefined, tenantId });
 
   const [step, setStep] = useState(1);
   const [completed, setCompleted] = useState<number[]>([]);
@@ -123,13 +133,13 @@ export default function KioskCheckinPage() {
   const config = configQ.data;
 
   const bioFields = useMemo(
-    () => (config?.requiredFields ?? []).filter((f) => f.category === "bio_data"),
+    () => (config?.requiredFields ?? []).filter((f) => f.category === "bio"),
     [config?.requiredFields]
   );
   const tenantFields = useMemo(
     () =>
       (config?.requiredFields ?? []).filter(
-        (f) => f.category === "tenant_specific_data"
+        (f) => f.category === "tenant_specific"
       ),
     [config?.requiredFields]
   );
@@ -167,8 +177,14 @@ export default function KioskCheckinPage() {
       return;
     }
 
-    // Optional returning-visitor lookup
-    if (config?.allowReturningVisitorLookup && !state.returningVisitor) {
+    // Optional returning-visitor lookup. Skipped in defaults mode — there is
+    // no config id to scope the lookup to, and the backend lookup endpoint is
+    // keyed by configId.
+    if (
+      !isDefaultsMode &&
+      config?.allowReturningVisitorLookup &&
+      !state.returningVisitor
+    ) {
       try {
         const match = await lookupMutation.mutateAsync({
           email: state.email.trim() || undefined,
@@ -235,7 +251,6 @@ export default function KioskCheckinPage() {
     // Validate required fields
     const missing: string[] = [];
     for (const field of config?.requiredFields ?? []) {
-      if (field.category === "purpose") continue;
       if (!field.required) continue;
       const v = state.fieldValues[field.key];
       if (v == null || (typeof v === "string" && v.trim() === "")) {
@@ -268,8 +283,8 @@ export default function KioskCheckinPage() {
     for (const field of config?.requiredFields ?? []) {
       const v = state.fieldValues[field.key];
       if (v == null || v === "") continue;
-      if (field.category === "bio_data") bioData[field.key] = v;
-      else if (field.category === "tenant_specific_data")
+      if (field.category === "bio") bioData[field.key] = v;
+      else if (field.category === "tenant_specific")
         tenantData[field.key] = v;
     }
 
@@ -876,9 +891,7 @@ function ReviewStep({
         {state.purposeDetails && (
           <ReviewItem label="Notes" value={state.purposeDetails} />
         )}
-        {config.requiredFields
-          .filter((f) => f.category !== "purpose")
-          .map((f) => {
+        {config.requiredFields.map((f) => {
             const v = state.fieldValues[f.key];
             if (v == null || v === "") return null;
             return (

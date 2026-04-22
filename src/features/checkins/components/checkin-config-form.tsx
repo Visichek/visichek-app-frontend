@@ -79,21 +79,21 @@ const DEFAULT_FIELDS: RequiredField[] = [
     label: "Full name",
     type: "string",
     required: true,
-    category: "bio_data",
+    category: "bio",
   },
   {
     key: "company",
     label: "Company",
     type: "string",
     required: false,
-    category: "bio_data",
+    category: "bio",
   },
   {
     key: "host_name",
     label: "Who are you here to see?",
     type: "string",
     required: true,
-    category: "tenant_specific_data",
+    category: "tenant_specific",
   },
 ];
 
@@ -113,19 +113,14 @@ const CATEGORY_OPTIONS: {
   helper: string;
 }[] = [
   {
-    value: "bio_data",
+    value: "bio",
     label: "Visitor bio",
     helper: "Personal info — can be pre-filled from an ID scan.",
   },
   {
-    value: "tenant_specific_data",
+    value: "tenant_specific",
     label: "Custom field",
-    helper: "Your own fields: host name, room number, NDA status, etc.",
-  },
-  {
-    value: "purpose",
-    label: "Visit purpose",
-    helper: "Details about why the visitor is here.",
+    helper: "Your own fields: host name, room number, purpose, etc.",
   },
 ];
 
@@ -187,7 +182,7 @@ export function CheckinConfigForm({
       label: `Custom field ${idx}`,
       type: "string",
       required: false,
-      category: "tenant_specific_data",
+      category: "tenant_specific",
     };
     update("requiredFields", [...values.requiredFields, fresh]);
   }

@@ -32,6 +32,14 @@ export const checkinVisitorLookupPath = (configId: string) =>
 export const checkinSubmitMultipartPath = (configId: string) =>
   `/checkin-configs/${configId}/submit`;
 
+/**
+ * Default-mode submit: used when the tenant has not customized a config yet
+ * and the public endpoint returns defaults with `checkin_config_id === ""`.
+ * The backend resolves the tenant's default config server-side.
+ */
+export const checkinSubmitDefaultByTenantPath = (tenantId: string) =>
+  `/public/tenants/${tenantId}/submit`;
+
 /** Legacy JSON submit — kept for backend parity; not used by the kiosk UI. */
 export const checkinSubmitJsonPath = (configId: string) =>
   `/checkin-configs/${configId}/checkins`;

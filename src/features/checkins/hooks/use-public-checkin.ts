@@ -21,6 +21,7 @@ import type {
 import {
   checkinConfigByTenantPath,
   checkinConfigPath,
+  checkinSubmitDefaultByTenantPath,
   checkinSubmitMultipartPath,
   checkinVisitorLookupPath,
 } from "../lib/endpoints";
@@ -88,14 +89,32 @@ export function useVisitorLookup(configId: string | undefined) {
  * we also require `idType` — the backend returns 400 if this contract
  * is violated.
  *
+ * Resolves the submit URL in this order:
+ *   1. If `configId` is a non-empty string, submit to the config-scoped path.
+ *   2. Else if `tenantId` is provided, submit to the tenant-scoped default
+ *      path (used when the tenant has not customized a config yet and the
+ *      public active-config endpoint returned `checkin_config_id === ""`).
+ *   3. Else throw — we have nothing to submit to.
+ *
  * Idempotency note: when an ID file is uploaded, the backend dedupes by
  * (tenant_id, sha256), so retrying a failed submit with the same file
  * returns the same visitor record — we don't need to hash client-side.
  */
-export function useSubmitCheckin(configId: string | undefined) {
+export function useSubmitCheckin(args: {
+  configId: string | undefined;
+  tenantId?: string;
+}) {
+  const { configId, tenantId } = args;
   return useMutation({
     mutationFn: (request: CheckinSubmitMultipartRequest) => {
-      if (!configId) throw new Error("Missing configId");
+      const path = configId
+        ? checkinSubmitMultipartPath(configId)
+        : tenantId
+          ? checkinSubmitDefaultByTenantPath(tenantId)
+          : null;
+      if (!path) {
+        throw new Error("Missing configId and tenantId");
+      }
 
       const form = new FormData();
       form.append("email", request.email);
@@ -119,10 +138,7 @@ export function useSubmitCheckin(configId: string | undefined) {
         form.append("id_type", request.idType);
       }
 
-      return apiPost<CheckinOut>(
-        checkinSubmitMultipartPath(configId),
-        form
-      );
+      return apiPost<CheckinOut>(path, form);
     },
   });
 }
