@@ -1,5 +1,6 @@
 import axios from "axios";
 import { getAccessToken, getRefreshToken, getSessionType, setTokens, clearTokens } from "./tokens";
+import { clearUserLocation } from "@/lib/geolocation/user-location";
 import type { TokenPair, SessionType } from "@/types/auth";
 
 const API_BASE_URL =
@@ -121,6 +122,9 @@ export async function refreshSession(): Promise<string> {
 export function clearSession(): void {
   const wasAdmin = getSessionType() === "admin";
   clearTokens();
+  // Drop any cached browser coordinates — the next principal signed in on
+  // this tab must not inherit the previous user's geofencing presence.
+  clearUserLocation();
 
   if (typeof window !== "undefined") {
     window.location.href = wasAdmin ? "/admin/login" : "/app/login";

@@ -119,6 +119,11 @@ export function CheckinDetailView({ checkin }: CheckinDetailViewProps) {
               )}
               <div className="flex-1 min-w-0">
                 <p className="font-medium">{visitorName}</p>
+                {checkin.visitor.company && (
+                  <p className="text-sm text-muted-foreground truncate">
+                    {checkin.visitor.company}
+                  </p>
+                )}
                 {checkin.visitor.email && (
                   <p className="text-sm text-muted-foreground truncate">
                     {checkin.visitor.email}

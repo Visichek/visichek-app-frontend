@@ -1,6 +1,7 @@
 import type { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from "axios";
 import { getAccessToken, getSessionType } from "@/lib/auth/tokens";
 import { refreshSession, clearSession } from "@/lib/auth/session";
+import { peekUserLocationHeader } from "@/lib/geolocation/user-location";
 import { ApiError, type ErrorEnvelope } from "@/types/api";
 
 let isRefreshing = false;
@@ -26,6 +27,23 @@ export function setupInterceptors(client: AxiosInstance) {
     const token = getAccessToken();
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
+
+      // Authenticated requests piggyback the user's current geolocation
+      // (if the browser has granted permission) as `X-User-Location`.
+      // The backend reads this inside the gate-check dependency and
+      // fire-and-forget-writes it to Redis with a 10-min TTL so the
+      // geofencing service can answer "which approvers are on-site?".
+      //
+      // Rules:
+      //   - Omit the header entirely if no sample is cached — the server
+      //     treats a missing header as "no recent location", which is
+      //     exactly what we want.
+      //   - Never block the request on a geolocation read; we only
+      //     attach what's already cached in memory.
+      const locationHeader = peekUserLocationHeader();
+      if (locationHeader) {
+        config.headers["X-User-Location"] = locationHeader;
+      }
     }
 
     // When the caller passes a FormData body, clear the default
@@ -125,17 +143,25 @@ function normalizeError(error: AxiosError<ErrorEnvelope>): ApiError {
   const response = error.response;
   const envelope = response?.data;
   const status = response?.status || 0;
+  const backendCode = envelope?.data?.code;
 
-  // 403 → always surface a clear permissions message
+  // 403 → default to the generic permissions message, but let a few
+  // well-known backend codes carry their own explanation. Geofence
+  // rejections, for example, include a distance/radius in the body that
+  // is useful to the visitor — burying it under "insufficient
+  // permissions" makes the kiosk unfixable from the user's side.
+  const preserveBackendMessage =
+    status === 403 && backendCode === "GEOFENCE_VIOLATION";
+
   const message =
-    status === 403
+    status === 403 && !preserveBackendMessage
       ? "Insufficient permissions — you do not have access to this feature."
       : envelope?.message || error.message || "An unexpected error occurred";
 
   const code =
     status === 403
-      ? envelope?.data?.code || "FORBIDDEN"
-      : envelope?.data?.code || `HTTP_${status}`;
+      ? backendCode || "FORBIDDEN"
+      : backendCode || `HTTP_${status}`;
 
   return new ApiError({
     message,

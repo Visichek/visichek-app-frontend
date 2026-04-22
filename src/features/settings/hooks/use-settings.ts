@@ -98,7 +98,13 @@ export function useUpdateUserSettings() {
     mutationFn: (data: UserSettingsUpdate) =>
       apiPatch<UserSettings>(settingsBasePath(), data),
     onSuccess: (data) => {
-      queryClient.setQueryData(settingsKeys.user, data);
+      // Only prime the cache when the worker returned a complete settings
+      // object. Fall back to an invalidation so the UI always reflects the
+      // authoritative state after the queued write settles.
+      if (data && typeof data === "object") {
+        queryClient.setQueryData(settingsKeys.user, data);
+      }
+      queryClient.invalidateQueries({ queryKey: settingsKeys.user });
     },
   });
 }
@@ -119,7 +125,10 @@ export function useUpdateUserPreference() {
     mutationFn: (data: UserPreferenceUpdate) =>
       apiPatch<UserPreferences>(preferencesBasePath(), data),
     onSuccess: (data) => {
-      queryClient.setQueryData(settingsKeys.preferences, data);
+      if (data && typeof data === "object") {
+        queryClient.setQueryData(settingsKeys.preferences, data);
+      }
+      queryClient.invalidateQueries({ queryKey: settingsKeys.preferences });
     },
   });
 }
@@ -141,7 +150,10 @@ export function useUpdateTenantSettings(tenantId: string) {
     mutationFn: (data: TenantSettingsUpdate) =>
       apiPatch<TenantSettings>(`/tenants/${tenantId}/settings`, data),
     onSuccess: (data) => {
-      queryClient.setQueryData(settingsKeys.tenant(tenantId), data);
+      if (data && typeof data === "object") {
+        queryClient.setQueryData(settingsKeys.tenant(tenantId), data);
+      }
+      queryClient.invalidateQueries({ queryKey: settingsKeys.tenant(tenantId) });
     },
   });
 }
@@ -162,7 +174,10 @@ export function useUpdatePlatformSettings() {
     mutationFn: (data: PlatformSettingsUpdate) =>
       apiPatch<PlatformSettings>("/admins/platform-settings", data),
     onSuccess: (data) => {
-      queryClient.setQueryData(settingsKeys.platform, data);
+      if (data && typeof data === "object") {
+        queryClient.setQueryData(settingsKeys.platform, data);
+      }
+      queryClient.invalidateQueries({ queryKey: settingsKeys.platform });
     },
   });
 }

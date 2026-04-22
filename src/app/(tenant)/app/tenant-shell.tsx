@@ -38,6 +38,19 @@ import { useAuth } from "@/hooks/use-auth";
 import { ROLE_ROUTES } from "@/lib/permissions/route-access";
 import { cn } from "@/lib/utils/cn";
 import { useThemeSync } from "@/hooks/use-theme-sync";
+import { requestUserLocation } from "@/lib/geolocation/user-location";
+
+// Roles that act as geofencing approvers in approver-proximity mode. When
+// a tenant has not configured a fixed reference coordinate, visitor submits
+// are accepted only if one of these users is physically within radius. We
+// warm up the browser's location permission for them on shell mount so the
+// presence beacon (the `X-User-Location` header on every authenticated
+// request) starts populating Redis before a visitor actually tries to check in.
+const GEOFENCE_APPROVER_ROLES = new Set([
+  "super_admin",
+  "dept_admin",
+  "receptionist",
+]);
 
 const ALL_TENANT_NAV_ITEMS: NavItem[] = [
   {
@@ -147,6 +160,20 @@ export function TenantShell({ children }: { children: React.ReactNode }) {
 
   useTenantBranding();
   useThemeSync();
+
+  // Warm up the geolocation cache for approver roles. A single
+  // `getCurrentPosition` call on mount triggers the browser's permission
+  // prompt (if still "prompt"); once granted, the interceptor can start
+  // attaching `X-User-Location` to every authenticated request. Denial
+  // is sticky inside `requestUserLocation`, so we don't re-prompt on
+  // navigation.
+  useEffect(() => {
+    if (!currentRole || !GEOFENCE_APPROVER_ROLES.has(currentRole)) return;
+    requestUserLocation().catch(() => {
+      // Best-effort — a missing header is a valid "no recent location"
+      // signal to the backend, so swallow the rejection silently.
+    });
+  }, [currentRole]);
   const branding = useAppSelector(selectBranding);
   const workspaceName = branding?.companyName ?? "VisiChek";
   const workspaceLogo = branding?.logoUrl;

@@ -16,6 +16,80 @@ export interface CheckinErrorInfo {
   allowManualFallback: boolean;
 }
 
+interface GeofenceDetails {
+  reason?: string;
+  distance_m?: number;
+  radius_m?: number;
+}
+
+/**
+ * Reason-specific copy for the `GEOFENCE_VIOLATION` error. Returns `null`
+ * when the backend code is not a geofence violation.
+ */
+function describeGeofenceViolation(
+  error: ApiError
+): CheckinErrorInfo | null {
+  if (error.code !== "GEOFENCE_VIOLATION") return null;
+  const details = (error.details ?? {}) as GeofenceDetails;
+  const reason = details.reason;
+  const distance = typeof details.distance_m === "number" ? Math.round(details.distance_m) : null;
+  const radius = typeof details.radius_m === "number" ? Math.round(details.radius_m) : null;
+
+  switch (reason) {
+    case "missing_visitor_location":
+      return {
+        title: "Location access required",
+        message:
+          "This site requires a location check before you can check in. Please enable location access in your browser and try again.",
+        retryable: true,
+        allowManualFallback: false,
+      };
+    case "outside_reference_point":
+      return {
+        title: "You're outside the check-in zone",
+        message:
+          distance && radius
+            ? `You appear to be about ${distance}m from the reception area (the site allows up to ${radius}m). Please move closer and try again.`
+            : "Please move closer to the reception area and try again.",
+        retryable: true,
+        allowManualFallback: false,
+      };
+    case "outside_approver_radius":
+      return {
+        title: "No approver nearby",
+        message:
+          "We couldn't find an on-site approver close enough to check you in. Please ask reception to retry on your behalf.",
+        retryable: true,
+        allowManualFallback: false,
+      };
+    case "no_active_approvers":
+      return {
+        title: "No approver on-site",
+        message:
+          "No approver is currently on-site to accept your check-in. Please wait a moment or ask reception for help.",
+        retryable: true,
+        allowManualFallback: false,
+      };
+    case "tenant_misconfigured":
+      return {
+        title: "Check-in is not ready",
+        message:
+          "This kiosk's location settings haven't been fully configured. Please ask the site administrator for help.",
+        retryable: false,
+        allowManualFallback: false,
+      };
+    default:
+      return {
+        title: "Check-in blocked",
+        message:
+          error.message ||
+          "Your location doesn't match the site's check-in zone. Please move closer to the reception area and try again.",
+        retryable: true,
+        allowManualFallback: false,
+      };
+  }
+}
+
 export function describeCheckinError(error: unknown): CheckinErrorInfo {
   if (!(error instanceof ApiError)) {
     return {
@@ -26,6 +100,11 @@ export function describeCheckinError(error: unknown): CheckinErrorInfo {
       allowManualFallback: false,
     };
   }
+
+  // Geofence violations arrive as 403 with a specific code; branch on the
+  // code first so we don't collapse them into the generic 403 bucket.
+  const geofence = describeGeofenceViolation(error);
+  if (geofence) return geofence;
 
   switch (error.status) {
     case 400:

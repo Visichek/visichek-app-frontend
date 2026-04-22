@@ -176,6 +176,13 @@ export interface TenantSettings {
   webhookEvents: string[];
   ssoEnabled: boolean;
   ssoProvider: SsoProvider | null;
+  // Geofencing — when enabled, public visitor submits must include
+  // visitor_lat/lng and the backend rejects submits outside radius_m of
+  // either a fixed reference coordinate or an active approver.
+  geofencingEnabled: boolean;
+  geofencingRadiusMeters: number;
+  geofencingReferenceLat: number | null;
+  geofencingReferenceLng: number | null;
   dateCreated: number;
   lastUpdated: number;
 }

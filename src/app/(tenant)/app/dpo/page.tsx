@@ -30,6 +30,7 @@ import {
 import { toast } from "sonner";
 import { formatDateTime } from "@/lib/utils/format-date";
 import { useDataSubjectRequests } from "@/features/dsr/hooks/use-dsr";
+import { GeofencingComplianceCard } from "@/features/dpo/components/geofencing-compliance-card";
 import { useCapabilities } from "@/hooks/use-capabilities";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
@@ -215,6 +216,8 @@ export default function DPOPage() {
           </CardContent>
         </Card>
       </div>
+
+      <GeofencingComplianceCard />
 
       <DataTable
         columns={columns}

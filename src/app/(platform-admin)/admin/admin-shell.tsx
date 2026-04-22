@@ -32,6 +32,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils/cn";
 import { useThemeSync } from "@/hooks/use-theme-sync";
 import { clearBrandingStyles } from "@/lib/branding/apply-branding";
+import { disableUserLocation } from "@/lib/geolocation/user-location";
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
   {
@@ -107,10 +108,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   useThemeSync();
 
   // Platform admin never uses tenant branding — wipe any residual title/favicon
-  // left over from a previous tenant session on this device.
+  // left over from a previous tenant session on this device. Also disable
+  // geolocation capture: admins are never tenant-side approvers, so they
+  // must not leak coordinates into any tenant's presence index.
   useEffect(() => {
     clearBrandingStyles();
     document.title = "VisiChek Admin";
+    disableUserLocation();
   }, []);
 
   useEffect(() => {

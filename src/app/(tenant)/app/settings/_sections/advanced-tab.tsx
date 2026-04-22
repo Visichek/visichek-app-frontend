@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { SettingsInfo, SettingsToggle, SettingsSelect } from "@/components/recipes/settings-section";
 import { CopyableId } from "@/components/settings/copyable-id";
+import { GeofencingSection } from "./geofencing-section";
 import {
   useSettingsManifest,
   useSettingsSection,
@@ -96,6 +97,14 @@ export function AdvancedTab() {
               <SettingsSelect id="autoCheckout" label="Auto checkout" description="Automatically check visitors out after a set duration" value={tenantSettingsData.autoCheckoutAfterHours ? String(tenantSettingsData.autoCheckoutAfterHours) : "disabled"} onValueChange={(v) => updateTenantSettings.mutate({ autoCheckoutAfterHours: v === "disabled" ? null : parseInt(v, 10) })} options={[{ value: "disabled", label: "Disabled" }, { value: "4", label: "4 hours" }, { value: "8", label: "8 hours" }, { value: "12", label: "12 hours" }]} isLoading={updateTenantSettings.isPending} />
               <SettingsSelect id="badgeExpiry" label="Badge expiry" description="When visitor badges become invalid" value={tenantSettingsData.visitorBadgeExpiry ?? "end_of_day"} onValueChange={(v) => updateTenantSettings.mutate({ visitorBadgeExpiry: v as "end_of_day" | "manual" | "hours" })} options={[{ value: "end_of_day", label: "End of day" }, { value: "manual", label: "Manual" }, { value: "hours", label: "After set hours" }]} isLoading={updateTenantSettings.isPending} />
             </div>
+          </section>
+
+          <Separator />
+
+          <section>
+            <h2 className="text-base font-semibold mb-1">Geofencing</h2>
+            <p className="text-sm text-muted-foreground mb-4">Require visitors to be on-site before their check-in is accepted. Off by default; enable only after updating your privacy notice.</p>
+            <GeofencingSection settings={tenantSettingsData} />
           </section>
 
           <Separator />

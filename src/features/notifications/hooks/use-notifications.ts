@@ -148,7 +148,10 @@ export function useUpdateNotificationPreferences() {
     mutationFn: (data: NotificationPreferencesUpdate) =>
       apiPut<NotificationPreferences>("/notifications/preferences", data),
     onSuccess: (data) => {
-      queryClient.setQueryData(notificationKeys.preferences, data);
+      if (data && typeof data === "object") {
+        queryClient.setQueryData(notificationKeys.preferences, data);
+      }
+      queryClient.invalidateQueries({ queryKey: notificationKeys.preferences });
     },
   });
 }

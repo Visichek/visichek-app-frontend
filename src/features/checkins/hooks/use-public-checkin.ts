@@ -159,6 +159,22 @@ export function useSubmitCheckin(args: {
         form.append("id_type", request.idType);
       }
 
+      // Geofencing coordinates. When the tenant has enabled geofencing
+      // these are required; when disabled the backend ignores them. The
+      // public form endpoint accepts snake_case field names.
+      if (typeof request.visitorLat === "number") {
+        form.append("visitor_lat", String(request.visitorLat));
+      }
+      if (typeof request.visitorLng === "number") {
+        form.append("visitor_lng", String(request.visitorLng));
+      }
+      if (typeof request.visitorLocationAccuracyM === "number") {
+        form.append(
+          "visitor_location_accuracy_m",
+          String(request.visitorLocationAccuracyM)
+        );
+      }
+
       return apiPost<CheckinOut>(path, form);
     },
   });
@@ -211,11 +227,24 @@ export function useSubmitCheckinByVisitorId(args: {
   return useMutation({
     mutationFn: (request: CheckinSubmitByVisitorIdRequest) => {
       if (!tenantId) throw new Error("Missing tenantId");
-      return apiPost<CheckinOut>(checkinSubmitByVisitorIdPath(tenantId), {
+      // Geofencing coordinates are only attached when the caller has
+      // them; the backend skips the check when geofencing is disabled
+      // on the tenant, so we don't gate the submit on presence here.
+      const payload: Record<string, unknown> = {
         visitorId: request.visitorId,
         purpose: request.purpose,
         tenantSpecificData: request.tenantSpecificData ?? {},
-      });
+      };
+      if (typeof request.visitorLat === "number") {
+        payload.visitorLat = request.visitorLat;
+      }
+      if (typeof request.visitorLng === "number") {
+        payload.visitorLng = request.visitorLng;
+      }
+      if (typeof request.visitorLocationAccuracyM === "number") {
+        payload.visitorLocationAccuracyM = request.visitorLocationAccuracyM;
+      }
+      return apiPost<CheckinOut>(checkinSubmitByVisitorIdPath(tenantId), payload);
     },
   });
 }

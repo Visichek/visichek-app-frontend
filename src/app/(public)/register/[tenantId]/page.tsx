@@ -70,6 +70,7 @@ import {
   describeCheckinError,
 } from "@/features/checkins";
 import { usePublicTenantBranding } from "@/hooks/use-public-tenant-branding";
+import { requestUserLocation } from "@/lib/geolocation/user-location";
 import type {
   IdType,
   PublicVisitorStatusOut,
@@ -345,6 +346,15 @@ export default function KioskCheckinPage() {
       else if (field.category === "bio") bioData[field.key] = v;
     }
 
+    // Ask the browser for the visitor's current location. This prompts
+    // on first call; if the visitor denies it and the tenant has
+    // geofencing enabled the backend rejects with
+    // `GEOFENCE_VIOLATION / missing_visitor_location`, which we surface
+    // via `describeCheckinError` below. When geofencing is disabled the
+    // backend ignores the coordinates, so it's safe to send them
+    // unconditionally.
+    const location = await requestUserLocation();
+
     try {
       if (mode === "compact" && recognition?.visitorId) {
         // Minimal submit. Backend reuses stored name/email/phone/company
@@ -353,6 +363,9 @@ export default function KioskCheckinPage() {
           visitorId: recognition.visitorId,
           purpose,
           tenantSpecificData: tenantData,
+          visitorLat: location?.lat,
+          visitorLng: location?.lng,
+          visitorLocationAccuracyM: location?.accuracyM ?? undefined,
         });
         setSubmittedId(result.id);
         return;
@@ -368,6 +381,9 @@ export default function KioskCheckinPage() {
           : undefined,
         idFile: state.useId ? state.idFile ?? undefined : undefined,
         idType: state.useId ? state.idType ?? undefined : undefined,
+        visitorLat: location?.lat,
+        visitorLng: location?.lng,
+        visitorLocationAccuracyM: location?.accuracyM ?? undefined,
       });
       setSubmittedId(result.id);
     } catch (err) {

@@ -128,19 +128,35 @@ export interface VisitorLookupQuery {
   phone?: string;
 }
 
-/** Response shape for the returning-visitor lookup. */
+/**
+ * Visitor record as surfaced by the API.
+ *
+ * Two callers read this shape:
+ *   - The returning-visitor lookup (`/checkin-configs/{id}/visitors/lookup`)
+ *     returns the full record including `tenantId`, `bioData`, and timestamps.
+ *   - The embedded `visitor` on `CheckinOut` is a brief snapshot
+ *     (`VisitorBriefSummary` server-side) with only the fields an approver
+ *     needs: name, contact info, company, verification, portrait.
+ *
+ * Extra fields are optional so both shapes fit this type without forcing
+ * each call site to discriminate. Do not read `bioData` / `lastVisitAt` /
+ * `createdAt` / `tenantId` off a value that came in via `checkin.visitor`
+ * — the backend won't set them there.
+ */
 export interface VisitorOut {
   id: string;
-  tenantId: string;
+  tenantId?: string;
   fullName: string;
   email?: string;
   phone?: string;
+  /** Employer / organisation the visitor reported at registration. */
+  company?: string;
   verified: boolean;
   verificationMethod?: IdType;
   portraitUrl?: string;
   bioData?: Record<string, string>;
   lastVisitAt?: number;
-  createdAt: number;
+  createdAt?: number;
 }
 
 /** Nested purpose payload for both submit variants. */
@@ -166,6 +182,16 @@ export interface CheckinSubmitMultipartRequest {
   tenantSpecificData?: Record<string, unknown>;
   idFile?: File;
   idType?: IdType;
+  /**
+   * Visitor-reported coordinates used by the tenant's geofence check.
+   * Sent as snake_case (`visitor_lat`/`visitor_lng`) on the wire. The
+   * backend ignores these fields when geofencing is disabled; when it's
+   * enabled and either is missing, the submit is rejected with
+   * `GEOFENCE_VIOLATION` and `reason: "missing_visitor_location"`.
+   */
+  visitorLat?: number;
+  visitorLng?: number;
+  visitorLocationAccuracyM?: number;
 }
 
 /** Legacy JSON submit payload (kept for backend parity; not used by the kiosk UI). */
@@ -219,6 +245,10 @@ export interface CheckinSubmitByVisitorIdRequest {
   visitorId: string;
   purpose: PurposeInfo;
   tenantSpecificData?: Record<string, unknown>;
+  /** Same contract as `CheckinSubmitMultipartRequest.visitorLat`. */
+  visitorLat?: number;
+  visitorLng?: number;
+  visitorLocationAccuracyM?: number;
 }
 
 /** Receptionist approve/reject payload. */
@@ -245,8 +275,13 @@ export interface CheckinOut {
   rejectionReason?: string;
   dateCreated: number;
   lastUpdated: number;
-  /** Present on pending-approval list results so the receptionist can identify the visitor without a second fetch. */
-  visitor?: VisitorOut;
+  /**
+   * Visitor snapshot embedded on every check-in list / detail / analytics
+   * row so the approver can confirm identity without a second fetch.
+   * `null` only when the referenced visitor record was hard-deleted — the
+   * row is still returned so the approver can reject the stale entry.
+   */
+  visitor?: VisitorOut | null;
 }
 
 /** Confirm response when the receptionist approves a check-in. */
