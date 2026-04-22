@@ -3,11 +3,23 @@
 /**
  * Kiosk check-in flow.
  *
- * Four steps:
- *   1. Identity — email + phone (+ returning-visitor lookup if enabled)
- *   2. Verify  — optional ID upload, OR continue without
- *   3. Details — required_fields from the check-in config
- *   4. Review  — summary + submit → pending-approval screen
+ * The Identity step fires `POST /v1/public/tenants/{tenant_id}/visitor-status`
+ * on Continue. The response determines which of two sub-flows runs:
+ *
+ *   full  — new visitor, or a profile-only match (visitor_id missing).
+ *           Steps: Identity → Verify (optional ID upload) → Details
+ *           (bio + tenant_specific) → Review. Submits multipart to
+ *           `/public/tenants/{id}/submit`.
+ *
+ *   compact — recognised returning visitor (visitor_id present).
+ *           Steps: Identity → (skip Verify) → Details (tenant_specific
+ *           only, plus purpose) → Review. Submits JSON to
+ *           `/public/tenants/{id}/submit-by-visitor-id`; the backend
+ *           reuses the stored visitor record for name / email / phone /
+ *           company / verification.
+ *
+ * The step indicator always shows the same four labels — in compact mode
+ * the Verify step is auto-marked complete so the progress feels coherent.
  *
  * URL is keyed by tenantId (existing convention). The active check-in
  * config is resolved from the tenantId on mount.
@@ -50,20 +62,20 @@ import { ErrorState } from "@/components/feedback/error-state";
 import { StepIndicator, type StepDef } from "@/components/recipes/step-indicator";
 import {
   useActiveCheckinConfigForTenant,
-  useVisitorLookup,
+  useVisitorStatus,
   useSubmitCheckin,
+  useSubmitCheckinByVisitorId,
   RequiredFieldsForm,
   IdUploadStep,
-  ReturningVisitorCard,
   describeCheckinError,
 } from "@/features/checkins";
 import { usePublicTenantBranding } from "@/hooks/use-public-tenant-branding";
 import type {
   IdType,
+  PublicVisitorStatusOut,
   PurposeInfo,
-  VisitorOut,
+  RequiredField,
 } from "@/types/checkin";
-import { ApiError } from "@/types/api";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -74,11 +86,25 @@ const STEPS: StepDef[] = [
   { id: 4, label: "Review", icon: CheckCircle2 },
 ];
 
+/**
+ * Recognition-driven mode for the flow.
+ *
+ * - `"full"`: the tenant has not seen this email/phone, or has only a
+ *   profile record without a linked visitor_id. The visitor fills in name,
+ *   company, optional ID upload, purpose, and tenant-specific fields. The
+ *   final submit goes to `/public/tenants/{id}/submit` (multipart).
+ * - `"compact"`: the backend returned `found=true` with a `visitor_id`. We
+ *   skip the bio-data collection and ID upload entirely; the visitor only
+ *   needs to fill in the purpose (and any required tenant-specific
+ *   fields). The final submit goes to `/public/tenants/{id}/submit-by-
+ *   visitor-id` (plain JSON).
+ */
+type FlowMode = "full" | "compact";
+
 /** Flow-level state that survives step navigation. */
 interface KioskState {
   email: string;
   phone: string;
-  returningVisitor: VisitorOut | null;
   useId: boolean; // true if the visitor chose to upload an ID
   idFile: File | null;
   idType: IdType | null;
@@ -107,7 +133,6 @@ function isValidInternationalPhone(value: string): boolean {
 const INITIAL_STATE: KioskState = {
   email: "",
   phone: "",
-  returningVisitor: null,
   useId: false,
   idFile: null,
   idType: null,
@@ -123,24 +148,28 @@ export default function KioskCheckinPage() {
   const tenantId = params.tenantId as string;
 
   const configQ = useActiveCheckinConfigForTenant(tenantId);
-  // `checkinConfigId === ""` is the documented "default mode" signal — the
-  // tenant has not customized their config yet, so the backend returns a
-  // sensible default payload. In that mode there is no config to scope the
-  // returning-visitor lookup against, so we skip the lookup step.
-  const configId = configQ.data?.checkinConfigId || undefined;
-  const isDefaultsMode = configQ.data != null && !configId;
-  const lookupMutation = useVisitorLookup(configId);
-  // Per the doc, the tenant-scoped submit endpoint is the preferred path for
-  // any kiosk that only knows the tenant_id (our case — the URL is
-  // /register/[tenantId]). It resolves the tenant's active config server-side
-  // and falls back to defaults when none exists, so we always use it here.
-  const submitMutation = useSubmitCheckin({ configId: undefined, tenantId });
+
+  // Recognition probe + both submit paths. We call `visitor-status` on
+  // Identity → Continue and use its `visitorId` to pick the submit route.
+  // The tenant-scoped multipart submit is the default path when
+  // `visitor-status` returns `found=false` or `visitorId=null`; the JSON
+  // `submit-by-visitor-id` route is used for recognised visitors so we
+  // don't re-send their email / phone / bio_data.
+  const visitorStatusMutation = useVisitorStatus({ tenantId });
+  const submitFullMutation = useSubmitCheckin({ configId: undefined, tenantId });
+  const submitByIdMutation = useSubmitCheckinByVisitorId({ tenantId });
 
   const [step, setStep] = useState(1);
   const [completed, setCompleted] = useState<number[]>([]);
   const [state, setState] = useState<KioskState>(INITIAL_STATE);
   const [stepError, setStepError] = useState<string | null>(null);
   const [submittedId, setSubmittedId] = useState<string | null>(null);
+  const [mode, setMode] = useState<FlowMode>("full");
+  // Recognition data drives the "welcome back" banner + compact/full
+  // decision. Null until the visitor finishes the Identity step.
+  const [recognition, setRecognition] = useState<PublicVisitorStatusOut | null>(
+    null
+  );
 
   usePublicTenantBranding(tenantId);
 
@@ -171,7 +200,13 @@ export default function KioskCheckinPage() {
   }
 
   function retreat() {
-    setStep((s) => Math.max(s - 1, 1));
+    // In compact mode we skipped step 2 on the way forward, so we have to
+    // skip it on the way back too — otherwise "Back" lands on an empty
+    // Verify step the visitor never saw.
+    setStep((s) => {
+      if (mode === "compact" && s === 3) return 1;
+      return Math.max(s - 1, 1);
+    });
     setStepError(null);
   }
 
@@ -202,34 +237,38 @@ export default function KioskCheckinPage() {
       return;
     }
 
-    // Optional returning-visitor lookup. Skipped in defaults mode — there is
-    // no config id to scope the lookup to, and the backend lookup endpoint is
-    // keyed by configId.
-    if (
-      !isDefaultsMode &&
-      config?.allowReturningVisitorLookup &&
-      !state.returningVisitor
-    ) {
-      try {
-        const match = await lookupMutation.mutateAsync({
-          email: state.email.trim() || undefined,
-          phone: state.phone.trim() || undefined,
-        });
-        if (match) {
-          setState((s) => ({ ...s, returningVisitor: match }));
-          // Stop here — let the visitor confirm the match before moving on.
-          return;
-        }
-      } catch (err) {
-        // Non-fatal: lookup failure shouldn't block check-in.
-        // eslint-disable-next-line no-console
-        console.warn("Returning-visitor lookup failed", err);
-      }
+    // Non-PII recognition probe. We branch on the response:
+    //   - found=true + visitorId    → compact flow (skip Verify, minimal Details)
+    //   - found=true + visitorId=null → full flow + welcome-back banner
+    //   - found=false               → full flow
+    //   - error                     → full flow (recognition is best-effort)
+    let result: PublicVisitorStatusOut | null = null;
+    try {
+      result = await visitorStatusMutation.mutateAsync({ email, phone });
+    } catch (err) {
+      // Non-fatal: recognition failure shouldn't block check-in.
+      // eslint-disable-next-line no-console
+      console.warn("Visitor-status probe failed", err);
     }
 
-    // Seed identity values into the Details form so a new visitor doesn't
-    // have to retype email/phone if the tenant configured them as bio fields.
-    // Keys match the snake_case convention used by DEFAULT_FIELDS.
+    setRecognition(result);
+
+    if (result?.found && result.visitorId) {
+      // Compact flow: jump straight to Details, marking Identity + Verify
+      // as completed so the progress indicator stays coherent.
+      setMode("compact");
+      setCompleted((prev) =>
+        Array.from(new Set([...prev, 1, 2]))
+      );
+      setStep(3);
+      return;
+    }
+
+    // Full flow. Seed identity values into the Details form so a new
+    // visitor doesn't have to retype email/phone if the tenant configured
+    // them as bio fields. Keys match the snake_case convention used by
+    // DEFAULT_FIELDS.
+    setMode("full");
     setState((s) => ({
       ...s,
       fieldValues: {
@@ -240,32 +279,6 @@ export default function KioskCheckinPage() {
     }));
 
     advance();
-  }
-
-  function confirmReturningVisitor() {
-    const v = state.returningVisitor;
-    if (!v) return;
-    // Prefill identity + bio data from the saved profile. Seed email/phone
-    // into fieldValues too so bio fields keyed "email"/"phone" render
-    // pre-filled on the Details step.
-    setState((s) => ({
-      ...s,
-      email: v.email || s.email,
-      phone: v.phone || s.phone,
-      fieldValues: {
-        ...s.fieldValues,
-        // Map a couple of common bio keys; anything not present is ignored.
-        full_name: v.fullName,
-        email: v.email || s.email,
-        phone: v.phone || s.phone,
-        ...v.bioData,
-      },
-    }));
-    advance();
-  }
-
-  function dismissReturningVisitor() {
-    setState((s) => ({ ...s, returningVisitor: null }));
   }
 
   // ── Step 2: Verify ───────────────────────────────────────────────
@@ -289,10 +302,13 @@ export default function KioskCheckinPage() {
 
   function handleDetailsNext() {
     setStepError(null);
-    // Validate required fields
+    // Validate required fields. In compact mode the backend satisfies
+    // `bio` fields from the stored visitor record, so only validate
+    // `tenant_specific` fields — the user never saw the bio inputs.
     const missing: string[] = [];
     for (const field of config?.requiredFields ?? []) {
       if (!field.required) continue;
+      if (mode === "compact" && field.category === "bio") continue;
       const v = state.fieldValues[field.key];
       if (v == null || (typeof v === "string" && v.trim() === "")) {
         missing.push(field.label);
@@ -318,19 +334,31 @@ export default function KioskCheckinPage() {
       purposeDetails: state.purposeDetails.trim() || undefined,
     };
 
-    // Split fieldValues by category
-    const bioData: Record<string, unknown> = {};
+    // Collect tenant-specific field values. In compact mode this is the
+    // only category we render; in full mode we also collect bio values.
     const tenantData: Record<string, unknown> = {};
+    const bioData: Record<string, unknown> = {};
     for (const field of config?.requiredFields ?? []) {
       const v = state.fieldValues[field.key];
       if (v == null || v === "") continue;
-      if (field.category === "bio") bioData[field.key] = v;
-      else if (field.category === "tenant_specific")
-        tenantData[field.key] = v;
+      if (field.category === "tenant_specific") tenantData[field.key] = v;
+      else if (field.category === "bio") bioData[field.key] = v;
     }
 
     try {
-      const result = await submitMutation.mutateAsync({
+      if (mode === "compact" && recognition?.visitorId) {
+        // Minimal submit. Backend reuses stored name/email/phone/company
+        // and any previously-verified ID — do not re-send them.
+        const result = await submitByIdMutation.mutateAsync({
+          visitorId: recognition.visitorId,
+          purpose,
+          tenantSpecificData: tenantData,
+        });
+        setSubmittedId(result.id);
+        return;
+      }
+
+      const result = await submitFullMutation.mutateAsync({
         email: state.email.trim(),
         phone: state.phone.trim(),
         purpose,
@@ -401,6 +429,13 @@ export default function KioskCheckinPage() {
         </div>
       </header>
 
+      {mode === "compact" && recognition?.found && (
+        <WelcomeBackBanner
+          totalVisits={recognition.totalVisits}
+          lastVisitAgoDays={recognition.lastVisitAgoDays}
+        />
+      )}
+
       <StepIndicator
         steps={STEPS}
         currentStep={step}
@@ -418,7 +453,9 @@ export default function KioskCheckinPage() {
                 ? "Upload a government ID to verify yourself instantly, or skip this step."
                 : "Continue — ID upload isn't required for this kiosk.")}
             {step === 3 &&
-              "A few more details about your visit."}
+              (mode === "compact"
+                ? "Just tell us the reason for today's visit."
+                : "A few more details about your visit.")}
             {step === 4 && "Please review and submit."}
           </CardDescription>
         </CardHeader>
@@ -429,15 +466,13 @@ export default function KioskCheckinPage() {
               state={state}
               setState={setState}
               onNext={handleIdentityNext}
-              isLookingUp={lookupMutation.isPending}
+              isChecking={visitorStatusMutation.isPending}
               error={stepError}
-              onConfirmReturning={confirmReturningVisitor}
-              onDismissReturning={dismissReturningVisitor}
             />
           )}
 
-          {/* Step 2 */}
-          {step === 2 && (
+          {/* Step 2 — only rendered in the full flow */}
+          {step === 2 && mode === "full" && (
             <VerifyStep
               config={config}
               state={state}
@@ -452,7 +487,7 @@ export default function KioskCheckinPage() {
           {/* Step 3 */}
           {step === 3 && (
             <DetailsStep
-              bioFields={bioFields}
+              bioFields={mode === "compact" ? [] : bioFields}
               tenantFields={tenantFields}
               state={state}
               setState={setState}
@@ -468,14 +503,55 @@ export default function KioskCheckinPage() {
             <ReviewStep
               state={state}
               config={config}
+              mode={mode}
               onBack={retreat}
               onSubmit={handleSubmit}
-              submitting={submitMutation.isPending}
+              submitting={
+                submitFullMutation.isPending || submitByIdMutation.isPending
+              }
               error={stepError}
             />
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function WelcomeBackBanner({
+  totalVisits,
+  lastVisitAgoDays,
+}: {
+  totalVisits: number | null;
+  lastVisitAgoDays: number | null;
+}) {
+  const visitsLine =
+    totalVisits && totalVisits > 0
+      ? `You've visited ${totalVisits} ${totalVisits === 1 ? "time" : "times"} before.`
+      : null;
+  const lastLine =
+    typeof lastVisitAgoDays === "number"
+      ? lastVisitAgoDays === 0
+        ? "Last visit was earlier today."
+        : `Last visit was ${lastVisitAgoDays} ${lastVisitAgoDays === 1 ? "day" : "days"} ago.`
+      : null;
+
+  return (
+    <div
+      role="status"
+      className="rounded-lg border bg-success/5 text-sm p-4 flex items-start gap-3"
+    >
+      <UserCheck
+        className="h-5 w-5 text-success mt-0.5 flex-shrink-0"
+        aria-hidden="true"
+      />
+      <div className="min-w-0">
+        <p className="font-medium">Welcome back!</p>
+        <p className="text-muted-foreground">
+          {[visitsLine, lastLine].filter(Boolean).join(" ") ||
+            "We recognised you from a previous visit."}
+        </p>
+      </div>
     </div>
   );
 }
@@ -513,18 +589,14 @@ function IdentityStep({
   state,
   setState,
   onNext,
-  isLookingUp,
+  isChecking,
   error,
-  onConfirmReturning,
-  onDismissReturning,
 }: {
   state: KioskState;
   setState: React.Dispatch<React.SetStateAction<KioskState>>;
   onNext: () => void;
-  isLookingUp: boolean;
+  isChecking: boolean;
   error: string | null;
-  onConfirmReturning: () => void;
-  onDismissReturning: () => void;
 }) {
   // Show the inline "invalid format" hint only after the user has typed
   // something and then blurred away — not while they're mid-typing.
@@ -532,16 +604,6 @@ function IdentityStep({
   const emailTrimmed = state.email.trim();
   const showEmailFormatError =
     emailTouched && emailTrimmed.length > 0 && !isValidEmail(emailTrimmed);
-
-  if (state.returningVisitor) {
-    return (
-      <ReturningVisitorCard
-        visitor={state.returningVisitor}
-        onUseProfile={onConfirmReturning}
-        onDismiss={onDismissReturning}
-      />
-    );
-  }
 
   return (
     <div className="space-y-4">
@@ -618,7 +680,7 @@ function IdentityStep({
             <span>
               <LoadingButton
                 onClick={onNext}
-                isLoading={isLookingUp}
+                isLoading={isChecking}
                 loadingText="Checking…"
               >
                 Continue
@@ -920,6 +982,7 @@ function DetailsStep({
 function ReviewStep({
   state,
   config,
+  mode,
   onBack,
   onSubmit,
   submitting,
@@ -927,41 +990,54 @@ function ReviewStep({
 }: {
   state: KioskState;
   config: {
-    requiredFields: import("@/types/checkin").RequiredField[];
+    requiredFields: RequiredField[];
   };
+  mode: FlowMode;
   onBack: () => void;
   onSubmit: () => void;
   submitting: boolean;
   error: string | null;
 }) {
+  // In compact mode the backend reuses the stored visitor record, so
+  // repeating email / phone / ID on the review panel is misleading —
+  // they may not even match what's on file, and we didn't collect them
+  // this session anyway. Show only what was collected now.
+  const showIdentity = mode === "full";
+  const reviewableFields =
+    mode === "compact"
+      ? config.requiredFields.filter((f) => f.category === "tenant_specific")
+      : config.requiredFields;
+
   return (
     <div className="space-y-4">
       <dl className="space-y-2 text-sm">
-        <ReviewItem label="Email" value={state.email} />
-        <ReviewItem label="Phone" value={state.phone} />
-        <ReviewItem
-          label="ID"
-          value={
-            state.useId && state.idFile
-              ? `${state.idType ?? "ID"} — ${state.idFile.name}`
-              : "Not provided (manual verification)"
-          }
-        />
+        {showIdentity && <ReviewItem label="Email" value={state.email} />}
+        {showIdentity && <ReviewItem label="Phone" value={state.phone} />}
+        {showIdentity && (
+          <ReviewItem
+            label="ID"
+            value={
+              state.useId && state.idFile
+                ? `${state.idType ?? "ID"} — ${state.idFile.name}`
+                : "Not provided (manual verification)"
+            }
+          />
+        )}
         <ReviewItem label="Purpose" value={state.purposeText} />
         {state.purposeDetails && (
           <ReviewItem label="Notes" value={state.purposeDetails} />
         )}
-        {config.requiredFields.map((f) => {
-            const v = state.fieldValues[f.key];
-            if (v == null || v === "") return null;
-            return (
-              <ReviewItem
-                key={f.key}
-                label={f.label}
-                value={String(v)}
-              />
-            );
-          })}
+        {reviewableFields.map((f) => {
+          const v = state.fieldValues[f.key];
+          if (v == null || v === "") return null;
+          return (
+            <ReviewItem
+              key={f.key}
+              label={f.label}
+              value={String(v)}
+            />
+          );
+        })}
       </dl>
 
       <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">

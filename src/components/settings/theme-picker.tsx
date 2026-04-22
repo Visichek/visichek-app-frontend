@@ -1,6 +1,6 @@
 "use client";
 
-import { Sun, Moon, Monitor } from "lucide-react";
+import { Sun, Moon, Monitor, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -19,9 +19,27 @@ interface ThemePickerProps {
   theme: string | undefined;
   setTheme: (t: string) => void;
   mounted: boolean;
+  /**
+   * While true, every card is disabled so the user can't queue a second
+   * theme-save while one is already in flight. Wire this to the settings
+   * mutation's `isPending`.
+   */
+  isLoading?: boolean;
+  /**
+   * The theme value that is currently being saved (if any). The matching card
+   * shows a spinner in place of its icon; the others are still disabled while
+   * `isLoading` is true but keep their icons.
+   */
+  loadingValue?: string | null;
 }
 
-export function ThemePicker({ theme, setTheme, mounted }: ThemePickerProps) {
+export function ThemePicker({
+  theme,
+  setTheme,
+  mounted,
+  isLoading = false,
+  loadingValue = null,
+}: ThemePickerProps) {
   if (!mounted) {
     return (
       <div className="grid grid-cols-3 gap-3">
@@ -37,6 +55,7 @@ export function ThemePicker({ theme, setTheme, mounted }: ThemePickerProps) {
       {OPTIONS.map((opt) => {
         const Icon = opt.icon;
         const active = theme === opt.value;
+        const isSavingThis = isLoading && loadingValue === opt.value;
         return (
           <Tooltip key={opt.value}>
             <TooltipTrigger asChild>
@@ -48,12 +67,20 @@ export function ThemePicker({ theme, setTheme, mounted }: ThemePickerProps) {
                 )}
                 onClick={() => setTheme(opt.value)}
                 aria-pressed={active}
+                aria-busy={isSavingThis || undefined}
+                disabled={isLoading}
               >
-                <Icon className="h-5 w-5" aria-hidden="true" />
+                {isSavingThis ? (
+                  <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                )}
                 <span className="text-sm font-medium">{opt.label}</span>
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{opt.desc}</TooltipContent>
+            <TooltipContent>
+              {isSavingThis ? "Saving…" : opt.desc}
+            </TooltipContent>
           </Tooltip>
         );
       })}

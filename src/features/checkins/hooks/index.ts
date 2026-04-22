@@ -3,7 +3,9 @@ export {
   useActiveCheckinConfigForTenant,
   usePublicCheckinConfig,
   useVisitorLookup,
+  useVisitorStatus,
   useSubmitCheckin,
+  useSubmitCheckinByVisitorId,
 } from "./use-public-checkin";
 
 // Receptionist hooks — tenant-authenticated

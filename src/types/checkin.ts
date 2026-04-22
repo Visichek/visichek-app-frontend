@@ -177,6 +177,50 @@ export interface CheckinSubmitJsonRequest {
   purpose: PurposeInfo;
 }
 
+/**
+ * Non-PII recognition query sent to
+ * `POST /v1/public/tenants/{tenant_id}/visitor-status`. Either `email`
+ * or `phone` is required. The server prefers phone when both are given.
+ */
+export interface PublicVisitorStatusRequest {
+  email?: string;
+  phone?: string;
+}
+
+/**
+ * Response from `POST /v1/public/tenants/{tenant_id}/visitor-status`.
+ *
+ * The endpoint is intentionally PII-free. `visitorId` is a MongoDB ObjectId
+ * that the kiosk re-submits via `submit-by-visitor-id`; it is safe to hold
+ * in component state for the duration of the flow.
+ *
+ * `visitorId === null` with `found === true` means a `visitor_profiles`
+ * record exists (from the older self-registration flow) but no `visitors`
+ * record — the kiosk must fall back to the full `/submit` path.
+ */
+export interface PublicVisitorStatusOut {
+  found: boolean;
+  visitorId: string | null;
+  totalVisits: number | null;
+  lastVisitAgoDays: number | null;
+  idVerifiedRecently: boolean;
+}
+
+/**
+ * Minimal submit payload for a recognised returning visitor, sent to
+ * `POST /v1/public/tenants/{tenant_id}/submit-by-visitor-id`.
+ *
+ * The backend reads name / email / phone / company / id_type from the
+ * stored visitor record — the frontend MUST NOT re-send them here.
+ * `tenantSpecificData` is required when the tenant's active check-in
+ * config declares any field with `required: true, category: "tenant_specific"`.
+ */
+export interface CheckinSubmitByVisitorIdRequest {
+  visitorId: string;
+  purpose: PurposeInfo;
+  tenantSpecificData?: Record<string, unknown>;
+}
+
 /** Receptionist approve/reject payload. */
 export interface CheckinConfirmRequest {
   action: CheckinConfirmAction;

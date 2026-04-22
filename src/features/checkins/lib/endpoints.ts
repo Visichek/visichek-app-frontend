@@ -40,6 +40,22 @@ export const checkinSubmitMultipartPath = (configId: string) =>
 export const checkinSubmitDefaultByTenantPath = (tenantId: string) =>
   `/public/tenants/${tenantId}/submit`;
 
+/**
+ * Non-PII recognition probe. Returns `{ found, visitorId, totalVisits,
+ * lastVisitAgoDays, idVerifiedRecently }` so the kiosk can switch into the
+ * compact "welcome back" flow without fetching any stored bio data.
+ */
+export const checkinVisitorStatusPath = (tenantId: string) =>
+  `/public/tenants/${tenantId}/visitor-status`;
+
+/**
+ * Minimal submit for a recognised visitor. Payload is `{ visitorId,
+ * purpose, tenantSpecificData }` — no email, phone, or bio_data. The
+ * backend reuses the stored visitor record for identity.
+ */
+export const checkinSubmitByVisitorIdPath = (tenantId: string) =>
+  `/public/tenants/${tenantId}/submit-by-visitor-id`;
+
 /** Legacy JSON submit — kept for backend parity; not used by the kiosk UI. */
 export const checkinSubmitJsonPath = (configId: string) =>
   `/checkin-configs/${configId}/checkins`;

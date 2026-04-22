@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -59,6 +60,12 @@ interface SettingsToggleProps {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   disabled?: boolean;
+  /**
+   * While true, the switch is disabled and a small spinner sits next to it.
+   * Keep this tied to the mutation's `isPending` so the control can't be
+   * toggled again until the queued write settles (succeeded or failed).
+   */
+  isLoading?: boolean;
 }
 
 export function SettingsToggle({
@@ -68,6 +75,7 @@ export function SettingsToggle({
   checked,
   onCheckedChange,
   disabled = false,
+  isLoading = false,
 }: SettingsToggleProps) {
   return (
     <div className="flex items-center justify-between rounded-lg px-3 py-3 hover:bg-muted/50 transition-colors min-h-[52px]">
@@ -77,21 +85,33 @@ export function SettingsToggle({
         </Label>
         <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
       </div>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div>
-            <Switch
-              id={id}
-              checked={checked}
-              onCheckedChange={onCheckedChange}
-              disabled={disabled}
-            />
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="left">
-          {checked ? `Disable ${label.toLowerCase()}` : `Enable ${label.toLowerCase()}`}
-        </TooltipContent>
-      </Tooltip>
+      <div className="flex items-center gap-2">
+        {isLoading && (
+          <Loader2
+            className="h-3.5 w-3.5 animate-spin text-muted-foreground"
+            aria-hidden="true"
+          />
+        )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div>
+              <Switch
+                id={id}
+                checked={checked}
+                onCheckedChange={onCheckedChange}
+                disabled={disabled || isLoading}
+              />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="left">
+            {isLoading
+              ? "Saving…"
+              : checked
+                ? `Disable ${label.toLowerCase()}`
+                : `Enable ${label.toLowerCase()}`}
+          </TooltipContent>
+        </Tooltip>
+      </div>
     </div>
   );
 }
@@ -107,6 +127,12 @@ interface SettingsSelectProps {
   options: { value: string; label: string }[];
   disabled?: boolean;
   tooltip?: string;
+  /**
+   * While true, the select is disabled and a small spinner sits next to it.
+   * Keep this tied to the mutation's `isPending` so the value can't be
+   * changed again until the queued write settles (succeeded or failed).
+   */
+  isLoading?: boolean;
 }
 
 export function SettingsSelect({
@@ -118,6 +144,7 @@ export function SettingsSelect({
   options,
   disabled = false,
   tooltip,
+  isLoading = false,
 }: SettingsSelectProps) {
   return (
     <div className="flex items-center justify-between rounded-lg px-3 py-3 hover:bg-muted/50 transition-colors min-h-[52px]">
@@ -127,27 +154,39 @@ export function SettingsSelect({
         </Label>
         <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
       </div>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div>
-            <Select value={value} onValueChange={onValueChange} disabled={disabled}>
-              <SelectTrigger id={id} className="w-[160px] h-9 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {options.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="left">
-          {tooltip || description}
-        </TooltipContent>
-      </Tooltip>
+      <div className="flex items-center gap-2">
+        {isLoading && (
+          <Loader2
+            className="h-3.5 w-3.5 animate-spin text-muted-foreground"
+            aria-hidden="true"
+          />
+        )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div>
+              <Select
+                value={value}
+                onValueChange={onValueChange}
+                disabled={disabled || isLoading}
+              >
+                <SelectTrigger id={id} className="w-[160px] h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="left">
+            {isLoading ? "Saving…" : tooltip || description}
+          </TooltipContent>
+        </Tooltip>
+      </div>
     </div>
   );
 }

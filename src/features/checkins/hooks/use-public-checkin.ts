@@ -18,6 +18,9 @@ import type {
   VisitorOut,
   VisitorLookupQuery,
   CheckinSubmitMultipartRequest,
+  PublicVisitorStatusRequest,
+  PublicVisitorStatusOut,
+  CheckinSubmitByVisitorIdRequest,
 } from "@/types/checkin";
 
 function normalizeCheckinConfig(
@@ -31,9 +34,11 @@ function normalizeCheckinConfig(
 import {
   checkinConfigByTenantPath,
   checkinConfigPath,
+  checkinSubmitByVisitorIdPath,
   checkinSubmitDefaultByTenantPath,
   checkinSubmitMultipartPath,
   checkinVisitorLookupPath,
+  checkinVisitorStatusPath,
 } from "../lib/endpoints";
 import { checkinKeys } from "../lib/query-keys";
 
@@ -155,6 +160,62 @@ export function useSubmitCheckin(args: {
       }
 
       return apiPost<CheckinOut>(path, form);
+    },
+  });
+}
+
+/**
+ * Non-PII recognition probe. Tells the kiosk whether the tenant has seen
+ * this visitor before so it can switch into the compact "welcome back"
+ * flow without fetching any bio data.
+ *
+ * At least one of email / phone is required per submit; we accept both
+ * and let the backend prefer phone. Rate-limited by the anonymous
+ * middleware bucket (20/min).
+ */
+export function useVisitorStatus(args: { tenantId: string | undefined }) {
+  const { tenantId } = args;
+  return useMutation({
+    mutationFn: async (
+      request: PublicVisitorStatusRequest
+    ): Promise<PublicVisitorStatusOut> => {
+      if (!tenantId) throw new Error("Missing tenantId");
+      const payload: PublicVisitorStatusRequest = {};
+      if (request.email && request.email.trim()) {
+        payload.email = request.email.trim();
+      }
+      if (request.phone && request.phone.trim()) {
+        payload.phone = request.phone.trim();
+      }
+      return apiPost<PublicVisitorStatusOut>(
+        checkinVisitorStatusPath(tenantId),
+        payload
+      );
+    },
+  });
+}
+
+/**
+ * Minimal submit for a visitor the backend already knows. Uses a plain
+ * JSON body (no multipart, no id_file) — the stored visitor record
+ * carries name / email / phone / company / verification state.
+ *
+ * Only `purpose` and `tenantSpecificData` need to be collected fresh per
+ * visit; the caller is responsible for validating tenant-specific
+ * required fields against the active check-in config before submitting.
+ */
+export function useSubmitCheckinByVisitorId(args: {
+  tenantId: string | undefined;
+}) {
+  const { tenantId } = args;
+  return useMutation({
+    mutationFn: (request: CheckinSubmitByVisitorIdRequest) => {
+      if (!tenantId) throw new Error("Missing tenantId");
+      return apiPost<CheckinOut>(checkinSubmitByVisitorIdPath(tenantId), {
+        visitorId: request.visitorId,
+        purpose: request.purpose,
+        tenantSpecificData: request.tenantSpecificData ?? {},
+      });
     },
   });
 }
