@@ -27,6 +27,18 @@ export function setupInterceptors(client: AxiosInstance) {
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // When the caller passes a FormData body, clear the default
+    // `Content-Type: application/json` so the browser can set
+    // `multipart/form-data; boundary=...` itself. Axios 1.x will otherwise
+    // serialise the FormData to JSON when it sees a JSON content-type,
+    // which breaks FastAPI's multipart parser (every Form(...) field
+    // arrives missing → 422).
+    if (typeof FormData !== "undefined" && config.data instanceof FormData && config.headers) {
+      config.headers.delete?.("Content-Type");
+      delete (config.headers as Record<string, unknown>)["Content-Type"];
+    }
+
     return config;
   });
 
