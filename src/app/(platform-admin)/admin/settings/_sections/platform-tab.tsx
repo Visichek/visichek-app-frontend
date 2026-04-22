@@ -48,9 +48,9 @@ export function PlatformTab() {
         <h2 className="text-base font-semibold mb-1">Security</h2>
         <p className="text-sm text-muted-foreground mb-4">Admin-specific security settings</p>
         <div className="space-y-1">
-          <SettingsToggle id="adminEnforceTotp" label="Enforce admin 2FA" description="Require two-factor authentication for all admin accounts" checked={platformSettingsData?.adminEnforceTotp ?? false} onCheckedChange={(v) => updatePlatformSettings.mutate({ adminEnforceTotp: v })} disabled={platformReadonly} />
-          <SettingsSelect id="adminSessionTimeout" label="Admin session timeout" description="Auto-logout admin accounts after inactivity" value={String(platformSettingsData?.adminSessionTimeoutMinutes ?? 30)} onValueChange={(v) => updatePlatformSettings.mutate({ adminSessionTimeoutMinutes: parseInt(v, 10) })} options={[{ value: "15", label: "15 minutes" }, { value: "30", label: "30 minutes" }, { value: "60", label: "1 hour" }, { value: "120", label: "2 hours" }]} disabled={platformReadonly} />
-          <SettingsSelect id="adminPasswordMinLength" label="Admin password minimum length" description="Minimum characters required for admin passwords" value={String(platformSettingsData?.adminPasswordMinLength ?? 12)} onValueChange={(v) => updatePlatformSettings.mutate({ adminPasswordMinLength: parseInt(v, 10) })} options={[{ value: "8", label: "8 characters" }, { value: "10", label: "10 characters" }, { value: "12", label: "12 characters" }, { value: "16", label: "16 characters" }]} disabled={platformReadonly} />
+          <SettingsToggle id="adminEnforceTotp" label="Enforce admin 2FA" description="Require two-factor authentication for all admin accounts" checked={platformSettingsData?.adminEnforceTotp ?? false} onCheckedChange={(v) => updatePlatformSettings.mutate({ adminEnforceTotp: v })} disabled={platformReadonly} isLoading={updatePlatformSettings.isPending} />
+          <SettingsSelect id="adminSessionTimeout" label="Admin session timeout" description="Auto-logout admin accounts after inactivity" value={String(platformSettingsData?.adminSessionTimeoutMinutes ?? 30)} onValueChange={(v) => updatePlatformSettings.mutate({ adminSessionTimeoutMinutes: parseInt(v, 10) })} options={[{ value: "15", label: "15 minutes" }, { value: "30", label: "30 minutes" }, { value: "60", label: "1 hour" }, { value: "120", label: "2 hours" }]} disabled={platformReadonly} isLoading={updatePlatformSettings.isPending} />
+          <SettingsSelect id="adminPasswordMinLength" label="Admin password minimum length" description="Minimum characters required for admin passwords" value={String(platformSettingsData?.adminPasswordMinLength ?? 12)} onValueChange={(v) => updatePlatformSettings.mutate({ adminPasswordMinLength: parseInt(v, 10) })} options={[{ value: "8", label: "8 characters" }, { value: "10", label: "10 characters" }, { value: "12", label: "12 characters" }, { value: "16", label: "16 characters" }]} disabled={platformReadonly} isLoading={updatePlatformSettings.isPending} />
         </div>
       </section>
 
@@ -60,7 +60,7 @@ export function PlatformTab() {
         <h2 className="text-base font-semibold mb-1">Tenant defaults</h2>
         <p className="text-sm text-muted-foreground mb-4">Default settings applied to new tenants</p>
         <div className="space-y-1">
-          <SettingsSelect id="defaultTrialDays" label="Default trial period" description="How many days new tenants get on trial" value={String(platformSettingsData?.defaultTrialDays ?? 14)} onValueChange={(v) => updatePlatformSettings.mutate({ defaultTrialDays: parseInt(v, 10) })} options={[{ value: "7", label: "7 days" }, { value: "14", label: "14 days" }, { value: "30", label: "30 days" }, { value: "60", label: "60 days" }]} disabled={platformReadonly} />
+          <SettingsSelect id="defaultTrialDays" label="Default trial period" description="How many days new tenants get on trial" value={String(platformSettingsData?.defaultTrialDays ?? 14)} onValueChange={(v) => updatePlatformSettings.mutate({ defaultTrialDays: parseInt(v, 10) })} options={[{ value: "7", label: "7 days" }, { value: "14", label: "14 days" }, { value: "30", label: "30 days" }, { value: "60", label: "60 days" }]} disabled={platformReadonly} isLoading={updatePlatformSettings.isPending} />
         </div>
       </section>
 
@@ -82,10 +82,11 @@ export function PlatformTab() {
               updatePlatformSettings.mutate({ maintenanceMode: v });
             }}
             disabled={platformReadonly}
+            isLoading={updatePlatformSettings.isPending}
           />
-          <SettingsToggle id="signupsEnabled" label="Self-service signups" description="Allow new organisations to create accounts" checked={platformSettingsData?.signupsEnabled ?? true} onCheckedChange={(v) => updatePlatformSettings.mutate({ signupsEnabled: v })} disabled={platformReadonly} />
-          <SettingsToggle id="publicApiEnabled" label="Public API access" description="Allow tenants to use the public API" checked={platformSettingsData?.publicApiEnabled ?? true} onCheckedChange={(v) => updatePlatformSettings.mutate({ publicApiEnabled: v })} disabled={platformReadonly} />
-          <SettingsToggle id="betaFeatures" label="Beta features" description="Unlock experimental features for all tenants" checked={platformSettingsData?.betaFeaturesEnabled ?? false} onCheckedChange={(v) => updatePlatformSettings.mutate({ betaFeaturesEnabled: v })} disabled={platformReadonly} />
+          <SettingsToggle id="signupsEnabled" label="Self-service signups" description="Allow new organisations to create accounts" checked={platformSettingsData?.signupsEnabled ?? true} onCheckedChange={(v) => updatePlatformSettings.mutate({ signupsEnabled: v })} disabled={platformReadonly} isLoading={updatePlatformSettings.isPending} />
+          <SettingsToggle id="publicApiEnabled" label="Public API access" description="Allow tenants to use the public API" checked={platformSettingsData?.publicApiEnabled ?? true} onCheckedChange={(v) => updatePlatformSettings.mutate({ publicApiEnabled: v })} disabled={platformReadonly} isLoading={updatePlatformSettings.isPending} />
+          <SettingsToggle id="betaFeatures" label="Beta features" description="Unlock experimental features for all tenants" checked={platformSettingsData?.betaFeaturesEnabled ?? false} onCheckedChange={(v) => updatePlatformSettings.mutate({ betaFeaturesEnabled: v })} disabled={platformReadonly} isLoading={updatePlatformSettings.isPending} />
         </div>
       </section>
 
@@ -95,8 +96,8 @@ export function PlatformTab() {
         <h2 className="text-base font-semibold mb-1">Rate limiting</h2>
         <p className="text-sm text-muted-foreground mb-4">Global API rate limits</p>
         <div className="space-y-1">
-          <SettingsSelect id="globalRateLimit" label="Requests per minute" description="Maximum API requests per minute per user" value={String(platformSettingsData?.globalRateLimitPerMinute ?? 80)} onValueChange={(v) => updatePlatformSettings.mutate({ globalRateLimitPerMinute: parseInt(v, 10) })} options={[{ value: "30", label: "30/min" }, { value: "60", label: "60/min" }, { value: "80", label: "80/min" }, { value: "120", label: "120/min" }, { value: "200", label: "200/min" }]} disabled={platformReadonly} />
-          <SettingsSelect id="globalRateBurst" label="Burst limit" description="Maximum burst of requests allowed" value={String(platformSettingsData?.globalRateLimitBurst ?? 20)} onValueChange={(v) => updatePlatformSettings.mutate({ globalRateLimitBurst: parseInt(v, 10) })} options={[{ value: "10", label: "10" }, { value: "20", label: "20" }, { value: "50", label: "50" }, { value: "100", label: "100" }]} disabled={platformReadonly} />
+          <SettingsSelect id="globalRateLimit" label="Requests per minute" description="Maximum API requests per minute per user" value={String(platformSettingsData?.globalRateLimitPerMinute ?? 80)} onValueChange={(v) => updatePlatformSettings.mutate({ globalRateLimitPerMinute: parseInt(v, 10) })} options={[{ value: "30", label: "30/min" }, { value: "60", label: "60/min" }, { value: "80", label: "80/min" }, { value: "120", label: "120/min" }, { value: "200", label: "200/min" }]} disabled={platformReadonly} isLoading={updatePlatformSettings.isPending} />
+          <SettingsSelect id="globalRateBurst" label="Burst limit" description="Maximum burst of requests allowed" value={String(platformSettingsData?.globalRateLimitBurst ?? 20)} onValueChange={(v) => updatePlatformSettings.mutate({ globalRateLimitBurst: parseInt(v, 10) })} options={[{ value: "10", label: "10" }, { value: "20", label: "20" }, { value: "50", label: "50" }, { value: "100", label: "100" }]} disabled={platformReadonly} isLoading={updatePlatformSettings.isPending} />
         </div>
       </section>
     </div>
