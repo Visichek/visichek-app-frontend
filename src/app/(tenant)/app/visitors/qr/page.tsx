@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -55,12 +55,29 @@ function toImageSrc(qrData: string): string | null {
 
 export default function RegistrationQrPage() {
   const [departmentId, setDepartmentId] = useState<string>("");
+  const [origin, setOrigin] = useState<string>("");
   const mintMutation = useMintRegistrationQr();
   const departmentsQuery = useDepartments();
 
+  useEffect(() => {
+    if (typeof window !== "undefined") setOrigin(window.location.origin);
+  }, []);
+
   const qr = mintMutation.data;
   const imgSrc = useMemo(() => (qr ? toImageSrc(qr.qrData) : null), [qr]);
-  const qrValue = qr?.registrationUrl || qr?.qrData || "";
+
+  // Build a real deep link: backend returns `registrationUrl` as a relative
+  // path hint only (no origin, no token). The QR and any shared URL must be
+  // the full deep link `${origin}/register/{tenantId}?token={qrData}` so
+  // scanning with a phone camera lands on the public registration form and
+  // the token is available to the pre-flight /verify call.
+  const deepLink = useMemo(() => {
+    if (!qr?.tenantId || !qr?.qrData) return "";
+    const base = origin || "";
+    return `${base}/register/${qr.tenantId}?token=${encodeURIComponent(qr.qrData)}`;
+  }, [qr?.tenantId, qr?.qrData, origin]);
+
+  const qrValue = deepLink || qr?.qrData || "";
   const qrSvgRef = useRef<SVGSVGElement | null>(null);
 
   async function handleMint() {
@@ -76,9 +93,9 @@ export default function RegistrationQrPage() {
   }
 
   function copyUrl() {
-    if (!qr?.registrationUrl) return;
+    if (!deepLink) return;
     navigator.clipboard
-      .writeText(qr.registrationUrl)
+      .writeText(deepLink)
       .then(() => toast.success("Registration URL copied"))
       .catch(() => toast.error("Couldn't copy to clipboard"));
   }
@@ -238,14 +255,14 @@ export default function RegistrationQrPage() {
               )}
             </div>
 
-            {qr?.registrationUrl && (
+            {deepLink && (
               <div className="w-full space-y-2">
                 <Label className="text-xs text-muted-foreground uppercase tracking-wide">
                   Registration URL
                 </Label>
                 <div className="flex gap-2">
                   <code className="flex-1 truncate rounded-md border border-border bg-muted/40 px-3 py-2 text-xs font-mono">
-                    {qr.registrationUrl}
+                    {deepLink}
                   </code>
                   <Tooltip>
                     <TooltipTrigger asChild>

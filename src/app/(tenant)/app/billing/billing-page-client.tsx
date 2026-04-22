@@ -77,7 +77,7 @@ export function BillingPageClient() {
     canManageBilling ? tenantId || "" : ""
   );
 
-  const invoices = useMemo(() => invoicesResponse?.data || [], [invoicesResponse]);
+  const invoices = useMemo(() => invoicesResponse ?? [], [invoicesResponse]);
 
   const columns = useMemo<ColumnDef<Invoice>[]>(
     () => [
