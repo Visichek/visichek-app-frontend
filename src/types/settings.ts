@@ -221,6 +221,10 @@ export interface PlatformSettings {
   signupsEnabled: boolean;
   publicApiEnabled: boolean;
   betaFeaturesEnabled: boolean;
+  // Public marketing-site self-onboarding form. When false, the public
+  // submission endpoint returns FEATURE_DISABLED but admins can still
+  // work the existing onboarding queue.
+  selfOnboardingEnabled: boolean;
   // Rate limiting
   globalRateLimitPerMinute: number;
   globalRateLimitBurst: number;

@@ -21,6 +21,7 @@ export const ROLE_ROUTES: Record<SystemUserRole, string[]> = {
     "/app/support-cases",
     "/app/jobs",
     "/app/settings",
+    "/app/onboarding",
   ],
 
   dept_admin: [

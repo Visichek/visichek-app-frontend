@@ -6,6 +6,7 @@ import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import {
   LayoutDashboard,
   Building2,
+  Inbox,
   CreditCard,
   Package,
   Tags,
@@ -46,6 +47,12 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     href: "/admin/tenants",
     icon: Building2,
     description: "Manage tenant organizations, bootstrap new tenants, and view their status",
+  },
+  {
+    label: "Onboarding queue",
+    href: "/admin/tenants/onboarding",
+    icon: Inbox,
+    description: "Review self-service signups from the marketing site — accept to provision a tenant, partial-accept to flag missing fields, or reject with notes",
   },
   {
     label: "Plans",

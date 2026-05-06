@@ -96,3 +96,12 @@ export type SupportTier = "none" | "standard" | "priority";
 
 // ── Async Jobs ────────────────────────────────────────────────────────
 export type JobStatus = "queued" | "processing" | "succeeded" | "failed";
+
+// ── Self-Onboarding ───────────────────────────────────────────────────
+export type OnboardingStatus =
+  | "new"
+  | "rejected"
+  | "accepted"
+  | "partial_accepted"
+  | "completed"
+  | "archived";

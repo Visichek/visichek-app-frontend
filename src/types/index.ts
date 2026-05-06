@@ -11,3 +11,4 @@ export * from "./public";
 export * from "./notification";
 export * from "./settings";
 export * from "./account";
+export * from "./onboarding";

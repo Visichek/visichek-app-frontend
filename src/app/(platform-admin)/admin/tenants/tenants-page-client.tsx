@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   ListChecks,
   Eye,
+  Inbox,
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -51,6 +52,7 @@ import {
 } from "@/features/auth/hooks/use-admin-dashboard";
 
 const NEW_TENANT_HREF = "/admin/tenants/new";
+const ONBOARDING_QUEUE_HREF = "/admin/tenants/onboarding";
 function tenantDetailHref(tenantId: string) {
   return `/admin/tenants/${tenantId}`;
 }
@@ -374,6 +376,7 @@ export function TenantsPageClient() {
   };
 
   const isNavigatingToNew = loadingHref === NEW_TENANT_HREF;
+  const isNavigatingToQueue = loadingHref === ONBOARDING_QUEUE_HREF;
 
   return (
     <div className="space-y-6">
@@ -398,29 +401,58 @@ export function TenantsPageClient() {
         title="Tenants"
         description="Manage tenant organizations"
         actions={
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button asChild className="w-full md:w-auto min-h-[44px]">
-                <Link
-                  href={NEW_TENANT_HREF}
-                  onClick={() => handleNavClick(NEW_TENANT_HREF)}
+          <div className="flex w-full flex-col gap-2 md:flex-row md:items-center md:gap-2 md:w-auto">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="w-full md:w-auto min-h-[44px]"
                 >
-                  {isNavigatingToNew ? (
-                    <Loader2
-                      className="mr-2 h-4 w-4 animate-spin"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                  )}
-                  Bootstrap Tenant
-                </Link>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              Create a new tenant and their first super admin account
-            </TooltipContent>
-          </Tooltip>
+                  <Link
+                    href={ONBOARDING_QUEUE_HREF}
+                    onClick={() => handleNavClick(ONBOARDING_QUEUE_HREF)}
+                  >
+                    {isNavigatingToQueue ? (
+                      <Loader2
+                        className="mr-2 h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <Inbox className="mr-2 h-4 w-4" aria-hidden="true" />
+                    )}
+                    Onboarding queue
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Review self-service signups submitted from the marketing site
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button asChild className="w-full md:w-auto min-h-[44px]">
+                  <Link
+                    href={NEW_TENANT_HREF}
+                    onClick={() => handleNavClick(NEW_TENANT_HREF)}
+                  >
+                    {isNavigatingToNew ? (
+                      <Loader2
+                        className="mr-2 h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                    )}
+                    Bootstrap Tenant
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Create a new tenant and their first super admin account
+              </TooltipContent>
+            </Tooltip>
+          </div>
         }
       />
 

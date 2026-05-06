@@ -85,6 +85,15 @@ export function PlatformTab() {
             isLoading={updatePlatformSettings.isPending}
           />
           <SettingsToggle id="signupsEnabled" label="Self-service signups" description="Allow new organisations to create accounts" checked={platformSettingsData?.signupsEnabled ?? true} onCheckedChange={(v) => updatePlatformSettings.mutate({ signupsEnabled: v })} disabled={platformReadonly} isLoading={updatePlatformSettings.isPending} />
+          <SettingsToggle
+            id="selfOnboardingEnabled"
+            label="Marketing-site onboarding form"
+            description="Accept new submissions from the public marketing-site form. Disabling stops the public endpoint with FEATURE_DISABLED — admins can still work the existing onboarding queue."
+            checked={platformSettingsData?.selfOnboardingEnabled ?? true}
+            onCheckedChange={(v) => updatePlatformSettings.mutate({ selfOnboardingEnabled: v })}
+            disabled={platformReadonly}
+            isLoading={updatePlatformSettings.isPending}
+          />
           <SettingsToggle id="publicApiEnabled" label="Public API access" description="Allow tenants to use the public API" checked={platformSettingsData?.publicApiEnabled ?? true} onCheckedChange={(v) => updatePlatformSettings.mutate({ publicApiEnabled: v })} disabled={platformReadonly} isLoading={updatePlatformSettings.isPending} />
           <SettingsToggle id="betaFeatures" label="Beta features" description="Unlock experimental features for all tenants" checked={platformSettingsData?.betaFeaturesEnabled ?? false} onCheckedChange={(v) => updatePlatformSettings.mutate({ betaFeaturesEnabled: v })} disabled={platformReadonly} isLoading={updatePlatformSettings.isPending} />
         </div>
