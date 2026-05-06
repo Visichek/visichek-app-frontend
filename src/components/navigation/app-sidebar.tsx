@@ -55,6 +55,10 @@ interface AppSidebarProps {
   onSettingsClick?: () => void;
   /** The href for the settings page — used to track loading state */
   settingsHref?: string;
+  /** Called when user clicks Get help in the user dropdown — when omitted, the item is hidden (e.g. platform admin shell) */
+  onHelpClick?: () => void;
+  /** The href for the help destination — used to track loading state */
+  helpHref?: string;
   /** Called when user clicks Log out in the user dropdown */
   onLogoutClick?: () => void;
   /** Whether the sidebar is collapsed to icon-only rail */
@@ -70,6 +74,8 @@ export function AppSidebar({
   onSearchClick,
   onSettingsClick,
   settingsHref,
+  onHelpClick,
+  helpHref,
   onLogoutClick,
   collapsed = false,
   onCollapsedChange,
@@ -78,6 +84,7 @@ export function AppSidebar({
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
   const isSettingsLoading = settingsHref ? loadingHref === settingsHref : false;
+  const isHelpLoading = helpHref ? loadingHref === helpHref : false;
 
   // Filter out Settings from main nav — it's in the user dropdown now
   const mainNavItems = items.filter(
@@ -328,16 +335,23 @@ export function AppSidebar({
                 </DropdownMenuItem>
               )}
 
-              {/* Help */}
-              <DropdownMenuItem
-                onClick={() => {
-                  /* TODO: help page or modal */
-                }}
-                className="gap-2 min-h-[36px]"
-              >
-                <HelpCircle className="h-4 w-4" />
-                Get help
-              </DropdownMenuItem>
+              {/* Help — only rendered when the shell wires up a destination (tenant shell only) */}
+              {onHelpClick && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (helpHref) handleNavClick(helpHref);
+                    onHelpClick();
+                  }}
+                  className="gap-2 min-h-[36px]"
+                >
+                  {isHelpLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <HelpCircle className="h-4 w-4" />
+                  )}
+                  Get help
+                </DropdownMenuItem>
+              )}
 
               <DropdownMenuSeparator />
 

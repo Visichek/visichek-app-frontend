@@ -214,6 +214,8 @@ export function TenantShell({ children }: { children: React.ReactNode }) {
           onSearchClick={() => setCommandOpen(true)}
           onSettingsClick={() => navigate("/app/settings")}
           settingsHref="/app/settings"
+          onHelpClick={() => navigate("/app/support-cases")}
+          helpHref="/app/support-cases"
           onLogoutClick={logout}
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}

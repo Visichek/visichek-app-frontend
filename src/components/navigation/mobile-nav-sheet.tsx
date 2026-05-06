@@ -50,6 +50,10 @@ export function MobileNavSheet({
       : systemUserProfile?.email;
 
   const settingsPath = isAdmin ? "/admin/settings" : "/app/settings";
+  // Help only exists in the tenant shell — platform admins have no support
+  // cases page they own (they triage tenant cases, not their own).
+  const helpPath = isAdmin ? null : "/app/support-cases";
+  const isHelpLoading = helpPath ? loadingHref === helpPath : false;
 
   // Filter Settings from main nav since it's in the footer
   const mainNavItems = items.filter(
@@ -162,14 +166,23 @@ export function MobileNavSheet({
             Settings
           </button>
 
-          {/* Help */}
-          <button
-            onClick={() => onOpenChange(false)}
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground/70 hover:bg-accent hover:text-foreground transition-colors w-full min-h-[44px]"
-          >
-            <HelpCircle className="h-[18px] w-[18px] shrink-0 text-foreground/50" aria-hidden="true" />
-            Get help
-          </button>
+          {/* Help — tenant shell only; opens the user's support cases page */}
+          {helpPath && (
+            <button
+              onClick={() => {
+                navigate(helpPath);
+                onOpenChange(false);
+              }}
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground/70 hover:bg-accent hover:text-foreground transition-colors w-full min-h-[44px]"
+            >
+              {isHelpLoading ? (
+                <Loader2 className="h-[18px] w-[18px] shrink-0 animate-spin text-foreground" aria-hidden="true" />
+              ) : (
+                <HelpCircle className="h-[18px] w-[18px] shrink-0 text-foreground/50" aria-hidden="true" />
+              )}
+              Get help
+            </button>
+          )}
 
           {/* Logout */}
           <button

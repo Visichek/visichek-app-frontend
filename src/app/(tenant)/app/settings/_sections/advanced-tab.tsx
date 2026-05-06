@@ -8,7 +8,11 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
-import { SettingsInfo, SettingsToggle, SettingsSelect } from "@/components/recipes/settings-section";
+import {
+  SettingsToggle,
+  SettingsSelect,
+  SettingsTextEdit,
+} from "@/components/recipes/settings-section";
 import { CopyableId } from "@/components/settings/copyable-id";
 import { GeofencingSection } from "./geofencing-section";
 import {
@@ -126,9 +130,55 @@ export function AdvancedTab() {
             <h2 className="text-base font-semibold mb-1">Organisation</h2>
             <p className="text-sm text-muted-foreground mb-4">Company details and email preferences</p>
             <div className="space-y-1">
-              <SettingsInfo label="Company name" description="Displayed on badges and visitor-facing pages" value={tenantSettingsData.companyName ?? "—"} />
-              <SettingsInfo label="Company email" description="Contact email for the organisation" value={tenantSettingsData.companyEmail ?? "—"} />
-              <SettingsInfo label="Default timezone" description="Organisation-wide timezone for scheduling and reports" value={tenantSettingsData.defaultTimezone ?? "Africa/Lagos"} />
+              <SettingsTextEdit
+                id="companyName"
+                label="Company name"
+                description="Displayed on badges and visitor-facing pages"
+                value={tenantSettingsData.companyName}
+                placeholder="Acme Ltd."
+                onSave={(v) => updateTenantSettings.mutate({ companyName: v.length > 0 ? v : null })}
+                isLoading={updateTenantSettings.isPending}
+              />
+              <SettingsTextEdit
+                id="companyEmail"
+                label="Company email"
+                description="Contact email for the organisation"
+                value={tenantSettingsData.companyEmail}
+                type="email"
+                inputMode="email"
+                placeholder="hello@acme.com"
+                validate={(v) => {
+                  if (v.length === 0) return null;
+                  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? null : "Enter a valid email address";
+                }}
+                onSave={(v) => updateTenantSettings.mutate({ companyEmail: v.length > 0 ? v : null })}
+                isLoading={updateTenantSettings.isPending}
+              />
+              <SettingsSelect
+                id="defaultTimezone"
+                label="Default timezone"
+                description="Organisation-wide timezone for scheduling and reports"
+                value={tenantSettingsData.defaultTimezone ?? "Africa/Lagos"}
+                onValueChange={(v) => updateTenantSettings.mutate({ defaultTimezone: v })}
+                options={[
+                  { value: "Africa/Lagos", label: "Africa/Lagos" },
+                  { value: "Africa/Cairo", label: "Africa/Cairo" },
+                  { value: "Africa/Johannesburg", label: "Africa/Johannesburg" },
+                  { value: "Africa/Nairobi", label: "Africa/Nairobi" },
+                  { value: "Europe/London", label: "Europe/London" },
+                  { value: "Europe/Paris", label: "Europe/Paris" },
+                  { value: "Europe/Berlin", label: "Europe/Berlin" },
+                  { value: "America/New_York", label: "America/New York" },
+                  { value: "America/Chicago", label: "America/Chicago" },
+                  { value: "America/Los_Angeles", label: "America/Los Angeles" },
+                  { value: "Asia/Dubai", label: "Asia/Dubai" },
+                  { value: "Asia/Tokyo", label: "Asia/Tokyo" },
+                  { value: "Asia/Singapore", label: "Asia/Singapore" },
+                  { value: "Australia/Sydney", label: "Australia/Sydney" },
+                  { value: "UTC", label: "UTC" },
+                ]}
+                isLoading={updateTenantSettings.isPending}
+              />
             </div>
           </section>
 
