@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Tooltip,
   TooltipTrigger,
@@ -215,26 +216,26 @@ export default function NewUserPage() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <div>
-                  <Select
+                  <SearchableSelect
+                    id="departmentId"
                     value={departmentId ? departmentId : "none"}
                     onValueChange={(value) =>
                       setValue("departmentId", value === "none" ? "" : value)
                     }
-                  >
-                    <SelectTrigger id="departmentId" className="min-h-[44px]">
-                      <SelectValue placeholder="Select department (optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {departmentsQuery.data
+                    placeholder="Select department (optional)"
+                    searchPlaceholder="Search departments..."
+                    emptyText="No departments match your search"
+                    triggerClassName="min-h-[44px]"
+                    options={[
+                      { value: "none", label: "None" },
+                      ...((departmentsQuery.data
                         ?.filter((dept) => !!dept?.id)
-                        .map((dept) => (
-                          <SelectItem key={dept.id} value={dept.id}>
-                            {dept.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                        .map((dept) => ({
+                          value: dept.id,
+                          label: dept.name,
+                        })) ?? []) as { value: string; label: string }[]),
+                    ]}
+                  />
                 </div>
               </TooltipTrigger>
               <TooltipContent side="top">

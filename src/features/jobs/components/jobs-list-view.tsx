@@ -102,7 +102,7 @@ function groupJobs(jobs: JobRecord[]): JobGroup[] {
 export function JobsListView({ basePath }: JobsListViewProps) {
   const [status, setStatus] = useState<StatusFilter>("all");
   const [view, setView] = useState<ViewMode>("grouped");
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref, navigate } = useNavigationLoading();
 
   const params = useMemo(
     () => ({
@@ -162,7 +162,7 @@ export function JobsListView({ basePath }: JobsListViewProps) {
                 variant="ghost"
                 size="sm"
                 className="h-9"
-                onClick={() => handleNavClick(href)}
+                onClick={() => navigate(href)}
                 aria-label="View job details"
               >
                 {isLoadingLink ? (
@@ -223,7 +223,7 @@ export function JobsListView({ basePath }: JobsListViewProps) {
                 </Select>
               </div>
             </TooltipTrigger>
-            <TooltipContent>
+            <TooltipContent side="left" align="center">
               Filter the activity list by job status (queued, processing, succeeded, or failed)
             </TooltipContent>
           </Tooltip>
@@ -265,7 +265,7 @@ export function JobsListView({ basePath }: JobsListViewProps) {
           isLoading={isLoading}
           basePath={basePath}
           loadingHref={loadingHref}
-          handleNavClick={handleNavClick}
+          navigate={navigate}
         />
       ) : (
         <DataTable
@@ -278,7 +278,7 @@ export function JobsListView({ basePath }: JobsListViewProps) {
             <JobMobileCard
               job={job}
               isLoadingLink={loadingHref === `${basePath}/${job.taskId}`}
-              onOpen={() => handleNavClick(`${basePath}/${job.taskId}`)}
+              onOpen={() => navigate(`${basePath}/${job.taskId}`)}
             />
           )}
         />
@@ -292,13 +292,13 @@ function GroupedJobsView({
   isLoading,
   basePath,
   loadingHref,
-  handleNavClick,
+  navigate,
 }: {
   groups: JobGroup[];
   isLoading: boolean;
   basePath: string;
   loadingHref: string | null;
-  handleNavClick: (href: string) => void;
+  navigate: (href: string) => void;
 }) {
   if (isLoading) {
     return <TableSkeleton rows={5} columns={4} />;
@@ -321,7 +321,7 @@ function GroupedJobsView({
           group={group}
           basePath={basePath}
           loadingHref={loadingHref}
-          handleNavClick={handleNavClick}
+          navigate={navigate}
         />
       ))}
     </div>
@@ -332,12 +332,12 @@ function JobGroupRow({
   group,
   basePath,
   loadingHref,
-  handleNavClick,
+  navigate,
 }: {
   group: JobGroup;
   basePath: string;
   loadingHref: string | null;
-  handleNavClick: (href: string) => void;
+  navigate: (href: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const failed = group.counts.failed ?? 0;
@@ -432,7 +432,7 @@ function JobGroupRow({
                       variant="ghost"
                       size="sm"
                       className="h-9"
-                      onClick={() => handleNavClick(href)}
+                      onClick={() => navigate(href)}
                       aria-label="View job details"
                     >
                       {isLoadingLink ? (

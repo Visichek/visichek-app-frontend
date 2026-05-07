@@ -20,13 +20,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Tooltip,
   TooltipContent,
@@ -127,11 +121,11 @@ export default function RegistrationQrPage() {
   }
 
   return (
-    <div className="container mx-auto max-w-4xl px-4 py-6 md:py-8 space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-display font-semibold flex items-center gap-2">
-            <QrCode className="h-6 w-6" />
+    <div className="container mx-auto max-w-4xl w-full min-w-0 px-4 py-6 md:py-8 space-y-6">
+      <div className="flex items-start justify-between gap-4 flex-wrap min-w-0">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-display font-semibold flex items-center gap-2">
+            <QrCode className="h-5 w-5 sm:h-6 sm:w-6 shrink-0" />
             Registration QR Code
           </h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-xl">
@@ -141,8 +135,8 @@ export default function RegistrationQrPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 print:grid-cols-1">
-        <Card className="print:hidden">
+      <div className="grid gap-6 md:grid-cols-2 print:grid-cols-1 min-w-0">
+        <Card className="print:hidden min-w-0">
           <CardHeader>
             <CardTitle>Scope</CardTitle>
             <CardDescription>
@@ -153,26 +147,25 @@ export default function RegistrationQrPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="department">Department (optional)</Label>
-              <Select
-                value={departmentId}
+              <SearchableSelect
+                id="department"
+                value={departmentId || "__any__"}
                 onValueChange={(v) =>
                   setDepartmentId(v === "__any__" ? "" : v)
                 }
-              >
-                <SelectTrigger id="department">
-                  <SelectValue placeholder="Any department" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__any__">Any department</SelectItem>
-                  {departmentsQuery.data
+                placeholder="Any department"
+                searchPlaceholder="Search departments..."
+                emptyText="No departments match your search"
+                options={[
+                  { value: "__any__", label: "Any department" },
+                  ...((departmentsQuery.data
                     ?.filter((d) => !!d?.id)
-                    .map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+                    .map((d) => ({ value: d.id, label: d.name })) ?? []) as {
+                    value: string;
+                    label: string;
+                  }[]),
+                ]}
+              />
             </div>
 
             <Tooltip>
@@ -219,15 +212,15 @@ export default function RegistrationQrPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-w-0">
           <CardHeader className="print:text-center">
             <CardTitle>Scan to register</CardTitle>
             <CardDescription>
               Point your camera at the QR, or visit the link below.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col items-center gap-4">
-            <div className="w-full aspect-square max-w-xs rounded-md border border-border bg-muted/30 flex items-center justify-center overflow-hidden">
+          <CardContent className="flex flex-col items-center gap-4 min-w-0">
+            <div className="w-full aspect-square max-w-[16rem] sm:max-w-xs rounded-md border border-border bg-muted/30 flex items-center justify-center overflow-hidden">
               {mintMutation.isPending ? (
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               ) : imgSrc ? (
@@ -256,12 +249,12 @@ export default function RegistrationQrPage() {
             </div>
 
             {deepLink && (
-              <div className="w-full space-y-2">
+              <div className="w-full min-w-0 space-y-2">
                 <Label className="text-xs text-muted-foreground uppercase tracking-wide">
                   Registration URL
                 </Label>
-                <div className="flex gap-2">
-                  <code className="flex-1 truncate rounded-md border border-border bg-muted/40 px-3 py-2 text-xs font-mono">
+                <div className="flex gap-2 min-w-0">
+                  <code className="flex-1 min-w-0 truncate rounded-md border border-border bg-muted/40 px-3 py-2 text-xs font-mono">
                     {deepLink}
                   </code>
                   <Tooltip>
@@ -272,6 +265,7 @@ export default function RegistrationQrPage() {
                         size="icon"
                         onClick={copyUrl}
                         aria-label="Copy registration URL"
+                        className="shrink-0"
                       >
                         <Copy className="h-4 w-4" />
                       </Button>

@@ -11,6 +11,7 @@ import { isPermissionError } from "@/types/api";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { NavigationLoadingProvider } from "@/lib/routing/navigation-context";
 import { NavigationOverlay } from "@/components/feedback/navigation-overlay";
+import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 
 interface ProvidersProps {
   children: ReactNode;
@@ -52,7 +53,7 @@ export function Providers({ children }: ProvidersProps) {
     <ReduxProvider store={store}>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
-          <TooltipProvider>
+          <TooltipProvider delayDuration={250} skipDelayDuration={150} disableHoverableContent>
             <NavigationLoadingProvider>
               {isBootstrapping ? (
                 <div className="flex min-h-screen items-center justify-center bg-background">
@@ -62,6 +63,7 @@ export function Providers({ children }: ProvidersProps) {
                 children
               )}
               <NavigationOverlay />
+              <ServiceWorkerRegister />
               <Toaster
                 position="top-right"
                 toastOptions={{

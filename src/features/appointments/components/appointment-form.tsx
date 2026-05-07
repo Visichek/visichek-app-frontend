@@ -12,13 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { LoadingButton } from "@/components/feedback/loading-button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Tooltip,
   TooltipTrigger,
@@ -215,20 +209,20 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
             name="departmentId"
             control={control}
             render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger id="departmentId" className="min-h-[44px]">
-                  <SelectValue placeholder="Select a department" />
-                </SelectTrigger>
-                <SelectContent>
-                  {departmentsQuery.data
+              <SearchableSelect
+                id="departmentId"
+                value={field.value}
+                onValueChange={field.onChange}
+                placeholder="Select a department"
+                searchPlaceholder="Search departments..."
+                emptyText="No departments match your search"
+                triggerClassName="min-h-[44px]"
+                options={
+                  departmentsQuery.data
                     ?.filter((dept) => !!dept?.id)
-                    .map((dept) => (
-                      <SelectItem key={dept.id} value={dept.id}>
-                        {dept.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+                    .map((dept) => ({ value: dept.id, label: dept.name })) ?? []
+                }
+              />
             )}
           />
           {errors.departmentId && (

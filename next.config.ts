@@ -28,6 +28,27 @@ const nextConfig: NextConfig = {
       "@radix-ui/react-tooltip",
     ],
   },
+
+  async headers() {
+    return [
+      {
+        // The service worker file must never be long-cached, otherwise users
+        // can be stuck on a stale SW that keeps serving stale assets.
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=0, must-revalidate" },
+          { key: "Service-Worker-Allowed", value: "/" },
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+        ],
+      },
+      {
+        source: "/manifest.webmanifest",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=3600, must-revalidate" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

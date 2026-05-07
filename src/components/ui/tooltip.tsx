@@ -13,13 +13,19 @@ const TooltipTrigger = TooltipPrimitive.Trigger;
 const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 6, ...props }, ref) => (
+>(({ className, sideOffset = 8, collisionPadding = 8, ...props }, ref) => (
   <TooltipPrimitive.Portal>
     <TooltipPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
+      collisionPadding={collisionPadding}
+      // pointer-events-none: tooltips are purely visual; they must never
+      // intercept clicks meant for the controls underneath them. This is the
+      // single most important rule — the z-index below `popup` is just
+      // belt-and-braces so an open Select/Popover/Dropdown also visually
+      // covers any lingering tooltip while it fades out.
       className={cn(
-        "z-toast rounded-md border border-border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md",
+        "z-[55] pointer-events-none select-none rounded-md border border-border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md",
         "max-w-[280px] leading-relaxed",
         "animate-in fade-in-0 zoom-in-95",
         "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",

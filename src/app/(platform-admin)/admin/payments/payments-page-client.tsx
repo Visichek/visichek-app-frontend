@@ -307,7 +307,7 @@ export function PaymentsPageClient() {
                 </Select>
               </div>
             </TooltipTrigger>
-            <TooltipContent>
+            <TooltipContent side="top" align="start">
               Narrow the list by invoice status — paid, issued (unpaid), draft,
               void, or refunded
             </TooltipContent>
