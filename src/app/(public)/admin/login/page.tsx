@@ -17,7 +17,7 @@ import {
   Loader2,
   KeyRound,
 } from "lucide-react";
-import { useAuth, type LoginResult } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import { useRedirectIfAuthenticated } from "@/hooks/use-redirect-if-authenticated";
 import { ApiError } from "@/types/api";
 import { OtpInput } from "@/components/ui/otp-input";
@@ -53,12 +53,12 @@ export default function AdminLoginPage() {
     try {
       const result = await loginAdmin(values);
 
-      // If OTP is required, show the OTP form instead of redirecting
-      if (result.otpRequired) {
+      // Admin login only ever returns "otp" or "complete" — no tenant
+      // selection. On "complete" the hook already redirected.
+      if (result.kind === "otp") {
         setOtpChallengeId(result.otpChallengeId);
         setOtpCode("");
       }
-      // If otpRequired is false, the hook already redirected to dashboard
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.code === "TOO_MANY_REQUESTS") {

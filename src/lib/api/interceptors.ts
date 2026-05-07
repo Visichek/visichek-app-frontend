@@ -1,45 +1,48 @@
 import type { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from "axios";
-import { getAccessToken, getSessionType } from "@/lib/auth/tokens";
 import { refreshSession, clearSession } from "@/lib/auth/session";
 import { peekUserLocationHeader } from "@/lib/geolocation/user-location";
 import { ApiError, type ErrorEnvelope } from "@/types/api";
 
+/**
+ * Axios interceptors. Auth tokens live in httpOnly cookies set by the
+ * backend; every request goes out with `withCredentials: true` (configured
+ * on the client) so the cookies travel automatically. The frontend never
+ * reads, writes, or attaches a token itself.
+ */
+
 let isRefreshing = false;
 let failedQueue: Array<{
-  resolve: (token: string) => void;
+  resolve: () => void;
   reject: (error: unknown) => void;
 }> = [];
 
-function processQueue(error: unknown, token: string | null) {
+function processQueue(error: unknown) {
   failedQueue.forEach(({ resolve, reject }) => {
     if (error) {
       reject(error);
     } else {
-      resolve(token!);
+      resolve();
     }
   });
   failedQueue = [];
 }
 
 export function setupInterceptors(client: AxiosInstance) {
-  // ── Request: inject auth header ───────────────────────────────────
+  // ── Request: piggyback geolocation, clean up FormData content-type ──
   client.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-    const token = getAccessToken();
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-
-      // Authenticated requests piggyback the user's current geolocation
-      // (if the browser has granted permission) as `X-User-Location`.
-      // The backend reads this inside the gate-check dependency and
-      // fire-and-forget-writes it to Redis with a 10-min TTL so the
-      // geofencing service can answer "which approvers are on-site?".
-      //
-      // Rules:
-      //   - Omit the header entirely if no sample is cached — the server
-      //     treats a missing header as "no recent location", which is
-      //     exactly what we want.
-      //   - Never block the request on a geolocation read; we only
-      //     attach what's already cached in memory.
+    // Authenticated requests piggyback the user's current geolocation
+    // (if the browser has granted permission) as `X-User-Location`.
+    // The backend reads this inside the gate-check dependency and
+    // fire-and-forget-writes it to Redis with a 10-min TTL so the
+    // geofencing service can answer "which approvers are on-site?".
+    //
+    // Rules:
+    //   - Omit the header entirely if no sample is cached — the server
+    //     treats a missing header as "no recent location", which is
+    //     exactly what we want.
+    //   - Never block the request on a geolocation read; we only
+    //     attach what's already cached in memory.
+    if (config.headers) {
       const locationHeader = peekUserLocationHeader();
       if (locationHeader) {
         config.headers["X-User-Location"] = locationHeader;
@@ -87,31 +90,16 @@ export function setupInterceptors(client: AxiosInstance) {
         _retry?: boolean;
       };
 
-      // If not a 401 or already retried, normalize and reject
       if (error.response?.status !== 401 || originalRequest._retry) {
         return Promise.reject(normalizeError(error));
       }
 
-      // Check if we have a session type — needed to pick the right refresh endpoint.
-      // The actual refresh token is in the httpOnly cookie (sent automatically).
-      // In-memory refresh token is a bonus but not required.
-      const sessionType = getSessionType();
-
-      if (!sessionType) {
-        clearSession();
-        return Promise.reject(normalizeError(error));
-      }
-
       if (isRefreshing) {
-        // Queue this request while refresh is in-flight
+        // Queue this request while a refresh is in-flight; on success
+        // we replay it and the rotated cookies travel automatically.
         return new Promise((resolve, reject) => {
           failedQueue.push({
-            resolve: (token: string) => {
-              if (originalRequest.headers) {
-                originalRequest.headers.Authorization = `Bearer ${token}`;
-              }
-              resolve(client(originalRequest));
-            },
+            resolve: () => resolve(client(originalRequest)),
             reject,
           });
         });
@@ -121,15 +109,11 @@ export function setupInterceptors(client: AxiosInstance) {
       isRefreshing = true;
 
       try {
-        const newAccessToken = await refreshSession();
-        processQueue(null, newAccessToken);
-
-        if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-        }
+        await refreshSession();
+        processQueue(null);
         return client(originalRequest);
       } catch (refreshError) {
-        processQueue(refreshError, null);
+        processQueue(refreshError);
         clearSession();
         return Promise.reject(refreshError);
       } finally {

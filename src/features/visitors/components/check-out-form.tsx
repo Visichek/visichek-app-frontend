@@ -6,8 +6,6 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2 } from "lucide-react";
-import { PageHeader } from "@/components/recipes/page-header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -42,7 +40,7 @@ type CheckOutFormData = z.infer<typeof checkOutSchema>;
 
 export function CheckOutForm() {
   const router = useRouter();
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { handleNavClick } = useNavigationLoading();
   const checkOutMutation = useCheckOut();
 
   const {
@@ -83,41 +81,7 @@ export function CheckOutForm() {
   const submitting = isSubmitting || checkOutMutation.isPending;
 
   return (
-    <div className="mx-auto max-w-xl space-y-6">
-      <div className="flex items-center gap-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" asChild className="min-h-[44px]">
-              <Link
-                href="/app/visitors"
-                onClick={() => handleNavClick("/app/visitors")}
-              >
-                {loadingHref === "/app/visitors" ? (
-                  <Loader2
-                    className="mr-2 h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <ArrowLeft
-                    className="mr-2 h-4 w-4"
-                    aria-hidden="true"
-                  />
-                )}
-                Back to visitors
-              </Link>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            Return to the visitors list without checking anyone out
-          </TooltipContent>
-        </Tooltip>
-      </div>
-
-      <PageHeader
-        title="Check out visitor"
-        description="Record a visitor's departure by scanning their badge QR or entering their session ID."
-      />
-
+    <div className="space-y-5">
       <form onSubmit={onSubmit} className="space-y-5">
         <div className="space-y-2">
           <Label htmlFor="checkOutMethod">Check-out method</Label>

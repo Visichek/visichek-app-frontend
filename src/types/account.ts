@@ -1,3 +1,5 @@
+import type { SystemUserRole } from "./enums";
+
 // ── Password Change ──────────────────────────────────────────────────
 
 export interface ChangePasswordRequest {
@@ -95,5 +97,43 @@ export function isOtpChallenge(data: unknown): data is OtpChallengeResponse {
     data !== null &&
     "otpRequired" in data &&
     (data as OtpChallengeResponse).otpRequired === true
+  );
+}
+
+// ── Tenant Selection (multi-tenant login disambiguation) ─────────────
+
+export interface TenantSelectionCandidate {
+  tenantId: string;
+  companyName: string;
+  role: SystemUserRole;
+  fullName: string;
+  mfaEnabled: boolean;
+}
+
+export interface TenantSelectionResponse {
+  tenantSelectionRequired: true;
+  selectionToken: string;
+  tenants: TenantSelectionCandidate[];
+}
+
+export interface SelectTenantRequest {
+  selectionToken: string;
+  tenantId: string;
+}
+
+/**
+ * Check if a login response requires the user to pick a tenant. Returned
+ * by `POST /v1/system-users/login` when the email matches an active
+ * account in more than one tenant. The `selectionToken` is single-use
+ * and expires in 5 minutes.
+ */
+export function isTenantSelectionRequired(
+  data: unknown
+): data is TenantSelectionResponse {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "tenantSelectionRequired" in data &&
+    (data as TenantSelectionResponse).tenantSelectionRequired === true
   );
 }

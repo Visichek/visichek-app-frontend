@@ -10,54 +10,43 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import { refreshSession } from "@/lib/auth/session";
-import { getAccessToken, getRefreshToken, getSessionType } from "@/lib/auth/tokens";
+import { useAppSelector } from "@/lib/store/hooks";
+import { selectSessionType } from "@/lib/store/session-slice";
 
 /**
- * Debug-only button that manually triggers the unified token refresh flow.
+ * Debug-only button that manually triggers the unified refresh flow.
  * Renders next to the notification bell in the topbar.
  *
- * Logs token state before and after the call to the browser console so the
- * full request/response cycle can be inspected alongside the network tab.
+ * Auth tokens are httpOnly cookies — JS cannot read them, so this only
+ * logs Redux session state and reports refresh success/failure. Inspect
+ * the Set-Cookie headers in the network tab to verify cookie rotation.
  */
 export function DebugRefreshButton() {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const sessionType = useAppSelector(selectSessionType);
 
   const handleRefresh = async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
 
-    const before = {
-      sessionType: getSessionType(),
-      accessToken: getAccessToken(),
-      refreshToken: getRefreshToken(),
-    };
     // eslint-disable-next-line no-console
     console.groupCollapsed("[debug-refresh] starting refresh");
     // eslint-disable-next-line no-console
-    console.log("before:", before);
+    console.log("session type before:", sessionType);
 
     const toastId = toast.loading("Refreshing session…");
 
     try {
-      const newAccessToken = await refreshSession();
+      await refreshSession();
 
-      const after = {
-        sessionType: getSessionType(),
-        accessToken: getAccessToken(),
-        refreshToken: getRefreshToken(),
-      };
       // eslint-disable-next-line no-console
-      console.log("after:", after);
-      // eslint-disable-next-line no-console
-      console.log("returned access token:", newAccessToken);
+      console.log("refresh succeeded — check network tab for new Set-Cookie");
       // eslint-disable-next-line no-console
       console.groupEnd();
 
       toast.success("Refresh succeeded", {
         id: toastId,
-        description: newAccessToken
-          ? `New access token: ${newAccessToken.slice(0, 12)}…`
-          : "Refresh returned an empty access token",
+        description: "Cookies rotated — see network tab for Set-Cookie headers",
       });
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -95,7 +84,7 @@ export function DebugRefreshButton() {
         </Button>
       </TooltipTrigger>
       <TooltipContent side="bottom">
-        Debug: manually trigger the /auth/refresh flow and log tokens to the console
+        Debug: manually trigger the /auth/refresh flow and log session state to the console
       </TooltipContent>
     </Tooltip>
   );

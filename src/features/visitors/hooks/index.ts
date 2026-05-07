@@ -3,6 +3,7 @@ export {
   useVisitorSessions,
   useVisitorSession,
   useVisitorBadge,
+  useAwaitingCheckout,
   useCheckOut,
   useSearchVisitorProfiles,
   useMintRegistrationQr,

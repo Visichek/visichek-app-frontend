@@ -1,34 +1,38 @@
-import { isAuthenticated, isAdminSession, isSystemUserSession } from "./bootstrap";
+import { store } from "@/lib/store";
+import { PATHS } from "@/lib/routing/paths";
 
 /**
- * Route-level guard: requires any authenticated session.
- * Returns a redirect path if not authenticated, or null if OK.
+ * Non-React route guards.
+ *
+ * Reads from the Redux session slice, which is hydrated from `GET /me`
+ * during bootstrap. For React components, prefer the `useSession()` hook
+ * — these helpers exist for non-React code paths (e.g. imperative
+ * navigation handlers) that still need to know shell membership.
+ *
+ * Returns the redirect path if the guard fails, or `null` if it passes.
  */
+
+function getSession() {
+  return store.getState().session;
+}
+
 export function requireAuth(currentPath: string): string | null {
-  if (!isAuthenticated()) {
-    // Redirect to the appropriate login page based on the path
-    if (currentPath.startsWith("/admin")) {
-      return "/admin/login";
-    }
-    return "/app/login";
-  }
-  return null;
+  if (getSession().isAuthenticated) return null;
+  return currentPath.startsWith("/admin")
+    ? PATHS.ADMIN_LOGIN
+    : PATHS.APP_LOGIN;
 }
 
-/**
- * Route-level guard: requires a platform admin session.
- */
 export function requireAdmin(): string | null {
-  if (!isAuthenticated()) return "/admin/login";
-  if (!isAdminSession()) return "/app/login";
+  const session = getSession();
+  if (!session.isAuthenticated) return PATHS.ADMIN_LOGIN;
+  if (session.type !== "admin") return PATHS.APP_LOGIN;
   return null;
 }
 
-/**
- * Route-level guard: requires a tenant system user session.
- */
 export function requireSystemUser(): string | null {
-  if (!isAuthenticated()) return "/app/login";
-  if (!isSystemUserSession()) return "/admin/login";
+  const session = getSession();
+  if (!session.isAuthenticated) return PATHS.APP_LOGIN;
+  if (session.type !== "system_user") return PATHS.ADMIN_LOGIN;
   return null;
 }

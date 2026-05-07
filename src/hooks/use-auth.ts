@@ -1,19 +1,27 @@
 "use client";
 
 import { useCallback } from "react";
-import { useAppDispatch } from "@/lib/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/lib/store/hooks";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import {
   setAdminSession,
   setSystemUserSession,
   clearSessionState,
+  selectSessionType,
 } from "@/lib/store/session-slice";
 import { clearBranding } from "@/lib/store/branding-slice";
-import { setTokens, clearTokens, getSessionType } from "@/lib/auth/tokens";
 import { apiPost } from "@/lib/api/request";
 import apiClient from "@/lib/api/client";
 import { getPostLoginPath } from "@/lib/routing/redirects";
-import { isOtpChallenge, type OtpChallengeResponse, type OtpVerifyRequest } from "@/types/account";
+import {
+  isOtpChallenge,
+  isTenantSelectionRequired,
+  type OtpChallengeResponse,
+  type OtpVerifyRequest,
+  type TenantSelectionCandidate,
+  type TenantSelectionResponse,
+  type SelectTenantRequest,
+} from "@/types/account";
 import type {
   LoginRequest,
   AdminLoginResponse,
@@ -22,19 +30,11 @@ import type {
 } from "@/types/auth";
 
 /**
- * Extract a TokenPair from a flat login response where
- * accessToken and refreshToken are top-level fields.
- */
-function extractTokens(response: SystemUserLoginResponse) {
-  return {
-    accessToken: response.accessToken,
-    refreshToken: response.refreshToken,
-  };
-}
-
-/**
- * Extract a SystemUserProfile from a flat login response,
- * omitting token fields.
+ * Auth tokens live in httpOnly cookies set by the backend on every login
+ * call. The frontend never persists or attaches tokens — login responses
+ * still carry an accessToken/refreshToken pair, but those fields are
+ * ignored here. We only extract the profile and dispatch it to Redux so
+ * the UI knows who is logged in.
  */
 function extractProfile(response: SystemUserLoginResponse) {
   return {
@@ -48,15 +48,33 @@ function extractProfile(response: SystemUserLoginResponse) {
 }
 
 /**
- * Result from a login attempt. Either redirects to dashboard,
- * or returns an OTP challenge if 2FA is required.
+ * Result from a login attempt.
+ *
+ *   - "complete":         hook already redirected to the dashboard
+ *   - "otp":              caller should mount the OTP screen and call verifyOtp
+ *   - "tenant_selection": caller should render the workspace chooser and
+ *                         call selectTenant once the user picks one. The
+ *                         selectionToken is single-use, 5-min TTL,
+ *                         memory-only — never persist it.
  */
 export type LoginResult =
-  | { otpRequired: false }
-  | { otpRequired: true; otpChallengeId: string; sessionType: "admin" | "system_user" };
+  | { kind: "complete" }
+  | {
+      kind: "otp";
+      otpChallengeId: string;
+      sessionType: "admin" | "system_user";
+    }
+  | {
+      kind: "tenant_selection";
+      selectionToken: string;
+      tenants: TenantSelectionCandidate[];
+    };
+
+const EMPTY_TOKENS = { accessToken: "", refreshToken: "" };
 
 export function useAuth() {
   const dispatch = useAppDispatch();
+  const sessionType = useAppSelector(selectSessionType);
   const { navigate } = useNavigationLoading();
 
   /**
@@ -72,63 +90,115 @@ export function useAuth() {
         credentials
       );
 
-      // Check if OTP challenge returned
       if (isOtpChallenge(data)) {
         return {
-          otpRequired: true,
+          kind: "otp",
           otpChallengeId: data.otpChallengeId,
           sessionType: "admin",
         };
       }
 
       const loginData = data as AdminLoginResponse;
-      const tokens = {
-        accessToken: loginData.accessToken,
-        refreshToken: loginData.refreshToken,
-      };
       const profile = {
         id: loginData.id,
         fullName: loginData.fullName,
         email: loginData.email,
       };
 
-      setTokens(tokens, "admin");
-      dispatch(setAdminSession({ type: "admin", tokens, profile }));
+      dispatch(setAdminSession({ type: "admin", tokens: EMPTY_TOKENS, profile }));
       navigate(getPostLoginPath("admin"));
-      return { otpRequired: false };
+      return { kind: "complete" };
     },
     [dispatch, navigate]
   );
 
   /**
    * Tenant staff login (receptionist, dept_admin, auditor, security_officer, dpo).
-   * POST /v1/system-users/tenant/{tenantId}/login
+   * POST /v1/system-users/login
+   *
+   * Email + password only — the backend figures out which tenant(s) the
+   * email belongs to. The response is one of three shapes:
+   *
+   *   1. Complete (single tenant, no MFA) → cookies set, hook redirects
+   *   2. OTP required (single tenant, MFA on) → caller shows OTP screen
+   *   3. Tenant selection required (multi-tenant) → caller shows workspace
+   *      chooser, then calls selectTenant() with the user's choice
    */
   const loginSystemUser = useCallback(
-    async (credentials: LoginRequest, tenantId: string): Promise<LoginResult> => {
-      const data = await apiPost<SystemUserLoginResponse | OtpChallengeResponse>(
-        `/system-users/tenant/${tenantId}/login`,
-        credentials
-      );
+    async (credentials: LoginRequest): Promise<LoginResult> => {
+      const data = await apiPost<
+        | SystemUserLoginResponse
+        | OtpChallengeResponse
+        | TenantSelectionResponse
+      >("/system-users/login", credentials);
+
+      if (isTenantSelectionRequired(data)) {
+        return {
+          kind: "tenant_selection",
+          selectionToken: data.selectionToken,
+          tenants: data.tenants,
+        };
+      }
 
       if (isOtpChallenge(data)) {
         return {
-          otpRequired: true,
+          kind: "otp",
           otpChallengeId: data.otpChallengeId,
           sessionType: "system_user",
         };
       }
 
       const loginData = data as SystemUserLoginResponse;
-      const tokens = extractTokens(loginData);
       const profile = extractProfile(loginData);
 
-      setTokens(tokens, "system_user");
       dispatch(
-        setSystemUserSession({ type: "system_user", tokens, profile })
+        setSystemUserSession({
+          type: "system_user",
+          tokens: EMPTY_TOKENS,
+          profile,
+        })
       );
       navigate(getPostLoginPath("system_user", loginData.role));
-      return { otpRequired: false };
+      return { kind: "complete" };
+    },
+    [dispatch, navigate]
+  );
+
+  /**
+   * Stage 2 of the multi-tenant login flow. Submit the chosen tenant
+   * alongside the selectionToken returned by loginSystemUser.
+   * POST /v1/system-users/select-tenant
+   *
+   * Returns "otp" when the chosen tenant has MFA on, otherwise "complete".
+   * A 401 here means the selectionToken is invalid/used/expired (5-min
+   * TTL) — the caller should send the user back to the login screen.
+   */
+  const selectTenant = useCallback(
+    async (request: SelectTenantRequest): Promise<LoginResult> => {
+      const data = await apiPost<
+        SystemUserLoginResponse | OtpChallengeResponse
+      >("/system-users/select-tenant", request);
+
+      if (isOtpChallenge(data)) {
+        return {
+          kind: "otp",
+          otpChallengeId: data.otpChallengeId,
+          sessionType: "system_user",
+        };
+      }
+
+      const loginData = data as SystemUserLoginResponse;
+      const profile = extractProfile(loginData);
+
+      dispatch(
+        setSystemUserSession({
+          type: "system_user",
+          tokens: EMPTY_TOKENS,
+          profile,
+        })
+      );
+      navigate(getPostLoginPath("system_user", loginData.role));
+      return { kind: "complete" };
     },
     [dispatch, navigate]
   );
@@ -136,6 +206,9 @@ export function useAuth() {
   /**
    * Super admin global login (step 1 of dual-login flow).
    * POST /v1/system-users/super-admin/login
+   *
+   * The cookie set here is what authenticates the tenant-scoped step-2
+   * call — there is no token to capture client-side.
    */
   const loginSuperAdminGlobal = useCallback(
     async (credentials: LoginRequest): Promise<SuperAdminGlobalLoginResponse | LoginResult> => {
@@ -146,18 +219,13 @@ export function useAuth() {
 
       if (isOtpChallenge(data)) {
         return {
-          otpRequired: true,
+          kind: "otp",
           otpChallengeId: data.otpChallengeId,
           sessionType: "system_user",
         };
       }
 
-      const loginData = data as SuperAdminGlobalLoginResponse;
-      // Store tokens from step 1 so the tenant-scoped call is authenticated
-      const tokens = extractTokens(loginData.user);
-      setTokens(tokens, "system_user");
-
-      return loginData;
+      return data as SuperAdminGlobalLoginResponse;
     },
     []
   );
@@ -173,12 +241,13 @@ export function useAuth() {
         {}
       );
 
-      const tokens = extractTokens(data);
       const profile = extractProfile(data);
-
-      setTokens(tokens, "system_user");
       dispatch(
-        setSystemUserSession({ type: "system_user", tokens, profile })
+        setSystemUserSession({
+          type: "system_user",
+          tokens: EMPTY_TOKENS,
+          profile,
+        })
       );
       navigate(getPostLoginPath("system_user", "super_admin"));
     },
@@ -189,15 +258,15 @@ export function useAuth() {
    * Verify OTP code during login (step 2 of 2FA flow).
    * POST /v1/admins/verify-otp or /v1/system-users/verify-otp
    *
-   * On success, returns the full login profile + tokens.
+   * On success, returns the full login profile.
    */
   const verifyOtp = useCallback(
     async (
       request: OtpVerifyRequest,
-      sessionType: "admin" | "system_user"
+      type: "admin" | "system_user"
     ) => {
       const endpoint =
-        sessionType === "admin"
+        type === "admin"
           ? "/admins/verify-otp"
           : "/system-users/verify-otp";
 
@@ -206,29 +275,24 @@ export function useAuth() {
         request
       );
 
-      if (sessionType === "admin") {
+      if (type === "admin") {
         const adminData = data as AdminLoginResponse;
-        const tokens = {
-          accessToken: adminData.accessToken,
-          refreshToken: adminData.refreshToken,
-        };
         const profile = {
           id: adminData.id,
           fullName: adminData.fullName,
           email: adminData.email,
         };
-
-        setTokens(tokens, "admin");
-        dispatch(setAdminSession({ type: "admin", tokens, profile }));
+        dispatch(setAdminSession({ type: "admin", tokens: EMPTY_TOKENS, profile }));
         navigate(getPostLoginPath("admin"));
       } else {
         const userData = data as SystemUserLoginResponse;
-        const tokens = extractTokens(userData);
         const profile = extractProfile(userData);
-
-        setTokens(tokens, "system_user");
         dispatch(
-          setSystemUserSession({ type: "system_user", tokens, profile })
+          setSystemUserSession({
+            type: "system_user",
+            tokens: EMPTY_TOKENS,
+            profile,
+          })
         );
         navigate(getPostLoginPath("system_user", userData.role));
       }
@@ -240,26 +304,24 @@ export function useAuth() {
    * Logout: call backend to clear httpOnly cookies, then clear local state.
    */
   const logout = useCallback(async () => {
-    const currentType = getSessionType();
     const logoutEndpoint =
-      currentType === "admin" ? "/admins/logout" : "/system-users/logout";
+      sessionType === "admin" ? "/admins/logout" : "/system-users/logout";
 
     try {
-      // Ask backend to clear the httpOnly cookies
       await apiClient.post(logoutEndpoint);
     } catch {
-      // Best-effort — still clear local state even if this fails
+      // Best-effort — still clear local state even if this fails.
     }
 
-    clearTokens();
     dispatch(clearSessionState());
     dispatch(clearBranding());
-    navigate(currentType === "admin" ? "/admin/login" : "/app/login");
-  }, [dispatch, navigate]);
+    navigate(sessionType === "admin" ? "/admin/login" : "/app/login");
+  }, [dispatch, navigate, sessionType]);
 
   return {
     loginAdmin,
     loginSystemUser,
+    selectTenant,
     loginSuperAdminGlobal,
     loginSuperAdminTenant,
     verifyOtp,

@@ -5,6 +5,7 @@ import type {
   VerificationStatus,
   AppointmentStatus,
   ProfilingPreference,
+  SystemUserRole,
 } from "./enums";
 
 /**
@@ -38,6 +39,54 @@ export interface VisitSession {
   checkedOutBy?: string;
   badgeQrToken?: string;
   visitorNameSnapshot?: string;
+}
+
+export interface VisitorProfileSummary {
+  id: string;
+  fullName: string;
+  company?: string;
+  phone?: string;
+  photoUrl?: string;
+}
+
+export interface HostSummary {
+  id: string;
+  fullName: string;
+  email?: string;
+  role?: SystemUserRole;
+}
+
+export interface DepartmentSummary {
+  id: string;
+  name: string;
+}
+
+export interface ReceptionistSummary {
+  id: string;
+  fullName: string;
+  email?: string;
+  role?: SystemUserRole;
+}
+
+/**
+ * Enriched visit session returned by GET /v1/visitors/awaiting-checkout.
+ * Carries the same fields as VisitSession plus snapshot strings and the
+ * resolved summaries needed to render a picker without follow-up calls.
+ */
+export interface VisitSessionWithSummary extends VisitSession {
+  receptionistId?: string;
+  checkInTime?: number;
+  checkOutTime?: number | null;
+  badgeExpiry?: number;
+  visitorNameSnapshot?: string;
+  companySnapshot?: string;
+  hostNameSnapshot?: string;
+  departmentNameSnapshot?: string;
+  receptionistNameSnapshot?: string;
+  visitorProfileSummary?: VisitorProfileSummary;
+  hostSummary?: HostSummary;
+  departmentSummary?: DepartmentSummary;
+  receptionistSummary?: ReceptionistSummary;
 }
 
 export interface VisitorProfile {

@@ -2,7 +2,6 @@
 
 import {
   createContext,
-  useContext,
   useState,
   useEffect,
   useCallback,
@@ -10,7 +9,7 @@ import {
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
-interface NavigationLoadingContextValue {
+export interface NavigationLoadingContextValue {
   /** True while a route transition is in flight */
   isNavigating: boolean;
   /** The href currently being navigated to, or null */
@@ -27,7 +26,12 @@ interface NavigationLoadingContextValue {
   handleNavClick: (href: string) => void;
 }
 
-const NavigationLoadingContext =
+/**
+ * Shared route-loading state. Consumers should read this via
+ * `useNavLoading()` (canonical) — `useNavigationLoading()` is kept as a
+ * deprecated alias so legacy imports keep working.
+ */
+export const NavigationLoadingContext =
   createContext<NavigationLoadingContextValue | null>(null);
 
 export function NavigationLoadingProvider({
@@ -77,12 +81,8 @@ export function NavigationLoadingProvider({
   );
 }
 
-export function useNavigationLoading(): NavigationLoadingContextValue {
-  const ctx = useContext(NavigationLoadingContext);
-  if (!ctx) {
-    throw new Error(
-      "useNavigationLoading must be used within NavigationLoadingProvider",
-    );
-  }
-  return ctx;
-}
+// `useNavLoading` is the canonical hook. `useNavigationLoading` is kept as
+// a deprecated alias so legacy import paths continue to work — both call
+// the same implementation. Re-exported here so callers don't need to
+// rewrite their imports.
+export { useNavLoading, useNavigationLoading } from "@/hooks/use-nav-loading";

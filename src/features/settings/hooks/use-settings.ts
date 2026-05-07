@@ -3,7 +3,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 import { apiGet, apiPatch } from "@/lib/api/request";
-import { getSessionType } from "@/lib/auth/tokens";
+import { useAppSelector } from "@/lib/store/hooks";
+import { selectSessionType } from "@/lib/store/session-slice";
 import type {
   SettingsManifest,
   SettingsSection,
@@ -20,14 +21,21 @@ import type {
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-function settingsBasePath(): string {
-  return getSessionType() === "admin"
+/**
+ * Read paths from the current Redux session. Hooks calling these are
+ * always inside an authenticated shell (the session was hydrated from
+ * `GET /me` on boot), so `sessionType` will be set.
+ */
+function useSettingsBasePath(): string {
+  const sessionType = useAppSelector(selectSessionType);
+  return sessionType === "admin"
     ? "/admins/settings"
     : "/system-users/settings";
 }
 
-function preferencesBasePath(): string {
-  return getSessionType() === "admin"
+function usePreferencesBasePath(): string {
+  const sessionType = useAppSelector(selectSessionType);
+  return sessionType === "admin"
     ? "/admins/preferences"
     : "/system-users/preferences";
 }
@@ -85,18 +93,20 @@ export function useVisibleSections(
 // ── User Settings ────────────────────────────────────────────────────
 
 export function useUserSettings() {
+  const basePath = useSettingsBasePath();
   return useQuery({
     queryKey: settingsKeys.user,
-    queryFn: () => apiGet<UserSettings>(settingsBasePath()),
+    queryFn: () => apiGet<UserSettings>(basePath),
   });
 }
 
 export function useUpdateUserSettings() {
   const queryClient = useQueryClient();
+  const basePath = useSettingsBasePath();
 
   return useMutation({
     mutationFn: (data: UserSettingsUpdate) =>
-      apiPatch<UserSettings>(settingsBasePath(), data),
+      apiPatch<UserSettings>(basePath, data),
     onSuccess: (data) => {
       // Only prime the cache when the worker returned a complete settings
       // object. Fall back to an invalidation so the UI always reflects the
@@ -112,18 +122,20 @@ export function useUpdateUserSettings() {
 // ── User Preferences (Key-Value Store) ───────────────────────────────
 
 export function useUserPreferences() {
+  const basePath = usePreferencesBasePath();
   return useQuery({
     queryKey: settingsKeys.preferences,
-    queryFn: () => apiGet<UserPreferences>(preferencesBasePath()),
+    queryFn: () => apiGet<UserPreferences>(basePath),
   });
 }
 
 export function useUpdateUserPreference() {
   const queryClient = useQueryClient();
+  const basePath = usePreferencesBasePath();
 
   return useMutation({
     mutationFn: (data: UserPreferenceUpdate) =>
-      apiPatch<UserPreferences>(preferencesBasePath(), data),
+      apiPatch<UserPreferences>(basePath, data),
     onSuccess: (data) => {
       if (data && typeof data === "object") {
         queryClient.setQueryData(settingsKeys.preferences, data);

@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
 import {
-  Building2,
   Mail,
   Lock,
   Eye,
@@ -17,25 +16,46 @@ import {
   ArrowLeft,
   Loader2,
   KeyRound,
+  Building2,
+  ChevronRight,
 } from "lucide-react";
-import { useAuth, type LoginResult } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import { useRedirectIfAuthenticated } from "@/hooks/use-redirect-if-authenticated";
 import { ApiError } from "@/types/api";
 import { OtpInput } from "@/components/ui/otp-input";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
+import type { TenantSelectionCandidate } from "@/types/account";
 
 const loginSchema = z.object({
-  tenantId: z.string().min(1, "Workspace ID is required"),
   email: z.string().email("Enter a valid email address"),
   password: z.string().min(1, "Password is required"),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
+type View = "credentials" | "tenant_chooser" | "otp";
+
+/** selectionToken expires server-side after 5 minutes. We mirror that
+ *  here so the chooser auto-resets instead of letting the user click a
+ *  card that's guaranteed to 401. */
+const SELECTION_TOKEN_TTL_MS = 5 * 60 * 1000;
+
 export default function AppLoginPage() {
   const { isChecking } = useRedirectIfAuthenticated();
-  const { loginSystemUser, verifyOtp } = useAuth();
+  const { loginSystemUser, selectTenant, verifyOtp } = useAuth();
+
+  const [view, setView] = useState<View>("credentials");
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Tenant-chooser state — selectionToken is memory-only by design.
+  const [selectionToken, setSelectionToken] = useState<string | null>(null);
+  const [tenants, setTenants] = useState<TenantSelectionCandidate[]>([]);
+  const [loadingTenantId, setLoadingTenantId] = useState<string | null>(null);
 
   // OTP state
   const [otpChallengeId, setOtpChallengeId] = useState<string | null>(null);
@@ -50,25 +70,64 @@ export default function AppLoginPage() {
     resolver: zodResolver(loginSchema),
   });
 
+  function resetToCredentials(message: string | null) {
+    setSelectionToken(null);
+    setTenants([]);
+    setLoadingTenantId(null);
+    setOtpChallengeId(null);
+    setOtpCode("");
+    setError(message);
+    setView("credentials");
+  }
+
+  // Auto-expire the selectionToken after 5 minutes so a stale chooser
+  // doesn't sit there waiting to 401.
+  const ttlTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (view !== "tenant_chooser" || !selectionToken) return;
+    ttlTimerRef.current = setTimeout(() => {
+      resetToCredentials("Your sign-in session expired. Please try again.");
+    }, SELECTION_TOKEN_TTL_MS);
+    return () => {
+      if (ttlTimerRef.current) clearTimeout(ttlTimerRef.current);
+    };
+  }, [view, selectionToken]);
+
   async function onSubmit(values: LoginFormValues) {
     setError(null);
     try {
-      const result = await loginSystemUser(
-        { email: values.email, password: values.password },
-        values.tenantId
-      );
+      const result = await loginSystemUser(values);
 
-      // If OTP is required, show the OTP form instead of redirecting
-      if (result.otpRequired) {
+      if (result.kind === "complete") {
+        // Hook already redirected.
+        return;
+      }
+
+      if (result.kind === "otp") {
         setOtpChallengeId(result.otpChallengeId);
         setOtpCode("");
+        setView("otp");
+        return;
       }
-      // If otpRequired is false, the hook already redirected to dashboard
+
+      // Multi-tenant: pick a workspace.
+      // If only one tenant came back, save the user a click and submit it.
+      if (result.tenants.length === 1) {
+        await runTenantSelection(
+          result.selectionToken,
+          result.tenants[0].tenantId
+        );
+        return;
+      }
+
+      setSelectionToken(result.selectionToken);
+      setTenants(result.tenants);
+      setView("tenant_chooser");
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.code === "RESOURCE_NOT_FOUND") {
-          setError("Workspace not found. Please check your Workspace ID.");
-        } else if (err.code === "TOO_MANY_REQUESTS") {
+          setError("Account not found. Check your email and try again.");
+        } else if (err.code === "TOO_MANY_REQUESTS" || err.status === 429) {
           setError(
             "Too many login attempts. Your account has been temporarily locked. Please try again later."
           );
@@ -81,26 +140,69 @@ export default function AppLoginPage() {
     }
   }
 
+  async function runTenantSelection(token: string, tenantId: string) {
+    setLoadingTenantId(tenantId);
+    setError(null);
+    try {
+      const result = await selectTenant({
+        selectionToken: token,
+        tenantId,
+      });
+
+      if (result.kind === "complete") {
+        // Hook already redirected.
+        return;
+      }
+
+      if (result.kind === "otp") {
+        setOtpChallengeId(result.otpChallengeId);
+        setOtpCode("");
+        setSelectionToken(null);
+        setTenants([]);
+        setLoadingTenantId(null);
+        setView("otp");
+      }
+    } catch (err) {
+      setLoadingTenantId(null);
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          // Token invalid/used/expired — back to credentials.
+          resetToCredentials(
+            "Your sign-in session expired. Please try again."
+          );
+        } else if (err.status === 403) {
+          setError(
+            "That workspace is no longer available for this account. Pick another or sign in again."
+          );
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError("Failed to enter that workspace. Please try again.");
+      }
+    }
+  }
+
+  function onSelectTenant(tenantId: string) {
+    if (!selectionToken || loadingTenantId) return;
+    void runTenantSelection(selectionToken, tenantId);
+  }
+
   async function onVerifyOtp() {
     if (!otpChallengeId || otpCode.length < 6) return;
     setError(null);
     setIsVerifying(true);
 
     try {
-      await verifyOtp(
-        { otpChallengeId, otpCode },
-        "system_user"
-      );
-      // On success the hook redirects to the dashboard
+      await verifyOtp({ otpChallengeId, otpCode }, "system_user");
+      // Hook redirects on success.
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 429) {
           setError(
             "Too many OTP attempts. Please log in again to get a new code."
           );
-          // Reset to login form since the challenge is expired
-          setOtpChallengeId(null);
-          setOtpCode("");
+          resetToCredentials(null);
         } else {
           setError(err.message || "Invalid code. Please try again.");
         }
@@ -113,9 +215,7 @@ export default function AppLoginPage() {
   }
 
   function handleBackToLogin() {
-    setOtpChallengeId(null);
-    setOtpCode("");
-    setError(null);
+    resetToCredentials(null);
   }
 
   if (isChecking) {
@@ -126,9 +226,23 @@ export default function AppLoginPage() {
     );
   }
 
+  const heading =
+    view === "otp"
+      ? "Two-Factor Authentication"
+      : view === "tenant_chooser"
+        ? "Choose a workspace"
+        : "Welcome back";
+
+  const subheading =
+    view === "otp"
+      ? "Enter the 6-digit code from your authenticator app"
+      : view === "tenant_chooser"
+        ? "Your email is linked to more than one workspace. Pick one to continue."
+        : "Sign in to your workspace to continue";
+
   return (
     <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center relative overflow-hidden font-sans selection:bg-[#00D287]/20">
-      {/* Very subtle light grid — barely visible, just for texture */}
+      {/* Subtle texture grid */}
       <div
         className="absolute inset-0 bg-[linear-gradient(rgba(15,23,42,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.025)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_40%,transparent_100%)] pointer-events-none"
         aria-hidden="true"
@@ -145,13 +259,9 @@ export default function AppLoginPage() {
 
           <div className="text-center space-y-1">
             <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
-              {otpChallengeId ? "Two-Factor Authentication" : "Welcome back"}
+              {heading}
             </h1>
-            <p className="text-sm text-gray-500">
-              {otpChallengeId
-                ? "Enter the 6-digit code from your authenticator app"
-                : "Sign in to your workspace to continue"}
-            </p>
+            <p className="text-sm text-gray-500">{subheading}</p>
           </div>
         </div>
 
@@ -160,7 +270,6 @@ export default function AppLoginPage() {
           id="main-content"
           className="bg-white border border-gray-100 rounded-3xl shadow-[0_12px_40px_-12px_rgba(15,23,42,0.08)] p-8"
         >
-          {/* Error Banner */}
           {error && (
             <div
               className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 mb-6"
@@ -170,289 +279,51 @@ export default function AppLoginPage() {
             </div>
           )}
 
-          {otpChallengeId ? (
-            /* ── OTP Verification Form ────────────────────── */
-            <div className="space-y-6">
-              <div className="flex justify-center">
-                <div className="rounded-full bg-[#00D287]/10 p-4">
-                  <KeyRound className="h-8 w-8 text-[#00D287]" />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <label className="text-xs font-medium text-gray-700 ml-1 block text-center">
-                  Verification code
-                </label>
-                <OtpInput
-                  length={6}
-                  value={otpCode}
-                  onChange={setOtpCode}
-                  onComplete={(_code) => onVerifyOtp()}
-                  disabled={isVerifying}
-                  autoFocus
-                  aria-label="Enter your 6-digit verification code"
-                />
-                <p className="text-[11px] text-gray-400 text-center">
-                  You can also use a backup code
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={onVerifyOtp}
-                disabled={otpCode.length < 6 || isVerifying}
-                className="w-full min-h-[48px] bg-[#00D287] hover:bg-[#00bd78] disabled:opacity-60 disabled:pointer-events-none text-white font-semibold rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(0,210,135,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(0,210,135,0.6)] text-base md:text-sm"
-              >
-                {isVerifying ? (
-                  <>
-                    <Loader2
-                      size={18}
-                      className="animate-spin"
-                      aria-hidden="true"
-                    />
-                    Verifying...
-                  </>
-                ) : (
-                  <>
-                    Verify Code
-                    <ArrowRight size={18} className="opacity-90" />
-                  </>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleBackToLogin}
-                className="w-full flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors py-2"
-              >
-                <ArrowLeft size={14} />
-                Back to login
-              </button>
-            </div>
+          {view === "otp" ? (
+            <OtpView
+              otpCode={otpCode}
+              setOtpCode={setOtpCode}
+              isVerifying={isVerifying}
+              onVerify={onVerifyOtp}
+              onBack={handleBackToLogin}
+            />
+          ) : view === "tenant_chooser" ? (
+            <TenantChooserView
+              tenants={tenants}
+              loadingTenantId={loadingTenantId}
+              onSelect={onSelectTenant}
+              onBack={handleBackToLogin}
+            />
           ) : (
-            /* ── Login Form ───────────────────────────────── */
-            <>
-              <form
-                onSubmit={handleSubmit(onSubmit)}
-                className="space-y-6"
-                noValidate
-              >
-                {/* Workspace ID */}
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="tenantId"
-                    className="text-xs font-medium text-gray-700 ml-1"
-                  >
-                    Workspace ID
-                  </label>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[#00D287] transition-colors">
-                      <Building2 size={18} aria-hidden="true" />
-                    </div>
-                    <input
-                      id="tenantId"
-                      type="text"
-                      placeholder="e.g. acme-corp"
-                      autoComplete="organization"
-                      autoFocus
-                      className="login-input w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-base md:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#00D287]/25 focus:border-[#00D287] transition-all shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-                      {...register("tenantId")}
-                    />
-                  </div>
-                  {errors.tenantId ? (
-                    <p className="text-xs text-red-600 ml-1">
-                      {errors.tenantId.message}
-                    </p>
-                  ) : (
-                    <p className="text-[11px] text-gray-400 ml-1">
-                      Provided by your organization administrator.
-                    </p>
-                  )}
-                </div>
-
-                {/* Divider */}
-                <div
-                  className="h-px w-full bg-gradient-to-r from-transparent via-gray-200 to-transparent"
-                  aria-hidden="true"
-                />
-
-                {/* Credentials */}
-                <div className="space-y-4">
-                  {/* Email */}
-                  <div className="space-y-1.5">
-                    <label
-                      htmlFor="email"
-                      className="text-xs font-medium text-gray-700 ml-1"
-                    >
-                      Email or mobile number
-                    </label>
-                    <div className="relative group">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[#00D287] transition-colors">
-                        <Mail size={18} aria-hidden="true" />
-                      </div>
-                      <input
-                        id="email"
-                        type="email"
-                        placeholder="name@company.com"
-                        autoComplete="email"
-                        className="login-input w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-base md:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#00D287]/25 focus:border-[#00D287] transition-all shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-                        {...register("email")}
-                      />
-                    </div>
-                    {errors.email && (
-                      <p className="text-xs text-red-600 ml-1">
-                        {errors.email.message}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Password */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between ml-1">
-                      <label
-                        htmlFor="password"
-                        className="text-xs font-medium text-gray-700"
-                      >
-                        Password
-                      </label>
-                      <button
-                        type="button"
-                        className="text-xs font-medium text-[#00D287] hover:text-[#00bd78] transition-colors"
-                      >
-                        Forgot password?
-                      </button>
-                    </div>
-                    <div className="relative group">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[#00D287] transition-colors">
-                        <Lock size={18} aria-hidden="true" />
-                      </div>
-                      <input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        autoComplete="current-password"
-                        className="login-input w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-12 text-base md:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#00D287]/25 focus:border-[#00D287] transition-all shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-                        {...register("password")}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
-                        aria-label={
-                          showPassword ? "Hide password" : "Show password"
-                        }
-                      >
-                        {showPassword ? (
-                          <EyeOff size={18} />
-                        ) : (
-                          <Eye size={18} />
-                        )}
-                      </button>
-                    </div>
-                    {errors.password && (
-                      <p className="text-xs text-red-600 ml-1">
-                        {errors.password.message}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full min-h-[48px] bg-[#00D287] hover:bg-[#00bd78] disabled:opacity-60 disabled:pointer-events-none text-white font-semibold rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(0,210,135,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(0,210,135,0.6)] mt-2 text-base md:text-sm"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2
-                        size={18}
-                        className="animate-spin"
-                        aria-hidden="true"
-                      />
-                      Signing in...
-                    </>
-                  ) : (
-                    <>
-                      Sign In to Workspace
-                      <ArrowRight size={18} className="opacity-90" />
-                    </>
-                  )}
-                </button>
-              </form>
-
-              {/* SSO Options */}
-              <div className="mt-8">
-                <div className="relative flex items-center">
-                  <div className="flex-grow border-t border-gray-200" />
-                  <span className="flex-shrink-0 mx-4 text-xs text-gray-400 font-medium">
-                    OR CONTINUE WITH
-                  </span>
-                  <div className="flex-grow border-t border-gray-200" />
-                </div>
-
-                <div className="mt-6 grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white hover:bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 transition-colors min-h-[44px] shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                        fill="#4285F4"
-                      />
-                      <path
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                        fill="#34A853"
-                      />
-                      <path
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                        fill="#FBBC05"
-                      />
-                      <path
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                        fill="#EA4335"
-                      />
-                    </svg>
-                    Google
-                  </button>
-                  <button
-                    type="button"
-                    className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white hover:bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 transition-colors min-h-[44px] shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      viewBox="0 0 21 21"
-                      xmlns="http://www.w3.org/2000/svg"
-                      aria-hidden="true"
-                    >
-                      <path d="M10 0H0v10h10V0z" fill="#f25022" />
-                      <path d="M21 0H11v10h10V0z" fill="#7fba00" />
-                      <path d="M10 11H0v10h10V11z" fill="#00a4ef" />
-                      <path d="M21 11H11v10h10V11z" fill="#ffb900" />
-                    </svg>
-                    Microsoft
-                  </button>
-                </div>
-              </div>
-            </>
+            <CredentialsView
+              register={register}
+              handleSubmit={handleSubmit}
+              onSubmit={onSubmit}
+              errors={errors}
+              isSubmitting={isSubmitting}
+              showPassword={showPassword}
+              setShowPassword={setShowPassword}
+            />
           )}
         </main>
 
         {/* Footer */}
         <div className="mt-8 flex flex-col items-center space-y-4">
-          <Link
-            href="/support"
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors"
-          >
-            <HelpCircle size={16} aria-hidden="true" />
-            Get Help & Support
-          </Link>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                href="/support"
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors"
+              >
+                <HelpCircle size={16} aria-hidden="true" />
+                Get Help & Support
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              Open the support page for help signing in or recovering access to
+              your workspace
+            </TooltipContent>
+          </Tooltip>
 
           <div className="flex items-center gap-2 text-[11px] text-gray-400">
             <ShieldCheck
@@ -464,6 +335,366 @@ export default function AppLoginPage() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Subviews ──────────────────────────────────────────────────────────
+
+type CredentialsViewProps = {
+  register: ReturnType<typeof useForm<LoginFormValues>>["register"];
+  handleSubmit: ReturnType<typeof useForm<LoginFormValues>>["handleSubmit"];
+  onSubmit: (values: LoginFormValues) => Promise<void>;
+  errors: ReturnType<typeof useForm<LoginFormValues>>["formState"]["errors"];
+  isSubmitting: boolean;
+  showPassword: boolean;
+  setShowPassword: (v: boolean) => void;
+};
+
+function CredentialsView({
+  register,
+  handleSubmit,
+  onSubmit,
+  errors,
+  isSubmitting,
+  showPassword,
+  setShowPassword,
+}: CredentialsViewProps) {
+  return (
+    <>
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="space-y-6"
+        noValidate
+      >
+        <div className="space-y-4">
+          {/* Email */}
+          <div className="space-y-1.5">
+            <label
+              htmlFor="email"
+              className="text-xs font-medium text-gray-700 ml-1"
+            >
+              Email
+            </label>
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[#00D287] transition-colors">
+                <Mail size={18} aria-hidden="true" />
+              </div>
+              <input
+                id="email"
+                type="email"
+                placeholder="name@company.com"
+                autoComplete="email"
+                autoFocus
+                className="login-input w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-base md:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#00D287]/25 focus:border-[#00D287] transition-all shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+                {...register("email")}
+              />
+            </div>
+            {errors.email && (
+              <p className="text-xs text-red-600 ml-1">
+                {errors.email.message}
+              </p>
+            )}
+          </div>
+
+          {/* Password */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between ml-1">
+              <label
+                htmlFor="password"
+                className="text-xs font-medium text-gray-700"
+              >
+                Password
+              </label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-[#00D287] hover:text-[#00bd78] transition-colors"
+                  >
+                    Forgot password?
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  Start the password recovery flow to reset access to your
+                  account
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[#00D287] transition-colors">
+                <Lock size={18} aria-hidden="true" />
+              </div>
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                className="login-input w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-12 text-base md:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#00D287]/25 focus:border-[#00D287] transition-all shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+                {...register("password")}
+              />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  {showPassword
+                    ? "Hide your password"
+                    : "Show your password as you type"}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            {errors.password && (
+              <p className="text-xs text-red-600 ml-1">
+                {errors.password.message}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Submit */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full min-h-[48px] bg-[#00D287] hover:bg-[#00bd78] disabled:opacity-60 disabled:pointer-events-none text-white font-semibold rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(0,210,135,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(0,210,135,0.6)] mt-2 text-base md:text-sm"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2
+                    size={18}
+                    className="animate-spin"
+                    aria-hidden="true"
+                  />
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  Sign In to Workspace
+                  <ArrowRight size={18} className="opacity-90" />
+                </>
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            Sign in to your workspace using your email and password
+          </TooltipContent>
+        </Tooltip>
+      </form>
+    </>
+  );
+}
+
+type TenantChooserViewProps = {
+  tenants: TenantSelectionCandidate[];
+  loadingTenantId: string | null;
+  onSelect: (tenantId: string) => void;
+  onBack: () => void;
+};
+
+function TenantChooserView({
+  tenants,
+  loadingTenantId,
+  onSelect,
+  onBack,
+}: TenantChooserViewProps) {
+  return (
+    <div className="space-y-2">
+      <ul className="divide-y divide-gray-100">
+        {tenants.map((tenant) => {
+          const isThisLoading = loadingTenantId === tenant.tenantId;
+          const isAnyLoading = loadingTenantId !== null;
+          const initials = tenant.companyName
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((w) => w[0]?.toUpperCase() ?? "")
+            .join("");
+
+          return (
+            <li key={tenant.tenantId}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => onSelect(tenant.tenantId)}
+                    disabled={isAnyLoading}
+                    className="w-full flex items-center gap-4 py-4 px-2 -mx-2 rounded-xl text-left transition-colors hover:bg-gray-50 disabled:opacity-60 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00D287]/30 min-h-[64px]"
+                  >
+                    {/* Avatar */}
+                    <div className="flex-shrink-0 h-11 w-11 rounded-full bg-[#00D287]/10 text-[#00D287] flex items-center justify-center font-semibold text-sm">
+                      {initials || (
+                        <Building2 size={18} aria-hidden="true" />
+                      )}
+                    </div>
+
+                    {/* Body */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900 truncate">
+                          {tenant.companyName}
+                        </span>
+                        {tenant.mfaEnabled && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span
+                                className="inline-flex items-center text-gray-400"
+                                aria-label="Two-factor authentication required"
+                              >
+                                <Lock size={12} aria-hidden="true" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              This workspace requires a one-time code from your
+                              authenticator app after you select it
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 capitalize truncate">
+                        {tenant.role.replace(/_/g, " ")}
+                      </p>
+                    </div>
+
+                    {/* Trailing: spinner or chevron */}
+                    <div className="flex-shrink-0 text-gray-400">
+                      {isThisLoading ? (
+                        <Loader2
+                          size={18}
+                          className="animate-spin text-[#00D287]"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <ChevronRight size={18} aria-hidden="true" />
+                      )}
+                    </div>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  Sign in to {tenant.companyName} as {tenant.role.replace(/_/g, " ")}
+                </TooltipContent>
+              </Tooltip>
+            </li>
+          );
+        })}
+      </ul>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onBack}
+            disabled={loadingTenantId !== null}
+            className="w-full flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors py-3 mt-2 disabled:opacity-60 disabled:pointer-events-none"
+          >
+            <ArrowLeft size={14} />
+            Use a different account
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          Discard this sign-in and return to the email and password screen
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
+
+type OtpViewProps = {
+  otpCode: string;
+  setOtpCode: (v: string) => void;
+  isVerifying: boolean;
+  onVerify: () => void;
+  onBack: () => void;
+};
+
+function OtpView({
+  otpCode,
+  setOtpCode,
+  isVerifying,
+  onVerify,
+  onBack,
+}: OtpViewProps) {
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-center">
+        <div className="rounded-full bg-[#00D287]/10 p-4">
+          <KeyRound className="h-8 w-8 text-[#00D287]" />
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <label className="text-xs font-medium text-gray-700 ml-1 block text-center">
+          Verification code
+        </label>
+        <OtpInput
+          length={6}
+          value={otpCode}
+          onChange={setOtpCode}
+          onComplete={() => onVerify()}
+          disabled={isVerifying}
+          autoFocus
+          aria-label="Enter your 6-digit verification code"
+        />
+        <p className="text-[11px] text-gray-400 text-center">
+          You can also use a backup code
+        </p>
+      </div>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onVerify}
+            disabled={otpCode.length < 6 || isVerifying}
+            className="w-full min-h-[48px] bg-[#00D287] hover:bg-[#00bd78] disabled:opacity-60 disabled:pointer-events-none text-white font-semibold rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(0,210,135,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(0,210,135,0.6)] text-base md:text-sm"
+          >
+            {isVerifying ? (
+              <>
+                <Loader2
+                  size={18}
+                  className="animate-spin"
+                  aria-hidden="true"
+                />
+                Verifying...
+              </>
+            ) : (
+              <>
+                Verify Code
+                <ArrowRight size={18} className="opacity-90" />
+              </>
+            )}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          Submit the 6-digit verification code to finish signing in
+        </TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onBack}
+            className="w-full flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors py-2"
+          >
+            <ArrowLeft size={14} />
+            Back to login
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          Cancel verification and return to the sign-in screen
+        </TooltipContent>
+      </Tooltip>
     </div>
   );
 }
