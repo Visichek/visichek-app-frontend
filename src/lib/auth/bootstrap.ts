@@ -29,21 +29,25 @@ import type {
  */
 // Hard ceiling on the boot probe. The chained calls (`/system-users/me` →
 // 401 → `/auth/refresh` → `/admins/profile`) can otherwise compound to ~70s
-// of spinner if the API stalls on any leg. After this elapses we treat the
-// user as logged-out so the app can render — AuthGuard / middleware will
-// still redirect protected routes to login.
+// of spinner if the API stalls on any leg. After this elapses we resolve
+// the boot promise so the app can render — but we leave session state
+// alone, because runBootstrap may complete later and dispatch a real
+// session. (Wiping state in the timer would also wipe a session that
+// runBootstrap had already set seconds earlier, which silently logs the
+// user out partway through their session.)
 const BOOTSTRAP_HARD_TIMEOUT_MS = 8_000;
 
 export async function bootstrapSession(): Promise<boolean> {
-  return Promise.race([
-    runBootstrap(),
-    new Promise<boolean>((resolve) =>
-      setTimeout(() => {
-        store.dispatch(clearSessionState());
-        resolve(false);
-      }, BOOTSTRAP_HARD_TIMEOUT_MS)
-    ),
-  ]);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => resolve(false), BOOTSTRAP_HARD_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([runBootstrap(), timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 async function runBootstrap(): Promise<boolean> {
