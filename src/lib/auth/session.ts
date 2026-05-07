@@ -66,7 +66,37 @@ export function clearSession(): void {
   // this tab must not inherit the previous user's geofencing presence.
   clearUserLocation();
 
-  if (typeof window !== "undefined") {
-    window.location.href = wasAdmin ? "/admin/login" : "/app/login";
+  if (typeof window === "undefined") return;
+
+  const currentPath = window.location.pathname;
+
+  // If the user is already on a login page (or any public path that
+  // doesn't need a session), do nothing. A hard navigation here would
+  // reload the page, re-run bootstrap, hit /me → 401 → refresh → fail →
+  // clearSession → reload again, producing an infinite refresh loop.
+  // Redux is already cleared, which is all this call needs to do.
+  if (
+    currentPath === "/admin/login" ||
+    currentPath === "/app/login" ||
+    currentPath === "/" ||
+    currentPath.startsWith("/register") ||
+    currentPath.startsWith("/checkout") ||
+    currentPath.startsWith("/rights") ||
+    currentPath.startsWith("/support") ||
+    currentPath.startsWith("/app/scan") ||
+    currentPath.startsWith("/app/select-tenant")
+  ) {
+    return;
   }
+
+  // When we have no prior session type to read (e.g. boot-time refresh
+  // failure), pick the login page that matches the current path's shell
+  // rather than always falling back to /app/login.
+  const target = wasAdmin
+    ? "/admin/login"
+    : currentPath.startsWith("/admin")
+      ? "/admin/login"
+      : "/app/login";
+
+  window.location.href = target;
 }
