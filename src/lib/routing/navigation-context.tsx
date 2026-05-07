@@ -34,7 +34,7 @@ export interface NavigationLoadingContextValue {
 export const NavigationLoadingContext =
   createContext<NavigationLoadingContextValue | null>(null);
 
-const NAVIGATION_RECOVERY_DELAY_MS = 2_000;
+const NAVIGATION_RECOVERY_DELAY_MS = 100;
 
 function getLocalHrefUrl(href: string): URL | null {
   if (typeof window === "undefined") return null;
