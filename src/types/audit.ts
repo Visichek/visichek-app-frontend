@@ -1,22 +1,43 @@
+export interface AuditTenantSummary {
+  id: string;
+  companyName?: string;
+  isActive?: boolean;
+  countryOfHosting?: string;
+}
+
+export interface AuditActorSummary {
+  id: string;
+  fullName?: string;
+  email?: string;
+  role?: string;
+  userType?: string;
+}
+
+export interface AuditResourceSummary {
+  id: string;
+  [key: string]: unknown;
+}
+
 export interface AuditLog {
   id: string;
-  tenantId: string;
   actorId: string;
-  actorNameSnapshot?: string;
-  userSessionId?: string;
+  actorRole?: string;
   action: string;
-  targetEntity?: string;
-  targetId?: string;
-  ip?: string;
-  deviceSignature?: string;
-  reason?: string;
-  occurredAt: number;
+  resourceType?: string;
+  resourceId?: string;
+  tenantId?: string;
+  details?: Record<string, unknown> | null;
+  requestId?: string | null;
+  timestamp: number;
+  tenantSummary?: AuditTenantSummary | null;
+  actorSummary?: AuditActorSummary | null;
+  resourceSummary?: AuditResourceSummary | null;
 }
 
 export interface AuditLogFilters {
   actorId?: string;
   action?: string;
-  targetEntity?: string;
+  resourceType?: string;
   dateFrom?: number;
   dateTo?: number;
   start?: number;

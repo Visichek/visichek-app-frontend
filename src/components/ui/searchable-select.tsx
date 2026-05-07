@@ -251,20 +251,27 @@ export function SearchableSelect({
 
       {mounted && open && position
         ? createPortal(
-            <div
-              ref={panelRef}
-              role="listbox"
-              id={listboxId}
-              aria-activedescendant={
-                filtered[activeIndex]
-                  ? `${listboxId}-opt-${activeIndex}`
-                  : undefined
-              }
-              tabIndex={-1}
-              onKeyDown={onListKeyDown}
-              style={panelStyle}
-              className="flex flex-col overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md outline-none animate-in fade-in-0 zoom-in-95"
-            >
+            <>
+              <div
+                aria-hidden="true"
+                className="fixed inset-0 bg-background/40 backdrop-blur-sm animate-in fade-in-0"
+                style={{ zIndex: 64 }}
+                onPointerDown={() => setOpen(false)}
+              />
+              <div
+                ref={panelRef}
+                role="listbox"
+                id={listboxId}
+                aria-activedescendant={
+                  filtered[activeIndex]
+                    ? `${listboxId}-opt-${activeIndex}`
+                    : undefined
+                }
+                tabIndex={-1}
+                onKeyDown={onListKeyDown}
+                style={panelStyle}
+                className="flex flex-col overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md outline-none animate-in fade-in-0 zoom-in-95"
+              >
               {showSearch ? (
                 <div className="relative flex items-center border-b p-2">
                   <Search className="pointer-events-none absolute left-4 h-4 w-4 text-muted-foreground" />
@@ -341,7 +348,8 @@ export function SearchableSelect({
                   })
                 )}
               </div>
-            </div>,
+            </div>
+            </>,
             document.body
           )
         : null}

@@ -4,23 +4,16 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api/request";
 import type { AuditLog, AuditLogFilters } from "@/types/audit";
 
-interface PaginatedResponse<T> {
-  data: T[];
-  meta?: {
-    total?: number;
-    start?: number;
-    stop?: number;
-  };
-}
-
 /**
- * Fetch audit logs with optional filtering and pagination
+ * Fetch audit logs with optional filtering and pagination.
+ * The API envelope is unwrapped by the axios interceptor, so the
+ * resolved data is the bare list of audit logs.
  */
 export function useAuditLogs(params?: AuditLogFilters) {
-  return useQuery<PaginatedResponse<AuditLog>>({
+  return useQuery<AuditLog[]>({
     queryKey: ["audit-logs", params],
     queryFn: () =>
-      apiGet<PaginatedResponse<AuditLog>>("/audit-logs", params as Record<string, unknown> | undefined),
+      apiGet<AuditLog[]>("/audit-logs", params as Record<string, unknown> | undefined),
     placeholderData: keepPreviousData,
   });
 }

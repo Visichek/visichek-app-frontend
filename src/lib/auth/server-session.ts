@@ -42,14 +42,16 @@ export interface ServerSession {
 export const getServerSession = cache(
   async (): Promise<ServerSession | null> => {
     const cookieStore = await cookies();
-    const cookieHeader = cookieStore
-      .getAll()
+    const allCookies = cookieStore.getAll();
+    const cookieHeader = allCookies
       .map((c) => `${c.name}=${c.value}`)
       .join("; ");
 
-    // TODO: when the cookie-domain blocker is resolved, this header will
-    // carry the refresh token and the call below will succeed.
-    if (!cookieHeader) return null;
+    // Without a refresh_token cookie on the frontend domain, /auth/refresh
+    // has nothing to validate. Skip the outbound call so server renders
+    // don't pay a network roundtrip for a guaranteed-401 on every page.
+    const hasRefreshCookie = allCookies.some((c) => c.name === "refresh_token");
+    if (!hasRefreshCookie) return null;
 
     try {
       const data = await serverApiPost<{
@@ -62,8 +64,8 @@ export const getServerSession = cache(
 
       return { accessToken, cookieHeader };
     } catch {
-      // Refresh failed — caller should skip prefetch and let the client
-      // handle auth via its own refresh/login flow.
+      // Refresh failed (including timeout) — caller should skip prefetch
+      // and let the client handle auth via its own refresh/login flow.
       return null;
     }
   }
