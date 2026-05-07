@@ -4,18 +4,29 @@
  *   - Next.js static build assets (/_next/static/*) → CacheFirst, long-lived
  *   - Google fonts / next-font CSS                  → StaleWhileRevalidate
  *   - Same-origin images & icons                    → StaleWhileRevalidate
- *   - HTML navigations                              → NetworkFirst, offline.html fallback
+ *   - Public HTML navigations                       → NetworkFirst, /offline fallback
  *   - Everything else (incl. /v1/* API)             → not handled, goes straight to network
  *
  * IMPORTANT: API responses are never cached. Auth lives in httpOnly cookies and
- * tenant data must always be live. Caching API responses across logins would
- * leak data between users.
+ * tenant data must always be live. Caching protected pages or API responses
+ * across logins would leak data between users.
  */
 
 importScripts("https://storage.googleapis.com/workbox-cdn/releases/7.1.0/workbox-sw.js");
 
-const VERSION = "v1";
+const VERSION = "v2";
 const OFFLINE_URL = "/offline";
+const PUBLIC_NAVIGATION_PREFIXES = [
+  "/admin/login",
+  "/app/login",
+  "/app/scan",
+  "/app/select-tenant",
+  "/register",
+  "/checkout",
+  "/rights",
+  "/support",
+  "/offline",
+];
 
 workbox.setConfig({ debug: false });
 workbox.core.setCacheNameDetails({
@@ -39,7 +50,18 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches
+      .keys()
+      .then((names) =>
+        Promise.all(
+          names
+            .filter((name) => name.includes("visichek-pages"))
+            .map((name) => caches.delete(name))
+        )
+      )
+      .then(() => self.clients.claim())
+  );
 });
 
 // Allow the page to ask the SW to activate immediately after an update.
@@ -50,7 +72,8 @@ self.addEventListener("message", (event) => {
 });
 
 const { registerRoute, setCatchHandler } = workbox.routing;
-const { CacheFirst, StaleWhileRevalidate, NetworkFirst } = workbox.strategies;
+const { CacheFirst, StaleWhileRevalidate, NetworkFirst, NetworkOnly } =
+  workbox.strategies;
 const { ExpirationPlugin } = workbox.expiration;
 const { CacheableResponsePlugin } = workbox.cacheableResponse;
 
@@ -123,7 +146,7 @@ registerRoute(
 // only — never API calls.
 const navigationStrategy = new NetworkFirst({
   cacheName: "visichek-pages",
-  networkTimeoutSeconds: 4,
+  networkTimeoutSeconds: 8,
   plugins: [
     new CacheableResponsePlugin({ statuses: [0, 200] }),
     new ExpirationPlugin({
@@ -133,13 +156,43 @@ const navigationStrategy = new NetworkFirst({
   ],
 });
 
+function isNextRouterRequest(request, url) {
+  const accept = request.headers.get("accept") || "";
+
+  return (
+    url.searchParams.has("_rsc") ||
+    request.headers.get("rsc") === "1" ||
+    request.headers.has("next-router-prefetch") ||
+    request.headers.has("next-router-state-tree") ||
+    accept.includes("text/x-component")
+  );
+}
+
+function isPublicNavigationPath(pathname) {
+  if (pathname === "/") return true;
+  return PUBLIC_NAVIGATION_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+}
+
+// App Router client transitions fetch RSC payloads. Never cache or fall back
+// those requests; stale RSC responses can leave the URL changed while the new
+// tenant page tree never commits.
+registerRoute(
+  ({ request, url, sameOrigin }) =>
+    sameOrigin && isNextRouterRequest(request, url),
+  new NetworkOnly()
+);
+
 registerRoute(
   ({ request, url }) => {
     if (request.mode !== "navigate") return false;
     // Never intercept the API or auth endpoints.
     if (url.pathname.startsWith("/v1/")) return false;
     if (url.pathname.startsWith("/api/")) return false;
-    return true;
+    // Protected shells depend on fresh httpOnly-cookie auth and tenant state.
+    // Let the browser/Next handle them directly instead of serving cached HTML.
+    return isPublicNavigationPath(url.pathname);
   },
   navigationStrategy
 );

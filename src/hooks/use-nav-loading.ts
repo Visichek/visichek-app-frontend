@@ -53,7 +53,7 @@ export function useNavLoading(
 
   const localHandleNavClick = useCallback(
     (href: string) => {
-      if (!pathname.startsWith(href)) {
+      if (!isCurrentPath(pathname, href)) {
         setLocalLoadingHref(href);
       }
     },
@@ -62,7 +62,7 @@ export function useNavLoading(
 
   const localNavigate = useCallback(
     (href: string) => {
-      if (!pathname.startsWith(href)) {
+      if (!isCurrentPath(pathname, href)) {
         setLocalLoadingHref(href);
       }
       router.push(href);
@@ -96,4 +96,12 @@ export function useNavLoading(
  */
 export function useNavigationLoading(): NavigationLoadingContextValue {
   return useNavLoading();
+}
+
+function isCurrentPath(pathname: string, href: string): boolean {
+  const rawPathname = href.split(/[?#]/)[0];
+  const targetPathname =
+    rawPathname === "/" ? "/" : rawPathname.replace(/\/$/, "");
+
+  return pathname === targetPathname;
 }

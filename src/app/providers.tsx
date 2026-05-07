@@ -3,7 +3,7 @@
 import { Provider as ReduxProvider } from "react-redux";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@radix-ui/react-tooltip";
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { store } from "@/lib/store";
 import { bootstrapSession } from "@/lib/auth/bootstrap";
@@ -77,23 +77,6 @@ export function Providers({ children }: ProvidersProps) {
   useEffect(() => {
     bootstrapSession().finally(() => setIsBootstrapping(false));
   }, []);
-
-  // Workaround for a corrupted React reconciler (the `removeChild` crashes
-  // surfaced in the console freeze the client-side router — the URL updates
-  // but the new page tree never commits). Forcing a hard reload on every
-  // pathname change guarantees the destination renders. Skip the very first
-  // render so we don't reload on mount.
-  const previousPathnameRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (previousPathnameRef.current === null) {
-      previousPathnameRef.current = pathname;
-      return;
-    }
-    if (previousPathnameRef.current !== pathname) {
-      previousPathnameRef.current = pathname;
-      window.location.reload();
-    }
-  }, [pathname]);
 
   return (
     <ReduxProvider store={store}>

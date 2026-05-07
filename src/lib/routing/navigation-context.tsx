@@ -34,6 +34,28 @@ export interface NavigationLoadingContextValue {
 export const NavigationLoadingContext =
   createContext<NavigationLoadingContextValue | null>(null);
 
+const NAVIGATION_RECOVERY_DELAY_MS = 9_000;
+
+function getLocalHrefUrl(href: string): URL | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const url = new URL(href, window.location.origin);
+    return url.origin === window.location.origin ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+function isCurrentPath(pathname: string, href: string): boolean {
+  const url = getLocalHrefUrl(href);
+  const rawPathname = url?.pathname ?? href.split(/[?#]/)[0];
+  const targetPathname =
+    rawPathname === "/" ? "/" : rawPathname.replace(/\/$/, "");
+
+  return pathname === targetPathname;
+}
+
 export function NavigationLoadingProvider({
   children,
 }: {
@@ -43,14 +65,40 @@ export function NavigationLoadingProvider({
   const router = useRouter();
   const [loadingHref, setLoadingHref] = useState<string | null>(null);
 
-  // Auto-clear when the route actually changes
+  // Auto-clear when the route actually changes.
   useEffect(() => {
     setLoadingHref(null);
   }, [pathname]);
 
+  // If the client transition updates the URL but never commits the new page,
+  // recover with the same document navigation users were doing manually.
+  useEffect(() => {
+    if (!loadingHref) return;
+
+    const timer = window.setTimeout(() => {
+      const target = getLocalHrefUrl(loadingHref);
+      if (!target) {
+        setLoadingHref(null);
+        return;
+      }
+
+      const currentPath = `${window.location.pathname}${window.location.search}`;
+      const targetPath = `${target.pathname}${target.search}`;
+
+      if (currentPath === targetPath) {
+        window.location.reload();
+        return;
+      }
+
+      window.location.assign(target.href);
+    }, NAVIGATION_RECOVERY_DELAY_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [loadingHref]);
+
   const handleNavClick = useCallback(
     (href: string) => {
-      if (!pathname.startsWith(href)) {
+      if (!isCurrentPath(pathname, href)) {
         setLoadingHref(href);
       }
     },
@@ -59,7 +107,7 @@ export function NavigationLoadingProvider({
 
   const navigate = useCallback(
     (href: string) => {
-      if (!pathname.startsWith(href)) {
+      if (!isCurrentPath(pathname, href)) {
         setLoadingHref(href);
       }
       router.push(href);
