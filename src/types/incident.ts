@@ -1,34 +1,42 @@
 import type { IncidentType, IncidentStatus } from "./enums";
 
+export type IncidentRiskLevel = "low" | "medium" | "high" | "critical";
+
 export interface Incident {
   id: string;
   tenantId: string;
-  title: string;
-  description?: string;
-  type: IncidentType;
-  status: IncidentStatus;
-  severity?: string;
   reportedBy?: string;
-  assignedTo?: string;
-  createdAt: number;
-  updatedAt: number;
-  notificationDeadline?: number;
+  incidentType: IncidentType;
+  status: IncidentStatus;
+  description?: string;
+  riskLevel?: IncidentRiskLevel;
+  dataAffected?: string | null;
+  mitigationSteps?: string | null;
   ndpcNotified?: boolean;
-  notificationSentAt?: number;
+  ndpcNotifiedAt?: number | null;
+  detectionTime?: number;
+  notificationDeadline?: number;
+  notificationSentAt?: number | null;
+  dateCreated: number;
+  resolvedAt?: number | null;
+  assignedTo?: string;
 }
 
 export interface CreateIncidentRequest {
-  title: string;
-  description?: string;
-  type: IncidentType;
-  severity?: string;
+  description: string;
+  incidentType: IncidentType;
+  riskLevel?: IncidentRiskLevel;
+  detectionTime?: number;
+  dataAffected?: string;
+  mitigationSteps?: string;
 }
 
 export interface UpdateIncidentRequest {
-  title?: string;
   description?: string;
   status?: IncidentStatus;
-  severity?: string;
+  riskLevel?: IncidentRiskLevel;
+  dataAffected?: string;
+  mitigationSteps?: string;
   assignedTo?: string;
   ndpcNotified?: boolean;
   notificationSentAt?: number;

@@ -54,11 +54,31 @@ function statusVariant(status: IncidentStatus) {
   }
 }
 
-function formatType(type: string): string {
+function formatType(type: string | null | undefined): string {
+  if (!type) return "—";
   return type
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+}
+
+function riskVariant(risk: string | null | undefined) {
+  switch (risk) {
+    case "critical":
+      return "destructive" as const;
+    case "high":
+      return "warning" as const;
+    case "medium":
+      return "info" as const;
+    case "low":
+      return "secondary" as const;
+    default:
+      return "secondary" as const;
+  }
+}
+
+function incidentLabel(incident: Incident): string {
+  return incident.description?.trim() || formatType(incident.incidentType) || "Incident";
 }
 
 export default function IncidentsPage() {
@@ -128,18 +148,30 @@ export default function IncidentsPage() {
 
   const columns: ColumnDef<Incident>[] = [
     {
-      accessorKey: "title",
-      header: "Title",
-      cell: ({ row }) => <span className="font-medium text-sm">{row.original.title}</span>,
+      id: "summary",
+      accessorFn: (row) => row.description ?? "",
+      header: "Summary",
+      cell: ({ row }) => (
+        <span className="font-medium text-sm line-clamp-2">{incidentLabel(row.original)}</span>
+      ),
       enableSorting: true,
     },
     {
-      accessorKey: "type",
+      accessorKey: "incidentType",
       header: "Type",
       cell: ({ row }) => (
         <span className="text-muted-foreground text-sm">
-          {formatType(row.original.type)}
+          {formatType(row.original.incidentType)}
         </span>
+      ),
+    },
+    {
+      accessorKey: "riskLevel",
+      header: "Risk",
+      cell: ({ row }) => (
+        <Badge variant={riskVariant(row.original.riskLevel)}>
+          {row.original.riskLevel ?? "—"}
+        </Badge>
       ),
     },
     {
@@ -147,16 +179,16 @@ export default function IncidentsPage() {
       header: "Status",
       cell: ({ row }) => (
         <Badge variant={statusVariant(row.original.status)}>
-          {row.original.status.replace(/_/g, " ")}
+          {(row.original.status ?? "").replace(/_/g, " ") || "—"}
         </Badge>
       ),
     },
     {
-      accessorKey: "createdAt",
+      accessorKey: "dateCreated",
       header: "Reported",
       cell: ({ row }) => (
         <span className="text-muted-foreground text-sm">
-          {formatDateTime(row.original.createdAt)}
+          {formatDateTime(row.original.dateCreated)}
         </span>
       ),
       enableSorting: true,
@@ -215,18 +247,19 @@ export default function IncidentsPage() {
     return (
       <div className="rounded-lg border p-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex-1">
-            <p className="font-medium text-sm">{incident.title}</p>
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-sm line-clamp-2">{incidentLabel(incident)}</p>
             <p className="text-xs text-muted-foreground">
-              {formatType(incident.type)}
+              {formatType(incident.incidentType)}
+              {incident.riskLevel ? ` · ${incident.riskLevel} risk` : ""}
             </p>
           </div>
           <Badge variant={statusVariant(incident.status)}>
-            {incident.status.replace(/_/g, " ")}
+            {(incident.status ?? "").replace(/_/g, " ") || "—"}
           </Badge>
         </div>
         <div className="text-xs text-muted-foreground">
-          {formatDateTime(incident.createdAt)}
+          {formatDateTime(incident.dateCreated)}
         </div>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -294,7 +327,7 @@ export default function IncidentsPage() {
             <ul className="mt-2 space-y-1">
               {deadlineIncidents.map((inc) => (
                 <li key={inc.id} className="text-sm">
-                  • <strong>{inc.title}</strong> — deadline:{" "}
+                  • <strong>{incidentLabel(inc)}</strong> — deadline:{" "}
                   {inc.notificationDeadline
                     ? formatDateTime(inc.notificationDeadline)
                     : "N/A"}
@@ -309,7 +342,7 @@ export default function IncidentsPage() {
         columns={columns}
         data={incidents}
         isLoading={isLoading}
-        searchKey="title"
+        searchKey="summary"
         searchPlaceholder="Search incidents..."
         pagination={true}
         pageSize={10}
@@ -338,19 +371,19 @@ function RowActions({
   const isLoadingEdit = loadingHref === editHref;
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Tooltip>
-          <TooltipTrigger asChild>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
               <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
               <span className="sr-only">Open menu</span>
             </Button>
-          </TooltipTrigger>
-          <TooltipContent side="left">
-            Open actions for this incident
-          </TooltipContent>
-        </Tooltip>
-      </DropdownMenuTrigger>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="left">
+          Open actions for this incident
+        </TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end">
         <DropdownMenuItem asChild>
           <Link

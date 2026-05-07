@@ -8,7 +8,6 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { LoadingButton } from "@/components/feedback/loading-button";
@@ -49,10 +48,12 @@ const INCIDENT_STATUSES = [
   "closed",
 ] as const;
 
+const RISK_LEVELS = ["low", "medium", "high", "critical"] as const;
+
 const incidentSchema = z.object({
-  title: z.string().trim().min(1, "Title is required"),
-  type: z.enum(INCIDENT_TYPES),
-  description: z.string().optional(),
+  description: z.string().trim().min(1, "Description is required"),
+  incidentType: z.enum(INCIDENT_TYPES),
+  riskLevel: z.enum(RISK_LEVELS),
   status: z.enum(INCIDENT_STATUSES),
 });
 
@@ -85,9 +86,9 @@ export function IncidentForm({ incident }: IncidentFormProps) {
   } = useForm<IncidentFormData>({
     resolver: zodResolver(incidentSchema),
     defaultValues: {
-      title: incident?.title ?? "",
-      type: (incident?.type as IncidentType) ?? "data_breach",
       description: incident?.description ?? "",
+      incidentType: (incident?.incidentType as IncidentType) ?? "data_breach",
+      riskLevel: (incident?.riskLevel as IncidentFormData["riskLevel"]) ?? "low",
       status: (incident?.status as IncidentStatus) ?? "open",
     },
   });
@@ -96,16 +97,16 @@ export function IncidentForm({ incident }: IncidentFormProps) {
     try {
       if (isEditing && incident) {
         await updateMutation.mutateAsync({
-          title: data.title,
           description: data.description,
+          riskLevel: data.riskLevel,
           status: data.status as IncidentStatus,
         });
         toast.success("Incident updated");
       } else {
         await createMutation.mutateAsync({
-          title: data.title,
-          type: data.type as IncidentType,
           description: data.description,
+          incidentType: data.incidentType as IncidentType,
+          riskLevel: data.riskLevel,
         });
         toast.success("Incident reported");
       }
@@ -158,31 +159,31 @@ export function IncidentForm({ incident }: IncidentFormProps) {
 
       <form onSubmit={onSubmit} className="space-y-5">
         <div className="space-y-2">
-          <Label htmlFor="title">Title *</Label>
-          <Input
-            id="title"
-            placeholder="Brief incident title"
-            {...register("title")}
-            aria-invalid={!!errors.title}
-            aria-describedby={errors.title ? "error-title" : undefined}
-            className="min-h-[44px]"
+          <Label htmlFor="description">Description *</Label>
+          <textarea
+            id="description"
+            placeholder="What happened? Include enough detail for triage."
+            className="flex min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            {...register("description")}
+            aria-invalid={!!errors.description}
+            aria-describedby={errors.description ? "error-description" : undefined}
           />
-          {errors.title && (
-            <p id="error-title" className="text-sm text-destructive" role="alert">
-              {errors.title.message}
+          {errors.description && (
+            <p id="error-description" className="text-sm text-destructive" role="alert">
+              {errors.description.message}
             </p>
           )}
         </div>
 
         {!isEditing && (
           <div className="space-y-2">
-            <Label htmlFor="type">Incident type *</Label>
+            <Label htmlFor="incidentType">Incident type *</Label>
             <Controller
-              name="type"
+              name="incidentType"
               control={control}
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger id="type" className="min-h-[44px]">
+                  <SelectTrigger id="incidentType" className="min-h-[44px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -195,21 +196,33 @@ export function IncidentForm({ incident }: IncidentFormProps) {
                 </Select>
               )}
             />
-            {errors.type && (
+            {errors.incidentType && (
               <p className="text-sm text-destructive" role="alert">
-                {errors.type.message}
+                {errors.incidentType.message}
               </p>
             )}
           </div>
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="description">Description</Label>
-          <textarea
-            id="description"
-            placeholder="Detailed incident description (optional)"
-            className="flex min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            {...register("description")}
+          <Label htmlFor="riskLevel">Risk level *</Label>
+          <Controller
+            name="riskLevel"
+            control={control}
+            render={({ field }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger id="riskLevel" className="min-h-[44px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {RISK_LEVELS.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {formatType(r)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           />
         </div>
 

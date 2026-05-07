@@ -263,19 +263,19 @@ function RowActions({
   const isLoadingEdit = loadingHref === editHref;
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Tooltip>
-          <TooltipTrigger asChild>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
               <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
               <span className="sr-only">Open menu</span>
             </Button>
-          </TooltipTrigger>
-          <TooltipContent side="left">
-            Open actions for this appointment
-          </TooltipContent>
-        </Tooltip>
-      </DropdownMenuTrigger>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="left">
+          Open actions for this appointment
+        </TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end">
         <DropdownMenuItem asChild>
           <Link
