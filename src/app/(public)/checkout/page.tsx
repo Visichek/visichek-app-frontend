@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -47,6 +47,20 @@ function formatDuration(minutes: number): string {
 // ── Page Component ───────────────────────────────────────────────────
 
 export default function PublicCheckoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <PublicCheckoutPageInner />
+    </Suspense>
+  );
+}
+
+function PublicCheckoutPageInner() {
   const searchParams = useSearchParams();
   const tokenFromUrl = searchParams.get("token") || "";
 

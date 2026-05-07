@@ -27,7 +27,26 @@ import type {
  *
  * Returns `true` if a session was hydrated into Redux, `false` otherwise.
  */
+// Hard ceiling on the boot probe. The chained calls (`/system-users/me` →
+// 401 → `/auth/refresh` → `/admins/profile`) can otherwise compound to ~70s
+// of spinner if the API stalls on any leg. After this elapses we treat the
+// user as logged-out so the app can render — AuthGuard / middleware will
+// still redirect protected routes to login.
+const BOOTSTRAP_HARD_TIMEOUT_MS = 8_000;
+
 export async function bootstrapSession(): Promise<boolean> {
+  return Promise.race([
+    runBootstrap(),
+    new Promise<boolean>((resolve) =>
+      setTimeout(() => {
+        store.dispatch(clearSessionState());
+        resolve(false);
+      }, BOOTSTRAP_HARD_TIMEOUT_MS)
+    ),
+  ]);
+}
+
+async function runBootstrap(): Promise<boolean> {
   const tenantProfile = await tryFetchSystemUserProfile();
   if (tenantProfile) {
     store.dispatch(

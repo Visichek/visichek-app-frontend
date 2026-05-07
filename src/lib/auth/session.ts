@@ -14,6 +14,12 @@ const UNIFIED_REFRESH_ENDPOINT = "/auth/refresh";
 /** Maximum number of times we attempt to refresh before giving up. */
 const MAX_REFRESH_ATTEMPTS = 2;
 
+/** Per-attempt timeout for the refresh call. Bare axios defaults to no
+ *  timeout, which means a stalled refresh endpoint hangs the whole boot
+ *  flow forever (the spinner in `Providers` never clears). 5s is generous
+ *  for a healthy backend and short enough that a sick one fails fast. */
+const REFRESH_REQUEST_TIMEOUT_MS = 5_000;
+
 /**
  * Refresh the current session.
  *
@@ -38,6 +44,7 @@ export async function refreshSession(): Promise<void> {
         {
           withCredentials: true,
           headers: { "Content-Type": "application/json" },
+          timeout: REFRESH_REQUEST_TIMEOUT_MS,
         }
       );
       return;
