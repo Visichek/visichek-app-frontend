@@ -57,6 +57,15 @@ export const viewport: Viewport = {
   ],
 };
 
+// Defensive guard against browser extensions (Google Translate, Grammarly,
+// Honey, etc.) that wrap text nodes and break React's DOM bookkeeping. When
+// React's reconciler tries to unmount one of those nodes it crashes with
+// `Cannot read properties of null (reading 'removeChild')`, which leaves the
+// renderer dead — every subsequent state update fails silently and navigation
+// freezes until a hard refresh. Patching `removeChild` / `insertBefore` to
+// no-op on a parent mismatch lets React continue cleanly.
+const DOM_RECONCILER_GUARD = `(function(){if(typeof Node==="undefined"||!Node.prototype)return;var r=Node.prototype.removeChild;Node.prototype.removeChild=function(c){if(c&&c.parentNode!==this){if(c.parentNode){return c.parentNode.removeChild(c)}return c}return r.apply(this,arguments)};var i=Node.prototype.insertBefore;Node.prototype.insertBefore=function(n,ref){if(ref&&ref.parentNode!==this){return this.appendChild(n)}return i.apply(this,arguments)}})();`;
+
 export default function RootLayout({
   children,
 }: {
@@ -68,6 +77,9 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${fraunces.variable} ${plusJakartaSans.variable} ${ibmPlexMono.variable}`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: DOM_RECONCILER_GUARD }} />
+      </head>
       <body
         className="min-h-screen bg-background font-sans antialiased"
         suppressHydrationWarning
