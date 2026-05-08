@@ -21,7 +21,14 @@ import type {
   PublicVisitorStatusRequest,
   PublicVisitorStatusOut,
   CheckinSubmitByVisitorIdRequest,
+  EnumsResponse,
 } from "@/types/checkin";
+import type {
+  KycInitiateResponse,
+  KycSkipRequest,
+  KycSkipResponse,
+  KycStatusResponse,
+} from "@/types/kyc";
 
 function normalizeCheckinConfig(
   data: PublicCheckinConfigOut
@@ -33,12 +40,17 @@ function normalizeCheckinConfig(
 }
 import {
   checkinConfigByTenantPath,
+  checkinConfigEnumsByTenantPath,
+  checkinConfigEnumsPath,
   checkinConfigPath,
   checkinSubmitByVisitorIdPath,
   checkinSubmitDefaultByTenantPath,
   checkinSubmitMultipartPath,
   checkinVisitorLookupPath,
   checkinVisitorStatusPath,
+  kycInitiatePath,
+  kycSkipPath,
+  kycStatusPath,
 } from "../lib/endpoints";
 import { checkinKeys } from "../lib/query-keys";
 
@@ -138,7 +150,11 @@ export function useSubmitCheckin(args: {
       }
 
       const form = new FormData();
-      form.append("email", request.email);
+      // Email is optional in v2 — only attach when the visitor supplied one,
+      // otherwise the backend stores the visitor without one.
+      if (request.email && request.email.trim()) {
+        form.append("email", request.email.trim());
+      }
       form.append("phone", request.phone);
       form.append("purpose", JSON.stringify(request.purpose));
 
@@ -246,5 +262,94 @@ export function useSubmitCheckinByVisitorId(args: {
       }
       return apiPost<CheckinOut>(checkinSubmitByVisitorIdPath(tenantId), payload);
     },
+  });
+}
+
+// ── v2 enum bundle ───────────────────────────────────────────────────
+
+/**
+ * Fetch the active picker bundle for every configurable enum kind on this
+ * tenant (purpose_of_visit, id_type, visitor_category). Used by the kiosk
+ * to render select inputs for fields with `enumKind` set on the config.
+ *
+ * Inactive options are filtered server-side, so the kiosk does not need
+ * to re-filter. The backend caches this for 60s — generous staleTime here
+ * keeps the kiosk from refetching on every navigation within the flow.
+ */
+export function useCheckinEnumsForTenant(tenantId: string | undefined) {
+  return useQuery({
+    queryKey: checkinKeys.publicEnumsByTenant(tenantId ?? ""),
+    queryFn: () =>
+      apiGet<EnumsResponse>(checkinConfigEnumsByTenantPath(tenantId!)),
+    enabled: !!tenantId,
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
+}
+
+/** Same enum bundle, keyed by config_id when the kiosk knows it directly. */
+export function useCheckinEnums(configId: string | undefined) {
+  return useQuery({
+    queryKey: checkinKeys.publicEnums(configId ?? ""),
+    queryFn: () => apiGet<EnumsResponse>(checkinConfigEnumsPath(configId!)),
+    enabled: !!configId,
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
+}
+
+// ── v2 KYC ───────────────────────────────────────────────────────────
+
+/**
+ * Initiate KYC for a check-in in `pending_kyc` state. The response carries
+ * a `widgetConfig` payload the kiosk hands directly to the Dojah React
+ * widget; the frontend never reads Dojah credentials from env. On retry
+ * the same `checkinId` is sent again — the endpoint is idempotent.
+ */
+export function useKycInitiate() {
+  return useMutation({
+    mutationFn: (checkinId: string) =>
+      apiPost<KycInitiateResponse>(kycInitiatePath(), { checkinId }),
+  });
+}
+
+/**
+ * Skip KYC. Backend rejects with 403 when `kycRequired: true` on the
+ * tenant — the kiosk should remove the skip CTA in that case and force
+ * the visitor through the widget.
+ */
+export function useKycSkip() {
+  return useMutation({
+    mutationFn: (request: KycSkipRequest) =>
+      apiPost<KycSkipResponse>(kycSkipPath(), {
+        checkinId: request.checkinId,
+        reason: request.reason,
+      }),
+  });
+}
+
+/**
+ * Polling fallback for when the Dojah widget closes inconclusively.
+ * Disabled by default — pass `enabled: true` once the widget has closed
+ * with an indeterminate result, then drive a 3–5s `refetchInterval`
+ * until status is no longer `ongoing`.
+ */
+export function useKycStatus(
+  checkinId: string | undefined,
+  options?: { enabled?: boolean; pollMs?: number },
+) {
+  const enabled = (options?.enabled ?? false) && !!checkinId;
+  return useQuery({
+    queryKey: checkinKeys.kycStatus(checkinId ?? ""),
+    queryFn: () => apiGet<KycStatusResponse>(kycStatusPath(checkinId!)),
+    enabled,
+    // Default 4s poll: middle of the doc's recommended 3–5s window.
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (!status || status === "ongoing") return options?.pollMs ?? 4_000;
+      return false;
+    },
+    refetchIntervalInBackground: true,
+    retry: 1,
   });
 }

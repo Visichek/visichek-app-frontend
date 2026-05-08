@@ -6,6 +6,11 @@ export {
   useVisitorStatus,
   useSubmitCheckin,
   useSubmitCheckinByVisitorId,
+  useCheckinEnums,
+  useCheckinEnumsForTenant,
+  useKycInitiate,
+  useKycSkip,
+  useKycStatus,
 } from "./use-public-checkin";
 
 // Receptionist hooks — tenant-authenticated

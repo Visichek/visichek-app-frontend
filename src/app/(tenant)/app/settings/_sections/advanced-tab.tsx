@@ -76,19 +76,6 @@ export function AdvancedTab() {
       {tenantSettingsSection && tenantSettingsData && (
         <>
           <Separator />
-          <section>
-            <h2 className="text-base font-semibold mb-1">Security policies</h2>
-            <p className="text-sm text-muted-foreground mb-4">Organisation-wide security rules applied to all users</p>
-            <div className="space-y-1">
-              <SettingsToggle id="enforceTotp" label="Enforce 2FA for all users" description="Require every user to set up two-factor authentication before they can log in" checked={tenantSettingsData.enforceTotp ?? false} onCheckedChange={(v) => updateTenantSettings.mutate({ enforceTotp: v })} isLoading={updateTenantSettings.isPending} />
-              <SettingsSelect id="passwordMinLength" label="Minimum password length" description="Minimum characters required for passwords" value={String(tenantSettingsData.passwordMinLength ?? 8)} onValueChange={(v) => updateTenantSettings.mutate({ passwordMinLength: parseInt(v, 10) })} options={[{ value: "8", label: "8 characters" }, { value: "10", label: "10 characters" }, { value: "12", label: "12 characters" }, { value: "16", label: "16 characters" }]} isLoading={updateTenantSettings.isPending} />
-              <SettingsSelect id="sessionTimeout" label="Session timeout" description="Automatically sign out users after inactivity" value={String(tenantSettingsData.sessionTimeoutMinutes ?? 60)} onValueChange={(v) => updateTenantSettings.mutate({ sessionTimeoutMinutes: parseInt(v, 10) })} options={[{ value: "15", label: "15 minutes" }, { value: "30", label: "30 minutes" }, { value: "60", label: "1 hour" }, { value: "120", label: "2 hours" }, { value: "480", label: "8 hours" }]} isLoading={updateTenantSettings.isPending} />
-              <SettingsSelect id="maxFailedLogins" label="Account lockout threshold" description="Lock account after this many failed login attempts" value={String(tenantSettingsData.maxFailedLoginAttempts ?? 5)} onValueChange={(v) => updateTenantSettings.mutate({ maxFailedLoginAttempts: parseInt(v, 10) })} options={[{ value: "3", label: "3 attempts" }, { value: "5", label: "5 attempts" }, { value: "10", label: "10 attempts" }]} isLoading={updateTenantSettings.isPending} />
-              <SettingsSelect id="lockoutDuration" label="Lockout duration" description="How long accounts stay locked after exceeding the threshold" value={String(tenantSettingsData.lockoutDurationMinutes ?? 30)} onValueChange={(v) => updateTenantSettings.mutate({ lockoutDurationMinutes: parseInt(v, 10) })} options={[{ value: "5", label: "5 minutes" }, { value: "15", label: "15 minutes" }, { value: "30", label: "30 minutes" }, { value: "60", label: "1 hour" }]} isLoading={updateTenantSettings.isPending} />
-            </div>
-          </section>
-
-          <Separator />
 
           <section>
             <h2 className="text-base font-semibold mb-1">Visitor policies</h2>

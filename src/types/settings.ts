@@ -140,17 +140,6 @@ export interface TenantSettings {
   companyAddress: string | null;
   defaultTimezone: string;
   defaultLanguage: string;
-  // Security policies
-  enforceTotp: boolean;
-  passwordMinLength: number;
-  passwordRequireUppercase: boolean;
-  passwordRequireNumber: boolean;
-  passwordRequireSpecialChar: boolean;
-  passwordExpiryDays: number | null;
-  maxFailedLoginAttempts: number;
-  lockoutDurationMinutes: number;
-  sessionTimeoutMinutes: number;
-  allowedIpRanges: string[] | null;
   // Visitor policies
   requireIdScan: boolean;
   requireHostApproval: boolean;
@@ -199,10 +188,23 @@ export interface PlatformSettings {
   supportEmail: string;
   supportPhone: string;
   platformUrl: string;
-  // Security
-  adminEnforceTotp: boolean;
-  adminSessionTimeoutMinutes: number;
-  adminPasswordMinLength: number;
+  // Security — password policy
+  passwordMinLength: number;
+  passwordMaxLength: number;
+  passwordRequireUppercase: boolean;
+  passwordRequireLowercase: boolean;
+  passwordRequireNumber: boolean;
+  passwordRequireSpecialChar: boolean;
+  passwordExpiryDays: number | null;
+  passwordHistoryCount: number;
+  // Security — account lockout
+  maxFailedLoginAttempts: number;
+  lockoutDurationMinutes: number;
+  // Security — session
+  sessionTimeoutMinutes: number;
+  // Security — two-factor authentication
+  enforceTotpForAdmins: boolean;
+  enforceTotpForTenantUsers: boolean;
   maxAdminAccounts: number | null;
   // Tenant defaults
   defaultTrialDays: number;

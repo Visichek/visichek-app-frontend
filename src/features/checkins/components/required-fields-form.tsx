@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -18,10 +19,14 @@ import {
 } from "@/components/ui/tooltip";
 import { HelpCircle } from "lucide-react";
 import type {
+  EnumBundleEntry,
+  EnumsResponse,
   RequiredField,
   RequiredFieldCategory,
 } from "@/types/checkin";
 import { cn } from "@/lib/utils/cn";
+
+const ENUM_OTHER_VALUE = "__other__";
 
 export interface RequiredFieldsFormProps {
   /** Every field to render — config-driven. */
@@ -36,6 +41,13 @@ export interface RequiredFieldsFormProps {
   errors?: Record<string, string>;
   /** Keys the user should not be able to edit (e.g. OCR-filled fields until they tap edit). */
   readOnlyKeys?: string[];
+  /**
+   * Tenant-configurable picker bundle. When a field has `enumKind` set,
+   * the matching entry here drives the picker options and the
+   * "Other / type your own" affordance. If the bundle is missing or the
+   * kind isn't present, the field falls back to a plain text input.
+   */
+  enums?: EnumsResponse;
   className?: string;
 }
 
@@ -55,6 +67,7 @@ export function RequiredFieldsForm({
   category,
   errors = {},
   readOnlyKeys = [],
+  enums,
   className,
 }: RequiredFieldsFormProps) {
   const visible = category
@@ -75,6 +88,9 @@ export function RequiredFieldsForm({
         const error = errors[field.key];
         const readOnly = readOnlyKeys.includes(field.key);
         const id = `field-${field.key}`;
+        const bundle = field.enumKind
+          ? enums?.enums?.[field.enumKind]
+          : undefined;
 
         return (
           <div key={field.key} className="space-y-1.5">
@@ -105,8 +121,19 @@ export function RequiredFieldsForm({
               )}
             </div>
 
-            {renderInput(field, id, value, readOnly, (v) =>
-              onChange(field.key, v)
+            {bundle ? (
+              <EnumPicker
+                id={id}
+                bundle={bundle}
+                value={(value as string) ?? ""}
+                onChange={(v) => onChange(field.key, v)}
+                disabled={readOnly}
+                placeholder={field.placeholder}
+              />
+            ) : (
+              renderInput(field, id, value, readOnly, (v) =>
+                onChange(field.key, v),
+              )
             )}
 
             {error && (
@@ -121,6 +148,100 @@ export function RequiredFieldsForm({
         );
       })}
     </div>
+  );
+}
+
+/**
+ * Picker driven by a tenant-configured enum bundle. When `allowCustom: true`
+ * the picker exposes an "Other / type your own" option that swaps to a
+ * free-text input on selection; the typed value is submitted verbatim.
+ *
+ * The picker assumes the bundle is the source of truth — `bundle.options`
+ * is rendered as-is, with no client-side filtering. Inactive options are
+ * already stripped server-side.
+ */
+function EnumPicker({
+  id,
+  bundle,
+  value,
+  onChange,
+  disabled,
+  placeholder,
+}: {
+  id: string;
+  bundle: EnumBundleEntry;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  placeholder?: string;
+}) {
+  // The "Other" affordance is a UI-only state — once the visitor picks
+  // "Other" we hide the select and show a free-text input. The typed
+  // value is what we submit; we don't store the sentinel.
+  const presetValues = new Set(bundle.options.map((o) => o.value));
+  const initialOther =
+    !!value && !presetValues.has(value) && bundle.allowCustom;
+  const [showCustom, setShowCustom] = useState(initialOther);
+
+  function handleSelect(next: string) {
+    if (next === ENUM_OTHER_VALUE) {
+      setShowCustom(true);
+      onChange("");
+      return;
+    }
+    setShowCustom(false);
+    onChange(next);
+  }
+
+  if (showCustom) {
+    return (
+      <div className="space-y-1.5">
+        <Input
+          id={id}
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder ?? "Type your answer"}
+          disabled={disabled}
+          className="text-base md:text-sm min-h-[44px]"
+        />
+        <button
+          type="button"
+          className="text-xs text-muted-foreground hover:text-foreground underline"
+          onClick={() => {
+            setShowCustom(false);
+            onChange("");
+          }}
+        >
+          Choose from the list instead
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <Select
+      value={value}
+      onValueChange={handleSelect}
+      disabled={disabled}
+    >
+      <SelectTrigger
+        id={id}
+        className="text-base md:text-sm min-h-[44px]"
+      >
+        <SelectValue placeholder={placeholder ?? "Select…"} />
+      </SelectTrigger>
+      <SelectContent>
+        {bundle.options.map((opt) => (
+          <SelectItem key={opt.value} value={opt.value}>
+            {opt.label}
+          </SelectItem>
+        ))}
+        {bundle.allowCustom && (
+          <SelectItem value={ENUM_OTHER_VALUE}>Other…</SelectItem>
+        )}
+      </SelectContent>
+    </Select>
   );
 }
 

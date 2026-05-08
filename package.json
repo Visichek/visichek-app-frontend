@@ -28,6 +28,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "dojah-kyc-sdk-react": "^0.0.6",
     "lucide-react": "^0.468.0",
     "next": "^16.2.5",
     "next-themes": "^0.4.6",

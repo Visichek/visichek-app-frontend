@@ -33,6 +33,40 @@ export const checkinSubmitMultipartPath = (configId: string) =>
   `/checkin-configs/${configId}/submit`;
 
 /**
+ * Tenant-configurable picker bundle (purpose_of_visit, id_type,
+ * visitor_category). Active options only — already filtered server-side.
+ */
+export const checkinConfigEnumsPath = (configId: string) =>
+  `/checkin-configs/${configId}/enums`;
+
+/** Same enum bundle, but keyed by tenant_id for kiosks routed by tenant. */
+export const checkinConfigEnumsByTenantPath = (tenantId: string) =>
+  `/checkin-configs/by-tenant/${tenantId}/enums`;
+
+// ── KYC (post-submit) ────────────────────────────────────────────────
+
+/**
+ * Start a KYC verification for a check-in in `pending_kyc` state. Returns
+ * a `widgetConfig` payload the kiosk hands to the Dojah React widget; the
+ * webhook (not the frontend) reports the verification result back.
+ */
+export const kycInitiatePath = () => `/kyc/initiate`;
+
+/**
+ * Skip the KYC step for a check-in. Returns 403 when the tenant has
+ * `kycRequired: true` — the kiosk should hide the skip CTA in that case.
+ */
+export const kycSkipPath = () => `/kyc/skip`;
+
+/**
+ * Polling fallback for when the Dojah widget closes inconclusively. The
+ * kiosk should poll every 3–5s for at most 60s, then surface a retry CTA
+ * if the status still isn't terminal.
+ */
+export const kycStatusPath = (checkinId: string) =>
+  `/kyc/status/${checkinId}`;
+
+/**
  * Default-mode submit: used when the tenant has not customized a config yet
  * and the public endpoint returns defaults with `checkin_config_id === ""`.
  * The backend resolves the tenant's default config server-side.

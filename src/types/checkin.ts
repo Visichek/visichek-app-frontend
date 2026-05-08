@@ -12,12 +12,58 @@
 
 // ── Enums ────────────────────────────────────────────────────────────
 
-/** Lifecycle of a check-in after submission. */
+/**
+ * Lifecycle of a check-in after submission.
+ *
+ * `pending_kyc` is the initial state when the tenant's plan grants KYC and
+ * the visitor has not yet completed (or skipped) the Dojah widget. The
+ * webhook (or the skip endpoint) transitions `pending_kyc → pending_approval`.
+ * A failed verification transitions `pending_kyc → rejected` directly.
+ */
 export type CheckinState =
+  | "pending_kyc"
   | "pending_approval"
   | "approved"
   | "rejected"
   | "checked_out";
+
+// ── Tenant-configurable enums ────────────────────────────────────────
+
+/**
+ * Kinds of tenant-configurable picker enums. The kiosk fetches the active
+ * options for every kind in one bundle via
+ * `GET /v1/checkin-configs/{config_id}/enums`.
+ */
+export type EnumKind = "purpose_of_visit" | "id_type" | "visitor_category";
+
+/**
+ * One option in a configurable enum. `active: false` options are filtered
+ * out by the backend before the bundle reaches us — the kiosk does not
+ * re-filter.
+ */
+export interface EnumOption {
+  value: string;
+  label: string;
+  active: boolean;
+  sortOrder: number;
+}
+
+/**
+ * One enum kind's configuration. `allowCustom: true` means the picker
+ * should expose an "Other / type your own" affordance that submits a
+ * free-text value; `false` means the visitor must pick from `options`.
+ */
+export interface EnumBundleEntry {
+  kind: EnumKind;
+  allowCustom: boolean;
+  options: EnumOption[];
+}
+
+/** Response from `GET /v1/checkin-configs/{config_id}/enums`. */
+export interface EnumsResponse {
+  tenantId: string;
+  enums: Record<EnumKind, EnumBundleEntry>;
+}
 
 /** Government ID types accepted by the OCR pipeline. */
 export type IdType = "national_id" | "drivers_license" | "passport";
@@ -70,6 +116,13 @@ export interface RequiredField {
   category: RequiredFieldCategory;
   /** Options for `select` fields (value + human label). */
   options?: Array<{ value: string; label: string }>;
+  /**
+   * If set, the field is rendered as a picker driven by the tenant's
+   * configurable enum bundle (`GET /v1/checkin-configs/{id}/enums`). When
+   * `enumKind` is present, ignore any sibling `options` field — the bundle
+   * is the source of truth.
+   */
+  enumKind?: EnumKind;
   /** Optional placeholder / helper copy. */
   placeholder?: string;
   /** Optional tooltip explaining why this field exists. */
@@ -175,7 +228,12 @@ export interface PurposeInfo {
  * serializes them.
  */
 export interface CheckinSubmitMultipartRequest {
-  email: string;
+  /**
+   * Optional in v2 — only `phone` and `full_name` are required. The
+   * backend accepts a missing or empty `email` field and stores the
+   * visitor without one when so.
+   */
+  email?: string;
   phone: string;
   purpose: PurposeInfo;
   bioData?: Record<string, unknown>;

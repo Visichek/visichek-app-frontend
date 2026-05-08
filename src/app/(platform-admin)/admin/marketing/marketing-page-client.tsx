@@ -149,15 +149,19 @@ export function MarketingPageClient() {
       <PageHeader
         title="Marketing opt-ins"
         description="Deduplicated, normalized work emails of every onboarding lead who consented to product updates. Use this list to compose campaign recipient lists — opting in stays valid even if the tenant application was later rejected."
-        actions={
-          !isLoading && !isError ? (
-            <Badge variant="secondary" className="gap-1">
-              <Megaphone className="h-3 w-3" aria-hidden="true" />
-              {total} email{total === 1 ? "" : "s"}
-            </Badge>
-          ) : null
-        }
       />
+
+      {!isLoading && !isError && (
+        <div>
+          <Badge
+            variant="secondary"
+            className="gap-1.5 whitespace-nowrap px-3 py-1 text-sm"
+          >
+            <Megaphone className="h-3.5 w-3.5" aria-hidden="true" />
+            {total} {total === 1 ? "email" : "emails"}
+          </Badge>
+        </div>
+      )}
 
       {isError ? (
         <ErrorState

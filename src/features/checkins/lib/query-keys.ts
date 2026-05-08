@@ -14,6 +14,12 @@ export const checkinKeys = {
     ["checkins", "public", "config", configId] as const,
   publicConfigByTenant: (tenantId: string) =>
     ["checkins", "public", "config-by-tenant", tenantId] as const,
+  publicEnums: (configId: string) =>
+    ["checkins", "public", "enums", configId] as const,
+  publicEnumsByTenant: (tenantId: string) =>
+    ["checkins", "public", "enums-by-tenant", tenantId] as const,
+  kycStatus: (checkinId: string) =>
+    ["checkins", "public", "kyc-status", checkinId] as const,
 
   // ── Receptionist ───────────────────────────────────────────────
   list: (tenantId: string, params: CheckinListParams) =>
