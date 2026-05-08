@@ -268,6 +268,29 @@ export function useSubmitCheckinByVisitorId(args: {
 // ── v2 enum bundle ───────────────────────────────────────────────────
 
 /**
+ * Re-key the enum bundle by each entry's authoritative `kind` field.
+ *
+ * The backend's camelCase response convention rewrites the OUTER keys of
+ * the `enums` map (`purpose_of_visit` → `purposeOfVisit`), but the INNER
+ * `kind` field preserves the snake_case enum value. Meanwhile the
+ * config's `RequiredField.enumKind` is also snake_case (it's a string
+ * value, not a JSON key). So a naïve `enums.enums["purpose_of_visit"]`
+ * lookup misses entirely. We adapt by rebuilding the map keyed on the
+ * inner `kind` so callers can keep using snake_case lookups, regardless
+ * of how the wire chose to spell the outer key.
+ */
+function normalizeEnumsResponse(raw: EnumsResponse): EnumsResponse {
+  const rebuilt = {} as EnumsResponse["enums"];
+  const entries = raw.enums ? Object.values(raw.enums) : [];
+  for (const entry of entries) {
+    if (entry?.kind) {
+      rebuilt[entry.kind] = entry;
+    }
+  }
+  return { ...raw, enums: rebuilt };
+}
+
+/**
  * Fetch the active picker bundle for every configurable enum kind on this
  * tenant (purpose_of_visit, id_type, visitor_category). Used by the kiosk
  * to render select inputs for fields with `enumKind` set on the config.
@@ -279,8 +302,10 @@ export function useSubmitCheckinByVisitorId(args: {
 export function useCheckinEnumsForTenant(tenantId: string | undefined) {
   return useQuery({
     queryKey: checkinKeys.publicEnumsByTenant(tenantId ?? ""),
-    queryFn: () =>
-      apiGet<EnumsResponse>(checkinConfigEnumsByTenantPath(tenantId!)),
+    queryFn: async () =>
+      normalizeEnumsResponse(
+        await apiGet<EnumsResponse>(checkinConfigEnumsByTenantPath(tenantId!)),
+      ),
     enabled: !!tenantId,
     staleTime: 60 * 1000,
     retry: 1,
@@ -291,7 +316,10 @@ export function useCheckinEnumsForTenant(tenantId: string | undefined) {
 export function useCheckinEnums(configId: string | undefined) {
   return useQuery({
     queryKey: checkinKeys.publicEnums(configId ?? ""),
-    queryFn: () => apiGet<EnumsResponse>(checkinConfigEnumsPath(configId!)),
+    queryFn: async () =>
+      normalizeEnumsResponse(
+        await apiGet<EnumsResponse>(checkinConfigEnumsPath(configId!)),
+      ),
     enabled: !!configId,
     staleTime: 60 * 1000,
     retry: 1,
