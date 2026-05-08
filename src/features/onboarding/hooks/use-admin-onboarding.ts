@@ -10,6 +10,7 @@ import { apiGet, apiPost } from "@/lib/api/request";
 import type {
   AcceptOnboardingRequest,
   AcceptOnboardingResponse,
+  MarketingOptInExport,
   OnboardingListParams,
   OnboardingSubmission,
   PartialAcceptOnboardingRequest,
@@ -26,6 +27,7 @@ export const adminOnboardingKeys = {
   list: (params?: OnboardingListParams) =>
     ["admin", "onboarding", "list", params ?? {}] as const,
   detail: (id: string) => ["admin", "onboarding", "detail", id] as const,
+  marketingOptIns: ["admin", "onboarding", "marketing-opt-ins"] as const,
 };
 
 /**
@@ -137,6 +139,20 @@ export function useRejectOnboarding() {
       ),
     onSuccess: (_, variables) =>
       invalidateOnboarding(queryClient, variables.submissionId),
+  });
+}
+
+/**
+ * `GET /v1/tenants/onboarding/marketing-opt-ins` — deduplicated, normalized
+ * email list of every onboarding submission with `marketing_opt_in` set to
+ * an affirmative value. Returns the full list in one shot (no pagination).
+ */
+export function useMarketingOptIns() {
+  return useQuery<MarketingOptInExport>({
+    queryKey: adminOnboardingKeys.marketingOptIns,
+    queryFn: () =>
+      apiGet<MarketingOptInExport>("/tenants/onboarding/marketing-opt-ins"),
+    staleTime: 60_000,
   });
 }
 

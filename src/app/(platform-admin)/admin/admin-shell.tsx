@@ -8,6 +8,7 @@ import {
   Building2,
   Inbox,
   CreditCard,
+  Megaphone,
   Package,
   Tags,
   Wallet,
@@ -53,6 +54,12 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     href: "/admin/tenants/onboarding",
     icon: Inbox,
     description: "Review self-service signups from the marketing site — accept to provision a tenant, partial-accept to flag missing fields, or reject with notes",
+  },
+  {
+    label: "Marketing opt-ins",
+    href: "/admin/marketing",
+    icon: Megaphone,
+    description: "Export the deduplicated email list of every onboarding lead who consented to product updates — copy as BCC, download CSV, or open in your mail client",
   },
   {
     label: "Plans",

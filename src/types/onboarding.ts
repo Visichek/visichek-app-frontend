@@ -104,3 +104,13 @@ export interface OnboardingPendingFields {
 export interface OnboardingCompleteRequest {
   values: Record<string, OnboardingFieldValue>;
 }
+
+/**
+ * Response for `GET /v1/tenants/onboarding/marketing-opt-ins`. Emails are
+ * pre-normalized server-side (Gmail dot/alias collapse, lowercase, trimmed)
+ * and deduplicated, so the frontend should not re-normalize them.
+ */
+export interface MarketingOptInExport {
+  emails: string[];
+  total: number;
+}
