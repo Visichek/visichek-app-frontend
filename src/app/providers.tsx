@@ -14,7 +14,6 @@ import { Toaster, toast } from "sonner";
 import { isPermissionError } from "@/types/api";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { NavigationLoadingProvider } from "@/lib/routing/navigation-context";
-import { NavigationOverlay } from "@/components/feedback/navigation-overlay";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 
 interface ProvidersProps {
@@ -96,7 +95,6 @@ export function Providers({ children }: ProvidersProps) {
           <TooltipProvider delayDuration={250} skipDelayDuration={150} disableHoverableContent>
             <NavigationLoadingProvider>
               <BootstrapGate>{children}</BootstrapGate>
-              <NavigationOverlay />
               <ServiceWorkerRegister />
               <Toaster
                 position="top-right"

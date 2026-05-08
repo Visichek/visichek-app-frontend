@@ -15,9 +15,9 @@ export interface UseNavLoadingOptions {
    *
    * - `"global"` (default): reads/writes the shared
    *   `NavigationLoadingProvider` context. Every consumer in the app sees
-   *   the same `loadingHref`, which is what the sidebar / topbar / nav
-   *   overlay rely on. Requires the provider to be mounted (it already
-   *   is, in `app/providers.tsx`).
+   *   the same `loadingHref`, which is what the sidebar / topbar rely on.
+   *   Requires the provider to be mounted (it already is, in
+   *   `app/providers.tsx`).
    * - `"local"`: state lives inside this hook instance only. Use this
    *   when you want a truly isolated indicator that nothing else in the
    *   tree should react to (rare).
@@ -25,16 +25,15 @@ export interface UseNavLoadingOptions {
   scope?: NavLoadingScope;
 }
 
-const LOCAL_NAV_LOADING_TIMEOUT_MS = 12_000;
-const LOCAL_NAV_LOADING_POLL_MS = 250;
-
 /**
  * Tracks which navigation href is currently loading and provides handlers
  * to set it. Returns the same shape regardless of `scope` so call sites
  * can switch between modes by changing only the prop.
  *
- * Replaces the older `useNavigationLoading` (still re-exported as an
- * alias). New code should use this hook.
+ * The state clears when `usePathname()` reports a new committed pathname.
+ * No timers, no polling, no auto-refresh — Next.js's `loading.tsx`
+ * skeletons handle perceived latency, and the clicked item spins for
+ * exactly as long as the transition takes.
  */
 export function useNavLoading(
   options?: UseNavLoadingOptions,
@@ -53,25 +52,6 @@ export function useNavLoading(
   useEffect(() => {
     setLocalLoadingHref(null);
   }, [pathname]);
-
-  useEffect(() => {
-    if (!localLoadingHref) return;
-
-    const timeoutId = window.setTimeout(() => {
-      setLocalLoadingHref(null);
-    }, LOCAL_NAV_LOADING_TIMEOUT_MS);
-
-    const intervalId = window.setInterval(() => {
-      if (isCurrentLocation(pathname, localLoadingHref)) {
-        setLocalLoadingHref(null);
-      }
-    }, LOCAL_NAV_LOADING_POLL_MS);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      window.clearInterval(intervalId);
-    };
-  }, [localLoadingHref, pathname]);
 
   const localHandleNavClick = useCallback(
     (href: string) => {
