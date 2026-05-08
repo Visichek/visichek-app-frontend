@@ -78,6 +78,25 @@ function renderFieldValue(value: OnboardingFieldValue): string {
   return String(value);
 }
 
+// The backend's case-conversion middleware camelCases object keys but leaves
+// array string values alone, so `fieldOrder` arrives as snake_case while
+// `payload` / `fieldLabels` keys arrive as camelCase. Convert each field key
+// to its camelCase form for lookups; the original snake_case is still what
+// we render to the user as the canonical form-field id.
+function toCamelKey(key: string): string {
+  return key.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
+}
+
+function lookupField<T>(
+  source: Record<string, T> | undefined,
+  key: string,
+): T | undefined {
+  if (!source) return undefined;
+  if (key in source) return source[key];
+  const camel = toCamelKey(key);
+  return camel in source ? source[camel] : undefined;
+}
+
 interface ActionState {
   mode: "accept" | "partial" | "reject" | null;
 }
@@ -201,7 +220,7 @@ export function OnboardingSubmissionDetail({
                   {submission.pendingFieldKeys
                     .map(
                       (k) =>
-                        submission.pendingFieldLabels?.[k] || k,
+                        lookupField(submission.pendingFieldLabels, k) || k,
                     )
                     .join(", ")}
                 </p>
@@ -260,8 +279,8 @@ export function OnboardingSubmissionDetail({
         </CardHeader>
         <CardContent className="space-y-4">
           {orderedKeys.map((key) => {
-            const label = submission.fieldLabels?.[key] ?? key;
-            const value = submission.payload[key];
+            const label = lookupField(submission.fieldLabels, key) ?? key;
+            const value = lookupField(submission.payload, key);
             const isPending =
               submission.pendingFieldKeys?.includes(key) ?? false;
             return (
@@ -883,7 +902,7 @@ function PartialAcceptDialog({ submission, open, onClose }: AcceptDialogProps) {
             )}
             {candidateKeys.map((key) => {
               const checked = pending.has(key);
-              const label = submission.fieldLabels?.[key] ?? key;
+              const label = lookupField(submission.fieldLabels, key) ?? key;
               return (
                 <label
                   key={key}
