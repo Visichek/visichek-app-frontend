@@ -11,8 +11,11 @@ const API_BASE_URL =
  *  cookie and rotates both auth cookies via Set-Cookie. */
 const UNIFIED_REFRESH_ENDPOINT = "/auth/refresh";
 
-/** Maximum number of times we attempt to refresh before giving up. */
-const MAX_REFRESH_ATTEMPTS = 2;
+/** Maximum number of times we attempt to refresh before giving up.
+ *  Three is enough to ride out a transient network blip without dragging
+ *  a real outage out forever — combined with the per-attempt timeout the
+ *  ceiling is bounded at MAX_REFRESH_ATTEMPTS * REFRESH_REQUEST_TIMEOUT_MS. */
+const MAX_REFRESH_ATTEMPTS = 3;
 
 /** Per-attempt timeout for the refresh call. Bare axios defaults to no
  *  timeout, which means a stalled refresh endpoint hangs the whole boot

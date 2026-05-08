@@ -7,6 +7,7 @@ import { useState, useEffect, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { store } from "@/lib/store";
 import { bootstrapSession } from "@/lib/auth/bootstrap";
+import { readAuthHint } from "@/lib/auth/auth-hint";
 import { Toaster, toast } from "sonner";
 import { isPermissionError } from "@/types/api";
 import { ThemeProvider } from "@/components/theme/theme-provider";
@@ -37,10 +38,23 @@ const PUBLIC_PATH_PREFIXES = [
   "/offline",
 ];
 
+// Auth-fork paths are the public surfaces where a logged-in user should
+// NOT see the login chooser/form even briefly. When a localStorage auth
+// hint is present we gate these behind the bootstrap spinner so the form
+// never flashes before the redirect fires. Other public paths (register,
+// checkout, support, ...) keep skipping the gate — they don't redirect
+// authenticated users anywhere.
+const AUTH_FORK_PATHS = ["/", "/admin/login", "/app/login"];
+
 function isPublicPath(pathname: string | null): boolean {
   if (!pathname) return false;
   if (pathname === "/") return true;
   return PUBLIC_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
+
+function isAuthForkPath(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return AUTH_FORK_PATHS.includes(pathname);
 }
 
 export function Providers({ children }: ProvidersProps) {
@@ -70,7 +84,20 @@ export function Providers({ children }: ProvidersProps) {
   );
 
   const pathname = usePathname();
-  const skipGate = isPublicPath(pathname);
+
+  // Synchronously check for an auth hint on first client render. On the
+  // server this returns null (no localStorage), so SSR + first hydrate
+  // render the public UI as before — the gate kicks in only on the client
+  // where a hint is actually present. The body has suppressHydrationWarning
+  // already, so the brief commit-time DOM patch is not flagged.
+  const [hadAuthHintAtMount] = useState(() => readAuthHint() !== null);
+
+  // Auth-fork paths only skip the gate when there's no hint that the user
+  // was previously logged in. With a hint, we wait for bootstrap to either
+  // confirm the session (then the page-level redirect fires) or fail (then
+  // the hint is cleared by the store subscription and the gate releases).
+  const skipGate = isPublicPath(pathname)
+    && !(isAuthForkPath(pathname) && hadAuthHintAtMount);
 
   const [isBootstrapping, setIsBootstrapping] = useState(true);
 
