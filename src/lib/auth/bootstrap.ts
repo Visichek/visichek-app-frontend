@@ -4,6 +4,7 @@ import {
   setAdminSession,
   setSystemUserSession,
   clearSessionState,
+  markBootstrapDone,
 } from "@/lib/store/session-slice";
 import { ApiError } from "@/types/api";
 import type {
@@ -47,36 +48,50 @@ export async function bootstrapSession(): Promise<boolean> {
     return await Promise.race([runBootstrap(), timeout]);
   } finally {
     if (timer) clearTimeout(timer);
+    // Safety net: if the timeout race resolved before runBootstrap finished,
+    // release the gate so UI surfaces (PwaSplash, AuthGuards) can stop
+    // waiting. runBootstrap also dispatches this in its own finally; the
+    // reducer is idempotent so the duplicate is harmless.
+    if (store.getState().session.isBootstrapping) {
+      store.dispatch(markBootstrapDone());
+    }
   }
 }
 
 async function runBootstrap(): Promise<boolean> {
-  const tenantProfile = await tryFetchSystemUserProfile();
-  if (tenantProfile) {
-    store.dispatch(
-      setSystemUserSession({
-        type: "system_user",
-        tokens: { accessToken: "", refreshToken: "" },
-        profile: tenantProfile,
-      })
-    );
-    return true;
-  }
+  try {
+    const tenantProfile = await tryFetchSystemUserProfile();
+    if (tenantProfile) {
+      store.dispatch(
+        setSystemUserSession({
+          type: "system_user",
+          tokens: { accessToken: "", refreshToken: "" },
+          profile: tenantProfile,
+        })
+      );
+      return true;
+    }
 
-  const adminProfile = await tryFetchAdminProfile();
-  if (adminProfile) {
-    store.dispatch(
-      setAdminSession({
-        type: "admin",
-        tokens: { accessToken: "", refreshToken: "" },
-        profile: adminProfile,
-      })
-    );
-    return true;
-  }
+    const adminProfile = await tryFetchAdminProfile();
+    if (adminProfile) {
+      store.dispatch(
+        setAdminSession({
+          type: "admin",
+          tokens: { accessToken: "", refreshToken: "" },
+          profile: adminProfile,
+        })
+      );
+      return true;
+    }
 
-  store.dispatch(clearSessionState());
-  return false;
+    store.dispatch(clearSessionState());
+    return false;
+  } finally {
+    // Always mark done, even if the network probes throw unexpectedly.
+    // PwaSplash and similar consumers depend on this transition to know
+    // they should stop showing the splash and redirect.
+    store.dispatch(markBootstrapDone());
+  }
 }
 
 async function tryFetchSystemUserProfile(): Promise<SystemUserProfile | null> {

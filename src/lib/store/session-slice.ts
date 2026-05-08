@@ -9,6 +9,10 @@ import type {
 
 interface SessionState {
   isAuthenticated: boolean;
+  // True until bootstrapSession() has settled (success or failure). Consumers
+  // (PwaSplash, route guards) read this to distinguish "still loading" from
+  // "definitely logged out" — both look like isAuthenticated=false otherwise.
+  isBootstrapping: boolean;
   type: "admin" | "system_user" | null;
   adminProfile: AdminProfile | null;
   systemUserProfile: SystemUserProfile | null;
@@ -16,6 +20,7 @@ interface SessionState {
 
 const initialState: SessionState = {
   isAuthenticated: false,
+  isBootstrapping: true,
   type: null,
   adminProfile: null,
   systemUserProfile: null,
@@ -43,16 +48,25 @@ const sessionSlice = createSlice({
       state.adminProfile = null;
       state.systemUserProfile = null;
     },
+    markBootstrapDone(state) {
+      state.isBootstrapping = false;
+    },
   },
 });
 
-export const { setAdminSession, setSystemUserSession, clearSessionState } =
-  sessionSlice.actions;
+export const {
+  setAdminSession,
+  setSystemUserSession,
+  clearSessionState,
+  markBootstrapDone,
+} = sessionSlice.actions;
 export const sessionReducer = sessionSlice.reducer;
 
 // ── Selectors ─────────────────────────────────────────────────────────
 export const selectIsAuthenticated = (state: { session: SessionState }) =>
   state.session.isAuthenticated;
+export const selectIsBootstrapping = (state: { session: SessionState }) =>
+  state.session.isBootstrapping;
 export const selectSessionType = (state: { session: SessionState }) =>
   state.session.type;
 export const selectAdminProfile = (state: { session: SessionState }) =>

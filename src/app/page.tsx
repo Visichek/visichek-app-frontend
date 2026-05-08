@@ -5,8 +5,30 @@ import {
   Building2,
 } from "lucide-react";
 import { AuthenticatedRedirect } from "@/components/auth/authenticated-redirect";
+import { PwaSplash } from "@/components/pwa/pwa-splash";
+import { PwaAwareLanding } from "@/components/pwa/pwa-aware-landing";
 
-export default function HomePage() {
+interface HomePageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  // The manifest sets start_url = "/?launch=pwa", so a PWA cold-launch hits
+  // this branch on the server and SSRs the splash directly. No flash of
+  // the dual-portal landing, no client-side swap.
+  const params = await searchParams;
+  if (params.launch === "pwa") {
+    return <PwaSplash />;
+  }
+
+  return (
+    <PwaAwareLanding>
+      <Landing />
+    </PwaAwareLanding>
+  );
+}
+
+function Landing() {
   return (
     <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center relative overflow-hidden font-sans selection:bg-[#00D287]/20">
       <AuthenticatedRedirect />

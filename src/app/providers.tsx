@@ -8,6 +8,8 @@ import { usePathname } from "next/navigation";
 import { store } from "@/lib/store";
 import { bootstrapSession } from "@/lib/auth/bootstrap";
 import { readAuthHint } from "@/lib/auth/auth-hint";
+import { selectIsBootstrapping } from "@/lib/store/session-slice";
+import { useAppSelector } from "@/lib/store/hooks";
 import { Toaster, toast } from "sonner";
 import { isPermissionError } from "@/types/api";
 import { ThemeProvider } from "@/components/theme/theme-provider";
@@ -83,26 +85,8 @@ export function Providers({ children }: ProvidersProps) {
       })
   );
 
-  const pathname = usePathname();
-
-  // Synchronously check for an auth hint on first client render. On the
-  // server this returns null (no localStorage), so SSR + first hydrate
-  // render the public UI as before — the gate kicks in only on the client
-  // where a hint is actually present. The body has suppressHydrationWarning
-  // already, so the brief commit-time DOM patch is not flagged.
-  const [hadAuthHintAtMount] = useState(() => readAuthHint() !== null);
-
-  // Auth-fork paths only skip the gate when there's no hint that the user
-  // was previously logged in. With a hint, we wait for bootstrap to either
-  // confirm the session (then the page-level redirect fires) or fail (then
-  // the hint is cleared by the store subscription and the gate releases).
-  const skipGate = isPublicPath(pathname)
-    && !(isAuthForkPath(pathname) && hadAuthHintAtMount);
-
-  const [isBootstrapping, setIsBootstrapping] = useState(true);
-
   useEffect(() => {
-    bootstrapSession().finally(() => setIsBootstrapping(false));
+    bootstrapSession();
   }, []);
 
   return (
@@ -111,13 +95,7 @@ export function Providers({ children }: ProvidersProps) {
         <ThemeProvider>
           <TooltipProvider delayDuration={250} skipDelayDuration={150} disableHoverableContent>
             <NavigationLoadingProvider>
-              {isBootstrapping && !skipGate ? (
-                <div className="flex min-h-screen items-center justify-center bg-background">
-                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
-                </div>
-              ) : (
-                children
-              )}
+              <BootstrapGate>{children}</BootstrapGate>
               <NavigationOverlay />
               <ServiceWorkerRegister />
               <Toaster
@@ -132,4 +110,47 @@ export function Providers({ children }: ProvidersProps) {
       </QueryClientProvider>
     </ReduxProvider>
   );
+}
+
+// BootstrapGate is a child of ReduxProvider so it can read isBootstrapping
+// from the store. The bootstrap effect lives in the parent so it fires
+// regardless of which UI we render — splash, gate spinner, or children.
+function BootstrapGate({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const isBootstrapping = useAppSelector(selectIsBootstrapping);
+
+  // Synchronously check for an auth hint on first client render. On the
+  // server this returns null (no localStorage), so SSR + first hydrate
+  // render the public UI as before — the gate kicks in only on the client
+  // where a hint is actually present. The body has suppressHydrationWarning
+  // already, so the brief commit-time DOM patch is not flagged.
+  const [hadAuthHintAtMount] = useState(() => readAuthHint() !== null);
+
+  // Detect PWA standalone mode once at mount. When true, auth-fork paths
+  // are owned by <PwaSplash> (logo + spinner + redirect) — the generic
+  // Providers spinner would just hide the splash. matchMedia covers both
+  // start_url launches and any later in-app navigation back to `/`.
+  const [isPwaStandalone] = useState(() => {
+    if (typeof window === "undefined") return false;
+    if (typeof window.matchMedia !== "function") return false;
+    return window.matchMedia("(display-mode: standalone)").matches;
+  });
+
+  // Auth-fork paths only skip the gate when there's no hint, OR when we're
+  // in PWA standalone mode (the page renders its own splash). With a hint
+  // and no PWA, we wait for bootstrap to either confirm the session (then
+  // the page-level redirect fires) or fail (then the hint is cleared by
+  // the store subscription and the gate releases).
+  const wantsAuthForkGate =
+    isAuthForkPath(pathname) && hadAuthHintAtMount && !isPwaStandalone;
+  const skipGate = isPublicPath(pathname) && !wantsAuthForkGate;
+
+  if (isBootstrapping && !skipGate) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
+      </div>
+    );
+  }
+  return <>{children}</>;
 }

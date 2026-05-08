@@ -3,6 +3,7 @@
 import { useAppSelector } from "@/lib/store/hooks";
 import {
   selectIsAuthenticated,
+  selectIsBootstrapping,
   selectSessionType,
   selectAdminProfile,
   selectSystemUserProfile,
@@ -12,6 +13,7 @@ import {
 
 export function useSession() {
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
+  const isBootstrapping = useAppSelector(selectIsBootstrapping);
   const sessionType = useAppSelector(selectSessionType);
   const adminProfile = useAppSelector(selectAdminProfile);
   const systemUserProfile = useAppSelector(selectSystemUserProfile);
@@ -20,6 +22,7 @@ export function useSession() {
 
   return {
     isAuthenticated,
+    isBootstrapping,
     sessionType,
     adminProfile,
     systemUserProfile,

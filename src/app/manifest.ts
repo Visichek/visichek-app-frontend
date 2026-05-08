@@ -5,7 +5,11 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "VisiChek",
     short_name: "VisiChek",
     description: "Enterprise visitor management platform",
-    start_url: "/",
+    // Query-param flag is read by app/page.tsx so the very first paint of a
+    // PWA launch is the branded splash, not the dual-portal landing. The
+    // app routes don't depend on the param, so navigation away keeps
+    // working normally.
+    start_url: "/?launch=pwa",
     scope: "/",
     display: "standalone",
     orientation: "any",
