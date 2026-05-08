@@ -1,5 +1,5 @@
-import { VisitorsPageClient } from "./visitors-page-client";
+import { redirect } from "next/navigation";
 
 export default function VisitorsPage() {
-  return <VisitorsPageClient />;
+  redirect("/app/visitors/pending");
 }

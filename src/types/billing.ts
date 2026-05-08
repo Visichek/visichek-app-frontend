@@ -18,6 +18,22 @@ export interface FeatureRule {
   description?: string;
 }
 
+/**
+ * Catalog entry returned by `GET /v1/plans/features/catalog`. Drives the
+ * checkboxes on the plan editor — match `endpointPattern` + `methods`
+ * against `Plan.featureRules` to compute the rendered state.
+ */
+export interface PlanFeatureCatalogEntry {
+  key: string;
+  label: string;
+  description: string;
+  endpointPattern: string;
+  methods: string[];
+  defaultEnabled: boolean;
+  requiresExternalConfig: boolean;
+  externalConfigHint: string | null;
+}
+
 export interface CrudLimit {
   collection: string;
   maxCreate?: number | null;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   CircleDollarSign,
   ClipboardCheck,
+  ListChecks,
   Loader2,
   Settings2,
   Tag,
@@ -41,6 +42,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useCreatePlan, useUpdatePlan } from "@/features/plans/hooks/use-plans";
+import { PlanFeaturesChecklist } from "@/features/plans/components/plan-features-checklist";
 import type { Plan } from "@/types/billing";
 
 /* ------------------------------------------------------------------ */
@@ -124,7 +126,8 @@ const EDIT_STEPS: StepDef[] = [
   { id: 1, label: "Identity", icon: Tag },
   { id: 2, label: "Pricing", icon: CircleDollarSign },
   { id: 3, label: "Limits", icon: Settings2 },
-  { id: 4, label: "Review", icon: ClipboardCheck },
+  { id: 4, label: "Features", icon: ListChecks },
+  { id: 5, label: "Review", icon: ClipboardCheck },
 ];
 
 const CREATE_STEP_FIELDS: Record<number, (keyof PlanFormData)[]> = {
@@ -138,6 +141,7 @@ const EDIT_STEP_FIELDS: Record<number, (keyof PlanFormData)[]> = {
   2: [],
   3: [],
   4: [],
+  5: [],
 };
 
 const STEP_DESCRIPTIONS_CREATE: Record<number, string> = {
@@ -150,7 +154,8 @@ const STEP_DESCRIPTIONS_EDIT: Record<number, string> = {
   1: "Update the plan identity and visibility.",
   2: "Update pricing, SLA, and feature flags.",
   3: "Set tenant capacity and storage limits.",
-  4: "Review all changes before saving.",
+  4: "Toggle the togglable features available to tenants on this plan.",
+  5: "Review all changes before saving.",
 };
 
 const LIST_HREF = "/admin/plans";
@@ -222,38 +227,41 @@ export function PlanForm({ plan }: PlanFormProps) {
     mode: "onTouched",
   });
 
-  // Populate form when editing
+  // Populate form when editing. Only reset on the first load of a given
+  // plan id — refetches triggered by side effects like the features
+  // checklist would otherwise overwrite the user's unsaved field edits.
+  const lastResetIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (plan) {
-      resetForm({
-        name: plan.name,
-        displayName: plan.displayName ?? "",
-        tier: plan.tier,
-        description: plan.description ?? "",
-        basePriceMonthly: plan.basePriceMonthly ?? "",
-        basePriceYearly: plan.basePriceYearly ?? "",
-        currency: plan.currency ?? "NGN",
-        isPublic: plan.isPublic ?? false,
-        sortOrder: plan.sortOrder != null ? plan.sortOrder : "",
-        prioritySupport: plan.prioritySupport ?? false,
-        customBranding: plan.customBranding ?? false,
-        apiAccess: plan.apiAccess ?? false,
-        slaResponseHours: nullableInt(plan.slaResponseHours),
-        maxSystemUsers: nullableInt(plan.tenantCaps?.maxSystemUsers),
-        maxDepartments: nullableInt(plan.tenantCaps?.maxDepartments),
-        maxBranches: nullableInt(plan.tenantCaps?.maxBranches),
-        maxVisitorsPerMonth: nullableInt(plan.tenantCaps?.maxVisitorsPerMonth),
-        maxAppointmentsPerMonth: nullableInt(
-          plan.tenantCaps?.maxAppointmentsPerMonth,
-        ),
-        maxDocuments: nullableInt(plan.storageLimits?.maxDocuments),
-        maxStorageMb: nullableInt(plan.storageLimits?.maxStorageMb),
-        maxFileSizeMb:
-          plan.storageLimits?.maxFileSizeMb != null
-            ? plan.storageLimits.maxFileSizeMb
-            : "",
-      });
-    }
+    if (!plan || lastResetIdRef.current === plan.id) return;
+    lastResetIdRef.current = plan.id;
+    resetForm({
+      name: plan.name,
+      displayName: plan.displayName ?? "",
+      tier: plan.tier,
+      description: plan.description ?? "",
+      basePriceMonthly: plan.basePriceMonthly ?? "",
+      basePriceYearly: plan.basePriceYearly ?? "",
+      currency: plan.currency ?? "NGN",
+      isPublic: plan.isPublic ?? false,
+      sortOrder: plan.sortOrder != null ? plan.sortOrder : "",
+      prioritySupport: plan.prioritySupport ?? false,
+      customBranding: plan.customBranding ?? false,
+      apiAccess: plan.apiAccess ?? false,
+      slaResponseHours: nullableInt(plan.slaResponseHours),
+      maxSystemUsers: nullableInt(plan.tenantCaps?.maxSystemUsers),
+      maxDepartments: nullableInt(plan.tenantCaps?.maxDepartments),
+      maxBranches: nullableInt(plan.tenantCaps?.maxBranches),
+      maxVisitorsPerMonth: nullableInt(plan.tenantCaps?.maxVisitorsPerMonth),
+      maxAppointmentsPerMonth: nullableInt(
+        plan.tenantCaps?.maxAppointmentsPerMonth,
+      ),
+      maxDocuments: nullableInt(plan.storageLimits?.maxDocuments),
+      maxStorageMb: nullableInt(plan.storageLimits?.maxStorageMb),
+      maxFileSizeMb:
+        plan.storageLimits?.maxFileSizeMb != null
+          ? plan.storageLimits.maxFileSizeMb
+          : "",
+    });
   }, [plan, resetForm]);
 
   const values = watch();
@@ -352,7 +360,7 @@ export function PlanForm({ plan }: PlanFormProps) {
     custom: "Custom",
   };
 
-  const reviewStep = isEdit ? 4 : 3;
+  const reviewStep = isEdit ? 5 : 3;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -773,6 +781,11 @@ export function PlanForm({ plan }: PlanFormProps) {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ---- Step 4 (Edit only): Features ---- */}
+        {isEdit && plan && stepForm.currentStep === 4 && (
+          <PlanFeaturesChecklist plan={plan} />
         )}
 
         {/* ---- Review step ---- */}

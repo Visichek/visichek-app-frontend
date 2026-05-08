@@ -140,7 +140,7 @@ function normalizeError(error: AxiosError<ErrorEnvelope>): ApiError {
   const message =
     status === 403 && !preserveBackendMessage
       ? "Insufficient permissions — you do not have access to this feature."
-      : envelope?.message || error.message || "An unexpected error occurred";
+      : extractCleanMessage(envelope) || error.message || "An unexpected error occurred";
 
   const code =
     status === 403
@@ -154,4 +154,39 @@ function normalizeError(error: AxiosError<ErrorEnvelope>): ApiError {
     details: envelope?.data?.details,
     requestId: envelope?.requestId,
   });
+}
+
+/**
+ * Pull a user-facing sentence out of an error body. Some backend paths
+ * return the standard `{ message }` envelope, but a few stringify a
+ * structured payload (FastAPI `HTTPException(detail=...)` with a dict)
+ * which arrives as `"400: {'message': '...', 'code': '...', ...}"` —
+ * dumping that whole repr in a toast is unreadable.
+ */
+function extractCleanMessage(envelope: unknown): string | undefined {
+  if (!envelope || typeof envelope !== "object") return undefined;
+  const e = envelope as Record<string, unknown>;
+
+  const candidates: unknown[] = [e.message, e.detail];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string") {
+      const inner = parseInnerMessage(candidate);
+      if (inner) return inner;
+      if (candidate.trim()) return candidate;
+    } else if (candidate && typeof candidate === "object") {
+      const nested = (candidate as Record<string, unknown>).message;
+      if (typeof nested === "string" && nested.trim()) return nested;
+    }
+  }
+  return undefined;
+}
+
+function parseInnerMessage(raw: string): string | undefined {
+  // Match `'message': '...'` (Python repr) or `"message": "..."` (JSON-ish),
+  // tolerating escaped quotes inside the value.
+  const single = raw.match(/'message'\s*:\s*'((?:[^'\\]|\\.)*)'/);
+  if (single) return single[1];
+  const double = raw.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if (double) return double[1];
+  return undefined;
 }

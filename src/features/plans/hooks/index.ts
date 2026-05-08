@@ -7,4 +7,6 @@ export {
   useArchivePlan,
   useClonePlan,
   useDeletePlan,
+  useFeatureCatalog,
+  useTogglePlanFeature,
 } from "./use-plans";

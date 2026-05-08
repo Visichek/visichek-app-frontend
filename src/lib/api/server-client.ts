@@ -55,12 +55,43 @@ async function parseEnvelope<T>(response: Response, url: string): Promise<T> {
 
   const errorEnvelope = envelope as ErrorEnvelope | null;
   throw new ApiError({
-    message: errorEnvelope?.message ?? `Server request failed: ${url}`,
+    message: extractCleanMessage(errorEnvelope) ?? `Server request failed: ${url}`,
     code: errorEnvelope?.data?.code ?? `HTTP_${response.status}`,
     status: response.status,
     details: errorEnvelope?.data?.details,
     requestId: errorEnvelope?.requestId,
   });
+}
+
+/**
+ * Pull a user-facing sentence out of an error body. Mirrors the helper in
+ * `interceptors.ts` — some backend paths return Python-repr strings inside
+ * `message`/`detail`, which would otherwise leak into UI verbatim.
+ */
+function extractCleanMessage(envelope: unknown): string | undefined {
+  if (!envelope || typeof envelope !== "object") return undefined;
+  const e = envelope as Record<string, unknown>;
+
+  const candidates: unknown[] = [e.message, e.detail];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string") {
+      const inner = parseInnerMessage(candidate);
+      if (inner) return inner;
+      if (candidate.trim()) return candidate;
+    } else if (candidate && typeof candidate === "object") {
+      const nested = (candidate as Record<string, unknown>).message;
+      if (typeof nested === "string" && nested.trim()) return nested;
+    }
+  }
+  return undefined;
+}
+
+function parseInnerMessage(raw: string): string | undefined {
+  const single = raw.match(/'message'\s*:\s*'((?:[^'\\]|\\.)*)'/);
+  if (single) return single[1];
+  const double = raw.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if (double) return double[1];
+  return undefined;
 }
 
 function buildSignal(timeoutMs: number | undefined): AbortSignal | undefined {

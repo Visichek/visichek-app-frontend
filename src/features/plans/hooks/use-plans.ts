@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api/request";
-import type { Plan } from "@/types/billing";
+import type { Plan, PlanFeatureCatalogEntry } from "@/types/billing";
 
 interface UsePlansParams {
   status?: string;
@@ -179,6 +179,42 @@ export function useDeletePlan() {
   return useMutation<unknown, Error, string>({
     mutationFn: (planId) => apiDelete(`/plans/${planId}`),
     onSuccess: (_, planId) => {
+      queryClient.invalidateQueries({ queryKey: ["plans", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
+  });
+}
+
+/**
+ * Fetch the catalog of togglable plan features. The list is driven by the
+ * backend's `TOGGLEABLE_FEATURES` registry, so new features appear here
+ * automatically — the frontend doesn't need a code change to render them.
+ */
+export function useFeatureCatalog() {
+  return useQuery<PlanFeatureCatalogEntry[]>({
+    queryKey: ["plans", "features", "catalog"],
+    queryFn: () => apiGet<PlanFeatureCatalogEntry[]>("/plans/features/catalog"),
+    staleTime: 30 * 60 * 1000,
+  });
+}
+
+interface TogglePlanFeatureVariables {
+  featureKey: string;
+  enabled: boolean;
+}
+
+/**
+ * Toggle a single feature on a plan. The backend queues the write and
+ * `apiPost` auto-polls the resulting job, so the mutation stays pending
+ * until the worker has committed and the plan-cache fanout has run.
+ */
+export function useTogglePlanFeature(planId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<unknown, Error, TogglePlanFeatureVariables>({
+    mutationFn: ({ featureKey, enabled }) =>
+      apiPost(`/plans/${planId}/features/${featureKey}`, { enabled }),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["plans", planId] });
       queryClient.invalidateQueries({ queryKey: ["plans"] });
     },

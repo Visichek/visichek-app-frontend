@@ -5,6 +5,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -34,7 +35,12 @@ export interface NavigationLoadingContextValue {
 export const NavigationLoadingContext =
   createContext<NavigationLoadingContextValue | null>(null);
 
-const NAVIGATION_RECOVERY_DELAY_MS = 100;
+// How long the URL bar may diverge from React's committed pathname before we
+// treat the navigation as stuck. App Router transitions normally commit in
+// well under a second; anything past 1.5s with the URL already updated is a
+// stuck transition (stale RSC payload, wedged router cache, etc.).
+const STUCK_NAV_THRESHOLD_MS = 1500;
+const STUCK_NAV_POLL_MS = 250;
 
 function getLocalHrefUrl(href: string): URL | null {
   if (typeof window === "undefined") return null;
@@ -65,36 +71,66 @@ export function NavigationLoadingProvider({
   const router = useRouter();
   const [loadingHref, setLoadingHref] = useState<string | null>(null);
 
-  // Auto-clear when the route actually changes.
+  // Latest committed pathname, readable from the polling loop without making
+  // it a dep (we don't want to tear down the loop on every route change).
+  const pathnameRef = useRef(pathname);
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
+  // Auto-clear when the route actually commits.
   useEffect(() => {
     setLoadingHref(null);
   }, [pathname]);
 
-  // If the client transition updates the URL but never commits the new page,
-  // recover with the same document navigation users were doing manually.
+  // Recover from stuck App Router transitions. Symptom: URL bar updates but
+  // the page tree never commits (the user sees the old page until they
+  // manually refresh). Cause is usually a stale RSC payload or a wedged
+  // client router cache. We watch for `window.location.pathname` diverging
+  // from the committed React `pathname` for longer than the threshold; once
+  // confirmed stuck, we ask the router to refetch the current segment with
+  // `router.refresh()`. If that still doesn't unstick within another window,
+  // we hard-reload as a last resort. This catches both `<Link>` clicks and
+  // `router.push` calls — not just navigations that go through `navigate()`
+  // / `handleNavClick()`.
   useEffect(() => {
-    if (!loadingHref) return;
+    if (typeof window === "undefined") return;
 
-    const timer = window.setTimeout(() => {
-      const target = getLocalHrefUrl(loadingHref);
-      if (!target) {
-        setLoadingHref(null);
+    let stuckSince: number | null = null;
+    let refreshAt: number | null = null;
+
+    const intervalId = window.setInterval(() => {
+      const urlPath = window.location.pathname;
+      const renderedPath = pathnameRef.current ?? "";
+
+      if (urlPath === renderedPath) {
+        stuckSince = null;
+        refreshAt = null;
         return;
       }
 
-      const currentPath = `${window.location.pathname}${window.location.search}`;
-      const targetPath = `${target.pathname}${target.search}`;
-
-      if (currentPath === targetPath) {
-        window.location.reload();
+      const now = Date.now();
+      if (stuckSince === null) {
+        stuckSince = now;
         return;
       }
 
-      window.location.assign(target.href);
-    }, NAVIGATION_RECOVERY_DELAY_MS);
+      if (refreshAt === null && now - stuckSince >= STUCK_NAV_THRESHOLD_MS) {
+        refreshAt = now;
+        router.refresh();
+        return;
+      }
 
-    return () => window.clearTimeout(timer);
-  }, [loadingHref]);
+      // Refresh didn't unstick — hard navigate to the URL the user already
+      // sees in the address bar. This is intentionally the final fallback;
+      // if it ever fires repeatedly there's a deeper bug to chase.
+      if (refreshAt !== null && now - refreshAt >= STUCK_NAV_THRESHOLD_MS) {
+        window.location.assign(window.location.href);
+      }
+    }, STUCK_NAV_POLL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [router]);
 
   const handleNavClick = useCallback(
     (href: string) => {

@@ -49,6 +49,23 @@ export interface VisitorProfileSummary {
   photoUrl?: string;
 }
 
+/**
+ * Visitor summary as returned inline by GET /v1/visitors/awaiting-checkout
+ * (and other approved-checkin enriched endpoints). Note: this is distinct
+ * from VisitorProfileSummary — the field names match the backend payload
+ * (`portraitUrl`, not `photoUrl`).
+ */
+export interface VisitorSummary {
+  id: string;
+  fullName: string;
+  email?: string | null;
+  phone?: string | null;
+  company?: string | null;
+  verified?: boolean;
+  verificationMethod?: string | null;
+  portraitUrl?: string | null;
+}
+
 export interface HostSummary {
   id: string;
   fullName: string;
@@ -75,14 +92,24 @@ export interface ReceptionistSummary {
  */
 export interface VisitSessionWithSummary extends VisitSession {
   receptionistId?: string;
-  checkInTime?: number;
+  checkInTime?: number | null;
   checkOutTime?: number | null;
   badgeExpiry?: number;
+  // Top-level fields included by the awaiting-checkout payload.
+  visitorName?: string | null;
+  company?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  portraitUrl?: string | null;
+  approvedAt?: number | null;
+  // Snapshot strings (kept for older endpoints / appointment links).
   visitorNameSnapshot?: string;
   companySnapshot?: string;
   hostNameSnapshot?: string;
   departmentNameSnapshot?: string;
   receptionistNameSnapshot?: string;
+  // Resolved summaries.
+  visitorSummary?: VisitorSummary;
   visitorProfileSummary?: VisitorProfileSummary;
   hostSummary?: HostSummary;
   departmentSummary?: DepartmentSummary;

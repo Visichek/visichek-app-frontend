@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  Info,
   Loader2,
   RefreshCcw,
 } from "lucide-react";
@@ -37,6 +38,13 @@ export interface KycStatusScreenProps {
   message?: string;
   /** Tenant name shown in the awaiting-approval message. */
   tenantName?: string;
+  /**
+   * Secondary info-tone note shown below the main message. Used to
+   * surface the "you asked to verify but the backend silently skipped
+   * KYC because the plan doesn't grant it" case so the visitor isn't
+   * confused about why no widget opened.
+   */
+  note?: string;
   /** Provided when `state === "failed"` to expose the retry CTA. */
   onRetry?: () => void;
   /** Disables retry while a follow-up request is in flight. */
@@ -47,6 +55,7 @@ export function KycStatusScreen({
   state,
   message,
   tenantName,
+  note,
   onRetry,
   retrying,
 }: KycStatusScreenProps) {
@@ -78,6 +87,15 @@ export function KycStatusScreen({
               ? `Your check-in has been sent to ${tenantName}. Please have a seat — a receptionist will be with you shortly.`
               : "Your check-in is waiting for receptionist approval. Please have a seat.")}
         </p>
+        {note && (
+          <div className="mx-auto max-w-sm rounded-lg border bg-muted/40 p-3 text-left text-xs flex items-start gap-2">
+            <Info
+              className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <span className="text-muted-foreground">{note}</span>
+          </div>
+        )}
         <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-2">
           <Clock className="h-3.5 w-3.5" aria-hidden="true" />
           <span>Approval is usually under a minute.</span>

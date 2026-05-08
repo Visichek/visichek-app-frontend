@@ -37,6 +37,8 @@ export interface AwaitingCheckoutPickerProps {
 
 function visitorName(row: VisitSessionWithSummary): string {
   return (
+    row.visitorSummary?.fullName ||
+    row.visitorName ||
     row.visitorProfileSummary?.fullName ||
     row.visitorNameSnapshot ||
     "Unnamed visitor"
@@ -44,7 +46,22 @@ function visitorName(row: VisitSessionWithSummary): string {
 }
 
 function visitorCompany(row: VisitSessionWithSummary): string | undefined {
-  return row.visitorProfileSummary?.company || row.companySnapshot;
+  return (
+    row.visitorSummary?.company ||
+    row.company ||
+    row.visitorProfileSummary?.company ||
+    row.companySnapshot ||
+    undefined
+  );
+}
+
+function visitorPhoto(row: VisitSessionWithSummary): string | undefined {
+  return (
+    row.visitorSummary?.portraitUrl ||
+    row.portraitUrl ||
+    row.visitorProfileSummary?.photoUrl ||
+    undefined
+  );
 }
 
 function hostName(row: VisitSessionWithSummary): string | undefined {
@@ -217,7 +234,7 @@ export function AwaitingCheckoutPicker({
           {filtered.map((row) => {
             const isThisRowPending =
               checkOut.isPending && pendingSession?.id === row.id;
-            const photo = row.visitorProfileSummary?.photoUrl;
+            const photo = visitorPhoto(row);
             const name = visitorName(row);
             const company = visitorCompany(row);
             const host = hostName(row);

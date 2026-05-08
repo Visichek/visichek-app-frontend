@@ -155,7 +155,18 @@ const INITIAL_STATE: KioskState = {
 type KycPhase =
   | { kind: "idle" }
   | { kind: "submitting" }
-  | { kind: "awaiting_approval"; checkin: CheckinOut }
+  | {
+      kind: "awaiting_approval";
+      checkin: CheckinOut;
+      /**
+       * True when the visitor explicitly chose "Verify with Dojah" on
+       * step 2 but the backend returned `state: "pending_approval"`
+       * directly (the v2 doc's "silent degrade" path — plan doesn't
+       * grant /v1/kyc/*). Drives an extra info note on the wait screen
+       * so the visitor isn't left wondering why no widget opened.
+       */
+      kycSilentlySkipped?: boolean;
+    }
   | { kind: "kyc_initiating"; checkin: CheckinOut }
   | { kind: "kyc_running"; checkin: CheckinOut; widgetConfig: KycWidgetConfig }
   | { kind: "kyc_polling"; checkin: CheckinOut }
@@ -360,7 +371,12 @@ export default function KioskCheckinPage() {
    */
   async function routePostSubmit(checkin: CheckinOut) {
     if (checkin.state !== "pending_kyc") {
-      setPhase({ kind: "awaiting_approval", checkin });
+      // Silent-degrade detection: visitor opted in to verification but the
+      // backend returned `pending_approval` anyway — typically because the
+      // tenant's plan doesn't grant `/v1/kyc/*`. Surface this on the wait
+      // screen so the visitor knows why no widget appeared.
+      const kycSilentlySkipped = state.kycIntent === "verify";
+      setPhase({ kind: "awaiting_approval", checkin, kycSilentlySkipped });
       return;
     }
 
@@ -392,7 +408,11 @@ export default function KioskCheckinPage() {
       // 402 FEATURE_DISABLED → KYC isn't on this plan; treat as skip-like
       // success so the kiosk can proceed to the wait screen.
       if (err instanceof ApiError && err.code === "FEATURE_DISABLED") {
-        setPhase({ kind: "awaiting_approval", checkin });
+        setPhase({
+          kind: "awaiting_approval",
+          checkin,
+          kycSilentlySkipped: true,
+        });
         return;
       }
       const info = describeCheckinError(err);
@@ -1149,6 +1169,11 @@ function PostSubmitScreen({
   }
 
   const screenState = mapPhaseToScreenState(phase);
+  const note =
+    phase.kind === "awaiting_approval" && phase.kycSilentlySkipped
+      ? "Verification wasn't available right now, so we skipped it. The receptionist will verify your identity manually when they approve your check-in."
+      : undefined;
+
   return (
     <Card>
       <CardContent className="pt-6">
@@ -1158,6 +1183,7 @@ function PostSubmitScreen({
           message={
             phase.kind === "kyc_failed" ? phase.reason : undefined
           }
+          note={note}
           onRetry={phase.kind === "kyc_failed" ? onRetry : undefined}
           retrying={retrying}
         />

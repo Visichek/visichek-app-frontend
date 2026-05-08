@@ -1,9 +1,7 @@
 "use client";
 
 import {
-  useState,
   useMemo,
-  useTransition,
   type ReactNode,
 } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -41,39 +39,55 @@ import { useSession } from "@/hooks/use-session";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { formatDateTime } from "@/lib/utils/format-date";
 import type { CheckinOut, CheckinState } from "@/types/checkin";
+import { GroupedVisitorsList } from "@/features/visitors/components/grouped-visitors-list";
+
+type VisitorsTabState = Extract<
+  CheckinState,
+  "pending_approval" | "approved" | "rejected" | "checked_out"
+>;
 
 interface TabDef {
-  id: CheckinState;
+  id: VisitorsTabState;
+  href: string;
   label: string;
   emptyTitle: string;
   emptyDescription: string;
+  tooltip: string;
 }
 
 const TABS: readonly TabDef[] = [
   {
     id: "pending_approval",
-    label: "Pending approval",
+    href: "/app/visitors/pending",
+    label: "Pending",
     emptyTitle: "No pending check-ins",
     emptyDescription: "New submissions appear here automatically.",
+    tooltip: "Check-ins awaiting your review",
   },
   {
     id: "approved",
+    href: "/app/visitors/approved",
     label: "Approved",
     emptyTitle: "No approved check-ins yet",
     emptyDescription:
       "Once you approve a pending check-in it will show up here.",
+    tooltip: "Visitors you've let in",
   },
   {
     id: "rejected",
+    href: "/app/visitors/rejected",
     label: "Rejected",
     emptyTitle: "No rejected check-ins",
     emptyDescription: "Rejected check-ins will show here with their reason.",
+    tooltip: "Check-ins you've denied and why",
   },
   {
     id: "checked_out",
+    href: "/app/visitors/checked-out",
     label: "Checked out",
     emptyTitle: "No checked-out visitors yet",
     emptyDescription: "Visitors appear here after their visit ends.",
+    tooltip: "Visitors whose visit has ended",
   },
 ] as const;
 
@@ -85,33 +99,47 @@ function detailHref(id: string) {
   return `/app/visitors/${id}`;
 }
 
-export function VisitorsPageClient() {
+interface VisitorsPageClientProps {
+  activeState: VisitorsTabState;
+}
+
+export function VisitorsPageClient({ activeState }: VisitorsPageClientProps) {
   const { tenantId } = useSession();
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
-  const [activeTab, setActiveTab] = useState<CheckinState>("pending_approval");
-  const [switchingTo, setSwitchingTo] = useState<CheckinState | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const pendingQuery = useTenantCheckins(tenantId ?? undefined, {
+    state: "pending_approval",
+  });
+  const approvedQuery = useTenantCheckins(tenantId ?? undefined, {
+    state: "approved",
+  });
+  const rejectedQuery = useTenantCheckins(tenantId ?? undefined, {
+    state: "rejected",
+  });
+  const checkedOutQuery = useTenantCheckins(tenantId ?? undefined, {
+    state: "checked_out",
+  });
 
-  function switchTab(next: CheckinState) {
-    if (next === activeTab) return;
-    setSwitchingTo(next);
-    startTransition(() => {
-      setActiveTab(next);
-      setSwitchingTo(null);
-    });
-  }
+  const counts: Record<VisitorsTabState, number> = {
+    pending_approval: pendingQuery.data?.length ?? 0,
+    approved: approvedQuery.data?.length ?? 0,
+    rejected: rejectedQuery.data?.length ?? 0,
+    checked_out: checkedOutQuery.data?.length ?? 0,
+  };
 
-  const { data: checkins = [], isLoading } = useTenantCheckins(
-    tenantId ?? undefined,
-    { state: activeTab },
-  );
+  const queryByState: Record<
+    VisitorsTabState,
+    { data?: CheckinOut[]; isLoading: boolean }
+  > = {
+    pending_approval: pendingQuery,
+    approved: approvedQuery,
+    rejected: rejectedQuery,
+    checked_out: checkedOutQuery,
+  };
 
-  const { data: pendingForCount = [] } = useTenantCheckins(
-    tenantId ?? undefined,
-    { state: "pending_approval" },
-  );
-  const pendingCount = pendingForCount.length;
+  const activeQuery = queryByState[activeState];
+  const activeData = activeQuery.data ?? [];
+  const isLoading = activeQuery.isLoading;
 
   const visitorName = (row: CheckinOut) =>
     row.visitor?.fullName || "Unnamed visitor";
@@ -424,6 +452,8 @@ export function VisitorsPageClient() {
     );
   };
 
+  const activeTab = TABS.find((t) => t.id === activeState) ?? TABS[0];
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -458,8 +488,8 @@ export function VisitorsPageClient() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                Record a visitor&apos;s departure by scanning their badge or
-                entering their session ID
+                Choose how to check a visitor out — by scanning their badge or
+                picking them from the list
               </TooltipContent>
             </Tooltip>
             <Tooltip>
@@ -503,18 +533,17 @@ export function VisitorsPageClient() {
         aria-label="Check-in states"
       >
         {TABS.map((tab) => {
-          const isActive = activeTab === tab.id;
-          const isSpinning = isPending && switchingTo === tab.id;
-          const showPendingCount =
-            tab.id === "pending_approval" && pendingCount > 0;
+          const isActive = activeState === tab.id;
+          const isLoadingTab = loadingHref === tab.href;
+          const count = counts[tab.id];
           return (
             <Tooltip key={tab.id}>
               <TooltipTrigger asChild>
-                <button
-                  type="button"
+                <Link
+                  href={tab.href}
                   role="tab"
                   aria-selected={isActive}
-                  onClick={() => switchTab(tab.id)}
+                  onClick={() => handleNavClick(tab.href)}
                   className={cn(
                     "pb-2 px-1 text-sm font-medium border-b-2 transition-colors relative whitespace-nowrap inline-flex items-center gap-1.5 min-h-[44px]",
                     isActive
@@ -522,56 +551,56 @@ export function VisitorsPageClient() {
                       : "border-transparent text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  {isSpinning && (
+                  {isLoadingTab && (
                     <Loader2
                       className="h-3.5 w-3.5 animate-spin"
                       aria-hidden="true"
                     />
                   )}
                   {tab.label}
-                  {showPendingCount && (
+                  {count > 0 && (
                     <span
-                      className="ml-1 inline-flex items-center justify-center rounded-full bg-warning text-warning-foreground text-xs font-semibold h-5 min-w-[20px] px-1.5"
-                      aria-label={`${pendingCount} pending`}
+                      className={cn(
+                        "ml-1 inline-flex items-center justify-center rounded-full text-xs font-semibold h-5 min-w-[20px] px-1.5",
+                        tab.id === "pending_approval"
+                          ? "bg-warning text-warning-foreground"
+                          : isActive
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground",
+                      )}
+                      aria-label={`${count} ${tab.label.toLowerCase()}`}
                     >
-                      {pendingCount}
+                      {count}
                     </span>
                   )}
-                </button>
+                </Link>
               </TooltipTrigger>
-              <TooltipContent side="bottom">
-                {tab.id === "pending_approval"
-                  ? "Check-ins awaiting your review"
-                  : tab.id === "approved"
-                    ? "Visitors you've let in"
-                    : tab.id === "rejected"
-                      ? "Check-ins you've denied and why"
-                      : "Visitors whose visit has ended"}
-              </TooltipContent>
+              <TooltipContent side="bottom">{tab.tooltip}</TooltipContent>
             </Tooltip>
           );
         })}
       </div>
 
-      {TABS.map((tab) => {
-        if (tab.id !== activeTab) return null;
-        return (
-          <DataTable
-            key={tab.id}
-            columns={columns}
-            data={checkins}
-            isLoading={isLoading}
-            searchKey="visitorName"
-            searchPlaceholder="Search by visitor name..."
-            pagination
-            pageSize={10}
-            mobileCard={mobileCard}
-            emptyTitle={tab.emptyTitle}
-            emptyDescription={tab.emptyDescription}
-          />
-        );
-      })}
-
+      {activeState === "pending_approval" ? (
+        <DataTable
+          columns={columns}
+          data={activeData}
+          isLoading={isLoading}
+          searchKey="visitorName"
+          searchPlaceholder="Search by visitor name..."
+          pagination
+          pageSize={10}
+          mobileCard={mobileCard}
+          emptyTitle={activeTab.emptyTitle}
+          emptyDescription={activeTab.emptyDescription}
+        />
+      ) : (
+        <GroupedVisitorsList
+          checkins={activeData}
+          emptyTitle={activeTab.emptyTitle}
+          emptyDescription={activeTab.emptyDescription}
+        />
+      )}
     </div>
   );
 }
