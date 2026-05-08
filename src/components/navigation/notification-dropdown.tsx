@@ -148,12 +148,15 @@ export function NotificationDropdown() {
       markAsRead.mutate(id);
     }
     if (link) {
+      // Backend emits "/app/checkins/{id}" but the actual visitor session
+      // detail route is "/app/visitors/{id}".
+      const remapped = link.replace(/^\/app\/checkins\//, "/app/visitors/");
       // Notifications are emitted by the backend with tenant-shell paths.
       // When a platform admin opens one, swap /app/* for the admin shell so
       // the sidebar and role guards match up.
-      const target = isAdmin && link.startsWith("/app/")
-        ? link.replace(/^\/app\//, "/admin/")
-        : link;
+      const target = isAdmin && remapped.startsWith("/app/")
+        ? remapped.replace(/^\/app\//, "/admin/")
+        : remapped;
       navigate(target);
     }
   };
