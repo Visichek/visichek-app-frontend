@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, CheckCircle2, XCircle, LogOut } from "lucide-react";
+import { Clock, CheckCircle2, XCircle, LogOut, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils/cn";
 import type { CheckinState } from "@/types/checkin";
@@ -9,6 +9,11 @@ const STATE_COPY: Record<
   CheckinState,
   { label: string; icon: typeof Clock; className: string }
 > = {
+  pending_kyc: {
+    label: "Awaiting verification",
+    icon: ShieldCheck,
+    className: "bg-warning/70 text-warning-foreground",
+  },
   pending_approval: {
     label: "Pending approval",
     icon: Clock,

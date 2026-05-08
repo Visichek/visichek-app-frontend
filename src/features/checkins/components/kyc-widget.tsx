@@ -42,6 +42,9 @@ export interface KycWidgetUserData {
   last_name?: string;
   email?: string;
   dob?: string;
+  // Mirrors the index signature on the SDK's `userData` prop so we can
+  // pass extra fields (e.g. `residence_country`) without a type cast.
+  [key: string]: unknown;
 }
 
 export interface KycWidgetProps {

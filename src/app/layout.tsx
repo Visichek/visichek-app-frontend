@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Plus_Jakarta_Sans, IBM_Plex_Mono } from "next/font/google";
+import Script from "next/script";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -77,13 +78,13 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${fraunces.variable} ${plusJakartaSans.variable} ${ibmPlexMono.variable}`}
     >
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: DOM_RECONCILER_GUARD }} />
-      </head>
       <body
         className="min-h-screen bg-background font-sans antialiased"
         suppressHydrationWarning
       >
+        <Script id="dom-reconciler-guard" strategy="beforeInteractive">
+          {DOM_RECONCILER_GUARD}
+        </Script>
         <a href="#main-content" className="skip-to-content">
           Skip to content
         </a>

@@ -119,22 +119,23 @@ function BootstrapGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isBootstrapping = useAppSelector(selectIsBootstrapping);
 
-  // Synchronously check for an auth hint on first client render. On the
-  // server this returns null (no localStorage), so SSR + first hydrate
-  // render the public UI as before — the gate kicks in only on the client
-  // where a hint is actually present. The body has suppressHydrationWarning
-  // already, so the brief commit-time DOM patch is not flagged.
-  const [hadAuthHintAtMount] = useState(() => readAuthHint() !== null);
+  // Auth hint and PWA standalone checks must be deferred until after the
+  // first commit. Reading them during render would cause a hydration
+  // mismatch: the server has no localStorage / matchMedia, so SSR renders
+  // the public UI, but a client with a hint would render the spinner —
+  // and the element trees differ enough that suppressHydrationWarning on
+  // <body> can't paper over it. Setting these in useEffect keeps the
+  // first client render identical to SSR; the gate engages on the second
+  // render, which is fine because bootstrap takes longer than one frame.
+  const [hadAuthHintAtMount, setHadAuthHintAtMount] = useState(false);
+  const [isPwaStandalone, setIsPwaStandalone] = useState(false);
 
-  // Detect PWA standalone mode once at mount. When true, auth-fork paths
-  // are owned by <PwaSplash> (logo + spinner + redirect) — the generic
-  // Providers spinner would just hide the splash. matchMedia covers both
-  // start_url launches and any later in-app navigation back to `/`.
-  const [isPwaStandalone] = useState(() => {
-    if (typeof window === "undefined") return false;
-    if (typeof window.matchMedia !== "function") return false;
-    return window.matchMedia("(display-mode: standalone)").matches;
-  });
+  useEffect(() => {
+    setHadAuthHintAtMount(readAuthHint() !== null);
+    if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+      setIsPwaStandalone(window.matchMedia("(display-mode: standalone)").matches);
+    }
+  }, []);
 
   // Auth-fork paths only skip the gate when there's no hint, OR when we're
   // in PWA standalone mode (the page renders its own splash). With a hint
