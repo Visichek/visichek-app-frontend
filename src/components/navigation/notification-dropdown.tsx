@@ -46,6 +46,41 @@ const TYPE_CONFIG: Record<
   success: { icon: CheckCircle2, className: "text-emerald-500" },
 };
 
+function normalizeNotificationTarget(
+  link: string,
+  isAdmin: boolean,
+): string | null {
+  const base =
+    typeof window === "undefined"
+      ? "https://client.visichek.app"
+      : window.location.origin;
+
+  try {
+    const url = new URL(link, base);
+    if (typeof window !== "undefined" && url.origin !== window.location.origin) {
+      return null;
+    }
+
+    // Backend emits "/app/checkins/{id}" for visitor approval events, but
+    // the tenant-facing detail route is "/app/visitors/{id}".
+    let pathname = url.pathname.replace(
+      /^\/app\/checkins\//,
+      "/app/visitors/",
+    );
+
+    // Notifications are emitted by the backend with tenant-shell paths. When
+    // a platform admin opens one, swap /app/* for the admin shell so the
+    // sidebar and role guards match up.
+    if (isAdmin && pathname.startsWith("/app/")) {
+      pathname = pathname.replace(/^\/app\//, "/admin/");
+    }
+
+    return `${pathname}${url.search}${url.hash}`;
+  } catch {
+    return null;
+  }
+}
+
 function formatRelativeTime(unixSeconds: number): string {
   const now = Date.now() / 1000;
   const diff = now - unixSeconds;
@@ -119,8 +154,11 @@ function UnreadBadge({ count }: { count: number }) {
 }
 
 export function NotificationDropdown() {
-  const { navigate } = useNavigationLoading();
   const { isAdmin } = useSession();
+  const { handleNavClick } = useNavigationLoading();
+  const [openingNotificationId, setOpeningNotificationId] = useState<
+    string | null
+  >(null);
 
   const { data: unreadData } = useUnreadCount();
   const {
@@ -148,16 +186,16 @@ export function NotificationDropdown() {
       markAsRead.mutate(id);
     }
     if (link) {
-      // Backend emits "/app/checkins/{id}" but the actual visitor session
-      // detail route is "/app/visitors/{id}".
-      const remapped = link.replace(/^\/app\/checkins\//, "/app/visitors/");
-      // Notifications are emitted by the backend with tenant-shell paths.
-      // When a platform admin opens one, swap /app/* for the admin shell so
-      // the sidebar and role guards match up.
-      const target = isAdmin && remapped.startsWith("/app/")
-        ? remapped.replace(/^\/app\//, "/admin/")
-        : remapped;
-      navigate(target);
+      const target = normalizeNotificationTarget(link, isAdmin);
+      if (!target) return;
+
+      setOpeningNotificationId(id);
+      handleNavClick(target);
+
+      // Notification targets are deep links that may come from async backend
+      // events. Use a document navigation so a stale App Router client state
+      // cannot leave the URL changed while the previous page remains mounted.
+      window.setTimeout(() => window.location.assign(target), 0);
     }
   };
 
@@ -270,74 +308,104 @@ export function NotificationDropdown() {
               const config =
                 TYPE_CONFIG[notification.type] ?? TYPE_CONFIG.info;
               const Icon = config.icon;
+              const isOpening = openingNotificationId === notification.id;
               // Error-type notifications (e.g. failed queued writes) deserve
               // a stronger visual cue than "info" or "success".
               const isError = notification.type === "error";
 
               return (
-                <div
-                  key={notification.id}
-                  className={cn(
-                    "flex gap-3 px-4 py-3 transition-colors hover:bg-muted/50 cursor-pointer border-b last:border-0 border-l-2 border-l-transparent",
-                    !notification.read && !isError && "bg-primary/[0.03]",
-                    isError && "border-l-destructive bg-destructive/[0.04]",
-                  )}
-                  onClick={() =>
-                    handleNotificationClick(
-                      notification.id,
-                      notification.link,
-                      notification.read
-                    )
-                  }
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      handleNotificationClick(
-                        notification.id,
-                        notification.link,
-                        notification.read
-                      );
-                    }
-                  }}
-                >
-                  <div className="mt-0.5 shrink-0">
-                    <Icon className={cn("h-4 w-4", config.className)} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <p
-                        className={cn(
-                          "text-sm leading-tight",
-                          !notification.read && "font-medium"
+                <Tooltip key={notification.id}>
+                  <TooltipTrigger asChild>
+                    <div
+                      className={cn(
+                        "flex gap-3 px-4 py-3 transition-colors hover:bg-muted/50 cursor-pointer border-b last:border-0 border-l-2 border-l-transparent",
+                        !notification.read && !isError && "bg-primary/[0.03]",
+                        isError && "border-l-destructive bg-destructive/[0.04]",
+                      )}
+                      onClick={() => {
+                        if (openingNotificationId) return;
+                        handleNotificationClick(
+                          notification.id,
+                          notification.link,
+                          notification.read,
+                        );
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      aria-disabled={openingNotificationId !== null}
+                      onKeyDown={(e) => {
+                        if (
+                          openingNotificationId ||
+                          (e.key !== "Enter" && e.key !== " ")
+                        ) {
+                          return;
+                        }
+                        e.preventDefault();
+                        handleNotificationClick(
+                          notification.id,
+                          notification.link,
+                          notification.read,
+                        );
+                      }}
+                    >
+                      <div className="mt-0.5 shrink-0">
+                        {isOpening ? (
+                          <Loader2
+                            className="h-4 w-4 animate-spin text-primary"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <Icon className={cn("h-4 w-4", config.className)} />
                         )}
-                      >
-                        {notification.title}
-                      </p>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 shrink-0 opacity-60 hover:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteNotification.mutate(notification.id);
-                        }}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <p
+                            className={cn(
+                              "text-sm leading-tight",
+                              !notification.read && "font-medium",
+                            )}
+                          >
+                            {notification.title}
+                          </p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 shrink-0 opacity-60 hover:opacity-100"
+                                aria-label="Delete notification"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteNotification.mutate(notification.id);
+                                }}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="left">
+                              Delete this notification from your recent alerts
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                          {notification.body}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground/70 mt-1">
+                          {formatRelativeTime(notification.dateCreated)}
+                        </p>
+                      </div>
+                      {!notification.read && (
+                        <span className="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0" />
+                      )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                      {notification.body}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground/70 mt-1">
-                      {formatRelativeTime(notification.dateCreated)}
-                    </p>
-                  </div>
-                  {!notification.read && (
-                    <span className="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0" />
-                  )}
-                </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">
+                    {notification.link
+                      ? "Open the page connected to this notification"
+                      : "Mark this notification as read"}
+                  </TooltipContent>
+                </Tooltip>
               );
             })
           )}

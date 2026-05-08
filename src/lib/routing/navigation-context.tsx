@@ -36,10 +36,9 @@ export const NavigationLoadingContext =
   createContext<NavigationLoadingContextValue | null>(null);
 
 // How long the URL bar may diverge from React's committed pathname before we
-// treat the navigation as stuck. App Router transitions normally commit in
-// well under a second; anything past 1.5s with the URL already updated is a
-// stuck transition (stale RSC payload, wedged router cache, etc.).
-const STUCK_NAV_THRESHOLD_MS = 1500;
+// nudge the router. Slow networks and chunk downloads can legitimately take a
+// few seconds, so keep this generous and never hard-reload from here.
+const STUCK_NAV_THRESHOLD_MS = 8000;
 const STUCK_NAV_POLL_MS = 250;
 
 function getLocalHrefUrl(href: string): URL | null {
@@ -84,20 +83,16 @@ export function NavigationLoadingProvider({
   }, [pathname]);
 
   // Recover from stuck App Router transitions. Symptom: URL bar updates but
-  // the page tree never commits (the user sees the old page until they
-  // manually refresh). Cause is usually a stale RSC payload or a wedged
-  // client router cache. We watch for `window.location.pathname` diverging
-  // from the committed React `pathname` for longer than the threshold; once
-  // confirmed stuck, we ask the router to refetch the current segment with
-  // `router.refresh()`. If that still doesn't unstick within another window,
-  // we hard-reload as a last resort. This catches both `<Link>` clicks and
-  // `router.push` calls — not just navigations that go through `navigate()`
-  // / `handleNavClick()`.
+  // the page tree has not committed yet. We watch for
+  // `window.location.pathname` diverging from the committed React `pathname`
+  // for longer than the threshold; once confirmed stuck, we ask the router to
+  // refetch the current segment. Avoid hard reloads here: doing that from a
+  // polling effect can turn one slow transition into a reload loop.
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     let stuckSince: number | null = null;
-    let refreshAt: number | null = null;
+    let refreshed = false;
 
     const intervalId = window.setInterval(() => {
       const urlPath = window.location.pathname;
@@ -105,7 +100,7 @@ export function NavigationLoadingProvider({
 
       if (urlPath === renderedPath) {
         stuckSince = null;
-        refreshAt = null;
+        refreshed = false;
         return;
       }
 
@@ -115,18 +110,12 @@ export function NavigationLoadingProvider({
         return;
       }
 
-      if (refreshAt === null && now - stuckSince >= STUCK_NAV_THRESHOLD_MS) {
-        refreshAt = now;
+      if (!refreshed && now - stuckSince >= STUCK_NAV_THRESHOLD_MS) {
+        refreshed = true;
         router.refresh();
         return;
       }
 
-      // Refresh didn't unstick — hard navigate to the URL the user already
-      // sees in the address bar. This is intentionally the final fallback;
-      // if it ever fires repeatedly there's a deeper bug to chase.
-      if (refreshAt !== null && now - refreshAt >= STUCK_NAV_THRESHOLD_MS) {
-        window.location.assign(window.location.href);
-      }
     }, STUCK_NAV_POLL_MS);
 
     return () => window.clearInterval(intervalId);
