@@ -40,6 +40,7 @@ export const NavigationLoadingContext =
 // few seconds, so keep this generous and never hard-reload from here.
 const STUCK_NAV_THRESHOLD_MS = 8000;
 const STUCK_NAV_POLL_MS = 250;
+const NAV_LOADING_TIMEOUT_MS = 12_000;
 
 function getLocalHrefUrl(href: string): URL | null {
   if (typeof window === "undefined") return null;
@@ -52,13 +53,29 @@ function getLocalHrefUrl(href: string): URL | null {
   }
 }
 
-function isCurrentPath(pathname: string, href: string): boolean {
+function normalizePathname(pathname: string): string {
+  return pathname === "/" ? "/" : pathname.replace(/\/$/, "");
+}
+
+function getCurrentSearch(): string {
+  if (typeof window === "undefined") return "";
+  return window.location.search.replace(/^\?/, "");
+}
+
+function isCurrentLocation(
+  pathname: string,
+  href: string,
+): boolean {
   const url = getLocalHrefUrl(href);
   const rawPathname = url?.pathname ?? href.split(/[?#]/)[0];
-  const targetPathname =
-    rawPathname === "/" ? "/" : rawPathname.replace(/\/$/, "");
+  const targetPathname = normalizePathname(rawPathname);
 
-  return pathname === targetPathname;
+  if (normalizePathname(pathname) !== targetPathname) return false;
+
+  const hasExplicitSearch = href.includes("?");
+  if (!hasExplicitSearch) return true;
+
+  return getCurrentSearch() === (url?.search ?? "").replace(/^\?/, "");
 }
 
 export function NavigationLoadingProvider({
@@ -81,6 +98,30 @@ export function NavigationLoadingProvider({
   useEffect(() => {
     setLoadingHref(null);
   }, [pathname]);
+
+  // The clicked item should give immediate feedback, but a router transition
+  // must never block the whole shell forever. If the destination does not
+  // commit within the timeout, release the overlay. Query-only navigations
+  // keep the same pathname, so we also clear as soon as the browser URL has
+  // the requested search string.
+  useEffect(() => {
+    if (!loadingHref) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setLoadingHref(null);
+    }, NAV_LOADING_TIMEOUT_MS);
+
+    const intervalId = window.setInterval(() => {
+      if (isCurrentLocation(pathname, loadingHref)) {
+        setLoadingHref(null);
+      }
+    }, STUCK_NAV_POLL_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
+    };
+  }, [loadingHref, pathname]);
 
   // Recover from stuck App Router transitions. Symptom: URL bar updates but
   // the page tree has not committed yet. We watch for
@@ -123,7 +164,7 @@ export function NavigationLoadingProvider({
 
   const handleNavClick = useCallback(
     (href: string) => {
-      if (!isCurrentPath(pathname, href)) {
+      if (!isCurrentLocation(pathname, href)) {
         setLoadingHref(href);
       }
     },
@@ -132,7 +173,7 @@ export function NavigationLoadingProvider({
 
   const navigate = useCallback(
     (href: string) => {
-      if (!isCurrentPath(pathname, href)) {
+      if (!isCurrentLocation(pathname, href)) {
         setLoadingHref(href);
       }
       router.push(href);

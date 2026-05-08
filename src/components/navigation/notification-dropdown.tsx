@@ -155,7 +155,7 @@ function UnreadBadge({ count }: { count: number }) {
 
 export function NotificationDropdown() {
   const { isAdmin } = useSession();
-  const { handleNavClick } = useNavigationLoading();
+  const { loadingHref, navigate } = useNavigationLoading();
   const [openingNotificationId, setOpeningNotificationId] = useState<
     string | null
   >(null);
@@ -177,6 +177,12 @@ export function NotificationDropdown() {
 
   const unreadCount = unreadData?.count ?? 0;
 
+  useEffect(() => {
+    if (!loadingHref && openingNotificationId) {
+      setOpeningNotificationId(null);
+    }
+  }, [loadingHref, openingNotificationId]);
+
   const handleNotificationClick = (
     id: string,
     link?: string | null,
@@ -190,12 +196,7 @@ export function NotificationDropdown() {
       if (!target) return;
 
       setOpeningNotificationId(id);
-      handleNavClick(target);
-
-      // Notification targets are deep links that may come from async backend
-      // events. Use a document navigation so a stale App Router client state
-      // cannot leave the URL changed while the previous page remains mounted.
-      window.setTimeout(() => window.location.assign(target), 0);
+      navigate(target);
     }
   };
 

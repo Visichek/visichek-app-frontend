@@ -25,6 +25,9 @@ export interface UseNavLoadingOptions {
   scope?: NavLoadingScope;
 }
 
+const LOCAL_NAV_LOADING_TIMEOUT_MS = 12_000;
+const LOCAL_NAV_LOADING_POLL_MS = 250;
+
 /**
  * Tracks which navigation href is currently loading and provides handlers
  * to set it. Returns the same shape regardless of `scope` so call sites
@@ -51,9 +54,28 @@ export function useNavLoading(
     setLocalLoadingHref(null);
   }, [pathname]);
 
+  useEffect(() => {
+    if (!localLoadingHref) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setLocalLoadingHref(null);
+    }, LOCAL_NAV_LOADING_TIMEOUT_MS);
+
+    const intervalId = window.setInterval(() => {
+      if (isCurrentLocation(pathname, localLoadingHref)) {
+        setLocalLoadingHref(null);
+      }
+    }, LOCAL_NAV_LOADING_POLL_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
+    };
+  }, [localLoadingHref, pathname]);
+
   const localHandleNavClick = useCallback(
     (href: string) => {
-      if (!isCurrentPath(pathname, href)) {
+      if (!isCurrentLocation(pathname, href)) {
         setLocalLoadingHref(href);
       }
     },
@@ -62,7 +84,7 @@ export function useNavLoading(
 
   const localNavigate = useCallback(
     (href: string) => {
-      if (!isCurrentPath(pathname, href)) {
+      if (!isCurrentLocation(pathname, href)) {
         setLocalLoadingHref(href);
       }
       router.push(href);
@@ -98,10 +120,38 @@ export function useNavigationLoading(): NavigationLoadingContextValue {
   return useNavLoading();
 }
 
-function isCurrentPath(pathname: string, href: string): boolean {
-  const rawPathname = href.split(/[?#]/)[0];
-  const targetPathname =
-    rawPathname === "/" ? "/" : rawPathname.replace(/\/$/, "");
+function normalizePathname(pathname: string): string {
+  return pathname === "/" ? "/" : pathname.replace(/\/$/, "");
+}
 
-  return pathname === targetPathname;
+function getLocalHrefUrl(href: string): URL | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const url = new URL(href, window.location.origin);
+    return url.origin === window.location.origin ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+function getCurrentSearch(): string {
+  if (typeof window === "undefined") return "";
+  return window.location.search.replace(/^\?/, "");
+}
+
+function isCurrentLocation(
+  pathname: string,
+  href: string,
+): boolean {
+  const url = getLocalHrefUrl(href);
+  const rawPathname = url?.pathname ?? href.split(/[?#]/)[0];
+  const targetPathname = normalizePathname(rawPathname);
+
+  if (normalizePathname(pathname) !== targetPathname) return false;
+
+  const hasExplicitSearch = href.includes("?");
+  if (!hasExplicitSearch) return true;
+
+  return getCurrentSearch() === (url?.search ?? "").replace(/^\?/, "");
 }
