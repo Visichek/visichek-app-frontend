@@ -252,10 +252,14 @@ export default function KioskCheckinPage() {
 
   // ── Step 2: KYC option ───────────────────────────────────────────
 
+  /**
+   * Record the visitor's choice without advancing — the choice surfaces a
+   * confirmation message and unlocks the explicit Continue button. We do
+   * not auto-advance because both options would otherwise look identical
+   * (instant jump to step 3) and the visitor can't tell their click landed.
+   */
   function chooseIntent(intent: KycIntent) {
     setState((s) => ({ ...s, kycIntent: intent }));
-    setCompleted((prev) => (prev.includes(2) ? prev : [...prev, 2]));
-    setStep(3);
     setStepError(null);
   }
 
@@ -537,6 +541,7 @@ export default function KioskCheckinPage() {
               intent={state.kycIntent}
               onChoose={chooseIntent}
               onBack={retreat}
+              onNext={advance}
             />
           )}
 
@@ -761,27 +766,33 @@ function KycOptionStep({
   intent,
   onChoose,
   onBack,
+  onNext,
 }: {
   intent: KycIntent | null;
   onChoose: (intent: KycIntent) => void;
   onBack: () => void;
+  onNext: () => void;
 }) {
   return (
     <div className="space-y-4">
       <p className="text-sm">
         Verifying your ID with Dojah lets the receptionist approve you faster.
-        You can also skip and have your identity confirmed manually.
+        You can also skip and have your identity confirmed manually. Either
+        way, you continue to the next step now — the verification widget
+        opens after you submit on the Review step.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
+              variant={intent === "verify" ? "default" : "outline"}
               onClick={() => onChoose("verify")}
               className={cn(
                 "min-h-[88px] flex-col gap-2",
                 intent === "verify" && "ring-2 ring-primary",
               )}
+              aria-pressed={intent === "verify"}
             >
               <ShieldCheck className="h-6 w-6" aria-hidden="true" />
               Verify with Dojah
@@ -794,12 +805,13 @@ function KycOptionStep({
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant="outline"
+              variant={intent === "skip" ? "default" : "outline"}
               onClick={() => onChoose("skip")}
               className={cn(
                 "min-h-[88px] flex-col gap-2",
                 intent === "skip" && "ring-2 ring-primary",
               )}
+              aria-pressed={intent === "skip"}
             >
               <ClipboardList className="h-6 w-6" aria-hidden="true" />
               Skip for now
@@ -812,6 +824,38 @@ function KycOptionStep({
         </Tooltip>
       </div>
 
+      {intent && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-lg border bg-muted/40 p-3 text-sm flex items-start gap-2"
+        >
+          {intent === "verify" ? (
+            <>
+              <ShieldCheck
+                className="h-4 w-4 mt-0.5 flex-shrink-0 text-primary"
+                aria-hidden="true"
+              />
+              <span>
+                Got it. We&apos;ll open the Dojah verification widget right
+                after you submit on the Review step.
+              </span>
+            </>
+          ) : (
+            <>
+              <ClipboardList
+                className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <span>
+                Got it. A receptionist will verify your identity manually
+                after you submit.
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="flex justify-between pt-2 border-t">
         <Tooltip>
           <TooltipTrigger asChild>
@@ -821,6 +865,21 @@ function KycOptionStep({
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top">Edit your identity details</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button onClick={onNext} disabled={!intent}>
+                Continue
+                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            {intent
+              ? "Continue to add your visit details"
+              : "Pick verify or skip first"}
+          </TooltipContent>
         </Tooltip>
       </div>
     </div>
