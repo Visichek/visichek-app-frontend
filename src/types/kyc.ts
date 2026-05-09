@@ -2,7 +2,7 @@
  * Types for the KYC verification flow.
  *
  * KYC runs after a check-in is submitted. When the tenant's plan grants
- * KYC, the submit response carries `state: "pending_kyc"` and the kiosk:
+ * KYC, the submit response carries `state: "pending_verification"` and the kiosk:
  *   1. calls `POST /v1/kyc/initiate` with the new `checkinId` to fetch a
  *      `widgetConfig` payload, then hands that payload directly to the
  *      Dojah React widget;

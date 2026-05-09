@@ -1,11 +1,15 @@
 "use client";
 
-import { useCallback, useContext, useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   NavigationLoadingContext,
   type NavigationLoadingContextValue,
 } from "@/lib/routing/navigation-context";
+import { isTenantSpaNavEnabled } from "@/lib/routing/spa-nav-flag";
+
+/** Mirror of the global-provider fallback budget; see navigation-context.tsx. */
+const SPA_COMMIT_FALLBACK_MS = 4000;
 
 export type NavLoadingScope = "global" | "local";
 
@@ -46,11 +50,24 @@ export function useNavLoading(
   const ctx = useContext(NavigationLoadingContext);
 
   const pathname = usePathname();
+  const router = useRouter();
   const [localLoadingHref, setLocalLoadingHref] = useState<string | null>(null);
+  const fallbackTimerRef = useRef<number | null>(null);
+
+  function clearFallbackTimer() {
+    if (fallbackTimerRef.current != null) {
+      window.clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
+    }
+  }
 
   useEffect(() => {
     setLocalLoadingHref(null);
+    clearFallbackTimer();
   }, [pathname]);
+
+  // Cancel any in-flight fallback timer if the consumer unmounts.
+  useEffect(() => clearFallbackTimer, []);
 
   const localHandleNavClick = useCallback(
     (href: string) => {
@@ -61,17 +78,30 @@ export function useNavLoading(
     [pathname],
   );
 
-  // Mirrors NavigationLoadingProvider.navigate — full-page reload to
-  // sidestep stuck App Router transitions.
+  // Mirrors NavigationLoadingProvider.navigate — see that function for
+  // the full SPA-vs-MPA decision logic. Local scope keeps its own timer
+  // so consumers can opt into the SPA path without depending on the
+  // global provider.
   const localNavigate = useCallback(
     (href: string) => {
       if (typeof window === "undefined") return;
-      if (!isCurrentLocation(pathname, href)) {
-        setLocalLoadingHref(href);
+      if (isCurrentLocation(pathname, href)) return;
+
+      setLocalLoadingHref(href);
+      clearFallbackTimer();
+
+      if (isTenantSpaNavEnabled()) {
+        router.push(href);
+        fallbackTimerRef.current = window.setTimeout(() => {
+          fallbackTimerRef.current = null;
+          window.location.assign(href);
+        }, SPA_COMMIT_FALLBACK_MS);
+        return;
       }
+
       window.location.assign(href);
     },
-    [pathname],
+    [pathname, router],
   );
 
   if (scope === "global") {

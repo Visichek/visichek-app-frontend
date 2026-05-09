@@ -9,7 +9,7 @@ const STATE_COPY: Record<
   CheckinState,
   { label: string; icon: typeof Clock; className: string }
 > = {
-  pending_kyc: {
+  pending_verification: {
     label: "Awaiting verification",
     icon: ShieldCheck,
     className: "bg-warning/70 text-warning-foreground",

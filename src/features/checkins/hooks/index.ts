@@ -18,6 +18,7 @@ export {
   useTenantCheckins,
   useCheckinDetail,
   useConfirmCheckin,
+  useForceApprovePendingCheckin,
   usePendingApprovals,
 } from "./use-checkins";
 

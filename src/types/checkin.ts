@@ -15,13 +15,13 @@
 /**
  * Lifecycle of a check-in after submission.
  *
- * `pending_kyc` is the initial state when the tenant's plan grants KYC and
+ * `pending_verification` is the initial state when the tenant's plan grants KYC and
  * the visitor has not yet completed (or skipped) the Dojah widget. The
- * webhook (or the skip endpoint) transitions `pending_kyc → pending_approval`.
- * A failed verification transitions `pending_kyc → rejected` directly.
+ * webhook (or the skip endpoint) transitions `pending_verification → pending_approval`.
+ * A failed verification transitions `pending_verification → rejected` directly.
  */
 export type CheckinState =
-  | "pending_kyc"
+  | "pending_verification"
   | "pending_approval"
   | "approved"
   | "rejected"
@@ -404,12 +404,18 @@ export interface CheckinListMeta {
 export type PendingApprovalSourceType = "checkin" | "appointment";
 
 /**
- * State of a row in the unified queue. The two values map to the two
- * source collections:
- *  - `pending_approval` for kiosk check-ins awaiting receptionist review
+ * State of a row in the unified queue. Maps to the two source collections:
+ *  - `pending_approval` for kiosk check-ins ready for receptionist review
+ *  - `pending_verification` for kiosk check-ins still in the KYC widget /
+ *    awaiting webhook resolution. These appear in the queue so reception
+ *    can spot stuck visitors (kiosk crash, network drop, abandoned widget)
+ *    but the approve/reject actions are disabled until the row settles.
  *  - `scheduled` for host-pre-vetted appointments whose day has come
  */
-export type PendingApprovalState = "pending_approval" | "scheduled";
+export type PendingApprovalState =
+  | "pending_approval"
+  | "pending_verification"
+  | "scheduled";
 
 /**
  * One row in the unified pending-approvals queue.

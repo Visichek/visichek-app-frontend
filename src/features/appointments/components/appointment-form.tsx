@@ -31,6 +31,14 @@ import type { Appointment } from "@/types/visitor";
 
 const appointmentSchema = z.object({
   visitorNameSnapshot: z.string().trim().min(1, "Visitor name is required"),
+  visitorPhoneSnapshot: z
+    .string()
+    .trim()
+    .min(1, "Visitor phone number is required")
+    .regex(
+      /^\+?[0-9\s\-()]{7,}$/,
+      "Enter a valid phone number (digits, spaces, +, -, ( ) only)",
+    ),
   hostNameSnapshot: z.string().trim().min(1, "Host name is required"),
   departmentId: z.string().trim().min(1, "Department is required"),
   scheduledDatetime: z.string().min(1, "Date and time is required"),
@@ -80,6 +88,7 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
     resolver: zodResolver(appointmentSchema),
     defaultValues: {
       visitorNameSnapshot: appointment?.visitorNameSnapshot ?? "",
+      visitorPhoneSnapshot: appointment?.visitorPhoneSnapshot ?? "",
       hostNameSnapshot: appointment?.hostNameSnapshot ?? "",
       departmentId: appointment?.departmentId ?? "",
       scheduledDatetime: appointment
@@ -100,6 +109,7 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
           appointmentId: appointment.id,
           data: {
             visitorNameSnapshot: data.visitorNameSnapshot,
+            visitorPhoneSnapshot: data.visitorPhoneSnapshot,
             hostNameSnapshot: data.hostNameSnapshot,
             departmentId: data.departmentId,
             scheduledDatetime,
@@ -112,6 +122,7 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
       } else {
         await createMutation.mutateAsync({
           visitorNameSnapshot: data.visitorNameSnapshot,
+          visitorPhoneSnapshot: data.visitorPhoneSnapshot,
           hostNameSnapshot: data.hostNameSnapshot,
           departmentId: data.departmentId,
           hostId: "", // Backend assigns if empty
@@ -193,6 +204,42 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
               role="alert"
             >
               {errors.visitorNameSnapshot.message}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="visitorPhoneSnapshot">Visitor phone number *</Label>
+          <Input
+            id="visitorPhoneSnapshot"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="e.g. +234 801 234 5678"
+            {...register("visitorPhoneSnapshot")}
+            aria-invalid={!!errors.visitorPhoneSnapshot}
+            aria-describedby={
+              errors.visitorPhoneSnapshot
+                ? "error-visitorPhoneSnapshot"
+                : "help-visitorPhoneSnapshot"
+            }
+            className="min-h-[44px]"
+          />
+          {errors.visitorPhoneSnapshot ? (
+            <p
+              id="error-visitorPhoneSnapshot"
+              className="text-sm text-destructive"
+              role="alert"
+            >
+              {errors.visitorPhoneSnapshot.message}
+            </p>
+          ) : (
+            <p
+              id="help-visitorPhoneSnapshot"
+              className="text-xs text-muted-foreground"
+            >
+              Used to look up the visitor at check-in. Avoids prompting for it
+              again at the reception desk.
             </p>
           )}
         </div>

@@ -329,7 +329,7 @@ export function useCheckinEnums(configId: string | undefined) {
 // ── v2 KYC ───────────────────────────────────────────────────────────
 
 /**
- * Initiate KYC for a check-in in `pending_kyc` state. The response carries
+ * Initiate KYC for a check-in in `pending_verification` state. The response carries
  * a `widgetConfig` payload the kiosk hands directly to the Dojah React
  * widget; the frontend never reads Dojah credentials from env. On retry
  * the same `checkinId` is sent again — the endpoint is idempotent.

@@ -86,6 +86,41 @@ export function useUnreadCount() {
   });
 }
 
+// ── Cache helpers ────────────────────────────────────────────────────
+
+/**
+ * Apply an updater to every cached notification list, regardless of
+ * which `params` it was keyed with. Used by mark-read / delete
+ * mutations to surgically patch the list cache instead of triggering
+ * a refetch of every active query under the `notifications` namespace.
+ */
+function patchAllNotificationLists(
+  queryClient: ReturnType<typeof useQueryClient>,
+  updater: (list: NotificationOut[]) => NotificationOut[],
+) {
+  queryClient.setQueriesData<NotificationOut[]>(
+    { queryKey: ["notifications", "list"] },
+    (current) => (current ? updater(current) : current),
+  );
+}
+
+/**
+ * Decrement the cached unread-count badge by `delta`, clamping at zero.
+ * No-ops when no count has been fetched yet — the next poll will fill it.
+ */
+function decrementUnreadCount(
+  queryClient: ReturnType<typeof useQueryClient>,
+  delta: number,
+) {
+  queryClient.setQueryData<UnreadCountResponse>(
+    notificationKeys.unreadCount,
+    (current) => {
+      if (!current || typeof current.count !== "number") return current;
+      return { ...current, count: Math.max(0, current.count - delta) };
+    },
+  );
+}
+
 // ── Mark Single as Read ──────────────────────────────────────────────
 
 export function useMarkAsRead() {
@@ -94,9 +129,18 @@ export function useMarkAsRead() {
   return useMutation({
     mutationFn: (notificationId: string) =>
       apiPatch<NotificationOut>(`/notifications/${notificationId}/read`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
-      queryClient.invalidateQueries({ queryKey: notificationKeys.unreadCount });
+    onSuccess: (_response, notificationId) => {
+      // Find the row in any cached list to know whether it was unread —
+      // we only decrement the badge in that case so a re-mark stays idempotent.
+      let wasUnread = false;
+      patchAllNotificationLists(queryClient, (list) =>
+        list.map((n) => {
+          if (n.id !== notificationId) return n;
+          if (!n.read) wasUnread = true;
+          return { ...n, read: true };
+        }),
+      );
+      if (wasUnread) decrementUnreadCount(queryClient, 1);
     },
   });
 }
@@ -109,9 +153,13 @@ export function useMarkAllAsRead() {
   return useMutation({
     mutationFn: () => apiPost<MarkAllReadResponse>("/notifications/read-all"),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
-      // Optimistic: set unread count to 0
-      queryClient.setQueryData(notificationKeys.unreadCount, { count: 0 });
+      patchAllNotificationLists(queryClient, (list) =>
+        list.map((n) => (n.read ? n : { ...n, read: true })),
+      );
+      queryClient.setQueryData<UnreadCountResponse>(
+        notificationKeys.unreadCount,
+        (current) => (current ? { ...current, count: 0 } : { count: 0 }),
+      );
     },
   });
 }
@@ -124,9 +172,16 @@ export function useDeleteNotification() {
   return useMutation({
     mutationFn: (notificationId: string) =>
       apiDelete<DeleteNotificationResponse>(`/notifications/${notificationId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
-      queryClient.invalidateQueries({ queryKey: notificationKeys.unreadCount });
+    onSuccess: (_response, notificationId) => {
+      let wasUnread = false;
+      patchAllNotificationLists(queryClient, (list) =>
+        list.filter((n) => {
+          if (n.id !== notificationId) return true;
+          if (!n.read) wasUnread = true;
+          return false;
+        }),
+      );
+      if (wasUnread) decrementUnreadCount(queryClient, 1);
     },
   });
 }

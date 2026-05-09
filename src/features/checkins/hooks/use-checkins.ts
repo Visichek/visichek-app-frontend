@@ -20,6 +20,7 @@ import type {
 import {
   checkinConfirmPath,
   checkinDetailPath,
+  checkinForceApprovePendingPath,
   checkinListPath,
   pendingApprovalsPath,
 } from "../lib/endpoints";
@@ -83,6 +84,38 @@ export function usePendingApprovals(
     refetchInterval: 5000,
     refetchIntervalInBackground: false,
     staleTime: 2000,
+  });
+}
+
+/**
+ * Super-admin recovery: force a `pending_verification` check-in into
+ * `pending_approval` so the receptionist queue can action it. Used when
+ * the kiosk's KYC widget crashed, the visitor abandoned, or the Dojah
+ * webhook never landed and the row would otherwise be invisible forever.
+ *
+ * Backend behaviour:
+ *   - 200 → state moved `pending_verification` → `pending_approval`,
+ *     audit row written, receptionist notification fired.
+ *   - 404 → check-in id does not exist.
+ *   - 409 → check-in is in any state other than `pending_verification`
+ *     (already approved, rejected, etc.); the UI should hide the button
+ *     once it sees a state change rather than retrying.
+ *
+ * Auth: super_admin only — gated by the backend, but the UI also hides
+ * the button for non-super-admin sessions.
+ */
+export function useForceApprovePendingCheckin() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (checkinId: string) =>
+      apiPost<CheckinOut>(checkinForceApprovePendingPath(checkinId), {}),
+    onSuccess: (_response, checkinId) => {
+      queryClient.invalidateQueries({ queryKey: checkinKeys.all });
+      queryClient.invalidateQueries({
+        queryKey: checkinKeys.detail(checkinId),
+      });
+    },
   });
 }
 

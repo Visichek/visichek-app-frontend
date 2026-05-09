@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '@/lib/api/request';
+import apiClient from '@/lib/api/client';
 import type {
   ComplianceRegisterEntry,
   ConsentLogEntry,
@@ -118,23 +119,19 @@ export function useConsentLog(params?: ConsentLogParams) {
 /**
  * Download compliance export as blob
  * DPO role required
- * Returns the raw response which can be used to trigger a download
+ *
+ * Uses the shared axios client so the request travels with httpOnly auth
+ * cookies (`withCredentials: true`) and benefits from the same 401-refresh
+ * and error normalization as the rest of the app. Never sets an
+ * `Authorization` header from JS — tokens live in cookies, not in storage.
  */
 export function useComplianceExport() {
   return useMutation<Blob, Error, void>({
     mutationFn: async () => {
-      const response = await fetch('/compliance/export', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('accessToken') || ''}`,
-        },
+      const response = await apiClient.get<Blob>('/compliance/export', {
+        responseType: 'blob',
       });
-
-      if (!response.ok) {
-        throw new Error(`Export failed: ${response.statusText}`);
-      }
-
-      return response.blob();
+      return response.data;
     },
   });
 }

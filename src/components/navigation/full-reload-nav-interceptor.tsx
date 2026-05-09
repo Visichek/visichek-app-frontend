@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { isTenantSpaNavEnabled } from "@/lib/routing/spa-nav-flag";
 
 /**
  * Tenant-scoped click interceptor. Catches every left-click on an
@@ -18,12 +19,23 @@ import { useEffect } from "react";
  * Mounts in TenantShell so it only applies under `/app/*`. Uses the
  * capture phase so it runs before Next's Link click handler.
  *
- * Opt-out: add `data-full-reload="off"` to any anchor that should
- * keep the SPA behaviour (e.g. an in-page anchor that does its own
- * client-side handling).
+ * Feature-flag opt-out (whole shell): `?spa-nav=on` query param,
+ * the `visichek-tenant-spa-nav` localStorage key, or
+ * `NEXT_PUBLIC_TENANT_SPA_NAV=on` at build time. When the flag is on
+ * the interceptor returns `null` and never registers a listener, so
+ * Next.js Link defaults take over for every internal click.
+ *
+ * Per-anchor opt-out: add `data-full-reload="off"` to any anchor that
+ * should keep the SPA behaviour (e.g. an in-page anchor that does its
+ * own client-side handling).
  */
 export function FullReloadNavInterceptor() {
   useEffect(() => {
+    // Read the flag inside the effect so any sticky `?spa-nav=...` query
+    // param on the current URL is persisted to storage for subsequent
+    // navigations within the same session.
+    if (isTenantSpaNavEnabled()) return;
+
     function intercept(event: MouseEvent) {
       // Primary button only; modifier keys mean "new tab/window" or
       // "download" — let the browser handle those normally.

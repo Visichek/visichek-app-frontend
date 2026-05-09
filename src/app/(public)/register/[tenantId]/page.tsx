@@ -14,10 +14,10 @@
  *   4. Review     — final summary
  *   5. Post-submit — submit; switch on response.state:
  *        - pending_approval → wait-for-receptionist screen
- *        - pending_kyc + intent="verify" → POST /v1/kyc/initiate, render
+ *        - pending_verification + intent="verify" → POST /v1/kyc/initiate, render
  *          the Dojah widget, and (on close) poll /kyc/status until the
  *          webhook resolves the verification
- *        - pending_kyc + intent="skip" → POST /v1/kyc/skip, then wait
+ *        - pending_verification + intent="skip" → POST /v1/kyc/skip, then wait
  *
  * The frontend never reads Dojah credentials from environment variables —
  * the widget config is provided whole by the backend on /kyc/initiate.
@@ -366,11 +366,11 @@ export default function KioskCheckinPage() {
 
   /**
    * Branch on the submit response. `pending_approval` jumps straight to
-   * the wait screen; `pending_kyc` runs the KYC widget or the skip path
+   * the wait screen; `pending_verification` runs the KYC widget or the skip path
    * depending on what the visitor chose on step 2.
    */
   async function routePostSubmit(checkin: CheckinOut) {
-    if (checkin.state !== "pending_kyc") {
+    if (checkin.state !== "pending_verification") {
       // Silent-degrade detection: visitor opted in to verification but the
       // backend returned `pending_approval` anyway — typically because the
       // tenant's plan doesn't grant `/v1/kyc/*`. Surface this on the wait

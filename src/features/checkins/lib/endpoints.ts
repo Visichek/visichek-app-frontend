@@ -46,7 +46,7 @@ export const checkinConfigEnumsByTenantPath = (tenantId: string) =>
 // ── KYC (post-submit) ────────────────────────────────────────────────
 
 /**
- * Start a KYC verification for a check-in in `pending_kyc` state. Returns
+ * Start a KYC verification for a check-in in `pending_verification` state. Returns
  * a `widgetConfig` payload the kiosk hands to the Dojah React widget; the
  * webhook (not the frontend) reports the verification result back.
  */
@@ -107,6 +107,16 @@ export const checkinDetailPath = (checkinId: string) =>
 /** Approve or reject a pending check-in. */
 export const checkinConfirmPath = (checkinId: string) =>
   `/checkins/${checkinId}/confirm`;
+
+/**
+ * Super-admin recovery action: unstick a check-in that's been parked in
+ * `pending_verification` because the kiosk crashed mid-KYC, the network
+ * dropped, or the visitor abandoned the widget. Transitions the row to
+ * `pending_approval` so reception can action it. Backend rejects (409)
+ * any check-in not in `pending_verification`.
+ */
+export const checkinForceApprovePendingPath = (checkinId: string) =>
+  `/checkins/${checkinId}/force-approve-pending`;
 
 /**
  * Unified approval queue — pending kiosk check-ins AND scheduled

@@ -318,6 +318,7 @@ export interface Appointment {
   hostId: string;
   departmentId: string;
   visitorNameSnapshot?: string;
+  visitorPhoneSnapshot?: string;
   hostNameSnapshot?: string;
   scheduledDatetime: number;
   purpose?: string;
@@ -352,6 +353,12 @@ export interface AppointmentRequest {
   hostId: string;
   departmentId: string;
   visitorNameSnapshot?: string;
+  /**
+   * Phone number captured at scheduling time. Strongly recommended: the
+   * backend uses it at check-in to look up or create the visitor profile,
+   * so collecting it here avoids a missing-phone prompt at the desk.
+   */
+  visitorPhoneSnapshot?: string;
   hostNameSnapshot?: string;
   scheduledDatetime: number;
   purpose?: string;
