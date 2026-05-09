@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -191,7 +190,13 @@ export function AppSidebar({
               <li key={item.href}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Link
+                    {/* Plain <a> = full-page navigation. App Router
+                        client transitions kept getting stuck mid-flight on
+                        tenant pages (URL updated, new tree never committed)
+                        and the periodic "stuck nav" recovery was removed.
+                        A full GET is bulletproof and matches the user's
+                        explicit "regular HTML method" preference. */}
+                    <a
                       href={item.href}
                       onClick={() => handleNavClick(item.href)}
                       className={cn(
@@ -222,7 +227,7 @@ export function AppSidebar({
                         />
                       )}
                       {!collapsed && item.label}
-                    </Link>
+                    </a>
                   </TooltipTrigger>
                   <TooltipContent side="right" className="max-w-[220px]">
                     {collapsed ? (

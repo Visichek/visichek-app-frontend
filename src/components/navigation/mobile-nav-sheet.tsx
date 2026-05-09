@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Sheet,
@@ -90,7 +89,9 @@ export function MobileNavSheet({
               const Icon = item.icon;
               return (
                 <li key={item.href}>
-                  <Link
+                  {/* Plain <a> = full-page navigation, see app-sidebar
+                      for the rationale. */}
+                  <a
                     href={item.href}
                     onClick={() => {
                       handleNavClick(item.href);
@@ -126,7 +127,7 @@ export function MobileNavSheet({
                         </p>
                       )}
                     </div>
-                  </Link>
+                  </a>
                 </li>
               );
             })}

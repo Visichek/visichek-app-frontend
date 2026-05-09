@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useContext, useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   NavigationLoadingContext,
   type NavigationLoadingContextValue,
@@ -45,7 +45,6 @@ export function useNavLoading(
   // expose; the unused side is essentially free.
   const ctx = useContext(NavigationLoadingContext);
 
-  const router = useRouter();
   const pathname = usePathname();
   const [localLoadingHref, setLocalLoadingHref] = useState<string | null>(null);
 
@@ -62,14 +61,17 @@ export function useNavLoading(
     [pathname],
   );
 
+  // Mirrors NavigationLoadingProvider.navigate — full-page reload to
+  // sidestep stuck App Router transitions.
   const localNavigate = useCallback(
     (href: string) => {
+      if (typeof window === "undefined") return;
       if (!isCurrentLocation(pathname, href)) {
         setLocalLoadingHref(href);
       }
-      router.push(href);
+      window.location.assign(href);
     },
-    [pathname, router],
+    [pathname],
   );
 
   if (scope === "global") {

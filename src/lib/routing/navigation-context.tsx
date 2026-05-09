@@ -7,7 +7,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 export interface NavigationLoadingContextValue {
   /** True while a route transition is in flight */
@@ -71,14 +71,13 @@ export function NavigationLoadingProvider({
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [loadingHref, setLoadingHref] = useState<string | null>(null);
 
-  // Clear the per-item spinner when the route actually commits. The
-  // committed pathname from `usePathname` is the only signal we trust —
-  // no timers, no polling, no auto-refresh. If a transition is genuinely
-  // slow, the clicked item keeps spinning until React commits the new
-  // tree, which is the truthful UX.
+  // Clear the per-item spinner when the route actually commits. After
+  // `navigate()` switched to `window.location.assign`, the only way this
+  // hook keeps state across a navigation is if the click handler fires
+  // before the browser tears down the document — the per-item spinner
+  // shows briefly until the new page mounts with fresh state.
   useEffect(() => {
     setLoadingHref(null);
   }, [pathname]);
@@ -92,14 +91,20 @@ export function NavigationLoadingProvider({
     [pathname],
   );
 
+  // Full-page navigation. App Router client transitions kept getting
+  // stuck mid-flight on tenant pages (URL updated, new tree never
+  // committed) and the polling-based "stuck nav" recovery was removed.
+  // `window.location.assign` is the bulletproof MPA-style fallback the
+  // user explicitly asked for.
   const navigate = useCallback(
     (href: string) => {
+      if (typeof window === "undefined") return;
       if (!isCurrentLocation(pathname, href)) {
         setLoadingHref(href);
       }
-      router.push(href);
+      window.location.assign(href);
     },
-    [pathname, router],
+    [pathname],
   );
 
   return (
