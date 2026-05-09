@@ -108,6 +108,15 @@ export const checkinDetailPath = (checkinId: string) =>
 export const checkinConfirmPath = (checkinId: string) =>
   `/checkins/${checkinId}/confirm`;
 
+/**
+ * Unified approval queue — pending kiosk check-ins AND scheduled
+ * appointments whose host pre-vetted them, in one paginated list.
+ * Each row carries a `sourceType` discriminator so the frontend knows
+ * which endpoint to call to action it.
+ */
+export const pendingApprovalsPath = (tenantId: string) =>
+  `/tenants/${tenantId}/pending-approvals`;
+
 // ── Admin (config management) ────────────────────────────────────────
 
 /** List configs for a tenant. */

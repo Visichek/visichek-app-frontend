@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Eye,
   Loader2,
+  Printer,
   Search,
   ShieldCheck,
   Users as UsersIcon,
@@ -24,11 +25,50 @@ import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { cn } from "@/lib/utils/cn";
 import { formatDateTime, formatRelative } from "@/lib/utils/format-date";
 import type { CheckinOut } from "@/types/checkin";
+import type { AwaitingCheckoutItem } from "@/types/visitor";
+import { PrintBadgeModal } from "./print-badge-modal";
+import type { VisitorBadgeData } from "./visitor-badge";
 
 export interface GroupedVisitorsListProps {
   checkins: CheckinOut[];
   emptyTitle: string;
   emptyDescription: string;
+  /**
+   * Optional map keyed by check-in id of approved-and-not-yet-checked-out
+   * entries from `useAwaitingCheckout`. When a row has a matching entry
+   * with a badge QR token, the row exposes a "Print badge" action that
+   * opens the print/PDF modal with the live checkout token.
+   */
+  badgeByCheckinId?: Map<string, AwaitingCheckoutItem>;
+}
+
+/** Default expiry hint shown on the badge when the backend doesn't supply one. */
+const BADGE_DEFAULT_TTL_SECONDS = 12 * 60 * 60;
+
+function buildBadgeData(
+  awaiting: AwaitingCheckoutItem,
+): Omit<VisitorBadgeData, "tenantName" | "logoUrl" | "primaryColor"> {
+  const issuedAt =
+    awaiting.approvedAt ??
+    awaiting.checkInTime ??
+    awaiting.eligibleSince ??
+    undefined;
+  return {
+    visitorName: awaiting.visitorName || "Unnamed visitor",
+    company:
+      awaiting.company ||
+      awaiting.visitorSummary?.company ||
+      awaiting.visitorProfileSummary?.company ||
+      undefined,
+    purpose: awaiting.purpose ?? undefined,
+    hostName: awaiting.hostSummary?.fullName,
+    departmentName: awaiting.departmentSummary?.name,
+    statusLabel: "Approved",
+    badgeQrToken: awaiting.badgeQrToken ?? "",
+    issuedAt: issuedAt ?? undefined,
+    badgeExpiry:
+      issuedAt !== undefined ? issuedAt + BADGE_DEFAULT_TTL_SECONDS : undefined,
+  };
 }
 
 interface VisitorGroup {
@@ -94,9 +134,12 @@ export function GroupedVisitorsList({
   checkins,
   emptyTitle,
   emptyDescription,
+  badgeByCheckinId,
 }: GroupedVisitorsListProps) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [badgePrintTarget, setBadgePrintTarget] =
+    useState<AwaitingCheckoutItem | null>(null);
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
   const groups = useMemo(() => buildGroups(checkins), [checkins]);
@@ -239,6 +282,8 @@ export function GroupedVisitorsList({
                     {group.history.map((checkin) => {
                       const viewHref = `/app/visitors/${checkin.id}`;
                       const isLoadingRow = loadingHref === viewHref;
+                      const printable = badgeByCheckinId?.get(checkin.id);
+                      const canPrintBadge = !!printable?.badgeQrToken;
                       return (
                         <li
                           key={checkin.id}
@@ -258,8 +303,32 @@ export function GroupedVisitorsList({
                               </p>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 md:gap-3 md:justify-end">
+                          <div className="flex items-center gap-2 md:gap-3 md:justify-end flex-wrap">
                             <CheckinStateBadge state={checkin.state} />
+                            {canPrintBadge && printable && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      setBadgePrintTarget(printable)
+                                    }
+                                    className="min-h-[44px]"
+                                  >
+                                    <Printer
+                                      className="mr-1 h-3.5 w-3.5"
+                                      aria-hidden="true"
+                                    />
+                                    Print badge
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  Print or save this visitor&apos;s badge with
+                                  the QR code reception scans at checkout
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
@@ -302,6 +371,22 @@ export function GroupedVisitorsList({
           })}
         </ul>
       )}
+
+      <PrintBadgeModal
+        open={badgePrintTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setBadgePrintTarget(null);
+        }}
+        badge={
+          badgePrintTarget
+            ? buildBadgeData(badgePrintTarget)
+            : {
+                visitorName: "",
+                statusLabel: "Approved",
+                badgeQrToken: "",
+              }
+        }
+      />
     </div>
   );
 }

@@ -2,7 +2,12 @@
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api/request';
-import type { Appointment, AppointmentRequest } from '@/types/visitor';
+import type {
+  Appointment,
+  AppointmentRequest,
+  AppointmentCheckInRequest,
+  AppointmentCheckInResponse,
+} from '@/types/visitor';
 
 /**
  * Query key factory for appointment-related queries
@@ -101,6 +106,53 @@ export function useUpdateAppointment() {
         appointmentKeys.detail(updatedAppointment.id),
         updatedAppointment
       );
+    },
+  });
+}
+
+/**
+ * Mutation for `POST /v1/appointments/{appointment_id}/check-in`.
+ *
+ * Converts a SCHEDULED appointment into a live visit-session check-in.
+ * The body is optional — every field overrides the matching value on
+ * the appointment / linked visitor profile, so an empty `{}` is fine
+ * when nothing needs correction at the desk.
+ *
+ * On success with `issueBadge !== false` (the default): the response
+ * includes `badgeQrToken` and `badgePdfBase64`, the visit-session is
+ * `checked_in`, and the appointment transitions to `checked_in`.
+ *
+ * On success with `issueBadge === false`: the session is `registered`
+ * and the appointment stays `scheduled` until the badge is later
+ * issued via `POST /v1/visitors/check-in/{session_id}/confirm`.
+ *
+ * Invalidates appointments, visitors, checkins, and the unified
+ * pending-approvals queue so receptionist UI updates everywhere.
+ */
+export function useCheckInFromAppointment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (args: {
+      appointmentId: string;
+      body?: AppointmentCheckInRequest;
+    }) => {
+      const data = await apiPost<AppointmentCheckInResponse>(
+        `/appointments/${args.appointmentId}/check-in`,
+        args.body ?? {},
+      );
+      return data;
+    },
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: appointmentKeys.lists() });
+      queryClient.invalidateQueries({
+        queryKey: appointmentKeys.detail(response.appointmentId),
+      });
+      // The unified pending-approvals queue and the legacy checkins list
+      // both live under ['checkins']; invalidate the namespace.
+      queryClient.invalidateQueries({ queryKey: ['checkins'] });
+      // The new visit-session shows up under visitors.
+      queryClient.invalidateQueries({ queryKey: ['visitors'] });
     },
   });
 }

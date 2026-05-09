@@ -1,4 +1,7 @@
-import type { CheckinListParams } from "@/types/checkin";
+import type {
+  CheckinListParams,
+  PendingApprovalsParams,
+} from "@/types/checkin";
 
 /**
  * Stable query-key factory for every check-in query.
@@ -28,6 +31,8 @@ export const checkinKeys = {
     ["checkins", "list", tenantId, { state: "pending_approval" }] as const,
   detail: (checkinId: string) =>
     ["checkins", "detail", checkinId] as const,
+  pendingApprovals: (tenantId: string, params: PendingApprovalsParams) =>
+    ["checkins", "pending-approvals", tenantId, params] as const,
 
   // ── Admin (configs) ────────────────────────────────────────────
   configsList: (tenantId: string) =>

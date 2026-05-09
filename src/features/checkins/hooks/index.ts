@@ -18,6 +18,7 @@ export {
   useTenantCheckins,
   useCheckinDetail,
   useConfirmCheckin,
+  usePendingApprovals,
 } from "./use-checkins";
 
 // Admin config management hooks

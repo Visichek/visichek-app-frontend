@@ -14,11 +14,14 @@ import type {
   CheckinListParams,
   CheckinConfirmRequest,
   CheckinConfirmResponse,
+  PendingApprovalItem,
+  PendingApprovalsParams,
 } from "@/types/checkin";
 import {
   checkinConfirmPath,
   checkinDetailPath,
   checkinListPath,
+  pendingApprovalsPath,
 } from "../lib/endpoints";
 import { checkinKeys } from "../lib/query-keys";
 
@@ -56,6 +59,34 @@ export function useCheckinDetail(checkinId: string | undefined) {
 }
 
 /**
+ * Unified approval queue: pending kiosk check-ins AND scheduled
+ * appointments the host pre-vetted, in one paginated list.
+ *
+ * Each row carries a `sourceType` discriminator (`"checkin"` vs
+ * `"appointment"`) so the caller can pick the right action endpoint.
+ * Polls every 5s — the receptionist needs new submissions to appear
+ * without manual refresh.
+ *
+ * The legacy `useTenantCheckins(tenantId, { state: "pending_approval" })`
+ * remains available and unchanged; it returns ONLY kiosk check-ins.
+ * Prefer `usePendingApprovals` for the receptionist queue.
+ */
+export function usePendingApprovals(
+  tenantId: string | undefined,
+  params: PendingApprovalsParams = {}
+) {
+  return useQuery({
+    queryKey: checkinKeys.pendingApprovals(tenantId ?? "", params),
+    queryFn: () =>
+      apiGet<PendingApprovalItem[]>(pendingApprovalsPath(tenantId!), params),
+    enabled: !!tenantId,
+    refetchInterval: 5000,
+    refetchIntervalInBackground: false,
+    staleTime: 2000,
+  });
+}
+
+/**
  * Approve or reject a pending check-in.
  *
  * On approve: backend issues a badge and transitions state to `approved`.
@@ -77,7 +108,9 @@ export function useConfirmCheckin() {
     },
     onSuccess: (_response, { checkinId }) => {
       // Invalidate every list (all states) so the pending count updates
-      // and the new approved/rejected row appears in its tab.
+      // and the new approved/rejected row appears in its tab. The
+      // unified pending-approvals queue lives under the same `checkins`
+      // namespace and is invalidated by the same call.
       queryClient.invalidateQueries({ queryKey: checkinKeys.all });
       queryClient.invalidateQueries({
         queryKey: checkinKeys.detail(checkinId),

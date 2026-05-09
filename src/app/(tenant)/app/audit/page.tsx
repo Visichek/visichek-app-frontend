@@ -1,17 +1,22 @@
 "use client";
 
-import { Download } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { formatDateTime } from "@/lib/utils/format-date";
-import { useAuditLogs } from "@/features/audit/hooks/use-audit-logs";
+import {
+  useAuditLogs,
+  useExportAuditLogs,
+} from "@/features/audit/hooks/use-audit-logs";
 import type { AuditLog } from "@/types/audit";
 
 export default function AuditPage() {
   const { data, isLoading } = useAuditLogs();
+  const exportMutation = useExportAuditLogs();
   const logs = data ?? [];
 
   const columns: ColumnDef<AuditLog>[] = [
@@ -74,9 +79,15 @@ export default function AuditPage() {
     );
   };
 
-  const handleExport = () => {
-    // TODO: Implement export functionality
-    console.log("Export audit logs");
+  const handleExport = async () => {
+    try {
+      const { filename } = await exportMutation.mutateAsync({ limit: 10000 });
+      toast.success(`Downloaded ${filename}`);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to export audit logs",
+      );
+    }
   };
 
   return (
@@ -91,13 +102,23 @@ export default function AuditPage() {
                 variant="outline"
                 className="w-full md:w-auto min-h-[44px]"
                 onClick={handleExport}
+                disabled={exportMutation.isPending}
+                aria-busy={exportMutation.isPending}
               >
-                <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-                Export
+                {exportMutation.isPending ? (
+                  <Loader2
+                    className="mr-2 h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                )}
+                {exportMutation.isPending ? "Exporting…" : "Export"}
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              Download the current audit log as a file for offline review or compliance reporting
+              Download the current audit log as an XLSX file for offline review
+              or compliance reporting
             </TooltipContent>
           </Tooltip>
         }

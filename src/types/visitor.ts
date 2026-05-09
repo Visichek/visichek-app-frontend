@@ -329,6 +329,19 @@ export interface Appointment {
    * appointment that hasn't been fulfilled yet.
    */
   fulfilledAt?: number | null;
+  /**
+   * Object key in the storage backend for a photo of the expected visitor
+   * the host pre-vetted. Surfaced to the receptionist on the pending-
+   * approvals row so they can match the person at the desk to the face
+   * the host uploaded.
+   */
+  expectedVisitorPhotoObjectKey?: string | null;
+  /**
+   * Presigned URL resolved from `expectedVisitorPhotoObjectKey` on read.
+   * Drop straight into an `<img src=...>`. `null` when the key is unset
+   * or URL generation fails.
+   */
+  expectedVisitorPhotoUrl?: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -343,4 +356,54 @@ export interface AppointmentRequest {
   scheduledDatetime: number;
   purpose?: string;
   status?: AppointmentStatus;
+  /** Optional photo of the expected visitor — see {@link Appointment}. */
+  expectedVisitorPhotoObjectKey?: string | null;
+}
+
+/**
+ * Body for `POST /v1/appointments/{appointment_id}/check-in`.
+ *
+ * Every field is optional — the service hydrates everything from the
+ * appointment + linked visitor profile by default. Send overrides only
+ * when the receptionist needs to correct something at the desk.
+ *
+ * `host_id`, `department_id`, and `purpose` are intentionally NOT here:
+ * they always come from the appointment so the visit row matches the
+ * host's calendar entry.
+ */
+export interface AppointmentCheckInRequest {
+  /** Overrides profile.phone. Required in effective form (override OR profile must supply it). */
+  phone?: string;
+  /** Overrides appointment.visitor_name_snapshot / profile.full_name. */
+  fullName?: string;
+  /** Overrides profile.company. */
+  company?: string;
+  photoObjectKey?: string;
+  idImageObjectKey?: string;
+  /** Required for tenants on `lawful_basis="consent"`. */
+  consentGranted?: boolean;
+  /** Default "A7". */
+  badgeFormat?: "A6" | "A7";
+  /**
+   * When false, register only — session stays in `registered` and the
+   * appointment remains `scheduled`. Use for KYC/ID-scan flows that need
+   * to complete before badge issue. Default true.
+   */
+  issueBadge?: boolean;
+}
+
+/**
+ * Successful response from `POST /v1/appointments/{appointment_id}/check-in`.
+ *
+ * `badgeQrToken` and `badgePdfBase64` are only populated when
+ * `issueBadge` was true (the default). Otherwise the session is
+ * `registered` and the appointment stays `scheduled` until the badge is
+ * issued via `POST /v1/visitors/check-in/{session_id}/confirm`.
+ */
+export interface AppointmentCheckInResponse {
+  appointmentId: string;
+  session: VisitSession;
+  visitorProfile: VisitorProfile;
+  badgeQrToken?: string;
+  badgePdfBase64?: string;
 }

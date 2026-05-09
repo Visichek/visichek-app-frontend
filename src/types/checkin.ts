@@ -391,3 +391,68 @@ export interface CheckinListMeta {
   skip?: number;
   limit?: number;
 }
+
+// ── Unified pending-approvals queue ─────────────────────────────────
+
+/**
+ * Source of a row in `GET /v1/tenants/{tenant_id}/pending-approvals`.
+ *
+ * Drives the action endpoint:
+ *  - `"checkin"`     → `POST /v1/checkins/{checkinId}/confirm`
+ *  - `"appointment"` → `POST /v1/appointments/{appointmentId}/check-in`
+ */
+export type PendingApprovalSourceType = "checkin" | "appointment";
+
+/**
+ * State of a row in the unified queue. The two values map to the two
+ * source collections:
+ *  - `pending_approval` for kiosk check-ins awaiting receptionist review
+ *  - `scheduled` for host-pre-vetted appointments whose day has come
+ */
+export type PendingApprovalState = "pending_approval" | "scheduled";
+
+/**
+ * One row in the unified pending-approvals queue.
+ *
+ * Returned by `GET /v1/tenants/{tenant_id}/pending-approvals`. Carries
+ * the discriminator (`sourceType`) so the frontend knows which endpoint
+ * to call to action it. Field availability varies by source — see the
+ * inline notes.
+ */
+export interface PendingApprovalItem {
+  id: string;
+  sourceType: PendingApprovalSourceType;
+  tenantId: string;
+  state: PendingApprovalState;
+  verified: boolean;
+
+  visitorName: string;
+  company?: string | null;
+  purpose?: string | null;
+  expectedDurationMinutes?: number | null;
+
+  /** Presigned photo URL — host's pre-vetted shot for appointments, kiosk portrait for check-ins. */
+  photoUrl?: string | null;
+
+  departmentId?: string | null;
+  hostId?: string | null;
+
+  /** Set on `appointment` rows only. */
+  scheduledDatetime?: number | null;
+  /** Always set; for appointments this is the appointment's createdAt. */
+  createdAt: number;
+
+  visitor?: VisitorOut | null;
+
+  /** Set on `appointment` rows only. */
+  appointmentId: string | null;
+  /** Set on `checkin` rows only. */
+  checkinId: string | null;
+}
+
+export interface PendingApprovalsParams {
+  skip?: number;
+  limit?: number;
+  /** Set false to suppress appointment rows and get the legacy "checkins only" view. Default true. */
+  includeAppointments?: boolean;
+}

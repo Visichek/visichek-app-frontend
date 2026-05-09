@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, X } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
+import { FileUploadZone } from "@/components/recipes/file-upload-zone";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -59,6 +62,15 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
   const departmentsQuery = useDepartments();
   const isEditing = !!appointment;
 
+  // Expected-visitor photo: tracked outside react-hook-form because the
+  // upload runs to completion (returning an objectKey) before submit.
+  // Initial value comes from the existing appointment in edit mode; the
+  // signed URL is used purely for the preview thumbnail.
+  const [photoObjectKey, setPhotoObjectKey] = useState<string | null>(
+    appointment?.expectedVisitorPhotoObjectKey ?? null,
+  );
+  const initialPhotoUrl = appointment?.expectedVisitorPhotoUrl ?? null;
+
   const {
     register,
     handleSubmit,
@@ -92,6 +104,8 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
             departmentId: data.departmentId,
             scheduledDatetime,
             purpose: data.purpose,
+            // Send `null` to clear the photo, the object key to set/keep it.
+            expectedVisitorPhotoObjectKey: photoObjectKey,
           },
         });
         toast.success("Appointment updated");
@@ -104,6 +118,9 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
           scheduledDatetime,
           purpose: data.purpose,
           tenantId: "", // Backend fills from session
+          ...(photoObjectKey
+            ? { expectedVisitorPhotoObjectKey: photoObjectKey }
+            : {}),
         });
         toast.success("Appointment created");
       }
@@ -263,6 +280,86 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
             className="flex min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             {...register("purpose")}
           />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Expected visitor photo</Label>
+          <p className="text-xs text-muted-foreground">
+            Optional. Upload a photo of the person you're expecting so the
+            receptionist can match them at the desk.
+          </p>
+          {photoObjectKey && initialPhotoUrl ? (
+            <div className="flex items-start gap-3 rounded-lg border border-border bg-card p-3">
+              <Image
+                src={initialPhotoUrl}
+                alt="Expected visitor"
+                width={64}
+                height={64}
+                className="h-16 w-16 rounded-md object-cover border"
+                unoptimized
+              />
+              <div className="flex-1 space-y-1">
+                <p className="text-sm font-medium">Photo on file</p>
+                <p className="text-xs text-muted-foreground break-all">
+                  {photoObjectKey}
+                </p>
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPhotoObjectKey(null)}
+                    className="min-h-[44px]"
+                    aria-label="Remove expected visitor photo"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="left">
+                  Remove this photo from the appointment
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          ) : (
+            <FileUploadZone
+              accept="image/*"
+              maxSize={5 * 1024 * 1024}
+              onUploadComplete={(objectKey) => setPhotoObjectKey(objectKey)}
+              placeholder={
+                photoObjectKey
+                  ? "Replace photo of expected visitor"
+                  : "Drop a photo or click to browse"
+              }
+              helpText="JPG or PNG up to 5MB"
+              disabled={submitting}
+            />
+          )}
+          {photoObjectKey && !initialPhotoUrl && (
+            <div className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
+              <span className="text-muted-foreground">
+                Photo uploaded — will be attached on save
+              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPhotoObjectKey(null)}
+                    className="min-h-[44px] h-9"
+                  >
+                    <X className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                    Remove
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="left">
+                  Discard the uploaded photo before saving
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-2 pt-2 md:flex-row md:justify-end">
