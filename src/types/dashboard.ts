@@ -251,3 +251,267 @@ export interface DashboardPeriod {
   startQuarter: number;
   startYear: number;
 }
+
+// ──────────────────────────────────────────────────────────────────────
+// Admin (platform-wide) dashboard
+// ──────────────────────────────────────────────────────────────────────
+
+/**
+ * Response shape for GET /v1/admins/dashboard/stats.
+ *
+ * Platform-wide aggregate across every tenant. Admin role only —
+ * tenant-side roles must call /v1/dashboard/stats instead. Field naming is
+ * camelCase via CaseConversionMiddleware. Numbers default to 0, lists to
+ * [], so a freshly-deployed platform with zero tenants still returns a
+ * fully-shaped response.
+ *
+ * Currency conventions:
+ *  - Fields ending in `Minor` are integers in minor units (kobo / cents).
+ *  - `mrr`, `arr`, `totalMonthlyRevenue`, `totalYearlyRevenue` are floats
+ *    in MAJOR units (whole currency).
+ *  - `revenueGrowthWow` / `revenueGrowthMom` carry minor-unit values in
+ *    their `current` / `previous` fields.
+ *  - The response does NOT include a currency code; render with the
+ *    platform default (NGN/₦).
+ */
+export interface AdminDashboardStats {
+  // 5.1 Tenant overview
+  totalTenants: number;
+  activeTenants: number;
+  inactiveTenants: number;
+  newTenantsToday: number;
+  newTenants7d: number;
+  newTenants30d: number;
+  newTenantsThisMonth: number;
+  newTenantsLastMonth: number;
+  tenantsGrowthWow: GrowthMetric;
+  tenantsGrowthMom: GrowthMetric;
+
+  // 5.2 User overview
+  totalTenantUsers: number;
+  totalApplicationUsers: number;
+  totalApplicationAdmins: number;
+  totalVisitorsAllTime: number;
+  visitorsToday: number;
+  visitors7d: number;
+  visitorsThisMonth: number;
+  visitorsLastMonth: number;
+  visitorsGrowthMom: GrowthMetric;
+  systemUserRoleBreakdown: SystemUserRoleBreakdown;
+
+  // 5.3 Subscriptions
+  totalSubscriptions: number;
+  activeSubscriptions: number;
+  trialingSubscriptions: number;
+  pastDueSubscriptions: number;
+  suspendedSubscriptions: number;
+  cancelled30d: number;
+  newSubscriptions30d: number;
+  subscriptionsGrowthMom: GrowthMetric;
+  /** cancelled30d / (active + trialing + cancelled30d) × 100. */
+  churnRate30d: number;
+  /** Active+past_due / (active + past_due + cancelled + expired) × 100, rolling 30d. */
+  trialConversionRate: number;
+  subscriptionBreakdown: SubscriptionStatusBreakdown;
+
+  // 5.4 Plan analytics
+  totalPlans: number;
+  activePlans: number;
+  archivedPlans: number;
+  draftPlans: number;
+  /** Top 20 plans by subscriber count. */
+  planDistribution: PlanDistribution[];
+  planTierDistribution: DistributionSlice[];
+  billingCycleDistribution: DistributionSlice[];
+  paymentProviderDistribution: DistributionSlice[];
+
+  // 5.5 Revenue & billing
+  /** Float, major units. Sum of effective_price for monthly active+trialing subs. */
+  totalMonthlyRevenue: number;
+  /** Float, major units. */
+  totalYearlyRevenue: number;
+  /** Float, major units. monthly + yearly/12. */
+  mrr: number;
+  /** Float, major units. mrr × 12. */
+  arr: number;
+  /** Integer, minor units. */
+  revenue30dMinor: number;
+  revenue7dMinor: number;
+  revenueTodayMinor: number;
+  avgInvoiceValueMinor: number;
+  invoiceCount30d: number;
+  paidInvoiceCount30d: number;
+  failedInvoiceCount30d: number;
+  invoiceStatusBreakdown: InvoiceStatusBreakdown;
+  /** Values are in minor units. */
+  revenueGrowthWow: GrowthMetric;
+  /** Values are in minor units. */
+  revenueGrowthMom: GrowthMetric;
+
+  // 5.6 Dunning / payments
+  paymentsSucceeded30d: number;
+  paymentsFailed30d: number;
+  paymentSuccessRate: number;
+  /** Subscriptions currently in past_due. */
+  dunningQueueSize: number;
+
+  // 5.7 Incidents (cross-tenant)
+  totalIncidents: number;
+  openIncidents: number;
+  criticalIncidents: number;
+  incidentsToday: number;
+  incidents30d: number;
+  incidentTypeDistribution: DistributionSlice[];
+  incidentStatusDistribution: DistributionSlice[];
+  topTenantsByIncidents: TopTenantByIncidents[];
+
+  // 5.8 Visitors (cross-tenant)
+  visitorCheckInsToday: number;
+  visitorCheckIns7d: number;
+  visitorCheckIns30d: number;
+  topTenantsByVisitors: TopTenantByVisitors[];
+  topTenantsByActivity: TopTenantByActivity[];
+  topTenantsByRevenue: TopTenantByRevenue[];
+
+  // 5.9 Geography
+  tenantsByCountry: DistributionSlice[];
+
+  // 5.10 Onboarding pipeline
+  onboardingTotal: number;
+  onboardingNew: number;
+  onboardingAccepted30d: number;
+  onboardingRejected30d: number;
+  onboardingCompleted30d: number;
+  onboardingStatusDistribution: DistributionSlice[];
+  onboardingAcceptanceRate: number;
+
+  // 5.11 Support cases
+  supportCasesTotal: number;
+  supportCasesOpen: number;
+  supportCases30d: number;
+  supportStatusDistribution: DistributionSlice[];
+  supportPriorityDistribution: DistributionSlice[];
+  supportCategoryDistribution: DistributionSlice[];
+  topTenantsBySupport: TopTenantBySupport[];
+
+  // 5.12 Compliance / DSR
+  dsrOpen: number;
+  dsrTotal: number;
+  dsr30d: number;
+  dsrStatusDistribution: DistributionSlice[];
+  incidentsApproachingDeadline: number;
+
+  // 5.13 Time series (last 30 days, daily)
+  tenantSignupsLast30Days: TimeSeriesPoint[];
+  subscriptionSignupsLast30Days: TimeSeriesPoint[];
+  visitorSignupsLast30Days: TimeSeriesPoint[];
+  visitCheckInsLast30Days: TimeSeriesPoint[];
+  /** Each point's value is in minor units. */
+  revenueLast30DaysMinor: TimeSeriesPoint[];
+  incidentsLast30Days: TimeSeriesPoint[];
+
+  // 5.14 Heatmaps (last 30 days)
+  hourlyDistribution: HourlyBucket[];
+  dayOfWeekDistribution: DayOfWeekBucket[];
+
+  // 5.15 Recent activity
+  recentTenantSignups: TenantBriefRow[];
+  /** `visitorsCount` here is the 30-day check-in count, not lifetime. */
+  recentlyActiveTenants: TenantBriefRow[];
+
+  // 5.16 Meta
+  period: DashboardPeriod;
+  lastUpdated: number;
+  /** Legacy alias of `newTenants30d`. New code should ignore this. */
+  recentSignups30d: number;
+}
+
+export interface SystemUserRoleBreakdown {
+  superAdmin: number;
+  deptAdmin: number;
+  receptionist: number;
+  auditor: number;
+  securityOfficer: number;
+  dpo: number;
+}
+
+export interface SubscriptionStatusBreakdown {
+  active: number;
+  trialing: number;
+  pastDue: number;
+  cancelled: number;
+  suspended: number;
+  expired: number;
+}
+
+export interface InvoiceStatusBreakdown {
+  draft: number;
+  issued: number;
+  paid: number;
+  void: number;
+  refunded: number;
+}
+
+export interface PlanDistribution {
+  planId: string;
+  planName: string;
+  planTier: string;
+  subscriberCount: number;
+  /** Float, major units. */
+  monthlyRevenue: number;
+  /** Float, major units. */
+  yearlyRevenue: number;
+  /** Share of all subscribers. */
+  percentage: number;
+}
+
+export interface TopTenantByIncidents {
+  tenantId: string;
+  companyName: string;
+  incidentCount: number;
+}
+
+export interface TopTenantByVisitors {
+  tenantId: string;
+  companyName: string;
+  visitorCount: number;
+}
+
+export interface TopTenantByActivity {
+  tenantId: string;
+  companyName: string;
+  checkIns30d: number;
+  totalVisitSessions: number;
+}
+
+export interface TopTenantByRevenue {
+  tenantId: string;
+  companyName: string;
+  /** Float, major units. */
+  monthlyRevenue: number;
+  /** Float, major units. */
+  yearlyRevenue: number;
+  planName: string | null;
+  planTier: string | null;
+  status: string | null;
+}
+
+export interface TopTenantBySupport {
+  tenantId: string;
+  companyName: string;
+  openCases: number;
+  totalCases: number;
+}
+
+export interface TenantBriefRow {
+  id: string;
+  companyName: string;
+  isActive: boolean;
+  countryOfHosting: string | null;
+  dateCreated: number | null;
+  planName: string | null;
+  planTier: string | null;
+  subscriptionStatus: string | null;
+  /** Lifetime visitor count for `recentTenantSignups`; 30-day check-ins for `recentlyActiveTenants`. */
+  visitorsCount: number | null;
+}

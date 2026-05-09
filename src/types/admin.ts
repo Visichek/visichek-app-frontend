@@ -16,20 +16,12 @@ export interface AdminSearchResult {
 }
 
 /**
- * Admin Dashboard Stats
+ * Re-exported from `@/types/dashboard` so existing callers
+ * (`@/types/admin#AdminDashboardStats`) keep working. The full shape now
+ * mirrors the GET /v1/admins/dashboard/stats response — see the
+ * definition in `dashboard.ts` for field-level docs.
  */
-export interface AdminDashboardStats {
-  totalTenants: number;
-  activeSubscriptions: number;
-  mrr: number; // Monthly Recurring Revenue in minor units
-  currency?: string;
-  period?: string;
-  trends?: {
-    tenantGrowth?: number;
-    subscriptionGrowth?: number;
-    mrrGrowth?: number;
-  };
-}
+export type { AdminDashboardStats } from "./dashboard";
 
 /**
  * Admin Billing Summary

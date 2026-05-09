@@ -27,18 +27,18 @@ const adminKeys = {
 
 /**
  * Fetch platform admin dashboard statistics.
- * Admin only.
+ * Admin only. The endpoint is precompute-cached server-side with a 120s TTL
+ * (refreshed every 60s by the APScheduler fanout, dropped immediately on any
+ * tenant write touching subscriptions/billing/tenants/users), so polling at
+ * 60s keeps the UI close to fresh without burning request budget.
  */
 export function useAdminDashboardStats() {
   return useQuery({
     queryKey: adminKeys.stats(),
-    queryFn: async () => {
-      const data = await apiGet<AdminDashboardStats>(
-        '/admins/dashboard/stats'
-      );
-      return data;
-    },
-    staleTime: 300000, // 5 minutes
+    queryFn: () => apiGet<AdminDashboardStats>('/admins/dashboard/stats'),
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 }
 

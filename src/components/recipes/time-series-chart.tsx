@@ -28,6 +28,10 @@ interface TimeSeriesChartProps {
   height?: number;
   /** Render as MM/DD (the default) or full YYYY-MM-DD on the x-axis. */
   xAxisFormat?: "short" | "full";
+  /** Tooltip series label (default "Value"). */
+  valueLabel?: string;
+  /** Format the y-axis tick + tooltip number (default `toLocaleString`). */
+  valueFormatter?: (value: number) => string;
 }
 
 const DEFAULT_COLOR = "hsl(217 91% 60%)";
@@ -39,6 +43,8 @@ export function TimeSeriesChart({
   color = DEFAULT_COLOR,
   height = 240,
   xAxisFormat = "short",
+  valueLabel = "Value",
+  valueFormatter = (value: number) => value.toLocaleString(),
 }: TimeSeriesChartProps) {
   const id = useId();
   const gradientId = `ts-grad-${id}`;
@@ -82,7 +88,8 @@ export function TimeSeriesChart({
               allowDecimals={false}
               tickLine={false}
               axisLine={false}
-              width={32}
+              width={48}
+              tickFormatter={valueFormatter}
             />
             <Tooltip
               contentStyle={{
@@ -93,7 +100,7 @@ export function TimeSeriesChart({
                 fontSize: 12,
               }}
               labelStyle={{ color: "hsl(var(--muted-foreground))" }}
-              formatter={(value: number) => [value.toLocaleString(), "Visits"]}
+              formatter={(value: number) => [valueFormatter(value), valueLabel]}
             />
             <Area
               type="monotone"

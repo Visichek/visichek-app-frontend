@@ -204,6 +204,7 @@ export function DashboardPageClient() {
             description="Daily check-ins"
             data={stats.visitsLast30Days}
             height={260}
+            valueLabel="Visits"
           />
         </section>
       )}

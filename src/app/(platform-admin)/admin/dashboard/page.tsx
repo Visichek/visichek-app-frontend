@@ -6,10 +6,8 @@ import {
   ssrPrefetch,
 } from "@/lib/api/server-prefetch";
 import { HydrationBoundary } from "@/components/hydration-boundary";
-import {
-  AdminDashboardPageClient,
-  type AdminDashboardStats,
-} from "./dashboard-page-client";
+import type { AdminDashboardStats } from "@/types/admin";
+import { AdminDashboardPageClient } from "./dashboard-page-client";
 
 export const dynamic = "force-dynamic";
 
