@@ -539,7 +539,14 @@ export function VisitorsPageClient({ activeState }: VisitorsPageClientProps) {
           return (
             <Tooltip key={tab.id}>
               <TooltipTrigger asChild>
-                <Link
+                {/* Plain <a> — see app-sidebar for the rationale.
+                    Combining a Radix Tooltip portal with a Next.js
+                    client transition triggered by the same click was
+                    racing the React 19 reconciler during the page-tree
+                    swap and surfacing as `removeChild on null` deep in
+                    react-dom's commit phase. A full-page navigation
+                    sidesteps the portal cleanup entirely. */}
+                <a
                   href={tab.href}
                   role="tab"
                   aria-selected={isActive}
@@ -573,7 +580,7 @@ export function VisitorsPageClient({ activeState }: VisitorsPageClientProps) {
                       {count}
                     </span>
                   )}
-                </Link>
+                </a>
               </TooltipTrigger>
               <TooltipContent side="bottom">{tab.tooltip}</TooltipContent>
             </Tooltip>
