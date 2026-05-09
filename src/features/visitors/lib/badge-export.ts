@@ -93,11 +93,14 @@ export async function downloadVisitorBadgePdf(
     import("jspdf"),
   ]);
 
+  await waitForFontsAndImages(node);
+
   const canvas = await html2canvas(node, {
-    scale: Math.max(3, window.devicePixelRatio || 1) ,
+    scale: Math.max(4, window.devicePixelRatio * 2 || 4),
     backgroundColor: "#ffffff",
     useCORS: true,
     logging: false,
+    imageTimeout: 0,
     windowWidth: node.scrollWidth,
     windowHeight: node.scrollHeight,
   });
@@ -110,8 +113,44 @@ export async function downloadVisitorBadgePdf(
     compress: true,
   });
 
-  pdf.addImage(imgData, "PNG", 0, 0, w, h, undefined, "FAST");
+  pdf.addImage(imgData, "PNG", 0, 0, w, h, undefined, "SLOW");
   pdf.save(badgeFilename(visitorName, format));
+}
+
+/**
+ * html2canvas captures whatever fonts the browser has at that instant.
+ * Without waiting for `document.fonts.ready`, web-loaded faces (Plus
+ * Jakarta Sans, IBM Plex Mono) can be substituted by a fallback whose
+ * space-glyph metrics differ — the result is rendered text with
+ * collapsed whitespace ("Visitor Management" → "VisitorManagement",
+ * "2026-05-09 18:33 UTC" → "2026-05-0918:33UTC"). Awaiting the fonts
+ * promise plus any `<img>` decode keeps the snapshot consistent with
+ * the on-screen preview.
+ */
+async function waitForFontsAndImages(node: HTMLElement): Promise<void> {
+  const tasks: Array<Promise<unknown>> = [];
+
+  if (typeof document !== "undefined" && document.fonts?.ready) {
+    tasks.push(document.fonts.ready.catch(() => undefined));
+  }
+
+  const images = Array.from(node.querySelectorAll("img"));
+  for (const img of images) {
+    if (img.complete && img.naturalWidth > 0) continue;
+    tasks.push(
+      new Promise<void>((resolve) => {
+        const settle = () => resolve();
+        img.addEventListener("load", settle, { once: true });
+        img.addEventListener("error", settle, { once: true });
+      }),
+    );
+  }
+
+  // Bound the wait so a slow remote logo never blocks the export forever.
+  await Promise.race([
+    Promise.all(tasks),
+    new Promise((resolve) => window.setTimeout(resolve, 3000)),
+  ]);
 }
 
 /**

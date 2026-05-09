@@ -82,7 +82,6 @@ export const VisitorBadge = forwardRef<HTMLDivElement, VisitorBadgeProps>(
           height: `${height}mm`,
           background: "#ffffff",
           color: "#020617",
-          borderRadius: "4mm",
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
@@ -174,17 +173,16 @@ export const VisitorBadge = forwardRef<HTMLDivElement, VisitorBadgeProps>(
                 )}
               </div>
 
-              <div style={{ minWidth: 0 }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
                 <div
                   style={{
-                    fontSize: `${8 * fontScale}px`,
+                    fontSize: `${(data.tenantName.length > 22 ? 7 : 8) * fontScale}px`,
                     fontWeight: 900,
                     textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    maxWidth: isA6 ? "62mm" : "42mm",
+                    letterSpacing: "0.06em",
+                    lineHeight: 1.1,
+                    overflowWrap: "anywhere",
+                    wordBreak: "break-word",
                   }}
                 >
                   {data.tenantName}
