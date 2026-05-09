@@ -134,10 +134,10 @@ export function ConfirmCheckinForm({
           });
           return;
         }
-        router.push("/app/visitors");
+        router.push("/app/visitors/pending");
       } else {
         toast.info(`${visitorName} rejected. Host has been notified.`);
-        router.push("/app/visitors");
+        router.push("/app/visitors/pending");
       }
     } catch (err) {
       setError(
@@ -155,10 +155,10 @@ export function ConfirmCheckinForm({
           <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" asChild className="min-h-[44px]">
               <Link
-                href="/app/visitors"
-                onClick={() => handleNavClick("/app/visitors")}
+                href="/app/visitors/pending"
+                onClick={() => handleNavClick("/app/visitors/pending")}
               >
-                {loadingHref === "/app/visitors" ? (
+                {loadingHref === "/app/visitors/pending" ? (
                   <Loader2
                     className="mr-2 h-4 w-4 animate-spin"
                     aria-hidden="true"
@@ -327,8 +327,8 @@ export function ConfirmCheckinForm({
                   className="min-h-[44px] md:ml-auto"
                 >
                   <Link
-                    href="/app/visitors"
-                    onClick={() => handleNavClick("/app/visitors")}
+                    href="/app/visitors/pending"
+                    onClick={() => handleNavClick("/app/visitors/pending")}
                   >
                     Done
                   </Link>
@@ -449,8 +449,8 @@ export function ConfirmCheckinForm({
                   className="w-full min-h-[44px] md:w-auto"
                 >
                   <Link
-                    href="/app/visitors"
-                    onClick={() => handleNavClick("/app/visitors")}
+                    href="/app/visitors/pending"
+                    onClick={() => handleNavClick("/app/visitors/pending")}
                   >
                     Cancel
                   </Link>

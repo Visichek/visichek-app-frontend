@@ -14,7 +14,7 @@ import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { ScanCheckoutFlow } from "@/features/visitors/components/scan-checkout-flow";
 
 export default function ScanCheckOutPage() {
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref, handleNavClick, navigate } = useNavigationLoading();
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -49,7 +49,9 @@ export default function ScanCheckOutPage() {
         description="Pick a visitor from the list, then scan their badge to confirm and check them out."
       />
 
-      <ScanCheckoutFlow />
+      <ScanCheckoutFlow
+        onCheckedOut={() => navigate("/app/visitors/checked-out")}
+      />
     </div>
   );
 }

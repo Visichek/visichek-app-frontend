@@ -24,7 +24,9 @@ export const PATHS = {
 
   // Tenant
   APP_DASHBOARD: "/app/dashboard",
-  APP_VISITORS: "/app/visitors",
+  // Visitors landing is the Pending tab — there is no useful index at
+  // /app/visitors itself (it just redirects), so link here directly.
+  APP_VISITORS: "/app/visitors/pending",
   APP_APPOINTMENTS: "/app/appointments",
   APP_DEPARTMENTS: "/app/departments",
   APP_BRANCHES: "/app/branches",

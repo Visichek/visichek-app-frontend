@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -11,6 +10,7 @@ import {
   Search,
   ShieldCheck,
   Users,
+  UserMinus,
 } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -25,33 +25,60 @@ import { TableSkeleton } from "@/components/feedback/table-skeleton";
 import { useAwaitingCheckout, useCheckOut } from "@/features/visitors/hooks";
 import { formatRelative } from "@/lib/utils/format-date";
 import { cn } from "@/lib/utils/cn";
-import type { VisitSessionWithSummary } from "@/types/visitor";
+import type {
+  AwaitingCheckoutItem,
+  AwaitingCheckoutSourceType,
+} from "@/types/visitor";
 import { BadgeScanner } from "./badge-scanner";
 
-function visitorName(row: VisitSessionWithSummary): string {
+function visitorName(row: AwaitingCheckoutItem): string {
   return (
+    row.visitorSummary?.fullName ||
     row.visitorProfileSummary?.fullName ||
-    row.visitorNameSnapshot ||
+    row.visitorName ||
     "Unnamed visitor"
   );
 }
 
-function visitorCompany(row: VisitSessionWithSummary): string | undefined {
-  return row.visitorProfileSummary?.company || row.companySnapshot;
+function visitorCompany(row: AwaitingCheckoutItem): string | undefined {
+  return (
+    row.visitorSummary?.company ||
+    row.visitorProfileSummary?.company ||
+    row.company ||
+    undefined
+  ) ?? undefined;
 }
 
-function hostName(row: VisitSessionWithSummary): string | undefined {
-  return row.hostSummary?.fullName || row.hostNameSnapshot;
+function visitorPhoto(row: AwaitingCheckoutItem): string | undefined {
+  return (
+    row.visitorSummary?.portraitUrl ||
+    row.visitorProfileSummary?.photoUrl ||
+    undefined
+  ) ?? undefined;
 }
 
-function departmentName(row: VisitSessionWithSummary): string | undefined {
-  return row.departmentSummary?.name || row.departmentNameSnapshot;
+function hostName(row: AwaitingCheckoutItem): string | undefined {
+  return row.hostSummary?.fullName;
 }
 
-export function ScanCheckoutFlow() {
-  const router = useRouter();
+function departmentName(row: AwaitingCheckoutItem): string | undefined {
+  return row.departmentSummary?.name;
+}
+
+const ELIGIBLE_LABEL: Record<AwaitingCheckoutSourceType, string> = {
+  visit_session: "Checked in",
+  approved_checkin: "Approved",
+  scheduled_appointment: "Scheduled for",
+};
+
+export interface ScanCheckoutFlowProps {
+  /** Called after a successful checkout. Defaults to a no-op. */
+  onCheckedOut?: (row: AwaitingCheckoutItem) => void;
+}
+
+export function ScanCheckoutFlow({ onCheckedOut }: ScanCheckoutFlowProps = {}) {
   const [query, setQuery] = useState("");
-  const [picked, setPicked] = useState<VisitSessionWithSummary | null>(null);
+  const [picked, setPicked] = useState<AwaitingCheckoutItem | null>(null);
 
   const {
     data = [],
@@ -72,33 +99,67 @@ export function ScanCheckoutFlow() {
       const company = (visitorCompany(row) ?? "").toLowerCase();
       const host = (hostName(row) ?? "").toLowerCase();
       const dept = (departmentName(row) ?? "").toLowerCase();
+      const phone = (row.phone ?? "").toLowerCase();
       return (
         name.includes(q) ||
         company.includes(q) ||
         host.includes(q) ||
-        dept.includes(q)
+        dept.includes(q) ||
+        phone.includes(q)
       );
     });
   }, [data, query]);
 
+  // Scan path. The badge_qr_token alone is enough — the server resolves
+  // the matching record itself (HMAC-signed visit-session badge OR raw
+  // approved-checkin qr_code_value). When a row was pre-picked we
+  // additionally guard against the receptionist scanning the wrong
+  // visitor's badge by mistake.
   async function handleScannedToken(token: string) {
-    if (!picked || checkOut.isPending) return;
-    const target = picked;
-    const expected = target.badgeQrToken;
-    if (expected && expected.trim() && expected.trim() !== token) {
-      toast.error(
-        "That badge doesn't match the selected visitor. Double-check the token or pick a different visitor.",
-      );
-      return;
+    if (checkOut.isPending) return;
+    if (picked) {
+      const expected = picked.badgeQrToken;
+      if (expected && expected.trim() && expected.trim() !== token) {
+        toast.error(
+          "That badge doesn't match the selected visitor. Double-check the token or pick a different visitor.",
+        );
+        return;
+      }
     }
+    const target = picked;
     try {
       await checkOut.mutateAsync({
-        sessionId: target.id,
         badgeQrToken: token,
         checkOutMethod: "qr_scan",
       });
-      toast.success(`${visitorName(target)} checked out`);
-      router.push("/app/visitors/checked-out");
+      toast.success(
+        target
+          ? `${visitorName(target)} checked out`
+          : "Visitor checked out",
+      );
+      setPicked(null);
+      if (target) onCheckedOut?.(target);
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Failed to check out visitor",
+      );
+    }
+  }
+
+  // Manual checkout from this screen — useful when the scan won't
+  // succeed (lost badge, scheduled_appointment row that has no QR
+  // token at all). Falls back to the discriminated form.
+  async function handleManualCheckOut(row: AwaitingCheckoutItem) {
+    if (checkOut.isPending) return;
+    try {
+      await checkOut.mutateAsync({
+        sourceType: row.sourceType,
+        checkoutId: row.checkoutId,
+        checkOutMethod: "manual",
+      });
+      toast.success(`${visitorName(row)} checked out`);
+      setPicked(null);
+      onCheckedOut?.(row);
     } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "Failed to check out visitor",
@@ -150,6 +211,8 @@ export function ScanCheckoutFlow() {
   }
 
   if (picked) {
+    const photo = visitorPhoto(picked);
+    const hasBadgeToken = !!picked.badgeQrToken;
     return (
       <div className="space-y-4">
         <Tooltip>
@@ -173,10 +236,10 @@ export function ScanCheckoutFlow() {
 
         <div className="rounded-lg border bg-card p-4">
           <div className="flex items-start gap-3">
-            {picked.visitorProfileSummary?.photoUrl ? (
+            {photo ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={picked.visitorProfileSummary.photoUrl}
+                src={photo}
                 alt=""
                 className="h-12 w-12 rounded-full object-cover border shrink-0"
               />
@@ -194,7 +257,10 @@ export function ScanCheckoutFlow() {
                   .join(" · ") || "No company or purpose"}
               </p>
               <p className="text-xs text-muted-foreground truncate mt-0.5">
-                {[hostName(picked) && `Host: ${hostName(picked)}`, departmentName(picked)]
+                {[
+                  hostName(picked) && `Host: ${hostName(picked)}`,
+                  departmentName(picked),
+                ]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
@@ -202,18 +268,57 @@ export function ScanCheckoutFlow() {
           </div>
         </div>
 
-        <div>
-          <h3 className="text-base font-semibold">Scan badge to confirm</h3>
-          <p className="text-sm text-muted-foreground">
-            Scan the visitor&apos;s badge QR or barcode. Once read, we&apos;ll
-            check them out automatically.
-          </p>
-        </div>
+        {hasBadgeToken ? (
+          <>
+            <div>
+              <h3 className="text-base font-semibold">Scan badge to confirm</h3>
+              <p className="text-sm text-muted-foreground">
+                Scan the visitor&apos;s badge QR or barcode. Once read,
+                we&apos;ll check them out automatically.
+              </p>
+            </div>
 
-        <BadgeScanner
-          onResult={(token) => void handleScannedToken(token)}
-          hideManualEntry={false}
-        />
+            <BadgeScanner
+              onResult={(token) => void handleScannedToken(token)}
+              hideManualEntry={false}
+            />
+          </>
+        ) : (
+          // Scheduled-appointment rows have no badge to scan; offer the
+          // manual fallback so this flow doesn't dead-end.
+          <div className="rounded-lg border bg-muted/30 p-4 text-sm space-y-3">
+            <p className="text-muted-foreground">
+              This visitor doesn&apos;t have a badge QR — appointments are
+              checked out manually.
+            </p>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  onClick={() => void handleManualCheckOut(picked)}
+                  disabled={checkOut.isPending}
+                  className="min-h-[44px]"
+                >
+                  {checkOut.isPending ? (
+                    <Loader2
+                      className="mr-2 h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <UserMinus
+                      className="mr-2 h-4 w-4"
+                      aria-hidden="true"
+                    />
+                  )}
+                  Mark as fulfilled
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                End this appointment and mark it fulfilled without a badge scan
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        )}
 
         {checkOut.isPending && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -227,6 +332,24 @@ export function ScanCheckoutFlow() {
 
   return (
     <div className="space-y-4">
+      <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-3">
+        <p className="text-muted-foreground">
+          Scan a badge to check anyone out instantly — no list selection
+          needed. Or pick a visitor below first to verify the badge against the
+          expected token.
+        </p>
+        <BadgeScanner
+          onResult={(token) => void handleScannedToken(token)}
+          hideManualEntry={false}
+        />
+        {checkOut.isPending && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            Checking out…
+          </div>
+        )}
+      </div>
+
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <Search
@@ -236,7 +359,7 @@ export function ScanCheckoutFlow() {
           <Input
             type="search"
             inputMode="search"
-            placeholder="Search by name, company, host, or department"
+            placeholder="Search by name, company, host, department, or phone"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="pl-9 text-base md:text-sm min-h-[44px]"
@@ -274,20 +397,20 @@ export function ScanCheckoutFlow() {
           }
           description={
             data.length === 0
-              ? "When visitors check in, they'll appear here so you can scan their badge."
+              ? "When visitors check in, are approved, or have an appointment today, they'll appear here."
               : "Try a different search term, or clear the search to see everyone."
           }
         />
       ) : (
         <ul className="space-y-2" role="list">
           {filtered.map((row) => {
-            const photo = row.visitorProfileSummary?.photoUrl;
+            const photo = visitorPhoto(row);
             const name = visitorName(row);
             const company = visitorCompany(row);
             const host = hostName(row);
             const dept = departmentName(row);
-            const checkedInAt = row.checkedInAt ?? row.checkInTime;
             const hasBadgeToken = !!row.badgeQrToken;
+            const eligibleLabel = ELIGIBLE_LABEL[row.sourceType];
             return (
               <li key={row.id}>
                 <Tooltip>
@@ -340,7 +463,7 @@ export function ScanCheckoutFlow() {
                         </div>
                       </div>
                       <span className="text-xs text-muted-foreground whitespace-nowrap md:text-right">
-                        Checked in {formatRelative(checkedInAt)}
+                        {eligibleLabel} {formatRelative(row.eligibleSince)}
                       </span>
                     </button>
                   </TooltipTrigger>

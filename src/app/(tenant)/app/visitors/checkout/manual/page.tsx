@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
@@ -15,8 +14,7 @@ import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { AwaitingCheckoutPicker } from "@/features/visitors/components/awaiting-checkout-picker";
 
 export default function ManualCheckOutPage() {
-  const router = useRouter();
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref, handleNavClick, navigate } = useNavigationLoading();
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -68,7 +66,7 @@ export default function ManualCheckOutPage() {
           </p>
         </div>
         <AwaitingCheckoutPicker
-          onCheckedOut={() => router.push("/app/visitors/checked-out")}
+          onCheckedOut={() => navigate("/app/visitors/checked-out")}
         />
       </section>
     </div>

@@ -16,7 +16,8 @@ import type {
   VisitSession,
   VisitorProfile,
   CheckOutRequest,
-  VisitSessionWithSummary,
+  CheckOutResponse,
+  AwaitingCheckoutItem,
 } from '@/types/visitor';
 import type {
   MintRegistrationQrRequest,
@@ -137,12 +138,15 @@ export function useVisitorBadge(sessionId: string) {
 }
 
 /**
- * Fetch visitors currently `checked_in` and waiting to be checked out.
- * Returns enriched VisitSessionWithSummary rows so the picker can render
- * names, photos, host, and department without follow-up calls.
+ * Fetch the unified picker for `GET /v1/visitors/awaiting-checkout`.
  *
- * Auto-refreshes every 5 seconds to stay in sync with concurrent
- * check-outs from other receptionists.
+ * Returns the merged stream of three independently sourced collections
+ * (visit_session, approved_checkin, scheduled_appointment) as
+ * AwaitingCheckoutItem rows, sorted newest-eligible first by the server.
+ * Field availability per row varies by `sourceType` — see the type doc.
+ *
+ * Auto-refreshes every 5 seconds so concurrent checkouts from other
+ * receptionists drop out of the list quickly.
  */
 export function useAwaitingCheckout(params?: {
   departmentId?: string;
@@ -157,7 +161,7 @@ export function useAwaitingCheckout(params?: {
   return useQuery({
     queryKey: visitorKeys.awaitingCheckoutList(normalized),
     queryFn: async () => {
-      const data = await apiGet<VisitSessionWithSummary[]>(
+      const data = await apiGet<AwaitingCheckoutItem[]>(
         '/visitors/awaiting-checkout',
         {
           ...(normalized.departmentId && {
@@ -167,10 +171,7 @@ export function useAwaitingCheckout(params?: {
           ...(normalized.stop !== undefined && { stop: normalized.stop }),
         },
       );
-      return (data ?? []).map((row) => ({
-        ...row,
-        ...(normalizeSession(row) as VisitSessionWithSummary),
-      }));
+      return data ?? [];
     },
     refetchInterval: 5000,
     refetchIntervalInBackground: false,
@@ -179,15 +180,24 @@ export function useAwaitingCheckout(params?: {
 }
 
 /**
- * Mutation for checking out a visitor.
- * Invalidates active visitors, sessions, and the awaiting-checkout list.
+ * Mutation for `POST /v1/visitors/check-out`.
+ *
+ * Two normal call shapes:
+ *  - From the awaiting-checkout picker: pass `{ sourceType, checkoutId }`
+ *    straight off the row (optionally `checkOutMethod: "manual"`).
+ *  - From a badge scan: pass `{ badgeQrToken, checkOutMethod: "qr_scan" }`
+ *    and let the server resolve the underlying record.
+ *
+ * Response shape varies by source — callers should treat the response
+ * as opaque and rely on the cache invalidation here to refresh their
+ * view from the next `/awaiting-checkout` fetch.
  */
 export function useCheckOut() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (request: CheckOutRequest) => {
-      const data = await apiPost<VisitSession>(
+      const data = await apiPost<CheckOutResponse>(
         '/visitors/check-out',
         request
       );
@@ -197,9 +207,11 @@ export function useCheckOut() {
       queryClient.invalidateQueries({ queryKey: visitorKeys.active });
       queryClient.invalidateQueries({ queryKey: visitorKeys.sessions });
       queryClient.invalidateQueries({ queryKey: visitorKeys.awaitingCheckout });
-      // Check-in lists live under a different key — invalidate the whole
-      // "checkins" namespace so the Visitors page refreshes.
+      // Approved-checkin and scheduled-appointment terminal states live
+      // under different query namespaces, so blow them all away — the
+      // awaiting-checkout payload draws from all three collections.
       queryClient.invalidateQueries({ queryKey: ['checkins'] });
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
     },
   });
 }

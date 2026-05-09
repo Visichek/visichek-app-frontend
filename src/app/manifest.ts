@@ -27,7 +27,7 @@ export default function manifest(): MetadataRoute.Manifest {
         name: "Check in visitor",
         short_name: "Check in",
         description: "Open the visitor check-in flow",
-        url: "/app/visitors",
+        url: "/app/visitors/pending",
       },
       {
         name: "Dashboard",

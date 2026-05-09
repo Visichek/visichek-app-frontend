@@ -57,10 +57,10 @@ export default function CheckOutMethodChoicePage() {
           <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" asChild className="min-h-[44px]">
               <Link
-                href="/app/visitors"
-                onClick={() => handleNavClick("/app/visitors")}
+                href="/app/visitors/pending"
+                onClick={() => handleNavClick("/app/visitors/pending")}
               >
-                {loadingHref === "/app/visitors" ? (
+                {loadingHref === "/app/visitors/pending" ? (
                   <Loader2
                     className="mr-2 h-4 w-4 animate-spin"
                     aria-hidden="true"

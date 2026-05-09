@@ -23,7 +23,7 @@ import { CheckinStateBadge } from "./state-badge";
 import { formatDateTime } from "@/lib/utils/format-date";
 import type { CheckinOut } from "@/types/checkin";
 
-const LIST_HREF = "/app/visitors";
+const LIST_HREF = "/app/visitors/pending";
 
 function confirmHref(id: string, action: "approve" | "reject") {
   return `/app/visitors/${id}/confirm?action=${action}`;

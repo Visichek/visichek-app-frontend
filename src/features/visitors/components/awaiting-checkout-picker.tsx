@@ -24,7 +24,10 @@ import { TableSkeleton } from "@/components/feedback/table-skeleton";
 import { useAwaitingCheckout, useCheckOut } from "@/features/visitors/hooks";
 import { formatRelative } from "@/lib/utils/format-date";
 import { cn } from "@/lib/utils/cn";
-import type { VisitSessionWithSummary } from "@/types/visitor";
+import type {
+  AwaitingCheckoutItem,
+  AwaitingCheckoutSourceType,
+} from "@/types/visitor";
 
 export interface AwaitingCheckoutPickerProps {
   /** Optional department scope. When set, only that department's visitors show. */
@@ -32,45 +35,78 @@ export interface AwaitingCheckoutPickerProps {
   /** Page size to request. Defaults to 50 (matches backend default). */
   pageSize?: number;
   /** Called after a successful checkout. Use to close a parent modal, etc. */
-  onCheckedOut?: (session: VisitSessionWithSummary) => void;
+  onCheckedOut?: (row: AwaitingCheckoutItem) => void;
 }
 
-function visitorName(row: VisitSessionWithSummary): string {
+// Either `visitorSummary` (approved_checkin path) or
+// `visitorProfileSummary` (visit_session / appointment path) is
+// populated for any given row — never both. Render whichever is non-null
+// and fall back to the flat fields the server denormalises onto every
+// row.
+function visitorName(row: AwaitingCheckoutItem): string {
   return (
     row.visitorSummary?.fullName ||
-    row.visitorName ||
     row.visitorProfileSummary?.fullName ||
-    row.visitorNameSnapshot ||
+    row.visitorName ||
     "Unnamed visitor"
   );
 }
 
-function visitorCompany(row: VisitSessionWithSummary): string | undefined {
+function visitorCompany(row: AwaitingCheckoutItem): string | undefined {
   return (
     row.visitorSummary?.company ||
-    row.company ||
     row.visitorProfileSummary?.company ||
-    row.companySnapshot ||
+    row.company ||
     undefined
-  );
+  ) ?? undefined;
 }
 
-function visitorPhoto(row: VisitSessionWithSummary): string | undefined {
+function visitorPhoto(row: AwaitingCheckoutItem): string | undefined {
   return (
     row.visitorSummary?.portraitUrl ||
-    row.portraitUrl ||
     row.visitorProfileSummary?.photoUrl ||
     undefined
-  );
+  ) ?? undefined;
 }
 
-function hostName(row: VisitSessionWithSummary): string | undefined {
-  return row.hostSummary?.fullName || row.hostNameSnapshot;
+function hostName(row: AwaitingCheckoutItem): string | undefined {
+  return row.hostSummary?.fullName;
 }
 
-function departmentName(row: VisitSessionWithSummary): string | undefined {
-  return row.departmentSummary?.name || row.departmentNameSnapshot;
+function departmentName(row: AwaitingCheckoutItem): string | undefined {
+  return row.departmentSummary?.name;
 }
+
+// Source-aware label for the timestamp. The server returns the right
+// epoch under `eligibleSince` regardless of source, but the receptionist
+// reads the row better when the verb matches the lifecycle.
+const ELIGIBLE_LABEL: Record<AwaitingCheckoutSourceType, string> = {
+  visit_session: "Checked in",
+  approved_checkin: "Approved",
+  scheduled_appointment: "Scheduled for",
+};
+
+const SOURCE_BADGE: Record<
+  AwaitingCheckoutSourceType,
+  { label: string; tooltip: string; tone: string }
+> = {
+  visit_session: {
+    label: "Visit",
+    tooltip: "Classic visit session — receptionist-driven check-in",
+    tone: "bg-primary/10 text-primary",
+  },
+  approved_checkin: {
+    label: "Self-registered",
+    tooltip: "Visitor self-registered and a host approved them",
+    tone: "bg-success/10 text-success",
+  },
+  scheduled_appointment: {
+    label: "Appointment",
+    tooltip:
+      "Pre-booked appointment that has reached its day — checking out marks it fulfilled",
+    tone: "bg-muted text-muted-foreground",
+  },
+};
 
 export function AwaitingCheckoutPicker({
   departmentId,
@@ -78,8 +114,9 @@ export function AwaitingCheckoutPicker({
   onCheckedOut,
 }: AwaitingCheckoutPickerProps) {
   const [query, setQuery] = useState("");
-  const [pendingSession, setPendingSession] =
-    useState<VisitSessionWithSummary | null>(null);
+  const [pendingRow, setPendingRow] = useState<AwaitingCheckoutItem | null>(
+    null,
+  );
 
   const {
     data = [],
@@ -104,25 +141,32 @@ export function AwaitingCheckoutPicker({
       const company = (visitorCompany(row) ?? "").toLowerCase();
       const host = (hostName(row) ?? "").toLowerCase();
       const dept = (departmentName(row) ?? "").toLowerCase();
+      const phone = (row.phone ?? "").toLowerCase();
       return (
         name.includes(q) ||
         company.includes(q) ||
         host.includes(q) ||
-        dept.includes(q)
+        dept.includes(q) ||
+        phone.includes(q)
       );
     });
   }, [data, query]);
 
   async function confirmCheckOut() {
-    if (!pendingSession) return;
-    const target = pendingSession;
+    if (!pendingRow) return;
+    const target = pendingRow;
     try {
+      // Discriminated form per the spec: server resolves the right
+      // collection from `sourceType`. Method is "manual" because the
+      // receptionist confirmed via UI, not a badge scan — only persists
+      // for `visit_session` rows; the other sources accept-and-ignore.
       await checkOut.mutateAsync({
-        sessionId: target.id,
+        sourceType: target.sourceType,
+        checkoutId: target.checkoutId,
         checkOutMethod: "manual",
       });
       toast.success(`${visitorName(target)} checked out`);
-      setPendingSession(null);
+      setPendingRow(null);
       onCheckedOut?.(target);
     } catch (e) {
       toast.error(
@@ -185,7 +229,7 @@ export function AwaitingCheckoutPicker({
           <Input
             type="search"
             inputMode="search"
-            placeholder="Search by name, company, host, or department"
+            placeholder="Search by name, company, host, department, or phone"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="pl-9 text-base md:text-sm min-h-[44px]"
@@ -225,7 +269,7 @@ export function AwaitingCheckoutPicker({
           }
           description={
             data.length === 0
-              ? "When visitors check in, they'll appear here so you can check them out."
+              ? "When visitors check in, are approved, or have an appointment today, they'll appear here."
               : "Try a different search term, or clear the search to see everyone."
           }
         />
@@ -233,13 +277,14 @@ export function AwaitingCheckoutPicker({
         <ul className="space-y-2" role="list">
           {filtered.map((row) => {
             const isThisRowPending =
-              checkOut.isPending && pendingSession?.id === row.id;
+              checkOut.isPending && pendingRow?.id === row.id;
             const photo = visitorPhoto(row);
             const name = visitorName(row);
             const company = visitorCompany(row);
             const host = hostName(row);
             const dept = departmentName(row);
-            const checkedInAt = row.checkedInAt ?? row.checkInTime;
+            const sourceBadge = SOURCE_BADGE[row.sourceType];
+            const eligibleLabel = ELIGIBLE_LABEL[row.sourceType];
             return (
               <li
                 key={row.id}
@@ -264,7 +309,24 @@ export function AwaitingCheckoutPicker({
                     />
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium truncate">{name}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium truncate">{name}</p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span
+                            className={cn(
+                              "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+                              sourceBadge.tone,
+                            )}
+                          >
+                            {sourceBadge.label}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          {sourceBadge.tooltip}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                     <p className="text-xs text-muted-foreground truncate">
                       {[company, row.purpose].filter(Boolean).join(" · ") ||
                         "No company or purpose"}
@@ -278,13 +340,13 @@ export function AwaitingCheckoutPicker({
                 </div>
                 <div className="flex items-center justify-between gap-3 md:gap-4 md:justify-end">
                   <span className="text-xs text-muted-foreground whitespace-nowrap">
-                    Checked in {formatRelative(checkedInAt)}
+                    {eligibleLabel} {formatRelative(row.eligibleSince)}
                   </span>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
                         size="sm"
-                        onClick={() => setPendingSession(row)}
+                        onClick={() => setPendingRow(row)}
                         disabled={checkOut.isPending}
                         className="min-h-[44px]"
                       >
@@ -315,14 +377,18 @@ export function AwaitingCheckoutPicker({
       )}
 
       <ConfirmDialog
-        open={pendingSession !== null}
+        open={pendingRow !== null}
         onOpenChange={(open) => {
-          if (!open && !checkOut.isPending) setPendingSession(null);
+          if (!open && !checkOut.isPending) setPendingRow(null);
         }}
         title="Check out this visitor?"
         description={
-          pendingSession
-            ? `${visitorName(pendingSession)} will be marked as checked out. This cannot be undone from this screen.`
+          pendingRow
+            ? `${visitorName(pendingRow)} will be marked as ${
+                pendingRow.sourceType === "scheduled_appointment"
+                  ? "fulfilled"
+                  : "checked out"
+              }. This cannot be undone from this screen.`
             : ""
         }
         confirmLabel="Check out"

@@ -14,7 +14,7 @@ import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useCheckinDetail } from "@/features/checkins/hooks";
 import { CheckinDetailView } from "@/features/checkins/components/checkin-detail-view";
 
-const LIST_HREF = "/app/visitors";
+const LIST_HREF = "/app/visitors/pending";
 
 export default function CheckinDetailPage({
   params,
