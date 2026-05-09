@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { WifiOff } from "lucide-react";
 
+import { OfflineReload } from "./offline-reload";
+
 export const metadata: Metadata = {
   title: "Offline — VisiChek",
   description: "You appear to be offline.",
@@ -22,12 +24,7 @@ export default function OfflinePage() {
       <p className="text-xs text-muted-foreground">
         If you just installed the app, try opening it again once you&apos;re back online.
       </p>
-      {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `window.addEventListener('online', () => window.location.reload());`,
-        }}
-      />
+      <OfflineReload />
     </div>
   );
 }
