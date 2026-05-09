@@ -28,6 +28,7 @@ import {
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useCreateSystemUser } from "@/features/users/hooks/use-users";
 import { useDepartments } from "@/features/departments/hooks/use-departments";
+import { BranchPicker } from "@/features/users/components/branch-picker";
 import type { SystemUserRole } from "@/types/enums";
 
 const userSchema = z.object({
@@ -43,6 +44,7 @@ const userSchema = z.object({
     "dpo",
   ] as const),
   departmentId: z.string().optional(),
+  branchIds: z.array(z.string()).optional(),
 });
 
 type UserFormData = z.infer<typeof userSchema>;
@@ -67,11 +69,13 @@ export default function NewUserPage() {
       password: "",
       role: "receptionist",
       departmentId: "",
+      branchIds: [],
     },
   });
 
   const role = watch("role");
   const departmentId = watch("departmentId");
+  const branchIds = watch("branchIds") ?? [];
 
   const onSubmit = handleSubmit(async (data) => {
     try {
@@ -81,6 +85,9 @@ export default function NewUserPage() {
         password: data.password,
         role: data.role as SystemUserRole,
         departmentId: data.departmentId || undefined,
+        // Server defaults empty/missing to [HQ]; pass explicit list when set.
+        branchIds:
+          data.branchIds && data.branchIds.length > 0 ? data.branchIds : undefined,
       });
       toast.success("System user created");
       router.push("/app/users");
@@ -244,6 +251,11 @@ export default function NewUserPage() {
             </Tooltip>
           </div>
         )}
+
+        <BranchPicker
+          value={branchIds}
+          onChange={(next) => setValue("branchIds", next)}
+        />
 
         <div className="flex flex-col gap-2 pt-2 md:flex-row md:justify-end">
           <Tooltip>

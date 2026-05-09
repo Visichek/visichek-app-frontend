@@ -12,6 +12,8 @@ import type {
   SystemUserSignupRequest,
   SystemUserUpdateRequest,
   InviteAdminRequest,
+  ResetUserPasswordRequest,
+  ResetUserPasswordResponse,
 } from '@/types/user';
 import type { SystemUserProfile } from '@/types/auth';
 
@@ -57,21 +59,27 @@ export function useCurrentUser() {
 }
 
 /**
- * Mutation for creating a system user (tenant staff).
- * Invalidates the users list on success.
+ * Invite a new system user (tenant staff or super_admin).
+ *
+ * Hits POST /v1/system-users/invite (the queued-write invite endpoint —
+ * apiPost auto-polls the 202 response).
+ *
+ * Branch rules:
+ * - branchIds is OPTIONAL. If omitted/empty the server defaults to the
+ *   tenant's HQ branch.
+ * - If branchIds.length > 1 the plan's max_branches must allow it; the
+ *   server returns 403 otherwise.
  */
 export function useCreateSystemUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (request: SystemUserSignupRequest) => {
-      const data = await apiPost<SystemUser>('/system-users/signup', request);
+      const data = await apiPost<SystemUser>('/system-users/invite', request);
       return data;
     },
     onSuccess: (newUser) => {
-      // Invalidate all users lists
       queryClient.invalidateQueries({ queryKey: userKeys.lists() });
-      // Optionally cache the new user
       queryClient.setQueryData(userKeys.detail(newUser.id), newUser);
     },
   });
@@ -149,6 +157,46 @@ export function useInviteUser() {
       queryClient.invalidateQueries({ queryKey: userKeys.lists() });
       // Optionally cache the new user
       queryClient.setQueryData(userKeys.detail(newUser.id), newUser);
+    },
+  });
+}
+
+/**
+ * Reset another tenant user's password (super_admin path).
+ *
+ * Hits POST /v1/system-users/{user_id}/reset-password. Target must be in
+ * the SAME tenant as the caller — cross-tenant attempts return 404.
+ *
+ * Side effects on the server:
+ * - Validates against password policy + last-5 history.
+ * - Updates password_hash and revokes ALL active access + refresh tokens
+ *   for the target — they will be logged out of every active session.
+ * - Writes a `system_user.password_reset` audit row.
+ *
+ * Errors the FE must handle:
+ * - 400 VALIDATION_FAILED: actor tried to reset their own password
+ *   through this path → redirect them to the self-service change-password
+ *   screen.
+ * - 404 RESOURCE_NOT_FOUND: user not in this tenant — show a generic
+ *   message; do NOT leak cross-tenant existence.
+ * - 422 VALIDATION_FAILED: policy / history failure — surface inline
+ *   against the password input.
+ */
+export function useResetUserPassword() {
+  return useMutation({
+    mutationFn: async ({
+      userId,
+      newPassword,
+    }: {
+      userId: string;
+      newPassword: string;
+    }) => {
+      const body: ResetUserPasswordRequest = { newPassword };
+      const data = await apiPost<ResetUserPasswordResponse>(
+        `/system-users/${userId}/reset-password`,
+        body
+      );
+      return data;
     },
   });
 }

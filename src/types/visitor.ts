@@ -75,6 +75,18 @@ export interface VisitSession {
   checkedOutBy?: string;
   badgeQrToken?: string;
   visitorNameSnapshot?: string;
+  /**
+   * Phase 4 (branch isolation, queued): every visit session will carry
+   * its branch id. May be missing on rows fetched before the rollout —
+   * treat as optional.
+   */
+  branchId?: string;
+  /**
+   * Phase 4 (branch isolation, queued): embedded branch label for
+   * unscoped roles. May be `null` for branch-scoped viewers since they
+   * always operate inside their own branch.
+   */
+  branchSummary?: { id: string; name: string; isActive?: boolean } | null;
 }
 
 export interface VisitorProfileSummary {
@@ -164,6 +176,10 @@ export interface VisitorProfile {
   visitCount: number;
   lastVisitAt?: number;
   createdAt: number;
+  /** Phase 4 (branch isolation, queued) — see VisitSession. */
+  branchId?: string;
+  /** Phase 4 — see VisitSession. May be null for branch-scoped viewers. */
+  branchSummary?: { id: string; name: string; isActive?: boolean } | null;
 }
 
 /**
@@ -317,6 +333,10 @@ export interface Appointment {
   visitorProfileId?: string;
   hostId: string;
   departmentId: string;
+  /** Phase 4 (branch isolation, queued) — see VisitSession. */
+  branchId?: string;
+  /** Phase 4 — see VisitSession. May be null for branch-scoped viewers. */
+  branchSummary?: { id: string; name: string; isActive?: boolean } | null;
   visitorNameSnapshot?: string;
   visitorPhoneSnapshot?: string;
   hostNameSnapshot?: string;

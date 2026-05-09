@@ -110,3 +110,19 @@ export function hasCapability(
 ): boolean {
   return ROLE_CAPABILITIES[role]?.includes(capability) ?? false;
 }
+
+/**
+ * Roles whose data visibility is limited to `branch_ids` server-side.
+ * Used by the FE to decide whether to display the branch column on
+ * unscoped views and to suppress branch labels for users that always
+ * operate inside their own branch.
+ */
+export const BRANCH_SCOPED_ROLES: ReadonlySet<SystemUserRole> = new Set([
+  "dept_admin",
+  "receptionist",
+  "security_officer",
+]);
+
+export function isBranchScopedRole(role: SystemUserRole | null | undefined): boolean {
+  return !!role && BRANCH_SCOPED_ROLES.has(role);
+}

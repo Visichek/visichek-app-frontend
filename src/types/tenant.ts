@@ -47,6 +47,8 @@ export interface Branch {
   state?: string;
   status?: BranchStatus;
   isActive?: boolean;
+  /** True for the tenant's auto-created HQ branch. */
+  isHeadquarters?: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -56,6 +58,12 @@ export interface Department {
   tenantId: string;
   name: string;
   branchId?: string;
+  /**
+   * Optional embedded branch label populated by Phase 4 list responses.
+   * May be null for branch-scoped roles where the redundant label is
+   * suppressed by the backend. Field is OPTIONAL — handle as missing.
+   */
+  branchSummary?: { id: string; name: string; isActive?: boolean } | null;
   createdAt: number;
   updatedAt: number;
 }

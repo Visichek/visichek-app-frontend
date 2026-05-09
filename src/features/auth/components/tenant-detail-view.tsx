@@ -1,7 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CreditCard, BarChart2, Loader2 } from "lucide-react";
+import {
+  ArrowLeft,
+  CreditCard,
+  BarChart2,
+  Loader2,
+  ShieldCheck,
+} from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +23,7 @@ import { formatDate } from "@/lib/utils/format-date";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useActiveSubscription } from "@/features/subscriptions/hooks/use-subscriptions";
 import { useTenantUsage } from "@/features/usage/hooks/use-usage";
+import { AddSuperAdminDialog } from "@/features/auth/components/add-super-admin-dialog";
 import type { AdminTenant } from "@/types/admin";
 
 const LIST_HREF = "/admin/tenants";
@@ -416,12 +424,14 @@ export interface TenantDetailViewProps {
 
 export function TenantDetailView({ tenant }: TenantDetailViewProps) {
   const { loadingHref, handleNavClick, navigate } = useNavigationLoading();
+  const [addSuperAdminOpen, setAddSuperAdminOpen] = useState(false);
 
   const subscriptionsHref = `/admin/subscriptions?tenantId=${tenant.id}`;
   const usageHref = `/admin/subscriptions?tenantId=${tenant.id}&tab=usage`;
   const isNavigatingBack = loadingHref === LIST_HREF;
   const isNavigatingSubscriptions = loadingHref === subscriptionsHref;
   const isNavigatingUsage = loadingHref === usageHref;
+  const tenantIsActive = tenant.isActive !== false;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -517,8 +527,38 @@ export function TenantDetailView({ tenant }: TenantDetailViewProps) {
                 Open the usage dashboard for this tenant
               </TooltipContent>
             </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    variant="outline"
+                    className="min-h-[44px]"
+                    disabled={!tenantIsActive}
+                    onClick={() => setAddSuperAdminOpen(true)}
+                  >
+                    <ShieldCheck
+                      className="mr-2 h-4 w-4"
+                      aria-hidden="true"
+                    />
+                    Add super admin
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {tenantIsActive
+                  ? "Add another super admin to this tenant — useful for offboarded admins, redundancy, or restoring access."
+                  : "This tenant is inactive. Reactivate it before adding a super admin."}
+              </TooltipContent>
+            </Tooltip>
           </div>
         }
+      />
+
+      <AddSuperAdminDialog
+        open={addSuperAdminOpen}
+        onOpenChange={setAddSuperAdminOpen}
+        tenantId={tenant.id}
+        tenantName={tenant.companyName}
       />
 
       <Tabs defaultValue="overview" className="space-y-4">

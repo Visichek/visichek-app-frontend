@@ -20,6 +20,10 @@ export interface Incident {
   dateCreated: number;
   resolvedAt?: number | null;
   assignedTo?: string;
+  /** Phase 4 (branch isolation, queued) — every incident will carry branch id. */
+  branchId?: string;
+  /** Phase 4 — embedded branch label for unscoped roles; may be null for branch-scoped viewers. */
+  branchSummary?: { id: string; name: string; isActive?: boolean } | null;
 }
 
 export interface CreateIncidentRequest {

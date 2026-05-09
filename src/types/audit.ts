@@ -32,6 +32,10 @@ export interface AuditLog {
   tenantSummary?: AuditTenantSummary | null;
   actorSummary?: AuditActorSummary | null;
   resourceSummary?: AuditResourceSummary | null;
+  /** Phase 4 (branch isolation, queued) — branch the audit row was scoped to. */
+  branchId?: string;
+  /** Phase 4 — embedded branch label for unscoped roles. */
+  branchSummary?: { id: string; name: string; isActive?: boolean } | null;
 }
 
 export interface AuditLogFilters {

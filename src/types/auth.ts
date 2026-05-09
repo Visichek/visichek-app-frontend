@@ -33,6 +33,13 @@ export interface SystemUserProfile {
   role: SystemUserRole;
   tenantId: string;
   departmentId?: string;
+  /**
+   * Branch assignments synced onto the access token. Branch-scoped roles
+   * (dept_admin / receptionist / security_officer) only see data from
+   * these branches; unscoped roles (super_admin / auditor / dpo) see
+   * everything in the tenant.
+   */
+  branchIds?: string[];
   mfaEnabled?: boolean;
   mfaLockedByAdmin?: boolean;
 }

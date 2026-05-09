@@ -8,6 +8,12 @@ import type {
   AdminTenant,
 } from '@/types/admin';
 import type { Tenant, TenantBootstrapRequest } from '@/types/tenant';
+import type {
+  AddTenantSuperAdminRequest,
+  AddTenantSuperAdminResponse,
+  ResetUserPasswordRequest,
+  ResetUserPasswordResponse,
+} from '@/types/user';
 
 export type { AdminTenant };
 
@@ -154,6 +160,83 @@ export function useDeleteTenant() {
       apiDelete(`/tenants/${tenantId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.tenants() });
+    },
+  });
+}
+
+/**
+ * Add a super_admin to an EXISTING tenant (app-admin only).
+ *
+ * Distinct from `useBootstrapTenant`, which creates the tenant + first
+ * super_admin together. Use this when:
+ *   - the previous super_admin was offboarded
+ *   - adding a secondary super_admin for redundancy
+ *   - restoring access for a tenant that lost their credentials
+ *
+ * Returns the new user along with access + refresh tokens — surface them
+ * in a copy-to-clipboard "send out-of-band" modal. The API does NOT
+ * email these credentials.
+ *
+ * Server validations:
+ *   - Tenant must exist and be active (400 otherwise).
+ *   - Email must be GLOBALLY unique across system_users (409 otherwise).
+ *   - Plan caps + branch validation apply just like a normal invite.
+ */
+export function useAddTenantSuperAdmin() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      tenantId,
+      data,
+    }: {
+      tenantId: string;
+      data: AddTenantSuperAdminRequest;
+    }) => {
+      const result = await apiPost<AddTenantSuperAdminResponse>(
+        `/admins/tenants/${tenantId}/super-admins`,
+        data
+      );
+      return result;
+    },
+    onSuccess: (_response, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: adminKeys.tenantDetail(variables.tenantId),
+      });
+      // The tenant's user-count summary may shift on the list response.
+      queryClient.invalidateQueries({ queryKey: adminKeys.tenants() });
+    },
+  });
+}
+
+/**
+ * Reset any system_user's password (app-admin path — unscoped).
+ *
+ * Hits POST /v1/admins/system-users/{user_id}/reset-password. App admins
+ * can target users in any tenant including super_admins — used to
+ * support locked-out tenants.
+ *
+ * Side effects mirror the super_admin reset path: revokes every active
+ * token for the target, drops the gate cache, and writes an audit row.
+ *
+ * The 422 path returns the same shape as /v1/auth/change-password —
+ * surface policy errors inline against the password field.
+ */
+export function useAdminResetSystemUserPassword() {
+  return useMutation({
+    mutationFn: async ({
+      userId,
+      newPassword,
+    }: {
+      userId: string;
+      newPassword: string;
+    }) => {
+      const body: ResetUserPasswordRequest = { newPassword };
+      const data = await apiPost<ResetUserPasswordResponse>(
+        `/admins/system-users/${userId}/reset-password`,
+        body
+      );
+      return data;
     },
   });
 }
