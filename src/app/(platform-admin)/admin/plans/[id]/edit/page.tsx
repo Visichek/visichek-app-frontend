@@ -12,7 +12,7 @@ import {
 import { ErrorState } from "@/components/feedback/error-state";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { usePlan } from "@/features/plans/hooks/use-plans";
-import { PlanForm } from "@/features/plans/components/plan-form";
+import { PlanEditForm } from "@/features/plans/components/plan-edit-form";
 
 export default function EditPlanPage({
   params,
@@ -76,7 +76,7 @@ export default function EditPlanPage({
 
   return (
     <div className="p-6">
-      <PlanForm plan={data} />
+      <PlanEditForm plan={data} />
     </div>
   );
 }

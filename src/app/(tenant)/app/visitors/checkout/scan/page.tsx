@@ -50,7 +50,7 @@ export default function ScanCheckOutPage() {
       />
 
       <ScanCheckoutFlow
-        onCheckedOut={() => navigate("/app/visitors/checked-out")}
+        onDone={() => navigate("/app/visitors/checked-out")}
       />
     </div>
   );

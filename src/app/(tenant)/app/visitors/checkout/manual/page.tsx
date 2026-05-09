@@ -46,7 +46,7 @@ export default function ManualCheckOutPage() {
 
       <PageHeader
         title="Manual check-out"
-        description="Pick a visitor from the list and confirm to check them out."
+        description="Tick the boxes to check several visitors out at once, or use the per-row button. Click Done when you're finished."
       />
 
       <section
@@ -61,12 +61,11 @@ export default function ManualCheckOutPage() {
             Visitors awaiting checkout
           </h2>
           <p className="text-sm text-muted-foreground">
-            Auto-refreshes every few seconds. Tap a visitor and confirm to
-            check them out.
+            Auto-refreshes every few seconds.
           </p>
         </div>
         <AwaitingCheckoutPicker
-          onCheckedOut={() => navigate("/app/visitors/checked-out")}
+          onDone={() => navigate("/app/visitors/checked-out")}
         />
       </section>
     </div>

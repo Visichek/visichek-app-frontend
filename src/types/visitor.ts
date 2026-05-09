@@ -241,30 +241,75 @@ export interface AwaitingCheckoutItem {
 }
 
 /**
- * Response shape for POST /v1/visitors/check-out — varies by source.
- *
- *  - visit_session  → returns the updated VisitSession.
- *  - approved_checkin / scheduled_appointment → returns a small
- *    discriminated dict carrying the new terminal state plus the raw
- *    record under `checkin` / `appointment`.
- *
- * Easiest consumer pattern: ignore the response entirely and re-fetch
- * `/awaiting-checkout`; trust the server's view.
+ * Names the source field that `eligibleSince` was read from on the
+ * source record. Drives the rendering label for the eligibility
+ * timestamp ("Checked in at", "Approved at", "Scheduled for").
  */
-export type CheckOutResponse =
-  | VisitSession
-  | {
-      id: string;
-      sourceType: "approved_checkin";
-      status: "checked_out";
-      checkin: Record<string, unknown>;
-    }
-  | {
-      id: string;
-      sourceType: "scheduled_appointment";
-      status: "fulfilled";
-      appointment: Record<string, unknown>;
-    };
+export type EligibleSinceField =
+  | "check_in_time"
+  | "approved_at"
+  | "scheduled_datetime";
+
+/**
+ * Unified response shape for POST /v1/visitors/check-out — same shape
+ * for all three source types. The server pre-computes the timing math
+ * (actual duration, variance vs expected duration when available) so
+ * the frontend never subtracts timestamps itself; the visitor's device
+ * clock can be wrong and the picker entry the receptionist clicked may
+ * have been stale.
+ *
+ * Exactly one of `visitSession` / `checkin` / `appointment` is non-null,
+ * keyed by `sourceType`. The full source record is nested there with
+ * its own new terminal-state timestamp (`checkOutTime` / `checkedOutAt`
+ * / `fulfilledAt`) — equal to the top-level `checkedOutAt` for
+ * uniformity.
+ */
+export interface CheckoutResult {
+  id: string;
+  sourceType: AwaitingCheckoutSourceType;
+  checkoutId: string;
+  status: "checked_out" | "fulfilled";
+
+  /**
+   * The reference timestamp the duration is measured against. Always
+   * set for visit_session and scheduled_appointment; nullable for
+   * approved_checkin if the row never recorded `approved_at`.
+   */
+  eligibleSince?: number | null;
+  /** Names the source field used for `eligibleSince` (see {@link EligibleSinceField}). */
+  eligibleSinceField: EligibleSinceField;
+
+  /** Server time at the moment of checkout. Persisted on the source record. */
+  checkedOutAt: number;
+
+  /** `checkedOutAt - eligibleSince`, floored at 0. Null when `eligibleSince` is null. */
+  actualDurationSeconds?: number | null;
+  /** Same value, divided by 60, rounded to 1 decimal — for direct rendering. */
+  actualDurationMinutes?: number | null;
+
+  /** What the visitor's purpose said they'd need. Only set for `approved_checkin`. */
+  expectedDurationMinutes?: number | null;
+
+  /**
+   * `actualDurationSeconds - expectedDurationMinutes*60`. Negative = left
+   * early, positive = overstayed. Only set when both an expected and an
+   * actual duration are available.
+   */
+  durationVarianceSeconds?: number | null;
+
+  /** Only persisted on `visit_session` records; echoed back here when set. */
+  checkOutMethod?: string | null;
+
+  /** Populated only when `sourceType === "visit_session"`. */
+  visitSession?: VisitSession | null;
+  /** Populated only when `sourceType === "approved_checkin"`. */
+  checkin?: Record<string, unknown> | null;
+  /** Populated only when `sourceType === "scheduled_appointment"`. */
+  appointment?: Record<string, unknown> | null;
+}
+
+/** @deprecated Use {@link CheckoutResult} instead. */
+export type CheckOutResponse = CheckoutResult;
 
 export interface Appointment {
   id: string;
@@ -277,6 +322,13 @@ export interface Appointment {
   scheduledDatetime: number;
   purpose?: string;
   status: AppointmentStatus;
+  /**
+   * Server time at the moment the receptionist marked this appointment
+   * as fulfilled (i.e. checked out). Persisted by `_checkout_due_appointment`
+   * so historical rows carry the full timing fact. `null` for any
+   * appointment that hasn't been fulfilled yet.
+   */
+  fulfilledAt?: number | null;
   createdAt: number;
   updatedAt: number;
 }

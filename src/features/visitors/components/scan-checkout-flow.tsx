@@ -5,12 +5,14 @@ import { toast } from "sonner";
 import {
   AlertCircle,
   ArrowLeft,
+  CheckCircle2,
   Loader2,
   RefreshCw,
   Search,
   ShieldCheck,
   Users,
   UserMinus,
+  X,
 } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -28,6 +30,7 @@ import { cn } from "@/lib/utils/cn";
 import type {
   AwaitingCheckoutItem,
   AwaitingCheckoutSourceType,
+  CheckoutResult,
 } from "@/types/visitor";
 import { BadgeScanner } from "./badge-scanner";
 
@@ -71,14 +74,92 @@ const ELIGIBLE_LABEL: Record<AwaitingCheckoutSourceType, string> = {
   scheduled_appointment: "Scheduled for",
 };
 
-export interface ScanCheckoutFlowProps {
-  /** Called after a successful checkout. Defaults to a no-op. */
-  onCheckedOut?: (row: AwaitingCheckoutItem) => void;
+const TERMINAL_VERB: Record<AwaitingCheckoutSourceType, string> = {
+  visit_session: "Checked out",
+  approved_checkin: "Checked out",
+  scheduled_appointment: "Marked fulfilled",
+};
+
+/**
+ * Format actual duration for display. Server already rounded to 1 decimal
+ * minute; we collapse < 1 to "less than 1 min" and ≥ 60 to "Xh Ym".
+ * Returns null when the source row never had an `eligibleSince` to
+ * measure against (we deliberately don't show "0 min" in that case).
+ */
+function formatDurationLabel(result: CheckoutResult | undefined): string | null {
+  const minutes = result?.actualDurationMinutes;
+  if (minutes == null) return null;
+  if (minutes < 1) return "less than 1 min";
+  if (minutes >= 60) {
+    const wholeHours = Math.floor(minutes / 60);
+    const remainder = Math.round(minutes - wholeHours * 60);
+    return remainder === 0
+      ? `${wholeHours}h`
+      : `${wholeHours}h ${remainder}m`;
+  }
+  return `${Math.round(minutes)} min`;
 }
 
-export function ScanCheckoutFlow({ onCheckedOut }: ScanCheckoutFlowProps = {}) {
+interface VarianceBadgeProps {
+  variance: number | null | undefined;
+}
+
+function VarianceBadge({ variance }: VarianceBadgeProps) {
+  if (variance == null) return null;
+  const abs = Math.abs(variance);
+  let tone: string;
+  let label: string;
+  if (abs < 60) {
+    tone = "bg-muted text-muted-foreground";
+    label = "On time";
+  } else {
+    const minutes = Math.round(abs / 60);
+    if (variance < 0) {
+      tone = "bg-success/10 text-success";
+      label = `Left ${minutes} min early`;
+    } else {
+      tone = "bg-warning/10 text-warning";
+      label = `Stayed ${minutes} min over`;
+    }
+  }
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium",
+        tone,
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+interface RecentRecord {
+  // For badge-only scans we may not have a matching picker row at hand,
+  // so the recent record carries either a row or a fallback display
+  // name. The id is used to key the list and stays unique across mixed
+  // sources. `result` is the server's CheckoutResult — drives the
+  // duration label and variance badge in the success panel.
+  id: string;
+  row?: AwaitingCheckoutItem;
+  displayName: string;
+  displayVerb: string;
+  result?: CheckoutResult;
+}
+
+export interface ScanCheckoutFlowProps {
+  /**
+   * Called when the receptionist clicks "Done" on the success panel.
+   * Not fired on individual scans — the panel stays open so multiple
+   * badges can be scanned in succession from the same screen.
+   */
+  onDone?: () => void;
+}
+
+export function ScanCheckoutFlow({ onDone }: ScanCheckoutFlowProps = {}) {
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<AwaitingCheckoutItem | null>(null);
+  const [recent, setRecent] = useState<RecentRecord[]>([]);
 
   const {
     data = [],
@@ -128,17 +209,34 @@ export function ScanCheckoutFlow({ onCheckedOut }: ScanCheckoutFlowProps = {}) {
     }
     const target = picked;
     try {
-      await checkOut.mutateAsync({
+      const result = await checkOut.mutateAsync({
         badgeQrToken: token,
         checkOutMethod: "qr_scan",
       });
-      toast.success(
-        target
-          ? `${visitorName(target)} checked out`
-          : "Visitor checked out",
-      );
+      // Push to the recents log so the receptionist can confirm work
+      // before leaving via Done. We don't always have a matching row
+      // (e.g. blind badge scan), so fall back to a generic label and
+      // rely on the server's CheckoutResult for the duration / variance.
+      setRecent((prev) => [
+        {
+          id: target?.id ?? result.id ?? `scan-${Date.now()}`,
+          row: target ?? undefined,
+          displayName: target ? visitorName(target) : "Visitor",
+          displayVerb: target
+            ? TERMINAL_VERB[target.sourceType]
+            : TERMINAL_VERB[result.sourceType],
+          result,
+        },
+        ...prev,
+      ]);
       setPicked(null);
-      if (target) onCheckedOut?.(target);
+      const durationLabel = formatDurationLabel(result);
+      const name = target ? visitorName(target) : "Visitor";
+      toast.success(
+        durationLabel
+          ? `${name} checked out — stayed ${durationLabel}`
+          : `${name} checked out`,
+      );
     } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "Failed to check out visitor",
@@ -152,19 +250,38 @@ export function ScanCheckoutFlow({ onCheckedOut }: ScanCheckoutFlowProps = {}) {
   async function handleManualCheckOut(row: AwaitingCheckoutItem) {
     if (checkOut.isPending) return;
     try {
-      await checkOut.mutateAsync({
+      const result = await checkOut.mutateAsync({
         sourceType: row.sourceType,
         checkoutId: row.checkoutId,
         checkOutMethod: "manual",
       });
-      toast.success(`${visitorName(row)} checked out`);
+      setRecent((prev) => [
+        {
+          id: row.id,
+          row,
+          displayName: visitorName(row),
+          displayVerb: TERMINAL_VERB[row.sourceType],
+          result,
+        },
+        ...prev,
+      ]);
       setPicked(null);
-      onCheckedOut?.(row);
+      const durationLabel = formatDurationLabel(result);
+      toast.success(
+        durationLabel
+          ? `${visitorName(row)} checked out — stayed ${durationLabel}`
+          : `${visitorName(row)} checked out`,
+      );
     } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "Failed to check out visitor",
       );
     }
+  }
+
+  function handleDone() {
+    setRecent([]);
+    onDone?.();
   }
 
   if (isLoading) {
@@ -215,6 +332,13 @@ export function ScanCheckoutFlow({ onCheckedOut }: ScanCheckoutFlowProps = {}) {
     const hasBadgeToken = !!picked.badgeQrToken;
     return (
       <div className="space-y-4">
+        {recent.length > 0 && (
+          <SuccessPanel
+            rows={recent}
+            onDone={handleDone}
+            onDismiss={() => setRecent([])}
+          />
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -332,6 +456,14 @@ export function ScanCheckoutFlow({ onCheckedOut }: ScanCheckoutFlowProps = {}) {
 
   return (
     <div className="space-y-4">
+      {recent.length > 0 && (
+        <SuccessPanel
+          rows={recent}
+          onDone={handleDone}
+          onDismiss={() => setRecent([])}
+        />
+      )}
+
       <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-3">
         <p className="text-muted-foreground">
           Scan a badge to check anyone out instantly — no list selection
@@ -477,5 +609,116 @@ export function ScanCheckoutFlow({ onCheckedOut }: ScanCheckoutFlowProps = {}) {
         </ul>
       )}
     </div>
+  );
+}
+
+interface SuccessPanelProps {
+  rows: RecentRecord[];
+  onDone: () => void;
+  onDismiss: () => void;
+}
+
+function SuccessPanel({ rows, onDone, onDismiss }: SuccessPanelProps) {
+  const single = rows.length === 1 ? rows[0] : null;
+  const singleDuration = single ? formatDurationLabel(single.result) : null;
+  return (
+    <section
+      className="rounded-lg border border-success/30 bg-success/5 p-4 space-y-3"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="flex items-start gap-3">
+        <CheckCircle2
+          className="h-5 w-5 text-success mt-0.5 shrink-0"
+          aria-hidden="true"
+        />
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-semibold text-success">
+            {single
+              ? `${single.displayName} ${single.displayVerb.toLowerCase()}`
+              : `${rows.length} visitors checked out`}
+          </h3>
+          {single ? (
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              {singleDuration && <span>Stayed {singleDuration}</span>}
+              <VarianceBadge
+                variance={single.result?.durationVarianceSeconds}
+              />
+              {!singleDuration && (
+                <span>
+                  Keep scanning badges, or click Done when you&apos;re
+                  finished.
+                </span>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Keep scanning badges, or click Done when you&apos;re finished.
+            </p>
+          )}
+        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onDismiss}
+              className="h-8 w-8 shrink-0"
+              aria-label="Dismiss success panel"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left">
+            Hide this confirmation without leaving the page
+          </TooltipContent>
+        </Tooltip>
+      </div>
+
+      {rows.length > 1 && (
+        <ul
+          className="space-y-1 pl-8 text-sm max-h-48 overflow-y-auto"
+          aria-label="Recently checked out visitors"
+        >
+          {rows.map((rec) => {
+            const duration = formatDurationLabel(rec.result);
+            return (
+              <li
+                key={rec.id}
+                className="flex flex-wrap items-center gap-2 text-foreground/80"
+              >
+                <CheckCircle2
+                  className="h-3.5 w-3.5 text-success shrink-0"
+                  aria-hidden="true"
+                />
+                <span className="truncate">{rec.displayName}</span>
+                <span className="text-xs text-muted-foreground">
+                  · {rec.displayVerb}
+                </span>
+                {duration && (
+                  <span className="text-xs text-muted-foreground">
+                    · {duration}
+                  </span>
+                )}
+                <VarianceBadge variance={rec.result?.durationVarianceSeconds} />
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <div className="flex justify-end pt-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button onClick={onDone} className="min-h-[40px]">
+              Done
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            Finish and go to the checked-out visitors list
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    </section>
   );
 }

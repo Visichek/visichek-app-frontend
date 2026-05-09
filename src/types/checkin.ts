@@ -334,6 +334,13 @@ export interface CheckinOut {
   dateCreated: number;
   lastUpdated: number;
   /**
+   * Server time at the moment the receptionist checked the visitor out.
+   * Persisted on the `checkins` collection by `_checkout_approved_checkin`
+   * so historical rows carry the full timing fact, not just the response.
+   * `null` for any check-in that hasn't been checked out yet.
+   */
+  checkedOutAt?: number | null;
+  /**
    * Visitor snapshot embedded on every check-in list / detail / analytics
    * row so the approver can confirm identity without a second fetch.
    * `null` only when the referenced visitor record was hard-deleted — the

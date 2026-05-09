@@ -16,7 +16,7 @@ import type {
   VisitSession,
   VisitorProfile,
   CheckOutRequest,
-  CheckOutResponse,
+  CheckoutResult,
   AwaitingCheckoutItem,
 } from '@/types/visitor';
 import type {
@@ -188,16 +188,17 @@ export function useAwaitingCheckout(params?: {
  *  - From a badge scan: pass `{ badgeQrToken, checkOutMethod: "qr_scan" }`
  *    and let the server resolve the underlying record.
  *
- * Response shape varies by source — callers should treat the response
- * as opaque and rely on the cache invalidation here to refresh their
- * view from the next `/awaiting-checkout` fetch.
+ * Returns a unified `CheckoutResult` for all three source types — the
+ * server pre-computes `actualDurationSeconds`, `actualDurationMinutes`,
+ * and (when an expected duration was set) `durationVarianceSeconds`, so
+ * the UI never subtracts timestamps itself.
  */
 export function useCheckOut() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (request: CheckOutRequest) => {
-      const data = await apiPost<CheckOutResponse>(
+      const data = await apiPost<CheckoutResult>(
         '/visitors/check-out',
         request
       );
