@@ -12,7 +12,9 @@ import { ErrorState } from "@/components/feedback/error-state";
 import { useSession } from "@/hooks/use-session";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useActiveSubscription } from "@/features/subscriptions/hooks/use-subscriptions";
+import { useMyUsage } from "@/features/usage/hooks/use-usage";
 import { ChangePlanForm } from "@/features/checkout/components/change-plan-form";
+import type { PlanTier } from "@/types/enums";
 
 const LIST_HREF = "/app/billing";
 
@@ -23,6 +25,10 @@ export default function ChangePlanPage() {
 
   const { data: activeSubscription } = useActiveSubscription(
     canManageBilling ? tenantId || "" : ""
+  );
+  const { data: usage } = useMyUsage();
+  const currentPlanTier = (
+    usage?.planTier ? (usage.planTier as PlanTier) : undefined
   );
 
   if (!canManageBilling) {
@@ -64,5 +70,10 @@ export default function ChangePlanPage() {
     );
   }
 
-  return <ChangePlanForm currentPlanId={activeSubscription?.planId} />;
+  return (
+    <ChangePlanForm
+      currentPlanId={activeSubscription?.planId}
+      currentPlanTier={currentPlanTier}
+    />
+  );
 }

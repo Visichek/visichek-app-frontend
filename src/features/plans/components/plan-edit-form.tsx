@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useForm, type UseFormRegisterReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, RotateCcw } from "lucide-react";
+import { ArrowLeft, Loader2, Lock, RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
 import { LoadingButton } from "@/components/feedback/loading-button";
 import { Input } from "@/components/ui/input";
@@ -33,10 +33,18 @@ import {
 } from "@/features/plans/hooks/use-plans";
 import { PlanFeaturesChecklist } from "@/features/plans/components/plan-features-checklist";
 import type { Plan } from "@/types/billing";
+import type { PlanTier } from "@/types/enums";
 
 const editSchema = z.object({
   displayName: z.string().min(1, "Display name is required"),
-  tier: z.enum(["free", "starter", "professional", "enterprise", "custom"]),
+  tier: z.enum([
+    "free",
+    "starter",
+    "premium",
+    "enterprise",
+    "professional",
+    "custom",
+  ]),
   description: z.string().optional(),
   basePriceMonthly: z.coerce
     .number()
@@ -97,6 +105,103 @@ const STORAGE_KEYS = [
   "maxStorageMb",
   "maxFileSizeMb",
 ] as const satisfies readonly (keyof EditFormData)[];
+
+// Tier-locked field allowlists. Mirrors backend `config/plan_tiers.py`:
+// the API rejects PATCHes that touch any field outside the tier's allowlist
+// with HTTP 400, so the form has to refuse to send those fields at all.
+const TIER_ADJUSTABLE_CAP_FIELDS: Record<PlanTier, ReadonlySet<keyof EditFormData>> = {
+  free: new Set(["maxVisitorsPerMonth"]),
+  starter: new Set([
+    "maxVisitorsPerMonth",
+    "maxDepartments",
+    "maxSystemUsers",
+  ]),
+  premium: new Set([
+    "maxVisitorsPerMonth",
+    "maxDepartments",
+    "maxSystemUsers",
+    "maxBranches",
+    "maxAppointmentsPerMonth",
+  ]),
+  enterprise: new Set([
+    "maxVisitorsPerMonth",
+    "maxDepartments",
+    "maxSystemUsers",
+    "maxBranches",
+    "maxAppointmentsPerMonth",
+  ]),
+  professional: new Set([
+    "maxVisitorsPerMonth",
+    "maxDepartments",
+    "maxSystemUsers",
+    "maxBranches",
+    "maxAppointmentsPerMonth",
+  ]),
+  custom: new Set([
+    "maxVisitorsPerMonth",
+    "maxDepartments",
+    "maxSystemUsers",
+    "maxBranches",
+    "maxAppointmentsPerMonth",
+  ]),
+};
+
+const TIER_ADJUSTABLE_PLAN_FIELDS: Record<PlanTier, ReadonlySet<keyof EditFormData>> = {
+  free: new Set(),
+  starter: new Set(),
+  premium: new Set([
+    "basePriceMonthly",
+    "basePriceYearly",
+    "slaResponseHours",
+  ]),
+  enterprise: new Set([
+    "basePriceMonthly",
+    "basePriceYearly",
+    "slaResponseHours",
+    "customBranding",
+    "apiAccess",
+    "prioritySupport",
+  ]),
+  professional: new Set([
+    "basePriceMonthly",
+    "basePriceYearly",
+    "slaResponseHours",
+    "customBranding",
+    "apiAccess",
+    "prioritySupport",
+  ]),
+  custom: new Set([
+    "basePriceMonthly",
+    "basePriceYearly",
+    "slaResponseHours",
+    "customBranding",
+    "apiAccess",
+    "prioritySupport",
+  ]),
+};
+
+// Singleton tiers — exactly one plan record each, name-locked. Enterprise
+// is plural; each enterprise plan is bespoke and freely editable.
+const SINGLETON_TIERS = new Set<PlanTier>(["free", "starter", "premium"]);
+
+const TIER_LABEL: Record<PlanTier, string> = {
+  free: "Free",
+  starter: "Starter",
+  premium: "Premium",
+  enterprise: "Enterprise",
+  professional: "Professional (legacy)",
+  custom: "Custom (legacy)",
+};
+
+function isFieldEditableForTier(
+  tier: PlanTier,
+  field: keyof EditFormData,
+): boolean {
+  return (
+    TIER_ADJUSTABLE_CAP_FIELDS[tier].has(field) ||
+    TIER_ADJUSTABLE_PLAN_FIELDS[tier].has(field)
+  );
+}
 
 function nullableInt(val: number | null | undefined): number | "" {
   return val != null ? val : "";
@@ -168,6 +273,17 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
 
   const values = watch();
 
+  const planTier = plan.tier as PlanTier;
+  const isSingleton = SINGLETON_TIERS.has(planTier);
+  const isLocked = isSingleton;
+  const fieldDisabled = useMemo(
+    () => (field: keyof EditFormData) =>
+      isLocked && !isFieldEditableForTier(planTier, field),
+    [isLocked, planTier],
+  );
+  const allowed = (field: keyof EditFormData): boolean =>
+    !isLocked || isFieldEditableForTier(planTier, field);
+
   const dirtyKeys = Object.keys(dirtyFields) as (keyof EditFormData)[];
   const dirtyCount = dirtyKeys.length;
   const hasChanges = dirtyCount > 0;
@@ -175,44 +291,63 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
   const buildPayload = (data: EditFormData): UpdatePlanRequest => {
     const payload: UpdatePlanRequest = {};
 
+    // Identity is always editable.
     if (dirtyFields.displayName) payload.displayName = data.displayName;
-    if (dirtyFields.tier) payload.tier = data.tier;
     if (dirtyFields.description)
       payload.description = data.description || undefined;
     if (dirtyFields.isPublic) payload.isPublic = data.isPublic;
     if (dirtyFields.sortOrder)
       payload.sortOrder =
         data.sortOrder !== "" ? Number(data.sortOrder) : undefined;
-    if (dirtyFields.basePriceMonthly)
+
+    // Tier itself is immutable for canonical plans — the backend rejects it.
+    if (dirtyFields.tier && !isLocked) payload.tier = data.tier;
+
+    if (dirtyFields.basePriceMonthly && allowed("basePriceMonthly"))
       payload.basePriceMonthly =
         data.basePriceMonthly !== "" ? Number(data.basePriceMonthly) : undefined;
-    if (dirtyFields.basePriceYearly)
+    if (dirtyFields.basePriceYearly && allowed("basePriceYearly"))
       payload.basePriceYearly =
         data.basePriceYearly !== "" ? Number(data.basePriceYearly) : undefined;
-    if (dirtyFields.currency) payload.currency = data.currency || "NGN";
-    if (dirtyFields.prioritySupport)
+    // Currency is not in any tier's allowlist; only legacy plans accept it.
+    if (dirtyFields.currency && !isLocked)
+      payload.currency = data.currency || "NGN";
+    if (dirtyFields.prioritySupport && allowed("prioritySupport"))
       payload.prioritySupport = data.prioritySupport;
-    if (dirtyFields.customBranding)
+    if (dirtyFields.customBranding && allowed("customBranding"))
       payload.customBranding = data.customBranding;
-    if (dirtyFields.apiAccess) payload.apiAccess = data.apiAccess;
-    if (dirtyFields.slaResponseHours)
+    if (dirtyFields.apiAccess && allowed("apiAccess"))
+      payload.apiAccess = data.apiAccess;
+    if (dirtyFields.slaResponseHours && allowed("slaResponseHours"))
       payload.slaResponseHours = toNullableInt(data.slaResponseHours);
 
     // Nested objects are sent whole when any inner field is dirty — the
-    // backend replaces the embedded doc rather than merging it.
-    const capsDirty = TENANT_CAP_KEYS.some((k) => dirtyFields[k]);
+    // backend replaces the embedded doc rather than merging it. Build the
+    // nested doc by merging current values with patches, but only include
+    // the fields that the tier is allowed to adjust.
+    const capsDirty = TENANT_CAP_KEYS.some(
+      (k) => dirtyFields[k] && allowed(k),
+    );
     if (capsDirty) {
-      payload.tenantCaps = {
-        maxSystemUsers: toNullableInt(data.maxSystemUsers),
-        maxDepartments: toNullableInt(data.maxDepartments),
-        maxBranches: toNullableInt(data.maxBranches),
-        maxVisitorsPerMonth: toNullableInt(data.maxVisitorsPerMonth),
-        maxAppointmentsPerMonth: toNullableInt(data.maxAppointmentsPerMonth),
-      };
+      const nextCaps: NonNullable<UpdatePlanRequest["tenantCaps"]> = {};
+      if (allowed("maxSystemUsers"))
+        nextCaps.maxSystemUsers = toNullableInt(data.maxSystemUsers);
+      if (allowed("maxDepartments"))
+        nextCaps.maxDepartments = toNullableInt(data.maxDepartments);
+      if (allowed("maxBranches"))
+        nextCaps.maxBranches = toNullableInt(data.maxBranches);
+      if (allowed("maxVisitorsPerMonth"))
+        nextCaps.maxVisitorsPerMonth = toNullableInt(data.maxVisitorsPerMonth);
+      if (allowed("maxAppointmentsPerMonth"))
+        nextCaps.maxAppointmentsPerMonth = toNullableInt(
+          data.maxAppointmentsPerMonth,
+        );
+      payload.tenantCaps = nextCaps;
     }
 
+    // Storage limits aren't in any singleton tier's allowlist.
     const storageDirty = STORAGE_KEYS.some((k) => dirtyFields[k]);
-    if (storageDirty) {
+    if (storageDirty && !isLocked) {
       payload.storageLimits = {
         maxDocuments: toNullableInt(data.maxDocuments),
         maxStorageMb: toNullableInt(data.maxStorageMb),
@@ -297,6 +432,29 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
         </span>
       </div>
 
+      {isLocked && (
+        <div
+          className="flex items-start gap-3 rounded-lg border border-border bg-muted/40 p-3 text-sm"
+          role="note"
+        >
+          <Lock
+            className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <div className="space-y-1">
+            <p className="font-medium">
+              {TIER_LABEL[planTier]} plan — most fields are tier-locked
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Singleton plans only expose the fields the backend allows the
+              tier to adjust. Locked inputs are shown for reference and
+              disabled. Use per-tenant overrides from the Subscriptions page
+              if a single tenant needs a custom value.
+            </p>
+          </div>
+        </div>
+      )}
+
       <form onSubmit={submitHandler} noValidate className="space-y-8">
         {/* ────────────────  Identity & Visibility  ──────────────── */}
         <section className="space-y-4">
@@ -335,6 +493,7 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
               <Label htmlFor="plan-tier">Tier</Label>
               <Select
                 value={values.tier}
+                disabled={isLocked}
                 onValueChange={(v) =>
                   setValue("tier", v as EditFormData["tier"], {
                     shouldDirty: true,
@@ -348,11 +507,22 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
                 <SelectContent>
                   <SelectItem value="free">Free</SelectItem>
                   <SelectItem value="starter">Starter</SelectItem>
-                  <SelectItem value="professional">Professional</SelectItem>
+                  <SelectItem value="premium">Premium</SelectItem>
                   <SelectItem value="enterprise">Enterprise</SelectItem>
-                  <SelectItem value="custom">Custom</SelectItem>
+                  <SelectItem value="professional" disabled>
+                    Professional (legacy)
+                  </SelectItem>
+                  <SelectItem value="custom" disabled>
+                    Custom (legacy)
+                  </SelectItem>
                 </SelectContent>
               </Select>
+              {isLocked && (
+                <p className="text-xs text-muted-foreground">
+                  Singleton plans cannot change tier — clone to a new plan if
+                  you need a different one.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -419,10 +589,16 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
                 step="0.01"
                 placeholder="0.00"
                 inputMode="decimal"
+                disabled={fieldDisabled("basePriceMonthly")}
                 className="text-base md:text-sm"
                 {...register("basePriceMonthly")}
                 aria-invalid={!!errors.basePriceMonthly}
               />
+              {fieldDisabled("basePriceMonthly") && (
+                <p className="text-xs text-muted-foreground">
+                  Pricing is fixed for {TIER_LABEL[planTier]} plans.
+                </p>
+              )}
               {errors.basePriceMonthly && (
                 <p className="text-sm text-destructive" role="alert">
                   {errors.basePriceMonthly.message}
@@ -439,6 +615,7 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
                 step="0.01"
                 placeholder="0.00"
                 inputMode="decimal"
+                disabled={fieldDisabled("basePriceYearly")}
                 className="text-base md:text-sm"
                 {...register("basePriceYearly")}
                 aria-invalid={!!errors.basePriceYearly}
@@ -456,9 +633,15 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
             <Input
               id="plan-currency"
               placeholder="NGN"
+              disabled={isLocked}
               className="text-base md:text-sm"
               {...register("currency")}
             />
+            {isLocked && (
+              <p className="text-xs text-muted-foreground">
+                Currency is not adjustable on singleton plans.
+              </p>
+            )}
           </div>
         </section>
 
@@ -477,11 +660,14 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
               min={1}
               inputMode="numeric"
               placeholder="e.g., 24"
+              disabled={fieldDisabled("slaResponseHours")}
               className="text-base md:text-sm"
               {...register("slaResponseHours")}
             />
             <p className="text-xs text-muted-foreground">
-              Leave blank for no SLA guarantee
+              {fieldDisabled("slaResponseHours")
+                ? `SLA is fixed for ${TIER_LABEL[planTier]} plans.`
+                : "Leave blank for no SLA guarantee"}
             </p>
           </div>
 
@@ -490,6 +676,7 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
               id="plan-priority"
               label="Priority Support"
               checked={values.prioritySupport ?? false}
+              disabled={fieldDisabled("prioritySupport")}
               onChange={(c) =>
                 setValue("prioritySupport", c, { shouldDirty: true })
               }
@@ -498,6 +685,7 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
               id="plan-branding"
               label="Custom Branding"
               checked={values.customBranding ?? false}
+              disabled={fieldDisabled("customBranding")}
               onChange={(c) =>
                 setValue("customBranding", c, { shouldDirty: true })
               }
@@ -506,6 +694,7 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
               id="plan-api"
               label="API Access"
               checked={values.apiAccess ?? false}
+              disabled={fieldDisabled("apiAccess")}
               onChange={(c) =>
                 setValue("apiAccess", c, { shouldDirty: true })
               }
@@ -525,26 +714,31 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
               id="plan-maxUsers"
               label="Max System Users"
               register={register("maxSystemUsers")}
+              disabled={fieldDisabled("maxSystemUsers")}
             />
             <NumberField
               id="plan-maxDepts"
               label="Max Departments"
               register={register("maxDepartments")}
+              disabled={fieldDisabled("maxDepartments")}
             />
             <NumberField
               id="plan-maxBranches"
               label="Max Branches"
               register={register("maxBranches")}
+              disabled={fieldDisabled("maxBranches")}
             />
             <NumberField
               id="plan-maxVisitors"
               label="Max Visitors / Month"
               register={register("maxVisitorsPerMonth")}
+              disabled={fieldDisabled("maxVisitorsPerMonth")}
             />
             <NumberField
               id="plan-maxAppts"
               label="Max Appointments / Month"
               register={register("maxAppointmentsPerMonth")}
+              disabled={fieldDisabled("maxAppointmentsPerMonth")}
             />
           </div>
         </section>
@@ -553,7 +747,11 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
         <section className="space-y-4">
           <SectionHeading
             title="Storage limits"
-            subtitle="Document count, total storage, and per-file size cap."
+            subtitle={
+              isLocked
+                ? "Storage limits are fixed on singleton plans. Use a per-tenant override from the Subscriptions page if a tenant needs more."
+                : "Document count, total storage, and per-file size cap."
+            }
           />
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -561,17 +759,20 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
               id="plan-maxDocs"
               label="Max Documents"
               register={register("maxDocuments")}
+              disabled={isLocked}
             />
             <NumberField
               id="plan-maxStorage"
               label="Max Storage (MB)"
               register={register("maxStorageMb")}
+              disabled={isLocked}
             />
             <NumberField
               id="plan-maxFile"
               label="Max File Size (MB)"
               register={register("maxFileSizeMb")}
               placeholder="10"
+              disabled={isLocked}
             />
           </div>
         </section>
@@ -674,11 +875,13 @@ function SwitchRow({
   id,
   label,
   checked,
+  disabled,
   onChange,
 }: {
   id: string;
   label: string;
   checked: boolean;
+  disabled?: boolean;
   onChange: (next: boolean) => void;
 }) {
   return (
@@ -686,7 +889,12 @@ function SwitchRow({
       <Label htmlFor={id} className="cursor-pointer text-sm">
         {label}
       </Label>
-      <Switch id={id} checked={checked} onCheckedChange={onChange} />
+      <Switch
+        id={id}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onChange}
+      />
     </div>
   );
 }
@@ -696,11 +904,13 @@ function NumberField({
   label,
   register,
   placeholder = "Unlimited",
+  disabled,
 }: {
   id: string;
   label: string;
   register: UseFormRegisterReturn;
   placeholder?: string;
+  disabled?: boolean;
 }) {
   return (
     <div className="space-y-2">
@@ -711,6 +921,7 @@ function NumberField({
         min={1}
         inputMode="numeric"
         placeholder={placeholder}
+        disabled={disabled}
         className="text-base md:text-sm"
         {...register}
       />

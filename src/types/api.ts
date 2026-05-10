@@ -116,3 +116,86 @@ export function superAdminDeleteHint(error: ApiError): string | undefined {
   const hint = (details as { hint?: unknown }).hint;
   return typeof hint === 'string' ? hint : undefined;
 }
+
+/**
+ * `403 ENTERPRISE_PLAN_MISMATCH` — the request hit a custom enterprise
+ * sub-app endpoint (`/v1/enterprise/<slug>/*`) but the calling tenant is
+ * not subscribed to the plan whose `name == <slug>`. Hide the nav entry
+ * when this fires; calling these from a non-enterprise tenant is a UI bug.
+ */
+export function isEnterprisePlanMismatch(error: unknown): error is ApiError {
+  return (
+    error instanceof ApiError &&
+    error.status === 403 &&
+    error.code === "ENTERPRISE_PLAN_MISMATCH"
+  );
+}
+
+/**
+ * `402 SUBSCRIPTION_REQUIRED` / `SUBSCRIPTION_INACTIVE` — the tenant has
+ * no active subscription. Should never happen post-bootstrap because the
+ * backend lazy-provisions the FREE plan; if it does, the auto-provisioner
+ * lost a race. Treat as a transient bug — invalidate session/usage state
+ * and let the user retry.
+ */
+export function isSubscriptionRequired(error: unknown): error is ApiError {
+  if (!(error instanceof ApiError) || error.status !== 402) return false;
+  return (
+    error.code === "SUBSCRIPTION_REQUIRED" ||
+    error.code === "SUBSCRIPTION_INACTIVE"
+  );
+}
+
+/**
+ * `403 FEATURE_DISABLED` — the tenant's tier doesn't allow this endpoint.
+ * Body carries `details` with a human-readable upgrade hint.
+ */
+export function isFeatureDisabled(error: unknown): error is ApiError {
+  return (
+    error instanceof ApiError &&
+    error.status === 403 &&
+    error.code === "FEATURE_DISABLED"
+  );
+}
+
+export interface QuotaExceededDetails {
+  collection: string;
+  operation: string;
+  current: number;
+  limit: number;
+  resetInterval?: string;
+}
+
+/**
+ * `429 QUOTA_EXCEEDED` — a numeric cap was hit. Render the included
+ * usage/limit pair next to an "Upgrade for more" CTA.
+ */
+export function isQuotaExceeded(error: unknown): error is ApiError {
+  return (
+    error instanceof ApiError &&
+    (error.status === 429 || error.code === "QUOTA_EXCEEDED")
+  );
+}
+
+export function quotaExceededDetails(
+  error: ApiError,
+): QuotaExceededDetails | undefined {
+  const details = error.details;
+  if (typeof details !== "object" || details === null) return undefined;
+  const d = details as Record<string, unknown>;
+  if (typeof d.collection !== "string" || typeof d.operation !== "string") {
+    return undefined;
+  }
+  return {
+    collection: d.collection,
+    operation: d.operation,
+    current: typeof d.current === "number" ? d.current : 0,
+    limit: typeof d.limit === "number" ? d.limit : 0,
+    resetInterval:
+      typeof d.reset_interval === "string"
+        ? d.reset_interval
+        : typeof d.resetInterval === "string"
+          ? d.resetInterval
+          : undefined,
+  };
+}

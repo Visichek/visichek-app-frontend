@@ -74,7 +74,10 @@ function tierBadgeVariant(tier: PlanTier) {
   }
 }
 
-const CANONICAL_PLAN_NAMES = new Set(["free", "starter", "premium", "enterprise"]);
+// Singleton (canonical) plans — exactly one row each, name-locked, and the
+// backend rejects archive/delete on them. Enterprise plans are PLURAL —
+// each one has a unique slug and can be freely archived or deleted.
+const CANONICAL_PLAN_NAMES = new Set(["free", "starter", "premium"]);
 
 function isCanonicalPlan(plan: Plan): boolean {
   return CANONICAL_PLAN_NAMES.has(plan.name);
@@ -227,7 +230,7 @@ export function PlansPageClient() {
     },
     {
       label: "Archive",
-      description: "Archive every selected plan so new subscriptions cannot use it. Canonical plans (free, starter, premium, enterprise) are skipped.",
+      description: "Archive every selected plan so new subscriptions cannot use it. Singleton plans (free, starter, premium) are skipped.",
       icon: <Archive className="h-4 w-4" />,
       variant: "secondary",
       onClick: (ids, rows) => {
@@ -236,7 +239,7 @@ export function PlansPageClient() {
           .map((p) => p.id);
         if (eligible.length === 0) {
           toast.info(
-            "None of the selected plans can be archived — canonical plans are protected and the rest are not active"
+            "None of the selected plans can be archived — free/starter/premium are protected and the rest are not active"
           );
           return;
         }
@@ -245,7 +248,7 @@ export function PlansPageClient() {
     },
     {
       label: "Delete",
-      description: "Permanently delete every selected plan — this cannot be undone. Canonical plans (free, starter, premium, enterprise) are skipped.",
+      description: "Permanently delete every selected plan — this cannot be undone. Singleton plans (free, starter, premium) are skipped.",
       icon: <Trash2 className="h-4 w-4" />,
       variant: "destructive",
       onClick: (ids, rows) => {
@@ -253,7 +256,7 @@ export function PlansPageClient() {
           .filter((p) => !isCanonicalPlan(p))
           .map((p) => p.id);
         if (eligible.length === 0) {
-          toast.info("Canonical plans cannot be deleted");
+          toast.info("Free, Starter, and Premium plans cannot be deleted");
           return;
         }
         openBulkConfirm("delete", eligible);

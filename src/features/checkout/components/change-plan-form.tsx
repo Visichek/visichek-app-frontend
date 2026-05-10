@@ -3,7 +3,15 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, Loader2, Mail, Minus, Plus } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowLeft,
+  Check,
+  Loader2,
+  Mail,
+  Minus,
+  Plus,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,15 +32,35 @@ import {
   resolveCheckoutUrl,
 } from "@/features/checkout/hooks/use-checkout";
 import type { Plan } from "@/types/billing";
-import type { BillingCycle } from "@/types/enums";
+import type { BillingCycle, PlanTier } from "@/types/enums";
 import { ApiError } from "@/types/api";
 
 const LIST_HREF = "/app/billing";
 const SALES_EMAIL = "sales@visichek.app";
+const SUPPORT_EMAIL = "support@visichek.app";
+
+// Used to detect downgrades. Free is lowest, Enterprise highest. Legacy
+// tiers slot below Enterprise so an existing `professional`/`custom`
+// tenant moving to Premium isn't classified as a downgrade.
+const TIER_RANK: Record<PlanTier, number> = {
+  free: 0,
+  starter: 1,
+  premium: 2,
+  professional: 2,
+  custom: 2,
+  enterprise: 3,
+};
+
+function isDowngrade(currentTier?: PlanTier, targetTier?: PlanTier): boolean {
+  if (!currentTier || !targetTier) return false;
+  return TIER_RANK[targetTier] < TIER_RANK[currentTier];
+}
 
 export interface ChangePlanFormProps {
   /** Currently active plan id — highlighted and disabled in the picker. */
   currentPlanId?: string;
+  /** Currently active tier — used to detect downgrades. */
+  currentPlanTier?: PlanTier;
 }
 
 function messageForError(error: unknown): string {
@@ -60,7 +88,10 @@ function messageForError(error: unknown): string {
  * but as a dedicated server-rendered URL so the user can share or bookmark
  * the flow, and so deep-linking works from the billing page.
  */
-export function ChangePlanForm({ currentPlanId }: ChangePlanFormProps) {
+export function ChangePlanForm({
+  currentPlanId,
+  currentPlanTier,
+}: ChangePlanFormProps) {
   const router = useRouter();
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
@@ -76,7 +107,9 @@ export function ChangePlanForm({ currentPlanId }: ChangePlanFormProps) {
   const plans = useMemo(
     () =>
       (plansQuery.data?.items ?? [])
-        .filter((p) => p.isPublic !== false)
+        // Hide the FREE plan from the picker — to drop to Free a tenant
+        // cancels their subscription, they don't "subscribe" to it.
+        .filter((p) => p.isPublic !== false && p.tier !== "free")
         .slice()
         .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
     [plansQuery.data]
@@ -89,6 +122,10 @@ export function ChangePlanForm({ currentPlanId }: ChangePlanFormProps) {
 
   const isPremium = selectedPlan?.tier === "premium";
   const isEnterprise = selectedPlan?.tier === "enterprise";
+  const isDowngradeSelected = isDowngrade(
+    currentPlanTier,
+    selectedPlan?.tier as PlanTier | undefined,
+  );
 
   function basePriceForCycle(plan: Plan): number {
     return billingCycle === "yearly"
@@ -102,7 +139,7 @@ export function ChangePlanForm({ currentPlanId }: ChangePlanFormProps) {
   }
 
   async function handleSubscribe() {
-    if (!selectedPlan || isEnterprise) return;
+    if (!selectedPlan || isEnterprise || isDowngradeSelected) return;
     try {
       const session = await createSession.mutateAsync({
         planId: selectedPlan.id,
@@ -375,6 +412,78 @@ export function ChangePlanForm({ currentPlanId }: ChangePlanFormProps) {
           </div>
         )}
 
+        {/* Downgrade panel — backed by /v1/subscriptions/change-plan, but
+            that endpoint is application-admin only. Tenant-driven downgrades
+            need a human in the loop because they can deactivate non-HQ
+            branches and disable paid features mid-period. */}
+        {selectedPlan && isDowngradeSelected && (
+          <div className="space-y-3 rounded-lg border border-amber-300/60 bg-amber-50 p-4 text-sm dark:border-amber-500/30 dark:bg-amber-500/10">
+            <div className="flex items-start gap-2">
+              <ArrowDown
+                className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+                aria-hidden="true"
+              />
+              <div className="space-y-1">
+                <p className="font-medium">
+                  This is a downgrade from {currentPlanTier} to{" "}
+                  {selectedPlan.tier}
+                </p>
+                <p className="text-muted-foreground">
+                  Downgrading mid-period can deactivate non-HQ branches and
+                  remove paid features (KYC, branding, exports, multi-location)
+                  from your tenant. To avoid surprises we don&apos;t support
+                  self-service downgrades. Contact support and we&apos;ll
+                  schedule the move with you.
+                </p>
+                <p className="text-muted-foreground">
+                  If you only want to stop being billed, cancel your
+                  subscription from the billing page instead — you keep paid
+                  features until the end of the period and drop to Free
+                  automatically.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button asChild className="min-h-[44px] w-full sm:w-auto">
+                    <a
+                      href={`mailto:${SUPPORT_EMAIL}?subject=Downgrade%20request`}
+                    >
+                      <Mail className="mr-2 h-4 w-4" aria-hidden="true" />
+                      Email {SUPPORT_EMAIL}
+                    </a>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  Open your email client with a pre-filled message asking
+                  support to schedule the downgrade.
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    asChild
+                    className="min-h-[44px] w-full sm:w-auto"
+                  >
+                    <Link
+                      href={LIST_HREF}
+                      onClick={() => handleNavClick(LIST_HREF)}
+                    >
+                      Back to billing to cancel instead
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  Return to billing where you can cancel your subscription —
+                  you&apos;ll drop to Free at the end of the period.
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+        )}
+
         {/* Enterprise contact-sales panel */}
         {selectedPlan && isEnterprise && (
           <div className="space-y-3 rounded-lg border bg-muted/40 p-4 text-sm">
@@ -404,7 +513,7 @@ export function ChangePlanForm({ currentPlanId }: ChangePlanFormProps) {
         )}
 
         {/* Summary */}
-        {selectedPlan && !isEnterprise && (
+        {selectedPlan && !isEnterprise && !isDowngradeSelected && (
           <div className="rounded-lg border bg-muted/40 p-4 text-sm">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">
@@ -459,7 +568,7 @@ export function ChangePlanForm({ currentPlanId }: ChangePlanFormProps) {
             </TooltipContent>
           </Tooltip>
 
-          {!isEnterprise && (
+          {!isEnterprise && !isDowngradeSelected && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
