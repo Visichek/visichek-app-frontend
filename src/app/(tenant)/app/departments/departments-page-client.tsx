@@ -23,7 +23,9 @@ import { toast } from "sonner";
 import {
   useDepartments,
   useDeleteDepartment,
+  useBulkDeleteDepartments,
 } from "@/features/departments/hooks/use-departments";
+import { summarizeBulkResult } from "@/lib/api/bulk";
 import { useCapabilities } from "@/hooks/use-capabilities";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
@@ -34,8 +36,10 @@ export function DepartmentsPageClient() {
   const canCreate = hasCapability(CAPABILITIES.DEPARTMENT_CREATE);
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
-  const { data, isLoading } = useDepartments();
+  const { data: departmentsList, isLoading } = useDepartments({ limit: 200, sort: "name" });
+  const data = departmentsList?.items ?? [];
   const deleteQuery = useDeleteDepartment();
+  const bulkDeleteQuery = useBulkDeleteDepartments();
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deptToDelete, setDeptToDelete] = useState<Department | undefined>();
@@ -65,19 +69,12 @@ export function DepartmentsPageClient() {
     if (!bulkDeleteIds || bulkDeleteIds.length === 0) return;
     setBulkPending(true);
     try {
-      const results = await Promise.allSettled(
-        bulkDeleteIds.map((id) => deleteQuery.mutateAsync(id))
-      );
-      const ok = results.filter((r) => r.status === "fulfilled").length;
-      const failed = results.length - ok;
-      if (failed === 0) {
-        toast.success(`${ok} department${ok === 1 ? "" : "s"} deleted`);
-      } else if (ok === 0) {
-        toast.error(`Failed to delete ${failed} department${failed === 1 ? "" : "s"}`);
-      } else {
-        toast.warning(`${ok} deleted, ${failed} failed`);
-      }
+      const result = await bulkDeleteQuery.mutateAsync({ ids: bulkDeleteIds });
+      const { tone, message } = summarizeBulkResult(result, "department", "deleted");
+      toast[tone](message);
       setBulkDeleteIds(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Bulk delete failed");
     } finally {
       setBulkPending(false);
     }

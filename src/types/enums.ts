@@ -51,7 +51,17 @@ export type LogoPosition = "top_left" | "top_center" | "top_right" | "center";
 export type BranchStatus = "active" | "inactive";
 
 // ── Plans, Billing & Quotas ───────────────────────────────────────────
-export type PlanTier = "free" | "starter" | "professional" | "enterprise" | "custom";
+// Canonical tiers: free, starter, premium, enterprise.
+// `professional` and `custom` are legacy values kept here so existing
+// subscriptions and archived plan records still typecheck — see
+// frontend-docs/billing.md §11. New plans should never use them.
+export type PlanTier =
+  | "free"
+  | "starter"
+  | "premium"
+  | "enterprise"
+  | "professional"
+  | "custom";
 export type PlanStatus = "draft" | "active" | "archived";
 export type QuotaResetInterval = "daily" | "weekly" | "monthly" | "never";
 export type SubscriptionStatus =

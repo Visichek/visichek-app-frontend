@@ -177,7 +177,7 @@ export function EditUserDialog({
                       triggerClassName="min-h-[44px]"
                       options={[
                         { value: "none", label: "None" },
-                        ...((departmentsQuery.data
+                        ...((departmentsQuery.data?.items
                           ?.filter((dept) => !!dept?.id)
                           .map((dept) => ({
                             value: dept.id,

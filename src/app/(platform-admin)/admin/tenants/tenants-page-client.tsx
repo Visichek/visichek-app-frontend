@@ -47,9 +47,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { formatDate } from "@/lib/utils/format-date";
+import { summarizeBulkResult } from "@/lib/api/bulk";
 import {
   useTenantList,
   useOffboardTenant,
+  useBulkOffboardTenants,
 } from "@/features/auth/hooks/use-admin-dashboard";
 
 const NEW_TENANT_HREF = "/admin/tenants/new";
@@ -89,7 +91,8 @@ function SubscribeModal({ tenant, open, onOpenChange }: SubscribeModalProps) {
   const [planId, setPlanId] = useState("");
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
 
-  const { data: plans = [], isLoading: plansLoading } = usePlans({ status: "active" });
+  const { data: plansList, isLoading: plansLoading } = usePlans({ status: "active", limit: 100 });
+  const plans = plansList?.items ?? [];
   const createSubscription = useCreateSubscription();
 
   function handleSubmit() {
@@ -256,54 +259,50 @@ const TENANT_TABS: { value: TenantStatusTab; label: string; description: string 
   { value: "all", label: "All", description: "Show every tenant regardless of status" },
 ];
 
+const TENANT_PLAN_TIERS = [
+  "free",
+  "starter",
+  "professional",
+  "enterprise",
+  "custom",
+] as const;
+
 export function TenantsPageClient() {
   const { loadingHref, handleNavClick } = useNavigationLoading();
-  // Tactical fix until the backend wires proper server-side pagination on
-  // /tenants — request a high limit so the client-paginated table can show
-  // every tenant. Spec for proper pagination is in `docs/tables.txt`.
-  const { data, isLoading } = useTenantList({ limit: 1000 });
-  const allTenants = useMemo(() => data || [], [data]);
 
   const [statusTab, setStatusTab] = useState<TenantStatusTab>("active");
   const [planFilter, setPlanFilter] = useState<string>("all");
   const [subscriptionFilter, setSubscriptionFilter] =
     useState<SubscriptionStatusFilter>("all");
 
-  const planOptions = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const t of allTenants) {
-      const tier = t.planSummary?.planTier;
-      if (tier && !seen.has(tier)) seen.set(tier, tier);
-    }
-    return Array.from(seen.keys()).sort();
-  }, [allTenants]);
+  // Server-side filter set per tables.txt §1.1. The status tab maps to the
+  // `status` filter; the dropdowns map to `planTier` and `subscriptionStatus`.
+  // `facets=status` asks the backend to compute per-tab counts against the
+  // full dataset so the badges don't drift as the user paginates.
+  const listFilters = useMemo(() => {
+    const params: Record<string, unknown> = {
+      limit: 50,
+      sort: "-dateCreated",
+      facets: "status",
+      status: statusTab,
+    };
+    if (planFilter !== "all") params.planTier = planFilter;
+    if (subscriptionFilter !== "all") params.subscriptionStatus = subscriptionFilter;
+    return params;
+  }, [statusTab, planFilter, subscriptionFilter]);
 
-  const tenants = useMemo(() => {
-    return allTenants.filter((t) => {
-      if (statusTab === "active" && !t.isActive) return false;
-      if (statusTab === "inactive" && t.isActive) return false;
-      if (planFilter !== "all" && t.planSummary?.planTier !== planFilter) return false;
-      if (subscriptionFilter !== "all") {
-        const sub = t.planSummary?.subscriptionStatus;
-        if (subscriptionFilter === "none") {
-          if (sub) return false;
-        } else if (sub !== subscriptionFilter) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }, [allTenants, statusTab, planFilter, subscriptionFilter]);
+  const { data, isLoading } = useTenantList(listFilters);
+  const tenants = useMemo(() => data?.items ?? [], [data]);
+  const meta = data?.meta;
 
   const tabCounts = useMemo(() => {
-    let active = 0;
-    let inactive = 0;
-    for (const t of allTenants) {
-      if (t.isActive) active += 1;
-      else inactive += 1;
-    }
-    return { active, inactive, all: allTenants.length };
-  }, [allTenants]);
+    const facet = meta?.facets?.status ?? {};
+    return {
+      active: facet.active ?? 0,
+      inactive: facet.inactive ?? 0,
+      all: facet.all ?? meta?.total ?? 0,
+    };
+  }, [meta]);
 
   const [subscribeTarget, setSubscribeTarget] = useState<AdminTenant | null>(null);
   const [offboardTarget, setOffboardTarget] = useState<AdminTenant | null>(null);
@@ -311,24 +310,20 @@ export function TenantsPageClient() {
   const [bulkPending, setBulkPending] = useState(false);
 
   const offboardTenant = useOffboardTenant();
+  const bulkOffboard = useBulkOffboardTenants();
 
   async function handleBulkOffboardConfirm() {
     if (!bulkOffboardIds || bulkOffboardIds.length === 0) return;
     setBulkPending(true);
     try {
-      const results = await Promise.allSettled(
-        bulkOffboardIds.map((id) => offboardTenant.mutateAsync(id))
-      );
-      const ok = results.filter((r) => r.status === "fulfilled").length;
-      const failed = results.length - ok;
-      if (failed === 0) {
-        toast.success(`${ok} tenant${ok === 1 ? "" : "s"} offboarding started`);
-      } else if (ok === 0) {
-        toast.error(`Failed to start offboarding for ${failed} tenant${failed === 1 ? "" : "s"}`);
-      } else {
-        toast.warning(`${ok} started, ${failed} failed`);
-      }
+      const result = await bulkOffboard.mutateAsync({ ids: bulkOffboardIds });
+      const { tone, message } = summarizeBulkResult(result, "tenant", "offboarding started");
+      toast[tone](message);
       setBulkOffboardIds(null);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Bulk offboard failed"
+      );
     } finally {
       setBulkPending(false);
     }
@@ -586,11 +581,12 @@ export function TenantsPageClient() {
             </Tooltip>
             <SelectContent>
               <SelectItem value="all">All tiers</SelectItem>
-              {planOptions.map((tier) => (
+              {TENANT_PLAN_TIERS.map((tier) => (
                 <SelectItem key={tier} value={tier} className="capitalize">
                   {tier}
                 </SelectItem>
               ))}
+              <SelectItem value="none">No plan attached</SelectItem>
             </SelectContent>
           </Select>
         </div>

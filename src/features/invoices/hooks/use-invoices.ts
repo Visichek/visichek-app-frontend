@@ -2,20 +2,37 @@
 
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/api/request";
+import { apiGetList } from "@/lib/api/list";
+import { bulkAction } from "@/lib/api/bulk";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Invoice, PaymentTransaction, PaymentIntentRequest } from "@/types/billing";
 import type { InvoiceStatus } from "@/types/enums";
+import type { ListResponse, BulkJobResult } from "@/types/list";
 
 interface UseInvoicesParams {
   tenantId?: string;
   status?: InvoiceStatus;
-  start?: number;
-  stop?: number;
+  amountGte?: number;
+  amountLte?: number;
+  issuedAtGte?: number;
+  issuedAtLte?: number;
+  q?: string;
+  sort?: string;
+  facets?: string;
+  skip?: number;
+  limit?: number;
 }
 
 interface UseTenantInvoicesParams {
-  start?: number;
-  stop?: number;
+  status?: InvoiceStatus;
+  amountGte?: number;
+  amountLte?: number;
+  issuedAtGte?: number;
+  issuedAtLte?: number;
+  sort?: string;
+  facets?: string;
+  skip?: number;
+  limit?: number;
 }
 
 export interface InvoiceWithSummary extends Invoice {
@@ -40,14 +57,21 @@ export interface InvoiceWithSummary extends Invoice {
  * is discarded on the client — use `start`/`stop` params to page through.
  */
 export function useAllInvoices(params?: UseInvoicesParams) {
-  return useQuery<InvoiceWithSummary[]>({
+  return useQuery<ListResponse<InvoiceWithSummary>>({
     queryKey: ["invoices", "admin", params],
     queryFn: () =>
-      apiGet<InvoiceWithSummary[]>("/invoices/admin", {
-        tenant_id: params?.tenantId,
+      apiGetList<InvoiceWithSummary>("/invoices/admin", {
+        tenantId: params?.tenantId,
         status: params?.status,
-        start: params?.start ?? 0,
-        stop: params?.stop ?? 50,
+        amountGte: params?.amountGte,
+        amountLte: params?.amountLte,
+        issuedAtGte: params?.issuedAtGte,
+        issuedAtLte: params?.issuedAtLte,
+        q: params?.q,
+        sort: params?.sort ?? "-issuedAt",
+        facets: params?.facets,
+        skip: params?.skip ?? 0,
+        limit: params?.limit ?? 50,
       }),
     placeholderData: keepPreviousData,
   });
@@ -57,15 +81,54 @@ export function useAllInvoices(params?: UseInvoicesParams) {
  * Fetch invoices for a specific tenant (super_admin role).
  */
 export function useTenantInvoices(tenantId: string, params?: UseTenantInvoicesParams) {
-  return useQuery<InvoiceWithSummary[]>({
+  return useQuery<ListResponse<InvoiceWithSummary>>({
     queryKey: ["invoices", "tenant", tenantId, params],
     queryFn: () =>
-      apiGet<InvoiceWithSummary[]>(`/invoices/tenant/${tenantId}`, {
-        start: params?.start ?? 0,
-        stop: params?.stop ?? 20,
+      apiGetList<InvoiceWithSummary>(`/invoices/tenant/${tenantId}`, {
+        status: params?.status,
+        amountGte: params?.amountGte,
+        amountLte: params?.amountLte,
+        issuedAtGte: params?.issuedAtGte,
+        issuedAtLte: params?.issuedAtLte,
+        sort: params?.sort ?? "-issuedAt",
+        facets: params?.facets,
+        skip: params?.skip ?? 0,
+        limit: params?.limit ?? 20,
       }),
     enabled: !!tenantId,
     placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Bulk download / void admin invoices per tables.txt §1.4.
+ */
+export function useBulkInvoiceAction(action: "download" | "void") {
+  const queryClient = useQueryClient();
+  return useMutation<
+    BulkJobResult,
+    Error,
+    { ids: string[]; reason?: string; atomic?: boolean }
+  >({
+    mutationFn: ({ ids, reason, atomic }) =>
+      bulkAction(`/invoices/bulk/${action}`, ids, {
+        atomic,
+        extras: action === "void" && reason ? { reason } : undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    },
+  });
+}
+
+/**
+ * Bulk download tenant-scoped invoices (returns presigned URLs per id) per
+ * tables.txt §2.6.
+ */
+export function useBulkTenantInvoiceDownload(tenantId: string) {
+  return useMutation<BulkJobResult, Error, { ids: string[]; atomic?: boolean }>({
+    mutationFn: ({ ids, atomic }) =>
+      bulkAction(`/invoices/tenant/${tenantId}/bulk/download`, ids, { atomic }),
   });
 }
 

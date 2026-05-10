@@ -73,8 +73,8 @@ export function PaymentsPageClient() {
 
   const queryParams = React.useMemo(
     () => ({
-      start,
-      stop: start + PAGE_SIZE,
+      skip: start,
+      limit: PAGE_SIZE,
       status: statusFilter === "all" ? undefined : statusFilter,
     }),
     [start, statusFilter]
@@ -83,7 +83,7 @@ export function PaymentsPageClient() {
   // Match the SSR prefetch key exactly when filters are at their defaults so
   // hydration lands on the cached payload instead of refetching.
   const { data, isLoading, isError, refetch, isFetching } = useAllInvoices(queryParams);
-  const invoices = data ?? [];
+  const invoices = data?.items ?? [];
 
   const handleDownloadPdf = React.useCallback(async (invoiceId: string) => {
     setPdfLoadingId(invoiceId);

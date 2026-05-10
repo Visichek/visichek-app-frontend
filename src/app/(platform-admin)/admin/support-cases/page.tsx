@@ -68,7 +68,7 @@ export default function AdminSupportCasesPage() {
   );
 
   const { data, isLoading, isError, refetch } = useAdminSupportCases(params);
-  const cases = Array.isArray(data) ? data : [];
+  const cases = data?.items ?? [];
 
   const columns: ColumnDef<SupportCase>[] = [
     {

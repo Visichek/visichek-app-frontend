@@ -55,8 +55,8 @@ export default function DPOPage() {
   const canCreate = hasCapability(CAPABILITIES.DSR_CREATE);
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
-  const { data, isLoading } = useDataSubjectRequests();
-  const requests = data?.data || [];
+  const { data, isLoading } = useDataSubjectRequests({ limit: 100, sort: "-dateCreated" });
+  const requests = data?.items ?? [];
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [dsrToDelete, setDSRToDelete] = useState<DataSubjectRequest | undefined>();

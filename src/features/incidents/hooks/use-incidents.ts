@@ -2,36 +2,41 @@
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPatch } from "@/lib/api/request";
+import { apiGetList } from "@/lib/api/list";
+import { bulkAction } from "@/lib/api/bulk";
 import type {
   Incident,
   CreateIncidentRequest,
   UpdateIncidentRequest,
 } from "@/types/incident";
-
-interface PaginatedResponse<T> {
-  data: T[];
-  meta?: {
-    total?: number;
-    start?: number;
-    stop?: number;
-  };
-}
+import type { ListResponse, BulkJobResult } from "@/types/list";
 
 interface UseIncidentsParams {
   status?: string;
   severity?: string;
   type?: string;
-  start?: number;
-  stop?: number;
+  riskLevel?: string;
+  ndpcNotified?: boolean;
+  approachingDeadline?: boolean;
+  q?: string;
+  sort?: string;
+  facets?: string;
+  skip?: number;
+  limit?: number;
 }
 
 /**
- * Fetch all incidents with optional filtering and pagination
+ * Fetch the paginated incidents list. Returns the new `{ items, meta }`
+ * envelope per tables.txt §2.8.
  */
 export function useIncidents(params?: UseIncidentsParams) {
-  return useQuery<PaginatedResponse<Incident>>({
+  return useQuery<ListResponse<Incident>>({
     queryKey: ["incidents", params],
-    queryFn: () => apiGet<PaginatedResponse<Incident>>("/incidents", params),
+    queryFn: () =>
+      apiGetList<Incident>(
+        "/incidents",
+        params as Record<string, unknown> | undefined,
+      ),
     placeholderData: keepPreviousData,
   });
 }
@@ -79,14 +84,57 @@ export function useUpdateIncident(incidentId: string) {
 
 /**
  * Fetch incidents approaching their 72h NDPC notification deadline.
- * Auto-refreshes every 60 seconds.
+ * Auto-refreshes every 60 seconds. Reuses the main list endpoint with the
+ * `approachingDeadline=true` filter per tables.txt §2.8.
  */
 export function useApproachingDeadlineIncidents() {
-  return useQuery<PaginatedResponse<Incident>>({
+  return useQuery<ListResponse<Incident>>({
     queryKey: ["incidents", "approaching-deadline"],
-    queryFn: () => apiGet<PaginatedResponse<Incident>>("/incidents/approaching-deadline"),
+    queryFn: () =>
+      apiGetList<Incident>("/incidents", { approachingDeadline: true }),
     refetchInterval: 60000,
     refetchIntervalInBackground: false,
     staleTime: 30000,
+  });
+}
+
+/**
+ * Bulk mark incidents as notified to NDPC, or set their status, per
+ * tables.txt §2.8.
+ */
+export function useBulkMarkIncidentsNotified() {
+  const queryClient = useQueryClient();
+  return useMutation<
+    BulkJobResult,
+    Error,
+    { ids: string[]; notificationSentAt?: number; atomic?: boolean }
+  >({
+    mutationFn: ({ ids, notificationSentAt, atomic }) =>
+      bulkAction("/incidents/bulk/mark-notified", ids, {
+        atomic,
+        extras:
+          notificationSentAt !== undefined ? { notificationSentAt } : undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["incidents"] });
+    },
+  });
+}
+
+export function useBulkSetIncidentStatus() {
+  const queryClient = useQueryClient();
+  return useMutation<
+    BulkJobResult,
+    Error,
+    { ids: string[]; status: string; atomic?: boolean }
+  >({
+    mutationFn: ({ ids, status, atomic }) =>
+      bulkAction("/incidents/bulk/status", ids, {
+        atomic,
+        extras: { status },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["incidents"] });
+    },
   });
 }

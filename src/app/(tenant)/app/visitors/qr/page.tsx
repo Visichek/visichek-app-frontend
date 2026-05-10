@@ -158,7 +158,7 @@ export default function RegistrationQrPage() {
                 emptyText="No departments match your search"
                 options={[
                   { value: "__any__", label: "Any department" },
-                  ...((departmentsQuery.data
+                  ...((departmentsQuery.data?.items
                     ?.filter((d) => !!d?.id)
                     .map((d) => ({ value: d.id, label: d.name })) ?? []) as {
                     value: string;

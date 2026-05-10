@@ -7,6 +7,8 @@ import {
   keepPreviousData,
 } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/api/request";
+import { apiGetList } from "@/lib/api/list";
+import { bulkAction } from "@/lib/api/bulk";
 import type {
   SupportCase,
   SupportCaseDetail,
@@ -18,6 +20,7 @@ import type {
   AdminSupportCaseListParams,
 } from "@/types/support-case";
 import type { AdminSearchResult } from "@/types/admin";
+import type { ListResponse, BulkJobResult } from "@/types/list";
 
 export const adminSupportCaseKeys = {
   all: ["admin-support-cases"] as const,
@@ -34,12 +37,15 @@ export const adminSearchKeys = {
 
 // ── Queries ───────────────────────────────────────────────────────────
 
-/** Admin list across all tenants. */
+/** Admin list across all tenants per tables.txt §1.7. */
 export function useAdminSupportCases(params?: AdminSupportCaseListParams) {
-  return useQuery<SupportCase[]>({
+  return useQuery<ListResponse<SupportCase>>({
     queryKey: adminSupportCaseKeys.list(params),
     queryFn: () =>
-      apiGet<SupportCase[]>("/admins/support-cases", params),
+      apiGetList<SupportCase>(
+        "/admins/support-cases",
+        params as Record<string, unknown> | undefined,
+      ),
     placeholderData: keepPreviousData,
   });
 }
@@ -47,6 +53,10 @@ export function useAdminSupportCases(params?: AdminSupportCaseListParams) {
 /**
  * Active cases whose `slaDueAt` falls in the next 24h. Drives the admin
  * dashboard warning ribbon. Auto-refreshes every minute.
+ *
+ * The dedicated `/approaching-sla` endpoint is unchanged on the backend;
+ * the frontend keeps using it rather than re-deriving from the main list
+ * with a date filter.
  */
 export function useApproachingSla() {
   return useQuery<SupportCase[]>({
@@ -56,6 +66,33 @@ export function useApproachingSla() {
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
     staleTime: 30_000,
+  });
+}
+
+/**
+ * Bulk assign / change-status / close support cases per tables.txt §1.7.
+ */
+export function useBulkAdminSupportCaseAction(
+  action: "assign" | "status" | "close"
+) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    BulkJobResult,
+    Error,
+    { ids: string[]; assigneeId?: string; status?: string; atomic?: boolean }
+  >({
+    mutationFn: ({ ids, assigneeId, status, atomic }) => {
+      const extras: Record<string, unknown> = {};
+      if (action === "assign" && assigneeId) extras.assigneeId = assigneeId;
+      if (action === "status" && status) extras.status = status;
+      return bulkAction(`/admins/support-cases/bulk/${action}`, ids, {
+        atomic,
+        extras: Object.keys(extras).length > 0 ? extras : undefined,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminSupportCaseKeys.all });
+    },
   });
 }
 

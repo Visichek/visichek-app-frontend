@@ -7,6 +7,8 @@ import {
   keepPreviousData,
 } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/api/request";
+import { apiGetList } from "@/lib/api/list";
+import { bulkAction } from "@/lib/api/bulk";
 import type {
   AcceptOnboardingRequest,
   AcceptOnboardingResponse,
@@ -16,6 +18,7 @@ import type {
   PartialAcceptOnboardingRequest,
   RejectOnboardingRequest,
 } from "@/types/onboarding";
+import type { ListResponse, BulkJobResult } from "@/types/list";
 
 /**
  * Query key factory for the admin onboarding queue. Mirrors the layout
@@ -36,10 +39,13 @@ export const adminOnboardingKeys = {
  * top; passing `undefined` returns the full mixed-status list.
  */
 export function useOnboardingSubmissions(params?: OnboardingListParams) {
-  return useQuery<OnboardingSubmission[]>({
+  return useQuery<ListResponse<OnboardingSubmission>>({
     queryKey: adminOnboardingKeys.list(params),
     queryFn: () =>
-      apiGet<OnboardingSubmission[]>("/tenants/onboarding", params),
+      apiGetList<OnboardingSubmission>(
+        "/tenants/onboarding",
+        params as Record<string, unknown> | undefined,
+      ),
     placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
@@ -170,5 +176,26 @@ export function useArchiveOnboarding() {
       ),
     onSuccess: (_, submissionId) =>
       invalidateOnboarding(queryClient, submissionId),
+  });
+}
+
+/**
+ * Bulk archive / reject submissions per tables.txt §1.6.
+ */
+export function useBulkOnboardingAction(action: "archive" | "reject") {
+  const queryClient = useQueryClient();
+  return useMutation<
+    BulkJobResult,
+    Error,
+    { ids: string[]; notes?: string; atomic?: boolean }
+  >({
+    mutationFn: ({ ids, notes, atomic }) =>
+      bulkAction(`/tenants/onboarding/bulk/${action}`, ids, {
+        atomic,
+        extras: action === "reject" && notes ? { notes } : undefined,
+      }),
+    onSuccess: () => {
+      invalidateOnboarding(queryClient);
+    },
   });
 }

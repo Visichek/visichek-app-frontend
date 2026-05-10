@@ -19,6 +19,13 @@ import type { Plan, PlanFeatureCatalogEntry } from "@/types/billing";
 
 interface PlanFeaturesChecklistProps {
   plan: Plan;
+  /**
+   * Render the catalog as read-only metadata. Used for canonical non-Enterprise
+   * plans where the backend rejects toggle requests because feature_rules are
+   * tier-locked. The checklist still shows what is on/off, but the switches
+   * are disabled and no toggle is attempted.
+   */
+  readOnly?: boolean;
 }
 
 /**
@@ -41,7 +48,10 @@ function isFeatureEnabled(spec: PlanFeatureCatalogEntry, plan: Plan): boolean {
   return rule ? rule.enabled : spec.defaultEnabled;
 }
 
-export function PlanFeaturesChecklist({ plan }: PlanFeaturesChecklistProps) {
+export function PlanFeaturesChecklist({
+  plan,
+  readOnly = false,
+}: PlanFeaturesChecklistProps) {
   const {
     data: catalog,
     isLoading: catalogLoading,
@@ -88,6 +98,7 @@ export function PlanFeaturesChecklist({ plan }: PlanFeaturesChecklistProps) {
     spec: PlanFeatureCatalogEntry,
     next: boolean,
   ) => {
+    if (readOnly) return;
     setPendingKey(spec.key);
     try {
       await toggleMutation.mutateAsync({
@@ -109,8 +120,9 @@ export function PlanFeaturesChecklist({ plan }: PlanFeaturesChecklistProps) {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Each toggle saves immediately and applies to all tenants on this plan
-        within a few seconds.
+        {readOnly
+          ? "Feature gates are tier-locked on this plan. The list below is read-only — to grant a denied feature to a single tenant, use a per-tenant override from the Subscriptions page."
+          : "Each toggle saves immediately and applies to all tenants on this plan within a few seconds."}
       </p>
       {catalog.map((spec) => {
         const enabled = isFeatureEnabled(spec, plan);
@@ -150,16 +162,18 @@ export function PlanFeaturesChecklist({ plan }: PlanFeaturesChecklistProps) {
                     <Switch
                       id={switchId}
                       checked={enabled}
-                      disabled={isAnyPending}
+                      disabled={isAnyPending || readOnly}
                       onCheckedChange={(c) => handleToggle(spec, c)}
                       aria-label={`${enabled ? "Disable" : "Enable"} ${spec.label}`}
                     />
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="left">
-                  {enabled
-                    ? `Disable ${spec.label} for all tenants on this plan`
-                    : `Enable ${spec.label} for all tenants on this plan`}
+                  {readOnly
+                    ? `${spec.label} is tier-locked on this plan and cannot be toggled here`
+                    : enabled
+                      ? `Disable ${spec.label} for all tenants on this plan`
+                      : `Enable ${spec.label} for all tenants on this plan`}
                 </TooltipContent>
               </Tooltip>
             </div>

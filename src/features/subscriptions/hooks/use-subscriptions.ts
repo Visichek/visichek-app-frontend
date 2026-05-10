@@ -2,24 +2,58 @@
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPut } from "@/lib/api/request";
+import { apiGetList } from "@/lib/api/list";
+import { bulkAction } from "@/lib/api/bulk";
 import type { Subscription, SubscribeTenantRequest, ChangePlanRequest, CancelSubscriptionRequest } from "@/types/billing";
+import type { ListResponse, BulkJobResult } from "@/types/list";
 
 interface UseSubscriptionsParams {
   tenantId?: string;
+  planId?: string;
   status?: string;
+  billingCycle?: string;
+  q?: string;
+  sort?: string;
+  facets?: string;
   skip?: number;
   limit?: number;
 }
 
 /**
- * Fetch all subscriptions with optional filtering and pagination.
- * The backend returns a flat Subscription[] array (envelope is unwrapped by the axios interceptor).
+ * Fetch the paginated subscriptions list. Returns the new `{ items, meta }`
+ * envelope per tables.txt §1.3.
  */
 export function useSubscriptions(params?: UseSubscriptionsParams) {
-  return useQuery<Subscription[]>({
+  return useQuery<ListResponse<Subscription>>({
     queryKey: ["subscriptions", params],
-    queryFn: () => apiGet<Subscription[]>("/subscriptions", params),
+    queryFn: () =>
+      apiGetList<Subscription>(
+        "/subscriptions",
+        params as Record<string, unknown> | undefined,
+      ),
     placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Bulk cancel subscriptions per tables.txt §1.3. `reason` is one per
+ * batch — the worker applies it to every cancellation in the call.
+ */
+export function useBulkCancelSubscriptions() {
+  const queryClient = useQueryClient();
+  return useMutation<
+    BulkJobResult,
+    Error,
+    { ids: string[]; reason: string; immediate: boolean; atomic?: boolean }
+  >({
+    mutationFn: ({ ids, reason, immediate, atomic }) =>
+      bulkAction("/subscriptions/bulk/cancel", ids, {
+        atomic,
+        extras: { reason, immediate },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
+    },
   });
 }
 

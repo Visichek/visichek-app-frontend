@@ -282,7 +282,7 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
                 emptyText="No departments match your search"
                 triggerClassName="min-h-[44px]"
                 options={
-                  departmentsQuery.data
+                  departmentsQuery.data?.items
                     ?.filter((dept) => !!dept?.id)
                     .map((dept) => ({ value: dept.id, label: dept.name })) ?? []
                 }

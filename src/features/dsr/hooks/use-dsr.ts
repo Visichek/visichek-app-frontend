@@ -2,25 +2,25 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPatch } from "@/lib/api/request";
+import { apiGetList } from "@/lib/api/list";
+import { bulkAction } from "@/lib/api/bulk";
 import type {
   DataSubjectRequest,
   CreateDSRRequest,
 } from "@/types/dpo";
-
-interface PaginatedResponse<T> {
-  data: T[];
-  meta?: {
-    total?: number;
-    start?: number;
-    stop?: number;
-  };
-}
+import type { ListResponse, BulkJobResult } from "@/types/list";
 
 interface UseDataSubjectRequestsParams {
   status?: string;
   type?: string;
-  start?: number;
-  stop?: number;
+  slaState?: string;
+  q?: string;
+  sort?: string;
+  facets?: string;
+  createdAtGte?: number;
+  createdAtLte?: number;
+  skip?: number;
+  limit?: number;
 }
 
 interface UpdateDSRRequest {
@@ -29,15 +29,19 @@ interface UpdateDSRRequest {
 }
 
 /**
- * Fetch all data subject requests with optional filtering and pagination
+ * Fetch the paginated DSR list per tables.txt §2.7. Returns the new
+ * `{ items, meta }` envelope.
  */
 export function useDataSubjectRequests(
   params?: UseDataSubjectRequestsParams
 ) {
-  return useQuery<PaginatedResponse<DataSubjectRequest>>({
+  return useQuery<ListResponse<DataSubjectRequest>>({
     queryKey: ["dsr", params],
     queryFn: () =>
-      apiGet<PaginatedResponse<DataSubjectRequest>>("/dsr", params),
+      apiGetList<DataSubjectRequest>(
+        "/dsr",
+        params as Record<string, unknown> | undefined,
+      ),
   });
 }
 
@@ -77,6 +81,77 @@ export function useUpdateDSR(dsrId: string) {
       apiPatch<DataSubjectRequest>(`/dsr/${dsrId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dsr", dsrId] });
+      queryClient.invalidateQueries({ queryKey: ["dsr"] });
+    },
+  });
+}
+
+/**
+ * Acknowledge / complete / reject a DSR per tables.txt §2.7.
+ */
+export function useAcknowledgeDSR() {
+  const queryClient = useQueryClient();
+  return useMutation<DataSubjectRequest, Error, string>({
+    mutationFn: (dsrId) =>
+      apiPost<DataSubjectRequest>(`/dsr/${dsrId}/acknowledge`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dsr"] });
+    },
+  });
+}
+
+export function useCompleteDSR() {
+  const queryClient = useQueryClient();
+  return useMutation<
+    DataSubjectRequest,
+    Error,
+    { dsrId: string; resolution?: string }
+  >({
+    mutationFn: ({ dsrId, resolution }) =>
+      apiPost<DataSubjectRequest>(
+        `/dsr/${dsrId}/complete`,
+        resolution ? { resolution } : {},
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dsr"] });
+    },
+  });
+}
+
+export function useRejectDSR() {
+  const queryClient = useQueryClient();
+  return useMutation<
+    DataSubjectRequest,
+    Error,
+    { dsrId: string; reason?: string }
+  >({
+    mutationFn: ({ dsrId, reason }) =>
+      apiPost<DataSubjectRequest>(
+        `/dsr/${dsrId}/reject`,
+        reason ? { reason } : {},
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dsr"] });
+    },
+  });
+}
+
+/**
+ * Bulk acknowledge / reject DSRs per tables.txt §2.7.
+ */
+export function useBulkDSRAction(action: "acknowledge" | "reject") {
+  const queryClient = useQueryClient();
+  return useMutation<
+    BulkJobResult,
+    Error,
+    { ids: string[]; reason?: string; atomic?: boolean }
+  >({
+    mutationFn: ({ ids, reason, atomic }) =>
+      bulkAction(`/dsr/bulk/${action}`, ids, {
+        atomic,
+        extras: action === "reject" && reason ? { reason } : undefined,
+      }),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dsr"] });
     },
   });

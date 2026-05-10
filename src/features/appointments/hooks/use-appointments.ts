@@ -2,12 +2,15 @@
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api/request';
+import { apiGetList } from '@/lib/api/list';
+import { bulkAction } from '@/lib/api/bulk';
 import type {
   Appointment,
   AppointmentRequest,
   AppointmentCheckInRequest,
   AppointmentCheckInResponse,
 } from '@/types/visitor';
+import type { ListResponse, BulkJobResult } from '@/types/list';
 
 /**
  * Query key factory for appointment-related queries
@@ -22,15 +25,13 @@ const appointmentKeys = {
 };
 
 /**
- * Fetch all appointments with optional filters.
+ * Fetch the paginated appointments list. Returns the new `{ items, meta }`
+ * envelope per tables.txt §2.4.
  */
 export function useAppointments(filters?: Record<string, unknown>) {
-  return useQuery({
+  return useQuery<ListResponse<Appointment>>({
     queryKey: appointmentKeys.list(filters),
-    queryFn: async () => {
-      const data = await apiGet<Appointment[]>('/appointments', filters);
-      return data;
-    },
+    queryFn: () => apiGetList<Appointment>('/appointments', filters),
     staleTime: 30000,
     placeholderData: keepPreviousData,
   });
@@ -175,6 +176,27 @@ export function useDeleteAppointment() {
       queryClient.removeQueries({
         queryKey: appointmentKeys.detail(appointmentId),
       });
+    },
+  });
+}
+
+/**
+ * Bulk cancel / delete appointments per tables.txt §2.4.
+ */
+export function useBulkAppointmentAction(action: "cancel" | "delete") {
+  const queryClient = useQueryClient();
+  return useMutation<
+    BulkJobResult,
+    Error,
+    { ids: string[]; reason?: string; atomic?: boolean }
+  >({
+    mutationFn: ({ ids, reason, atomic }) =>
+      bulkAction(`/appointments/bulk/${action}`, ids, {
+        atomic,
+        extras: action === "cancel" && reason ? { reason } : undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: appointmentKeys.lists() });
     },
   });
 }

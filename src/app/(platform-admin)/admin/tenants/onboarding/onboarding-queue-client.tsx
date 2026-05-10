@@ -39,8 +39,10 @@ import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { formatRelative } from "@/lib/utils/format-date";
 import {
   useArchiveOnboarding,
+  useBulkOnboardingAction,
   useOnboardingSubmissions,
 } from "@/features/onboarding/hooks";
+import { summarizeBulkResult } from "@/lib/api/bulk";
 import type { OnboardingSubmission } from "@/types/onboarding";
 import type { OnboardingStatus } from "@/types/enums";
 
@@ -151,11 +153,14 @@ export function OnboardingQueueClient() {
     useState<OnboardingSubmission | null>(null);
 
   const params =
-    statusFilter === "all" ? undefined : { status: statusFilter };
+    statusFilter === "all"
+      ? { limit: 100, sort: "-submittedAt" }
+      : { status: statusFilter, limit: 100, sort: "-submittedAt" };
   const { data, isLoading } = useOnboardingSubmissions(params);
-  const submissions = data ?? [];
+  const submissions = data?.items ?? [];
 
   const archive = useArchiveOnboarding();
+  const bulkArchive = useBulkOnboardingAction("archive");
 
   const [bulkArchiveIds, setBulkArchiveIds] = useState<string[] | null>(null);
   const [bulkPending, setBulkPending] = useState(false);
@@ -164,19 +169,12 @@ export function OnboardingQueueClient() {
     if (!bulkArchiveIds || bulkArchiveIds.length === 0) return;
     setBulkPending(true);
     try {
-      const results = await Promise.allSettled(
-        bulkArchiveIds.map((id) => archive.mutateAsync(id))
-      );
-      const ok = results.filter((r) => r.status === "fulfilled").length;
-      const failed = results.length - ok;
-      if (failed === 0) {
-        toast.success(`${ok} submission${ok === 1 ? "" : "s"} archived`);
-      } else if (ok === 0) {
-        toast.error(`Failed to archive ${failed} submission${failed === 1 ? "" : "s"}`);
-      } else {
-        toast.warning(`${ok} archived, ${failed} failed`);
-      }
+      const result = await bulkArchive.mutateAsync({ ids: bulkArchiveIds });
+      const { tone, message } = summarizeBulkResult(result, "submission", "archived");
+      toast[tone](message);
       setBulkArchiveIds(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Bulk archive failed");
     } finally {
       setBulkPending(false);
     }

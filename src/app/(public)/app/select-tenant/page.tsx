@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { LoadingButton } from "@/components/feedback/loading-button";
 import { useAuth } from "@/hooks/use-auth";
-import { apiGet } from "@/lib/api/request";
+import { apiGetList } from "@/lib/api/list";
 import type { Tenant } from "@/types/tenant";
 import { ApiError } from "@/types/api";
 import { toast } from "sonner";
@@ -35,9 +35,9 @@ export default function SelectTenantPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await apiGet<Tenant[]>("/tenants");
-      setTenants(data);
-      setFilteredTenants(data);
+      const response = await apiGetList<Tenant>("/tenants", { limit: 200 });
+      setTenants(response.items);
+      setFilteredTenants(response.items);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);

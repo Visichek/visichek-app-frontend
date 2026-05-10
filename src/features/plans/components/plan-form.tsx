@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,6 +12,7 @@ import {
   ClipboardCheck,
   ListChecks,
   Loader2,
+  Lock,
   Settings2,
   Tag,
 } from "lucide-react";
@@ -44,6 +45,7 @@ import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useCreatePlan, useUpdatePlan } from "@/features/plans/hooks/use-plans";
 import { PlanFeaturesChecklist } from "@/features/plans/components/plan-features-checklist";
 import type { Plan } from "@/types/billing";
+import type { PlanTier } from "@/types/enums";
 
 /* ------------------------------------------------------------------ */
 /* Schema                                                               */
@@ -58,7 +60,14 @@ const planSchema = z.object({
       "Name must only contain letters, numbers, hyphens, or underscores",
     ),
   displayName: z.string().min(1, "Display name is required"),
-  tier: z.enum(["free", "starter", "professional", "enterprise", "custom"]),
+  tier: z.enum([
+    "free",
+    "starter",
+    "premium",
+    "enterprise",
+    "professional",
+    "custom",
+  ]),
   description: z.string().optional(),
   basePriceMonthly: z.coerce
     .number()
@@ -111,6 +120,101 @@ const editPlanSchema = planSchema.extend({
 });
 
 type PlanFormData = z.infer<typeof planSchema>;
+
+/* ------------------------------------------------------------------ */
+/* Tier-locked field allowlists (mirrors backend config/plan_tiers.py)  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Cap fields editable per canonical tier. The backend rejects any PATCH
+ * that touches a non-allowlisted field with HTTP 400, so the UI must
+ * gate inputs to match.
+ */
+const TIER_ADJUSTABLE_CAP_FIELDS: Record<PlanTier, ReadonlySet<keyof PlanFormData>> = {
+  free: new Set(["maxVisitorsPerMonth"]),
+  starter: new Set(["maxVisitorsPerMonth", "maxDepartments", "maxSystemUsers"]),
+  premium: new Set([
+    "maxVisitorsPerMonth",
+    "maxDepartments",
+    "maxSystemUsers",
+    "maxBranches",
+    "maxAppointmentsPerMonth",
+  ]),
+  enterprise: new Set([
+    "maxVisitorsPerMonth",
+    "maxDepartments",
+    "maxSystemUsers",
+    "maxBranches",
+    "maxAppointmentsPerMonth",
+  ]),
+  // Legacy tiers — open editing, eventually archived.
+  professional: new Set([
+    "maxVisitorsPerMonth",
+    "maxDepartments",
+    "maxSystemUsers",
+    "maxBranches",
+    "maxAppointmentsPerMonth",
+  ]),
+  custom: new Set([
+    "maxVisitorsPerMonth",
+    "maxDepartments",
+    "maxSystemUsers",
+    "maxBranches",
+    "maxAppointmentsPerMonth",
+  ]),
+};
+
+/**
+ * Plan-level fields editable per canonical tier (pricing, SLA, feature flags).
+ */
+const TIER_ADJUSTABLE_PLAN_FIELDS: Record<PlanTier, ReadonlySet<keyof PlanFormData>> = {
+  free: new Set(),
+  starter: new Set(),
+  premium: new Set(["basePriceMonthly", "basePriceYearly", "slaResponseHours"]),
+  enterprise: new Set([
+    "basePriceMonthly",
+    "basePriceYearly",
+    "slaResponseHours",
+    "customBranding",
+    "apiAccess",
+    "prioritySupport",
+  ]),
+  // Legacy tiers — open editing.
+  professional: new Set([
+    "basePriceMonthly",
+    "basePriceYearly",
+    "slaResponseHours",
+    "customBranding",
+    "apiAccess",
+    "prioritySupport",
+  ]),
+  custom: new Set([
+    "basePriceMonthly",
+    "basePriceYearly",
+    "slaResponseHours",
+    "customBranding",
+    "apiAccess",
+    "prioritySupport",
+  ]),
+};
+
+const CANONICAL_TIERS = new Set<PlanTier>([
+  "free",
+  "starter",
+  "premium",
+  "enterprise",
+]);
+
+function isCanonicalTier(tier: PlanTier): boolean {
+  return CANONICAL_TIERS.has(tier);
+}
+
+function isFieldEditable(tier: PlanTier, field: keyof PlanFormData): boolean {
+  return (
+    TIER_ADJUSTABLE_CAP_FIELDS[tier].has(field) ||
+    TIER_ADJUSTABLE_PLAN_FIELDS[tier].has(field)
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /* Step definitions                                                     */
@@ -282,43 +386,95 @@ export function PlanForm({ plan }: PlanFormProps) {
   const toNullableInt = (val: number | "" | undefined): number | null =>
     val !== "" && val !== undefined ? Number(val) : null;
 
+  // Tier-lock the inputs to whatever the *plan's persisted* tier allows.
+  // Using `plan.tier` (not the form value) means a user can't sidestep the
+  // restriction by changing the dropdown — the server enforces against the
+  // stored tier, so we should too.
+  const planTier = (plan?.tier ?? "starter") as PlanTier;
+  const isLocked = useMemo(
+    () => isEdit && isCanonicalTier(planTier),
+    [isEdit, planTier],
+  );
+  const fieldDisabled = (field: keyof PlanFormData): boolean =>
+    isLocked && !isFieldEditable(planTier, field);
+
   const onSubmit = async (data: PlanFormData) => {
     try {
       if (isEdit) {
+        // Build the patch payload, but for canonical plans only include
+        // fields the tier allows. Sending anything else returns HTTP 400.
+        const allowed = (field: keyof PlanFormData): boolean =>
+          !isLocked || isFieldEditable(planTier, field);
+
+        const tenantCapsPatch = {
+          ...(allowed("maxSystemUsers")
+            ? { maxSystemUsers: toNullableInt(data.maxSystemUsers) }
+            : {}),
+          ...(allowed("maxDepartments")
+            ? { maxDepartments: toNullableInt(data.maxDepartments) }
+            : {}),
+          ...(allowed("maxBranches")
+            ? { maxBranches: toNullableInt(data.maxBranches) }
+            : {}),
+          ...(allowed("maxVisitorsPerMonth")
+            ? { maxVisitorsPerMonth: toNullableInt(data.maxVisitorsPerMonth) }
+            : {}),
+          ...(allowed("maxAppointmentsPerMonth")
+            ? {
+                maxAppointmentsPerMonth: toNullableInt(
+                  data.maxAppointmentsPerMonth,
+                ),
+              }
+            : {}),
+        };
+
         await updateMutation.mutateAsync({
+          // Identity fields (always editable)
           displayName: data.displayName,
-          tier: data.tier,
           description: data.description || undefined,
-          basePriceMonthly:
-            data.basePriceMonthly !== ""
-              ? Number(data.basePriceMonthly)
-              : undefined,
-          basePriceYearly:
-            data.basePriceYearly !== ""
-              ? Number(data.basePriceYearly)
-              : undefined,
-          currency: data.currency || "NGN",
           isPublic: data.isPublic,
-          sortOrder: data.sortOrder !== "" ? Number(data.sortOrder) : undefined,
-          prioritySupport: data.prioritySupport,
-          customBranding: data.customBranding,
-          apiAccess: data.apiAccess,
-          slaResponseHours: toNullableInt(data.slaResponseHours),
-          tenantCaps: {
-            maxSystemUsers: toNullableInt(data.maxSystemUsers),
-            maxDepartments: toNullableInt(data.maxDepartments),
-            maxBranches: toNullableInt(data.maxBranches),
-            maxVisitorsPerMonth: toNullableInt(data.maxVisitorsPerMonth),
-            maxAppointmentsPerMonth: toNullableInt(
-              data.maxAppointmentsPerMonth,
-            ),
-          },
-          storageLimits: {
-            maxDocuments: toNullableInt(data.maxDocuments),
-            maxStorageMb: toNullableInt(data.maxStorageMb),
-            maxFileSizeMb:
-              data.maxFileSizeMb !== "" ? Number(data.maxFileSizeMb) : 10,
-          },
+          sortOrder:
+            data.sortOrder !== "" ? Number(data.sortOrder) : undefined,
+          // Tier itself stays out of the patch for canonical plans —
+          // moving a tenant between tiers is a separate change-plan flow.
+          ...(isLocked ? {} : { tier: data.tier }),
+          // Tier-locked plan-level fields
+          ...(allowed("basePriceMonthly") && data.basePriceMonthly !== ""
+            ? { basePriceMonthly: Number(data.basePriceMonthly) }
+            : {}),
+          ...(allowed("basePriceYearly") && data.basePriceYearly !== ""
+            ? { basePriceYearly: Number(data.basePriceYearly) }
+            : {}),
+          // Currency is not in any tier allowlist; only send for legacy plans.
+          ...(!isLocked ? { currency: data.currency || "NGN" } : {}),
+          ...(allowed("prioritySupport")
+            ? { prioritySupport: data.prioritySupport }
+            : {}),
+          ...(allowed("customBranding")
+            ? { customBranding: data.customBranding }
+            : {}),
+          ...(allowed("apiAccess") ? { apiAccess: data.apiAccess } : {}),
+          ...(allowed("slaResponseHours")
+            ? { slaResponseHours: toNullableInt(data.slaResponseHours) }
+            : {}),
+          // Cap fields — only sent when the tier opts in to at least one
+          ...(Object.keys(tenantCapsPatch).length > 0
+            ? { tenantCaps: tenantCapsPatch }
+            : {}),
+          // Storage limits are not in any canonical tier's allowlist;
+          // only sent for legacy/non-canonical plans.
+          ...(!isLocked
+            ? {
+                storageLimits: {
+                  maxDocuments: toNullableInt(data.maxDocuments),
+                  maxStorageMb: toNullableInt(data.maxStorageMb),
+                  maxFileSizeMb:
+                    data.maxFileSizeMb !== ""
+                      ? Number(data.maxFileSizeMb)
+                      : 10,
+                },
+              }
+            : {}),
         });
         toast.success("Plan updated successfully");
       } else {
@@ -355,9 +511,10 @@ export function PlanForm({ plan }: PlanFormProps) {
   const tierLabel: Record<PlanFormData["tier"], string> = {
     free: "Free",
     starter: "Starter",
-    professional: "Professional",
+    premium: "Premium",
     enterprise: "Enterprise",
-    custom: "Custom",
+    professional: "Professional (legacy)",
+    custom: "Custom (legacy)",
   };
 
   const reviewStep = isEdit ? 5 : 3;
@@ -415,6 +572,29 @@ export function PlanForm({ plan }: PlanFormProps) {
           currentStep={stepForm.currentStep}
           completedSteps={stepForm.completedSteps}
         />
+
+        {isLocked && (
+          <div
+            className="flex items-start gap-3 rounded-lg border border-border bg-muted/40 p-3 text-sm"
+            role="note"
+          >
+            <Lock
+              className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <div className="space-y-1">
+              <p className="font-medium">
+                {tierLabel[planTier]} plan — some fields are tier-locked
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Canonical plans only expose the fields the backend allows the
+                tier to adjust. Other inputs are shown for reference and
+                disabled. Use per-tenant overrides from the Subscriptions
+                page if you need a custom value for one tenant.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ---- Step 1: Identity ---- */}
         {stepForm.currentStep === 1 && (
@@ -477,6 +657,7 @@ export function PlanForm({ plan }: PlanFormProps) {
               <Label htmlFor="plan-tier">Tier</Label>
               <Select
                 value={values.tier}
+                disabled={isLocked}
                 onValueChange={(v) =>
                   setValue("tier", v as PlanFormData["tier"], {
                     shouldValidate: true,
@@ -489,9 +670,14 @@ export function PlanForm({ plan }: PlanFormProps) {
                 <SelectContent>
                   <SelectItem value="free">Free</SelectItem>
                   <SelectItem value="starter">Starter</SelectItem>
-                  <SelectItem value="professional">Professional</SelectItem>
+                  <SelectItem value="premium">Premium</SelectItem>
                   <SelectItem value="enterprise">Enterprise</SelectItem>
-                  <SelectItem value="custom">Custom</SelectItem>
+                  <SelectItem value="professional" disabled>
+                    Professional (legacy)
+                  </SelectItem>
+                  <SelectItem value="custom" disabled>
+                    Custom (legacy)
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -557,9 +743,15 @@ export function PlanForm({ plan }: PlanFormProps) {
                   placeholder="0.00"
                   inputMode="decimal"
                   autoFocus
+                  disabled={fieldDisabled("basePriceMonthly")}
                   {...register("basePriceMonthly")}
                   aria-invalid={!!errors.basePriceMonthly}
                 />
+                {fieldDisabled("basePriceMonthly") && (
+                  <p className="text-xs text-muted-foreground">
+                    Pricing is fixed for {tierLabel[planTier]} plans.
+                  </p>
+                )}
                 {errors.basePriceMonthly && (
                   <p className="text-sm text-destructive" role="alert">
                     {errors.basePriceMonthly.message}
@@ -576,6 +768,7 @@ export function PlanForm({ plan }: PlanFormProps) {
                   step="0.01"
                   placeholder="0.00"
                   inputMode="decimal"
+                  disabled={fieldDisabled("basePriceYearly")}
                   {...register("basePriceYearly")}
                   aria-invalid={!!errors.basePriceYearly}
                 />
@@ -606,10 +799,13 @@ export function PlanForm({ plan }: PlanFormProps) {
                     min={1}
                     inputMode="numeric"
                     placeholder="e.g., 24"
+                    disabled={fieldDisabled("slaResponseHours")}
                     {...register("slaResponseHours")}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Leave blank for no SLA guarantee
+                    {fieldDisabled("slaResponseHours")
+                      ? `SLA is fixed for ${tierLabel[planTier]} plans.`
+                      : "Leave blank for no SLA guarantee"}
                   </p>
                 </div>
               )}
@@ -629,6 +825,7 @@ export function PlanForm({ plan }: PlanFormProps) {
                   <Switch
                     id="plan-priority"
                     checked={values.prioritySupport ?? false}
+                    disabled={fieldDisabled("prioritySupport")}
                     onCheckedChange={(c) => setValue("prioritySupport", c)}
                   />
                 </div>
@@ -645,6 +842,7 @@ export function PlanForm({ plan }: PlanFormProps) {
                   <Switch
                     id="plan-branding"
                     checked={values.customBranding ?? false}
+                    disabled={fieldDisabled("customBranding")}
                     onCheckedChange={(c) => setValue("customBranding", c)}
                   />
                 </div>
@@ -661,6 +859,7 @@ export function PlanForm({ plan }: PlanFormProps) {
                   <Switch
                     id="plan-api"
                     checked={values.apiAccess ?? false}
+                    disabled={fieldDisabled("apiAccess")}
                     onCheckedChange={(c) => setValue("apiAccess", c)}
                   />
                 </div>
@@ -688,6 +887,7 @@ export function PlanForm({ plan }: PlanFormProps) {
                     min={1}
                     inputMode="numeric"
                     placeholder="Unlimited"
+                    disabled={fieldDisabled("maxSystemUsers")}
                     {...register("maxSystemUsers")}
                   />
                 </div>
@@ -699,6 +899,7 @@ export function PlanForm({ plan }: PlanFormProps) {
                     min={1}
                     inputMode="numeric"
                     placeholder="Unlimited"
+                    disabled={fieldDisabled("maxDepartments")}
                     {...register("maxDepartments")}
                   />
                 </div>
@@ -710,6 +911,7 @@ export function PlanForm({ plan }: PlanFormProps) {
                     min={1}
                     inputMode="numeric"
                     placeholder="Unlimited"
+                    disabled={fieldDisabled("maxBranches")}
                     {...register("maxBranches")}
                   />
                 </div>
@@ -721,6 +923,7 @@ export function PlanForm({ plan }: PlanFormProps) {
                     min={1}
                     inputMode="numeric"
                     placeholder="Unlimited"
+                    disabled={fieldDisabled("maxVisitorsPerMonth")}
                     {...register("maxVisitorsPerMonth")}
                   />
                 </div>
@@ -734,6 +937,7 @@ export function PlanForm({ plan }: PlanFormProps) {
                     min={1}
                     inputMode="numeric"
                     placeholder="Unlimited"
+                    disabled={fieldDisabled("maxAppointmentsPerMonth")}
                     {...register("maxAppointmentsPerMonth")}
                   />
                 </div>
@@ -741,9 +945,16 @@ export function PlanForm({ plan }: PlanFormProps) {
             </div>
 
             <div>
-              <p className="mb-3 text-sm font-medium text-foreground">
+              <p className="mb-1 text-sm font-medium text-foreground">
                 Storage Limits
               </p>
+              {isLocked && (
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Storage limits are not editable on canonical plans. Apply a
+                  per-tenant override from the Subscriptions page if a tenant
+                  needs more.
+                </p>
+              )}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="plan-maxDocs">Max Documents</Label>
@@ -753,6 +964,7 @@ export function PlanForm({ plan }: PlanFormProps) {
                     min={1}
                     inputMode="numeric"
                     placeholder="Unlimited"
+                    disabled={isLocked}
                     {...register("maxDocuments")}
                   />
                 </div>
@@ -764,6 +976,7 @@ export function PlanForm({ plan }: PlanFormProps) {
                     min={1}
                     inputMode="numeric"
                     placeholder="Unlimited"
+                    disabled={isLocked}
                     {...register("maxStorageMb")}
                   />
                 </div>
@@ -775,6 +988,7 @@ export function PlanForm({ plan }: PlanFormProps) {
                     min={1}
                     inputMode="numeric"
                     placeholder="10"
+                    disabled={isLocked}
                     {...register("maxFileSizeMb")}
                   />
                 </div>
@@ -785,7 +999,10 @@ export function PlanForm({ plan }: PlanFormProps) {
 
         {/* ---- Step 4 (Edit only): Features ---- */}
         {isEdit && plan && stepForm.currentStep === 4 && (
-          <PlanFeaturesChecklist plan={plan} />
+          <PlanFeaturesChecklist
+            plan={plan}
+            readOnly={isLocked && planTier !== "enterprise"}
+          />
         )}
 
         {/* ---- Review step ---- */}

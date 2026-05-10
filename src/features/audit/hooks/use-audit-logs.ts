@@ -3,23 +3,24 @@
 import { useMutation, useQuery, keepPreviousData } from "@tanstack/react-query";
 import apiClient from "@/lib/api/client";
 import { apiGet } from "@/lib/api/request";
+import { apiGetList } from "@/lib/api/list";
 import type {
   AdminAuditLogExportFilters,
   AuditLog,
   AuditLogExportFilters,
   AuditLogFilters,
 } from "@/types/audit";
+import type { ListResponse } from "@/types/list";
 
 /**
- * Fetch audit logs with optional filtering and pagination.
- * The API envelope is unwrapped by the axios interceptor, so the
- * resolved data is the bare list of audit logs.
+ * Fetch audit logs (paginated). Returns the new `{ items, meta }` envelope
+ * per tables.txt §2.5.
  */
 export function useAuditLogs(params?: AuditLogFilters) {
-  return useQuery<AuditLog[]>({
+  return useQuery<ListResponse<AuditLog>>({
     queryKey: ["audit-logs", params],
     queryFn: () =>
-      apiGet<AuditLog[]>("/audit-logs", params as Record<string, unknown> | undefined),
+      apiGetList<AuditLog>("/audit-logs", params as Record<string, unknown> | undefined),
     placeholderData: keepPreviousData,
   });
 }

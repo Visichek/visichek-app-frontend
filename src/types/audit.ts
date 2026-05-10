@@ -39,14 +39,33 @@ export interface AuditLog {
 }
 
 export interface AuditLogFilters {
-  actorId?: string;
-  action?: string;
+  actorUserId?: string;
+  actorRole?: string;
+  operation?: string;
   resourceType?: string;
   resourceId?: string;
+  action?: string;
+  /** New contract: unix epoch s. */
+  timestampGte?: number;
+  timestampLte?: number;
+  /**
+   * Legacy field — backend keeps it for the migration window. Prefer the
+   * new `timestampGte`/`timestampLte` pair for new code.
+   */
   dateFrom?: number;
   dateTo?: number;
+  /** Free-text search per tables.txt §2.5. */
+  q?: string;
+  sort?: string;
+  facets?: string;
+  /** New pagination. */
+  skip?: number;
+  limit?: number;
+  /** Legacy pagination (still accepted on backend). */
   start?: number;
   stop?: number;
+  /** Legacy actor filter (kept for compat with the existing list query). */
+  actorId?: string;
 }
 
 /**

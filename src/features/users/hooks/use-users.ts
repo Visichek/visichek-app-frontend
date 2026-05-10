@@ -7,6 +7,8 @@ import {
   apiPatch,
   apiDelete,
 } from '@/lib/api/request';
+import { apiGetList } from '@/lib/api/list';
+import { bulkAction } from '@/lib/api/bulk';
 import type {
   SystemUser,
   SystemUserSignupRequest,
@@ -16,6 +18,7 @@ import type {
   ResetUserPasswordResponse,
 } from '@/types/user';
 import type { SystemUserProfile } from '@/types/auth';
+import type { ListResponse, BulkJobResult } from '@/types/list';
 
 /**
  * Query key factory for user-related queries
@@ -31,15 +34,13 @@ const userKeys = {
 };
 
 /**
- * Fetch all system users (tenant staff and super admin).
+ * Fetch the paginated system-users list. Returns the new `{ items, meta }`
+ * envelope per tables.txt §2.1.
  */
 export function useSystemUsers(filters?: Record<string, unknown>) {
-  return useQuery({
+  return useQuery<ListResponse<SystemUser>>({
     queryKey: userKeys.list(filters),
-    queryFn: async () => {
-      const data = await apiGet<SystemUser[]>('/system-users', filters);
-      return data;
-    },
+    queryFn: () => apiGetList<SystemUser>('/system-users', filters),
     staleTime: 30000,
   });
 }
@@ -133,6 +134,25 @@ export function useDeleteSystemUser() {
       queryClient.removeQueries({
         queryKey: userKeys.detail(userId),
       });
+    },
+  });
+}
+
+/**
+ * Bulk delete / deactivate / reset-password via a single queued job per
+ * tables.txt §2.1. Backend enforces self-protect + super_admin protect
+ * server-side; protected ids land in `failed[]` with code USER_DELETE_PROTECTED
+ * or USER_DEACTIVATE_PROTECTED. The frontend pre-filters as a UX shortcut.
+ */
+export function useBulkSystemUserAction(
+  action: "delete" | "deactivate" | "reset-password"
+) {
+  const queryClient = useQueryClient();
+  return useMutation<BulkJobResult, Error, { ids: string[]; atomic?: boolean }>({
+    mutationFn: ({ ids, atomic }) =>
+      bulkAction(`/system-users/bulk/${action}`, ids, { atomic }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: userKeys.lists() });
     },
   });
 }

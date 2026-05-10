@@ -2,6 +2,9 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiDelete } from '@/lib/api/request';
+import { apiGetList } from '@/lib/api/list';
+import { bulkAction } from '@/lib/api/bulk';
+import type { ListResponse, BulkJobResult } from '@/types/list';
 import type {
   AdminDashboardStats,
   AdminBillingSummary,
@@ -66,16 +69,19 @@ export function useAdminBillingSummary() {
 }
 
 /**
- * Fetch list of all tenants.
- * Admin only - accessible via super admin token flow.
+ * Fetch the paginated tenant list.
+ *
+ * Returns the new `{ items, meta }` envelope verbatim. `meta.total` is the
+ * total matching the filter set; `meta.facets` is populated when the caller
+ * passes `?facets=status` (etc.) and the resource has the field on its
+ * server-side facet allowlist.
+ *
+ * Admin only — accessible via super admin token flow.
  */
 export function useTenantList(filters?: Record<string, unknown>) {
-  return useQuery({
+  return useQuery<ListResponse<AdminTenant>>({
     queryKey: adminKeys.tenantList(filters),
-    queryFn: async () => {
-      const data = await apiGet<AdminTenant[]>('/tenants', filters);
-      return data;
-    },
+    queryFn: () => apiGetList<AdminTenant>('/tenants', filters),
     staleTime: 30000,
   });
 }
@@ -135,7 +141,7 @@ export function useOffboardingSummary(tenantId: string) {
 }
 
 /**
- * Start tenant offboarding.
+ * Start tenant offboarding for a single tenant.
  */
 export function useOffboardTenant() {
   const queryClient = useQueryClient();
@@ -143,6 +149,29 @@ export function useOffboardTenant() {
   return useMutation({
     mutationFn: (tenantId: string) =>
       apiPost<Record<string, unknown>>(`/admins/tenants/${tenantId}/offboard`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.tenants() });
+    },
+  });
+}
+
+/**
+ * Bulk-offboard multiple tenants in a single queued job.
+ * Maps to `POST /v1/tenants/bulk/offboard` per tables.txt §1.1.
+ */
+export function useBulkOffboardTenants() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    BulkJobResult,
+    Error,
+    { ids: string[]; reason?: string; atomic?: boolean }
+  >({
+    mutationFn: ({ ids, reason, atomic }) =>
+      bulkAction('/tenants/bulk/offboard', ids, {
+        atomic,
+        extras: reason ? { reason } : undefined,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.tenants() });
     },

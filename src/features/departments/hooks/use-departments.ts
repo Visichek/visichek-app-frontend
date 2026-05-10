@@ -2,7 +2,10 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api/request';
+import { apiGetList } from '@/lib/api/list';
+import { bulkAction } from '@/lib/api/bulk';
 import type { Department } from '@/types/tenant';
+import type { ListResponse, BulkJobResult } from '@/types/list';
 
 /**
  * Query key factory for department-related queries
@@ -17,17 +20,22 @@ const departmentKeys = {
 };
 
 /**
- * Fetch all departments with optional filters.
+ * Fetch the paginated departments list. Returns the new `{ items, meta }`
+ * envelope per tables.txt §2.2. Items are normalized so `id` is always a
+ * non-empty string (legacy rows occasionally arrived without the alias).
  */
 export function useDepartments(filters?: Record<string, unknown>) {
-  return useQuery({
+  return useQuery<ListResponse<Department>>({
     queryKey: departmentKeys.list(filters),
     queryFn: async () => {
-      const data = await apiGet<Array<Department & { id?: string }>>(
+      const response = await apiGetList<Department & { id?: string }>(
         '/departments',
         filters
       );
-      return data.map((d) => ({ ...d, id: d.id ?? '' })) as Department[];
+      return {
+        ...response,
+        items: response.items.map((d) => ({ ...d, id: d.id ?? '' })) as Department[],
+      };
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -125,6 +133,22 @@ export function useDeleteDepartment() {
       queryClient.removeQueries({
         queryKey: departmentKeys.detail(departmentId),
       });
+    },
+  });
+}
+
+/**
+ * Bulk delete departments via a single queued job per tables.txt §2.2.
+ * Backend returns DEPARTMENT_HAS_USERS in `failed[]` for departments that
+ * still have users; reassign first.
+ */
+export function useBulkDeleteDepartments() {
+  const queryClient = useQueryClient();
+  return useMutation<BulkJobResult, Error, { ids: string[]; atomic?: boolean }>({
+    mutationFn: ({ ids, atomic }) =>
+      bulkAction('/departments/bulk/delete', ids, { atomic }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: departmentKeys.lists() });
     },
   });
 }

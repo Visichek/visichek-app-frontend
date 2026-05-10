@@ -2,23 +2,30 @@
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api/request";
+import { apiGetList } from "@/lib/api/list";
+import { bulkAction } from "@/lib/api/bulk";
 import type { Plan, PlanFeatureCatalogEntry } from "@/types/billing";
+import type { ListResponse, BulkJobResult } from "@/types/list";
 
 interface UsePlansParams {
   status?: string;
   tier?: string;
+  includedFeature?: string;
+  q?: string;
+  sort?: string;
+  facets?: string;
   skip?: number;
   limit?: number;
 }
 
 /**
- * Fetch all plans with optional filtering and pagination.
- * The backend returns a flat Plan[] array (not a paginated envelope).
+ * Fetch the paginated plan list. Returns the new `{ items, meta }` envelope
+ * per tables.txt §1.2.
  */
 export function usePlans(params?: UsePlansParams) {
-  return useQuery<Plan[]>({
+  return useQuery<ListResponse<Plan>>({
     queryKey: ["plans", params],
-    queryFn: () => apiGet<Plan[]>("/plans", params),
+    queryFn: () => apiGetList<Plan>("/plans", params as Record<string, unknown> | undefined),
     staleTime: 5 * 60 * 1000,
     placeholderData: keepPreviousData,
   });
@@ -180,6 +187,21 @@ export function useDeletePlan() {
     mutationFn: (planId) => apiDelete(`/plans/${planId}`),
     onSuccess: (_, planId) => {
       queryClient.invalidateQueries({ queryKey: ["plans", planId] });
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
+  });
+}
+
+/**
+ * Bulk activate / archive / delete plans via a single queued job per
+ * tables.txt §1.2.
+ */
+export function useBulkPlanAction(action: "activate" | "archive" | "delete") {
+  const queryClient = useQueryClient();
+  return useMutation<BulkJobResult, Error, { ids: string[]; atomic?: boolean }>({
+    mutationFn: ({ ids, atomic }) =>
+      bulkAction(`/plans/bulk/${action}`, ids, { atomic }),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["plans"] });
     },
   });

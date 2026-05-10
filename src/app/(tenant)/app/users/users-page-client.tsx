@@ -44,7 +44,9 @@ import {
   useSystemUsers,
   useDeleteSystemUser,
   useResetUserPassword,
+  useBulkSystemUserAction,
 } from "@/features/users/hooks/use-users";
+import { summarizeBulkResult } from "@/lib/api/bulk";
 import { useBranches } from "@/features/branches/hooks/use-branches";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useSession } from "@/hooks/use-session";
@@ -56,10 +58,12 @@ import type { SystemUser } from "@/types/user";
 import type { Branch } from "@/types/tenant";
 
 export function UsersPageClient() {
-  const { data, isLoading } = useSystemUsers();
+  const { data: usersList, isLoading } = useSystemUsers({ limit: 200, sort: "-dateCreated" });
+  const data = usersList?.items ?? [];
   const branchesQuery = useBranches();
   const deleteMutation = useDeleteSystemUser();
   const resetPassword = useResetUserPassword();
+  const bulkDeleteUsers = useBulkSystemUserAction("delete");
   const { loadingHref, handleNavClick } = useNavigationLoading();
   const { systemUserProfile, currentRole } = useSession();
 
@@ -81,22 +85,15 @@ export function UsersPageClient() {
     if (!bulkDeleteIds || bulkDeleteIds.length === 0) return;
     setBulkPending(true);
     try {
-      const results = await Promise.allSettled(
-        bulkDeleteIds.map((id) => deleteMutation.mutateAsync(id))
-      );
-      const ok = results.filter((r) => r.status === "fulfilled").length;
-      const failed = results.length - ok;
+      const result = await bulkDeleteUsers.mutateAsync({ ids: bulkDeleteIds });
       const skipped = bulkSkippedCount;
-      const skippedSuffix = skipped > 0 ? ` (${skipped} super_admin row${skipped === 1 ? "" : "s"} skipped)` : "";
-      if (failed === 0) {
-        toast.success(`${ok} user${ok === 1 ? "" : "s"} deleted${skippedSuffix}`);
-      } else if (ok === 0) {
-        toast.error(`Failed to delete ${failed} user${failed === 1 ? "" : "s"}${skippedSuffix}`);
-      } else {
-        toast.warning(`${ok} deleted, ${failed} failed${skippedSuffix}`);
-      }
+      const skippedSuffix = skipped > 0 ? ` (${skipped} protected row${skipped === 1 ? "" : "s"} skipped on the FE)` : "";
+      const { tone, message } = summarizeBulkResult(result, "user", "deleted");
+      toast[tone](message + skippedSuffix);
       setBulkDeleteIds(null);
       setBulkSkippedCount(0);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Bulk delete failed");
     } finally {
       setBulkPending(false);
     }
@@ -104,7 +101,7 @@ export function UsersPageClient() {
 
   const branchById = useMemo(() => {
     const map = new Map<string, Branch>();
-    (branchesQuery.data ?? []).forEach((b) => map.set(b.id, b));
+    (branchesQuery.data?.items ?? []).forEach((b) => map.set(b.id, b));
     return map;
   }, [branchesQuery.data]);
 

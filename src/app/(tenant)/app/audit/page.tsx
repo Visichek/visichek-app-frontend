@@ -15,9 +15,9 @@ import {
 import type { AuditLog } from "@/types/audit";
 
 export default function AuditPage() {
-  const { data, isLoading } = useAuditLogs();
+  const { data, isLoading } = useAuditLogs({ limit: 100 });
   const exportMutation = useExportAuditLogs();
-  const logs = data ?? [];
+  const logs = data?.items ?? [];
 
   const columns: ColumnDef<AuditLog>[] = [
     {

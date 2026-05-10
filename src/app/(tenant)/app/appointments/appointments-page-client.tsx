@@ -30,7 +30,9 @@ import {
 import {
   useAppointments,
   useDeleteAppointment,
+  useBulkAppointmentAction,
 } from "@/features/appointments/hooks/use-appointments";
+import { summarizeBulkResult } from "@/lib/api/bulk";
 import { useCapabilities } from "@/hooks/use-capabilities";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
@@ -56,8 +58,10 @@ export function AppointmentsPageClient() {
   const canCreate = hasCapability(CAPABILITIES.APPOINTMENT_CREATE);
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
-  const { data: appointments = [], isLoading } = useAppointments();
+  const { data: appointmentsList, isLoading } = useAppointments({ limit: 100, sort: "-scheduledDatetime" });
+  const appointments = appointmentsList?.items ?? [];
   const deleteAppointmentMutation = useDeleteAppointment();
+  const bulkDeleteAppointments = useBulkAppointmentAction("delete");
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [appointmentToDelete, setAppointmentToDelete] = useState<string>("");
@@ -68,19 +72,12 @@ export function AppointmentsPageClient() {
     if (!bulkDeleteIds || bulkDeleteIds.length === 0) return;
     setBulkPending(true);
     try {
-      const results = await Promise.allSettled(
-        bulkDeleteIds.map((id) => deleteAppointmentMutation.mutateAsync(id))
-      );
-      const ok = results.filter((r) => r.status === "fulfilled").length;
-      const failed = results.length - ok;
-      if (failed === 0) {
-        toast.success(`${ok} appointment${ok === 1 ? "" : "s"} deleted`);
-      } else if (ok === 0) {
-        toast.error(`Failed to delete ${failed} appointment${failed === 1 ? "" : "s"}`);
-      } else {
-        toast.warning(`${ok} deleted, ${failed} failed`);
-      }
+      const result = await bulkDeleteAppointments.mutateAsync({ ids: bulkDeleteIds });
+      const { tone, message } = summarizeBulkResult(result, "appointment", "deleted");
+      toast[tone](message);
       setBulkDeleteIds(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Bulk delete failed");
     } finally {
       setBulkPending(false);
     }

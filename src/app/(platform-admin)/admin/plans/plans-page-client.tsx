@@ -33,7 +33,9 @@ import {
   useActivatePlan,
   useArchivePlan,
   useClonePlan,
+  useBulkPlanAction,
 } from "@/features/plans/hooks/use-plans";
+import { summarizeBulkResult } from "@/lib/api/bulk";
 import type { Plan } from "@/types/billing";
 import type { PlanStatus, PlanTier } from "@/types/enums";
 
@@ -60,10 +62,11 @@ function tierBadgeVariant(tier: PlanTier) {
       return "outline" as const;
     case "starter":
       return "info" as const;
-    case "professional":
+    case "premium":
       return "success" as const;
     case "enterprise":
       return "default" as const;
+    case "professional":
     case "custom":
       return "secondary" as const;
     default:
@@ -71,14 +74,23 @@ function tierBadgeVariant(tier: PlanTier) {
   }
 }
 
+const CANONICAL_PLAN_NAMES = new Set(["free", "starter", "premium", "enterprise"]);
+
+function isCanonicalPlan(plan: Plan): boolean {
+  return CANONICAL_PLAN_NAMES.has(plan.name);
+}
+
 export function PlansPageClient() {
   const { loadingHref, handleNavClick } = useNavigationLoading();
-  const { data, isLoading } = usePlans({ skip: 0, limit: 50 });
-  const plans = data || [];
+  const { data, isLoading } = usePlans({ skip: 0, limit: 50, sort: "-dateCreated" });
+  const plans = data?.items ?? [];
   const deleteMutation = useDeletePlan();
   const activateMutation = useActivatePlan();
   const archiveMutation = useArchivePlan();
   const cloneMutation = useClonePlan();
+  const bulkActivate = useBulkPlanAction("activate");
+  const bulkArchive = useBulkPlanAction("archive");
+  const bulkDelete = useBulkPlanAction("delete");
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [activateDialogOpen, setActivateDialogOpen] = useState(false);
@@ -170,46 +182,29 @@ export function PlansPageClient() {
     setBulkTargetIds(ids);
   }
 
-  async function runBulk(op: BulkOp, ids: string[]): Promise<{ ok: number; failed: number }> {
-    const runners: Record<BulkOp, (id: string) => Promise<unknown>> = {
-      delete: (id) => deleteMutation.mutateAsync(id),
-      archive: (id) => archiveMutation.mutateAsync(id),
-      activate: (id) => activateMutation.mutateAsync(id),
-    };
-    const run = runners[op];
-    const results = await Promise.allSettled(ids.map((id) => run(id)));
-    let ok = 0;
-    let failed = 0;
-    for (const r of results) {
-      if (r.status === "fulfilled") ok += 1;
-      else failed += 1;
-    }
-    return { ok, failed };
-  }
-
   async function handleBulkConfirm() {
     if (!bulkOp || bulkTargetIds.length === 0) return;
     const op = bulkOp;
     const ids = bulkTargetIds;
+    const verbPast: Record<BulkOp, string> = {
+      delete: "deleted",
+      archive: "archived",
+      activate: "activated",
+    };
+    const hooks: Record<BulkOp, typeof bulkDelete> = {
+      delete: bulkDelete,
+      archive: bulkArchive,
+      activate: bulkActivate,
+    };
     setBulkPending(true);
     try {
-      const { ok, failed } = await runBulk(op, ids);
-      const verbPast: Record<BulkOp, string> = {
-        delete: "deleted",
-        archive: "archived",
-        activate: "activated",
-      };
-      if (failed === 0) {
-        toast.success(`${ok} plan${ok === 1 ? "" : "s"} ${verbPast[op]}`);
-      } else if (ok === 0) {
-        toast.error(`Failed to ${op} ${failed} plan${failed === 1 ? "" : "s"}`);
-      } else {
-        toast.warning(
-          `${ok} ${verbPast[op]}, ${failed} failed — check the table for any rows that did not change`
-        );
-      }
+      const result = await hooks[op].mutateAsync({ ids });
+      const { tone, message } = summarizeBulkResult(result, "plan", verbPast[op]);
+      toast[tone](message);
       setBulkOp(null);
       setBulkTargetIds([]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : `Bulk ${op} failed`);
     } finally {
       setBulkPending(false);
     }
@@ -232,13 +227,17 @@ export function PlansPageClient() {
     },
     {
       label: "Archive",
-      description: "Archive every selected plan so new subscriptions cannot use it",
+      description: "Archive every selected plan so new subscriptions cannot use it. Canonical plans (free, starter, premium, enterprise) are skipped.",
       icon: <Archive className="h-4 w-4" />,
       variant: "secondary",
       onClick: (ids, rows) => {
-        const eligible = rows.filter((p) => p.status === "active").map((p) => p.id);
+        const eligible = rows
+          .filter((p) => p.status === "active" && !isCanonicalPlan(p))
+          .map((p) => p.id);
         if (eligible.length === 0) {
-          toast.info("None of the selected plans are currently active");
+          toast.info(
+            "None of the selected plans can be archived — canonical plans are protected and the rest are not active"
+          );
           return;
         }
         openBulkConfirm("archive", eligible);
@@ -246,10 +245,19 @@ export function PlansPageClient() {
     },
     {
       label: "Delete",
-      description: "Permanently delete every selected plan — this cannot be undone",
+      description: "Permanently delete every selected plan — this cannot be undone. Canonical plans (free, starter, premium, enterprise) are skipped.",
       icon: <Trash2 className="h-4 w-4" />,
       variant: "destructive",
-      onClick: (ids) => openBulkConfirm("delete", ids),
+      onClick: (ids, rows) => {
+        const eligible = rows
+          .filter((p) => !isCanonicalPlan(p))
+          .map((p) => p.id);
+        if (eligible.length === 0) {
+          toast.info("Canonical plans cannot be deleted");
+          return;
+        }
+        openBulkConfirm("delete", eligible);
+      },
     },
   ];
 
@@ -327,7 +335,7 @@ export function PlansPageClient() {
                 Activate
               </DropdownMenuItem>
             )}
-            {row.original.status === "active" && (
+            {row.original.status === "active" && !isCanonicalPlan(row.original) && (
               <DropdownMenuItem onClick={() => handleArchiveClick(row.original)}>
                 Archive
               </DropdownMenuItem>
@@ -336,13 +344,15 @@ export function PlansPageClient() {
               <Copy className="mr-2 h-4 w-4" />
               Clone
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => handleDeleteClick(row.original)}
-              className="text-destructive"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
+            {!isCanonicalPlan(row.original) && (
+              <DropdownMenuItem
+                onClick={() => handleDeleteClick(row.original)}
+                className="text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       ),
@@ -396,7 +406,7 @@ export function PlansPageClient() {
               Activate
             </DropdownMenuItem>
           )}
-          {plan.status === "active" && (
+          {plan.status === "active" && !isCanonicalPlan(plan) && (
             <DropdownMenuItem onClick={() => handleArchiveClick(plan)}>
               Archive
             </DropdownMenuItem>
@@ -405,13 +415,15 @@ export function PlansPageClient() {
             <Copy className="mr-2 h-4 w-4" />
             Clone
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => handleDeleteClick(plan)}
-            className="text-destructive"
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete
-          </DropdownMenuItem>
+          {!isCanonicalPlan(plan) && (
+            <DropdownMenuItem
+              onClick={() => handleDeleteClick(plan)}
+              className="text-destructive"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

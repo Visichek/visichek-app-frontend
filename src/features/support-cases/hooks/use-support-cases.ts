@@ -7,6 +7,7 @@ import {
   keepPreviousData,
 } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/api/request";
+import { apiGetList } from "@/lib/api/list";
 import type {
   SupportCase,
   SupportCaseDetail,
@@ -17,6 +18,7 @@ import type {
   AsyncJobAck,
   SupportCaseListParams,
 } from "@/types/support-case";
+import type { ListResponse } from "@/types/list";
 
 // ── Centralised query keys (keeps invalidation honest) ────────────────
 export const supportCaseKeys = {
@@ -29,11 +31,15 @@ export const supportCaseKeys = {
 
 // ── Queries ───────────────────────────────────────────────────────────
 
-/** List this tenant's support cases with optional filters. */
+/** List this tenant's support cases (paginated) per tables.txt §2.9. */
 export function useSupportCases(params?: SupportCaseListParams) {
-  return useQuery<SupportCase[]>({
+  return useQuery<ListResponse<SupportCase>>({
     queryKey: supportCaseKeys.list(params),
-    queryFn: () => apiGet<SupportCase[]>("/support-cases", params),
+    queryFn: () =>
+      apiGetList<SupportCase>(
+        "/support-cases",
+        params as Record<string, unknown> | undefined,
+      ),
     placeholderData: keepPreviousData,
   });
 }

@@ -2,7 +2,10 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api/request';
+import { apiGetList } from '@/lib/api/list';
+import { bulkAction } from '@/lib/api/bulk';
 import type { Branch } from '@/types/tenant';
+import type { ListResponse, BulkJobResult } from '@/types/list';
 
 /**
  * Query key factory for branch-related queries
@@ -17,15 +20,13 @@ const branchKeys = {
 };
 
 /**
- * Fetch all branches with optional filters.
+ * Fetch the paginated branches list. Returns the new `{ items, meta }`
+ * envelope per tables.txt §2.3.
  */
 export function useBranches(filters?: Record<string, unknown>) {
-  return useQuery({
+  return useQuery<ListResponse<Branch>>({
     queryKey: branchKeys.list(filters),
-    queryFn: async () => {
-      const data = await apiGet<Branch[]>('/branches', filters);
-      return data;
-    },
+    queryFn: () => apiGetList<Branch>('/branches', filters),
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -139,6 +140,21 @@ export function useDeleteBranch() {
       queryClient.removeQueries({
         queryKey: branchKeys.detail(branchId),
       });
+    },
+  });
+}
+
+/**
+ * Bulk deactivate / delete branches per tables.txt §2.3. Backend still
+ * enforces last-active-branch protection — protected ids land in `failed[]`.
+ */
+export function useBulkBranchAction(action: "deactivate" | "delete") {
+  const queryClient = useQueryClient();
+  return useMutation<BulkJobResult, Error, { ids: string[]; atomic?: boolean }>({
+    mutationFn: ({ ids, atomic }) =>
+      bulkAction(`/branches/bulk/${action}`, ids, { atomic }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: branchKeys.lists() });
     },
   });
 }

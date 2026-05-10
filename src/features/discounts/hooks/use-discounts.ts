@@ -2,15 +2,19 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api/request";
+import { apiGetList } from "@/lib/api/list";
+import { bulkAction } from "@/lib/api/bulk";
 import type { Discount } from "@/types/billing";
+import type { ListResponse, BulkJobResult } from "@/types/list";
 
 /**
- * Fetch all discounts
+ * Fetch the paginated discounts list. Returns the new `{ items, meta }`
+ * envelope per tables.txt §1.5.
  */
-export function useDiscounts() {
-  return useQuery<Discount[]>({
-    queryKey: ["discounts"],
-    queryFn: () => apiGet<Discount[]>("/discounts"),
+export function useDiscounts(filters?: Record<string, unknown>) {
+  return useQuery<ListResponse<Discount>>({
+    queryKey: ["discounts", filters],
+    queryFn: () => apiGetList<Discount>("/discounts", filters),
   });
 }
 
@@ -114,6 +118,21 @@ export function useDeleteDiscount() {
     mutationFn: (discountId) => apiDelete(`/discounts/${discountId}`),
     onSuccess: (_, discountId) => {
       queryClient.invalidateQueries({ queryKey: ["discounts", discountId] });
+      queryClient.invalidateQueries({ queryKey: ["discounts"] });
+    },
+  });
+}
+
+/**
+ * Bulk disable / delete discounts via a single queued job per
+ * tables.txt §1.5.
+ */
+export function useBulkDiscountAction(action: "disable" | "delete") {
+  const queryClient = useQueryClient();
+  return useMutation<BulkJobResult, Error, { ids: string[]; atomic?: boolean }>({
+    mutationFn: ({ ids, atomic }) =>
+      bulkAction(`/discounts/bulk/${action}`, ids, { atomic }),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["discounts"] });
     },
   });

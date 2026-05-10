@@ -15,6 +15,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
+import { summarizeBulkResult } from "@/lib/api/bulk";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -31,6 +32,7 @@ import {
 import {
   useIncidents,
   useApproachingDeadlineIncidents,
+  useBulkMarkIncidentsNotified,
 } from "@/features/incidents/hooks/use-incidents";
 import { useCapabilities } from "@/hooks/use-capabilities";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
@@ -92,8 +94,9 @@ export default function IncidentsPage() {
     data: incidentsResponse,
     isLoading,
     refetch,
-  } = useIncidents();
+  } = useIncidents({ limit: 100, sort: "-dateCreated" });
   const { data: deadlineResponse } = useApproachingDeadlineIncidents();
+  const bulkMarkNotified = useBulkMarkIncidentsNotified();
 
   const queryClient = useQueryClient();
   const markNotifiedMutation = useMutation({
@@ -109,13 +112,8 @@ export default function IncidentsPage() {
     },
   });
 
-  const incidents = Array.isArray(incidentsResponse)
-    ? incidentsResponse
-    : incidentsResponse?.data || [];
-
-  const deadlineIncidents = Array.isArray(deadlineResponse)
-    ? deadlineResponse
-    : deadlineResponse?.data || [];
+  const incidents = incidentsResponse?.items ?? [];
+  const deadlineIncidents = deadlineResponse?.items ?? [];
 
   const [pendingNotificationId, setPendingNotificationId] = useState<
     string | null
@@ -128,28 +126,16 @@ export default function IncidentsPage() {
     setBulkPending(true);
     try {
       const now = Math.floor(Date.now() / 1000);
-      const results = await Promise.allSettled(
-        bulkNotifyIds.map((id) =>
-          markNotifiedMutation.mutateAsync({
-            id,
-            data: {
-              ndpcNotified: true,
-              notificationSentAt: now,
-            },
-          })
-        )
-      );
-      const ok = results.filter((r) => r.status === "fulfilled").length;
-      const failed = results.length - ok;
-      if (failed === 0) {
-        toast.success(`${ok} incident${ok === 1 ? "" : "s"} marked as notified`);
-      } else if (ok === 0) {
-        toast.error(`Failed to mark ${failed} incident${failed === 1 ? "" : "s"}`);
-      } else {
-        toast.warning(`${ok} marked, ${failed} failed`);
-      }
+      const result = await bulkMarkNotified.mutateAsync({
+        ids: bulkNotifyIds,
+        notificationSentAt: now,
+      });
+      const { tone, message } = summarizeBulkResult(result, "incident", "marked as notified");
+      toast[tone](message);
       setBulkNotifyIds(null);
       refetch();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Bulk mark-notified failed");
     } finally {
       setBulkPending(false);
     }

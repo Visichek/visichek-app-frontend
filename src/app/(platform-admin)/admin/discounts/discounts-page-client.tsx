@@ -9,7 +9,9 @@ import {
   useDiscounts,
   useDeleteDiscount,
   useDisableDiscount,
+  useBulkDiscountAction,
 } from "@/features/discounts/hooks/use-discounts";
+import { summarizeBulkResult } from "@/lib/api/bulk";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
 import { Badge } from "@/components/ui/badge";
@@ -148,9 +150,12 @@ function DiscountActions({
 
 export function DiscountsPageClient() {
   const { loadingHref, handleNavClick } = useNavigationLoading();
-  const { data: discounts = [], isLoading, isError, refetch } = useDiscounts();
+  const { data: discountsList, isLoading, isError, refetch } = useDiscounts({ limit: 100, sort: "-dateCreated" });
+  const discounts = discountsList?.items ?? [];
   const deleteDiscountMutation = useDeleteDiscount();
   const disableDiscountMutation = useDisableDiscount();
+  const bulkDeleteDiscounts = useBulkDiscountAction("delete");
+  const bulkDisableDiscounts = useBulkDiscountAction("disable");
   const { mutate: deleteDiscount, isPending: isDeletePending } =
     deleteDiscountMutation;
   const { mutate: disableDiscount, isPending: isDisablePending } =
@@ -167,23 +172,15 @@ export function DiscountsPageClient() {
     const ids = bulkTargetIds;
     setBulkPending(true);
     try {
-      const runner =
-        op === "delete"
-          ? deleteDiscountMutation.mutateAsync
-          : disableDiscountMutation.mutateAsync;
-      const results = await Promise.allSettled(ids.map((id) => runner(id)));
-      const ok = results.filter((r) => r.status === "fulfilled").length;
-      const failed = results.length - ok;
+      const runner = op === "delete" ? bulkDeleteDiscounts : bulkDisableDiscounts;
+      const result = await runner.mutateAsync({ ids });
       const verbPast = op === "delete" ? "deleted" : "disabled";
-      if (failed === 0) {
-        toast.success(`${ok} discount${ok === 1 ? "" : "s"} ${verbPast}`);
-      } else if (ok === 0) {
-        toast.error(`Failed to ${op} ${failed} discount${failed === 1 ? "" : "s"}`);
-      } else {
-        toast.warning(`${ok} ${verbPast}, ${failed} failed`);
-      }
+      const { tone, message } = summarizeBulkResult(result, "discount", verbPast);
+      toast[tone](message);
       setBulkOp(null);
       setBulkTargetIds([]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : `Bulk ${op} failed`);
     } finally {
       setBulkPending(false);
     }

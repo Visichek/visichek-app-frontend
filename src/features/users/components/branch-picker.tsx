@@ -68,7 +68,7 @@ export function BranchPicker({
   const branchesQuery = useBranches();
   const usageQuery = useMyUsage();
 
-  const branches = branchesOverride ?? branchesQuery.data ?? [];
+  const branches = branchesOverride ?? branchesQuery.data?.items ?? [];
   const branchesLoading =
     branchesOverride === undefined && branchesQuery.isLoading;
 

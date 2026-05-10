@@ -32,7 +32,9 @@ import {
   useBranches,
   useDeleteBranch,
   useDeactivateBranch,
+  useBulkBranchAction,
 } from "@/features/branches/hooks/use-branches";
+import { summarizeBulkResult } from "@/lib/api/bulk";
 import { useCapabilities } from "@/hooks/use-capabilities";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
@@ -43,9 +45,12 @@ export function BranchesPageClient() {
   const canCreate = hasCapability(CAPABILITIES.BRANCH_CREATE);
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
-  const { data, isLoading } = useBranches();
+  const { data: branchesList, isLoading } = useBranches({ limit: 200, sort: "name" });
+  const data = branchesList?.items ?? [];
   const deleteMutation = useDeleteBranch();
   const deactivateMutation = useDeactivateBranch();
+  const bulkDeactivate = useBulkBranchAction("deactivate");
+  const bulkDelete = useBulkBranchAction("delete");
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
@@ -65,22 +70,15 @@ export function BranchesPageClient() {
     const ids = bulkTargetIds;
     setBulkPending(true);
     try {
-      const runner = op === "delete" ? deleteMutation : deactivateMutation;
-      const results = await Promise.allSettled(
-        ids.map((id) => runner.mutateAsync(id))
-      );
-      const ok = results.filter((r) => r.status === "fulfilled").length;
-      const failed = results.length - ok;
+      const runner = op === "delete" ? bulkDelete : bulkDeactivate;
+      const result = await runner.mutateAsync({ ids });
       const verbPast = op === "delete" ? "deleted" : "deactivated";
-      if (failed === 0) {
-        toast.success(`${ok} branch${ok === 1 ? "" : "es"} ${verbPast}`);
-      } else if (ok === 0) {
-        toast.error(`Failed to ${op} ${failed} branch${failed === 1 ? "" : "es"}`);
-      } else {
-        toast.warning(`${ok} ${verbPast}, ${failed} failed`);
-      }
+      const { tone, message } = summarizeBulkResult(result, "branch", verbPast);
+      toast[tone](message);
       setBulkOp(null);
       setBulkTargetIds([]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : `Bulk ${op} failed`);
     } finally {
       setBulkPending(false);
     }

@@ -37,8 +37,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
+import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/format-date";
 import { useActionParam } from "@/hooks/use-action-param";
 import type { Subscription } from "@/types/billing";
@@ -67,7 +68,7 @@ function capitalize(str: string): string {
 
 interface SubscriptionRowProps {
   subscription: Subscription;
-  onCancel: (id: string) => void;
+  onCancel: (id: string, reason: string, immediate: boolean) => void;
   isLoading: boolean;
 }
 
@@ -77,6 +78,23 @@ function SubscriptionActions({
   isLoading,
 }: SubscriptionRowProps) {
   const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [mode, setMode] = React.useState<"immediate" | "period_end">(
+    "period_end",
+  );
+  const [reason, setReason] = React.useState("Admin cancellation");
+
+  React.useEffect(() => {
+    if (!confirmOpen) {
+      // Reset on close so the next open starts fresh.
+      setMode("period_end");
+      setReason("Admin cancellation");
+    }
+  }, [confirmOpen]);
+
+  const tenantLabel = subscription.tenant?.companyName ?? subscription.tenantId;
+  const periodEnd = subscription.currentPeriodEnd
+    ? formatDate(subscription.currentPeriodEnd)
+    : null;
 
   return (
     <>
@@ -103,20 +121,98 @@ function SubscriptionActions({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <ConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title="Cancel subscription"
-        description={`Are you sure you want to cancel the subscription for ${subscription.tenant?.companyName ?? subscription.tenantId}? This action cannot be undone.`}
-        confirmLabel="Cancel subscription"
-        cancelLabel="Keep it"
-        variant="destructive"
-        isLoading={isLoading}
-        onConfirm={() => {
-          onCancel(subscription.id);
-          setConfirmOpen(false);
-        }}
-      />
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Cancel subscription</DialogTitle>
+            <DialogDescription>
+              Choose how {tenantLabel} should be cancelled. Cancellation always
+              ends with the tenant on the FREE plan — paid subscriptions don&apos;t
+              leave tenants with no active plan.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <button
+              type="button"
+              onClick={() => setMode("period_end")}
+              aria-pressed={mode === "period_end"}
+              className={cn(
+                "w-full rounded-lg border p-3 text-left transition-colors",
+                "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                mode === "period_end"
+                  ? "border-primary bg-primary/5 ring-2 ring-primary/40"
+                  : "hover:border-foreground/30",
+              )}
+            >
+              <p className="text-sm font-medium">End of current period</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Subscription stays active and paid features keep working
+                {periodEnd ? ` until ${periodEnd}` : ""}.
+                The tenant is then automatically moved to the FREE plan and
+                non-HQ branches are deactivated.
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMode("immediate")}
+              aria-pressed={mode === "immediate"}
+              className={cn(
+                "w-full rounded-lg border p-3 text-left transition-colors",
+                "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                mode === "immediate"
+                  ? "border-destructive bg-destructive/5 ring-2 ring-destructive/40"
+                  : "hover:border-foreground/30",
+              )}
+            >
+              <p className="text-sm font-medium text-destructive">
+                Immediate
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Drops the tenant to FREE right now. Paid features stop working
+                immediately and non-HQ branches are deactivated. Visitor logs
+                and configs are preserved.
+              </p>
+            </button>
+
+            <div className="space-y-2">
+              <Label htmlFor="cancel-reason">Reason (visible in audit log)</Label>
+              <Textarea
+                id="cancel-reason"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={2}
+                placeholder="e.g. Admin cancellation per tenant request"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmOpen(false)}
+              className="min-h-[44px]"
+              disabled={isLoading}
+            >
+              Keep subscription
+            </Button>
+            <Button
+              variant={mode === "immediate" ? "destructive" : "default"}
+              onClick={() => {
+                onCancel(subscription.id, reason.trim(), mode === "immediate");
+                setConfirmOpen(false);
+              }}
+              disabled={isLoading || reason.trim().length === 0}
+              className="min-h-[44px]"
+            >
+              {mode === "immediate"
+                ? "Cancel and drop to FREE now"
+                : "Cancel at period end"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
@@ -131,8 +227,10 @@ function CreateSubscriptionModal({ open, onOpenChange }: CreateSubscriptionModal
   const [planId, setPlanId] = React.useState("");
   const [billingCycle, setBillingCycle] = React.useState<BillingCycle>("monthly");
 
-  const { data: tenants = [], isLoading: tenantsLoading } = useTenantList();
-  const { data: plans = [], isLoading: plansLoading } = usePlans({ status: "active" });
+  const { data: tenantList, isLoading: tenantsLoading } = useTenantList({ limit: 200, sort: "companyName" });
+  const tenants = tenantList?.items ?? [];
+  const { data: plansList, isLoading: plansLoading } = usePlans({ status: "active", limit: 100 });
+  const plans = plansList?.items ?? [];
   const createSubscription = useCreateSubscription();
 
   React.useEffect(() => {
@@ -246,7 +344,7 @@ function CreateSubscriptionModal({ open, onOpenChange }: CreateSubscriptionModal
 }
 
 export function SubscriptionsPageClient() {
-  const { data, isLoading, isError, refetch } = useSubscriptions();
+  const { data, isLoading, isError, refetch } = useSubscriptions({ limit: 100, sort: "-dateCreated" });
   const { mutate: cancelSubscription, isPending } = useCancelSubscription();
   const [createModalOpen, setCreateModalOpen] = React.useState(false);
 
@@ -254,22 +352,31 @@ export function SubscriptionsPageClient() {
     create: () => setCreateModalOpen(true),
   });
 
-  const subscriptions = data ?? [];
+  const subscriptions = data?.items ?? [];
 
-  const handleCancel = (subscriptionId: string) => {
+  const handleCancel = (
+    subscriptionId: string,
+    reason: string,
+    immediate: boolean,
+  ) => {
     const subscription = subscriptions.find((s) => s.id === subscriptionId);
     if (!subscription) return;
+
+    const tenantLabel =
+      subscription.tenant?.companyName ?? subscription.tenantId;
 
     cancelSubscription(
       {
         tenantId: subscription.tenantId,
-        reason: "Admin cancellation",
-        immediate: true,
+        reason: reason || "Admin cancellation",
+        immediate,
       },
       {
         onSuccess: () => {
           toast.success(
-            `Subscription for ${subscription.tenantId} has been cancelled.`
+            immediate
+              ? `${tenantLabel} dropped to FREE.`
+              : `${tenantLabel} will be moved to FREE at the end of the billing period.`,
           );
         },
         onError: (error) => {
