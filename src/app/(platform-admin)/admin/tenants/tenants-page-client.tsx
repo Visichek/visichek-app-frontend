@@ -17,7 +17,7 @@ import {
 import { toast } from "sonner";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
-import { DataTable } from "@/components/recipes/data-table";
+import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -253,8 +253,45 @@ export function TenantsPageClient() {
 
   const [subscribeTarget, setSubscribeTarget] = useState<AdminTenant | null>(null);
   const [offboardTarget, setOffboardTarget] = useState<AdminTenant | null>(null);
+  const [bulkOffboardIds, setBulkOffboardIds] = useState<string[] | null>(null);
+  const [bulkPending, setBulkPending] = useState(false);
 
   const offboardTenant = useOffboardTenant();
+
+  async function handleBulkOffboardConfirm() {
+    if (!bulkOffboardIds || bulkOffboardIds.length === 0) return;
+    setBulkPending(true);
+    try {
+      const results = await Promise.allSettled(
+        bulkOffboardIds.map((id) => offboardTenant.mutateAsync(id))
+      );
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.length - ok;
+      if (failed === 0) {
+        toast.success(`${ok} tenant${ok === 1 ? "" : "s"} offboarding started`);
+      } else if (ok === 0) {
+        toast.error(`Failed to start offboarding for ${failed} tenant${failed === 1 ? "" : "s"}`);
+      } else {
+        toast.warning(`${ok} started, ${failed} failed`);
+      }
+      setBulkOffboardIds(null);
+    } finally {
+      setBulkPending(false);
+    }
+  }
+
+  const bulkActions: DataTableBulkAction<AdminTenant>[] = [
+    {
+      label: "Offboard",
+      description: "Start offboarding for every selected tenant — schedules data deletion and terminates active sessions",
+      icon: <AlertTriangle className="h-4 w-4" />,
+      variant: "destructive",
+      onClick: (ids) => {
+        if (ids.length === 0) return;
+        setBulkOffboardIds(ids);
+      },
+    },
+  ];
 
   function handleOffboardConfirm() {
     if (!offboardTarget) return;
@@ -467,6 +504,23 @@ export function TenantsPageClient() {
         emptyTitle="No tenants yet"
         emptyDescription="Bootstrap your first tenant to get started."
         mobileCard={mobileCard}
+        selectable
+        getRowId={(tenant) => tenant.id}
+        itemNoun="tenant"
+        bulkActions={bulkActions}
+      />
+
+      <ConfirmDialog
+        open={bulkOffboardIds !== null}
+        onOpenChange={(open) => {
+          if (!open) setBulkOffboardIds(null);
+        }}
+        title={`Offboard ${bulkOffboardIds?.length ?? 0} tenant${(bulkOffboardIds?.length ?? 0) === 1 ? "" : "s"}`}
+        description={`Start offboarding for ${bulkOffboardIds?.length ?? 0} tenant${(bulkOffboardIds?.length ?? 0) === 1 ? "" : "s"}. Their data will be scheduled for deletion and all active sessions terminated. This cannot be undone.`}
+        confirmLabel="Offboard"
+        variant="destructive"
+        isLoading={bulkPending}
+        onConfirm={handleBulkOffboardConfirm}
       />
     </div>
   );

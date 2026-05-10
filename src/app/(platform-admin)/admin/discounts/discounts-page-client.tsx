@@ -4,14 +4,14 @@ import * as React from "react";
 import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { Loader2, MoreHorizontal, Plus } from "lucide-react";
+import { Loader2, MoreHorizontal, Plus, Trash2, PowerOff } from "lucide-react";
 import {
   useDiscounts,
   useDeleteDiscount,
   useDisableDiscount,
 } from "@/features/discounts/hooks/use-discounts";
 import { PageHeader } from "@/components/recipes/page-header";
-import { DataTable } from "@/components/recipes/data-table";
+import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -149,10 +149,74 @@ function DiscountActions({
 export function DiscountsPageClient() {
   const { loadingHref, handleNavClick } = useNavigationLoading();
   const { data: discounts = [], isLoading, isError, refetch } = useDiscounts();
+  const deleteDiscountMutation = useDeleteDiscount();
+  const disableDiscountMutation = useDisableDiscount();
   const { mutate: deleteDiscount, isPending: isDeletePending } =
-    useDeleteDiscount();
+    deleteDiscountMutation;
   const { mutate: disableDiscount, isPending: isDisablePending } =
-    useDisableDiscount();
+    disableDiscountMutation;
+
+  type BulkOp = "delete" | "disable";
+  const [bulkOp, setBulkOp] = React.useState<BulkOp | null>(null);
+  const [bulkTargetIds, setBulkTargetIds] = React.useState<string[]>([]);
+  const [bulkPending, setBulkPending] = React.useState(false);
+
+  async function handleBulkConfirm() {
+    if (!bulkOp || bulkTargetIds.length === 0) return;
+    const op = bulkOp;
+    const ids = bulkTargetIds;
+    setBulkPending(true);
+    try {
+      const runner =
+        op === "delete"
+          ? deleteDiscountMutation.mutateAsync
+          : disableDiscountMutation.mutateAsync;
+      const results = await Promise.allSettled(ids.map((id) => runner(id)));
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.length - ok;
+      const verbPast = op === "delete" ? "deleted" : "disabled";
+      if (failed === 0) {
+        toast.success(`${ok} discount${ok === 1 ? "" : "s"} ${verbPast}`);
+      } else if (ok === 0) {
+        toast.error(`Failed to ${op} ${failed} discount${failed === 1 ? "" : "s"}`);
+      } else {
+        toast.warning(`${ok} ${verbPast}, ${failed} failed`);
+      }
+      setBulkOp(null);
+      setBulkTargetIds([]);
+    } finally {
+      setBulkPending(false);
+    }
+  }
+
+  const bulkActions: DataTableBulkAction<Discount>[] = [
+    {
+      label: "Disable",
+      description: "Disable every selected active discount so it cannot be applied to new subscriptions",
+      icon: <PowerOff className="h-4 w-4" />,
+      variant: "secondary",
+      onClick: (_ids, rows) => {
+        const eligible = rows.filter((d) => d.status === "active").map((d) => d.id);
+        if (eligible.length === 0) {
+          toast.info("None of the selected discounts are currently active");
+          return;
+        }
+        setBulkOp("disable");
+        setBulkTargetIds(eligible);
+      },
+    },
+    {
+      label: "Delete",
+      description: "Permanently delete every selected discount — this cannot be undone",
+      icon: <Trash2 className="h-4 w-4" />,
+      variant: "destructive",
+      onClick: (ids) => {
+        if (ids.length === 0) return;
+        setBulkOp("delete");
+        setBulkTargetIds(ids);
+      },
+    },
+  ];
 
   const isLoading_ = isDeletePending || isDisablePending;
 
@@ -310,6 +374,10 @@ export function DiscountsPageClient() {
           searchKey="code"
           searchPlaceholder="Search discount code..."
           isLoading={isLoading}
+          selectable
+          getRowId={(discount) => discount.id}
+          itemNoun="discount"
+          bulkActions={bulkActions}
           mobileCard={(discount) => (
             <div className="rounded-lg border p-4 space-y-3">
               <div className="flex items-start justify-between gap-2">
@@ -347,6 +415,34 @@ export function DiscountsPageClient() {
           )}
         />
       )}
+
+      <ConfirmDialog
+        open={bulkOp !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setBulkOp(null);
+            setBulkTargetIds([]);
+          }
+        }}
+        title={
+          bulkOp === "delete"
+            ? `Delete ${bulkTargetIds.length} discount${bulkTargetIds.length === 1 ? "" : "s"}`
+            : bulkOp === "disable"
+              ? `Disable ${bulkTargetIds.length} discount${bulkTargetIds.length === 1 ? "" : "s"}`
+              : ""
+        }
+        description={
+          bulkOp === "delete"
+            ? `Permanently delete ${bulkTargetIds.length} discount${bulkTargetIds.length === 1 ? "" : "s"}. This cannot be undone.`
+            : bulkOp === "disable"
+              ? `Disable ${bulkTargetIds.length} active discount${bulkTargetIds.length === 1 ? "" : "s"}. They cannot be applied to new subscriptions.`
+              : ""
+        }
+        confirmLabel={bulkOp === "delete" ? "Delete" : "Disable"}
+        variant={bulkOp === "delete" ? "destructive" : "default"}
+        isLoading={bulkPending}
+        onConfirm={handleBulkConfirm}
+      />
     </div>
   );
 }

@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
-import { DataTable } from "@/components/recipes/data-table";
+import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +53,67 @@ export function BranchesPageClient() {
   const [branchToDeactivate, setBranchToDeactivate] = useState<
     Branch | undefined
   >();
+
+  type BulkOp = "delete" | "deactivate";
+  const [bulkOp, setBulkOp] = useState<BulkOp | null>(null);
+  const [bulkTargetIds, setBulkTargetIds] = useState<string[]>([]);
+  const [bulkPending, setBulkPending] = useState(false);
+
+  async function handleBulkConfirm() {
+    if (!bulkOp || bulkTargetIds.length === 0) return;
+    const op = bulkOp;
+    const ids = bulkTargetIds;
+    setBulkPending(true);
+    try {
+      const runner = op === "delete" ? deleteMutation : deactivateMutation;
+      const results = await Promise.allSettled(
+        ids.map((id) => runner.mutateAsync(id))
+      );
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.length - ok;
+      const verbPast = op === "delete" ? "deleted" : "deactivated";
+      if (failed === 0) {
+        toast.success(`${ok} branch${ok === 1 ? "" : "es"} ${verbPast}`);
+      } else if (ok === 0) {
+        toast.error(`Failed to ${op} ${failed} branch${failed === 1 ? "" : "es"}`);
+      } else {
+        toast.warning(`${ok} ${verbPast}, ${failed} failed`);
+      }
+      setBulkOp(null);
+      setBulkTargetIds([]);
+    } finally {
+      setBulkPending(false);
+    }
+  }
+
+  const bulkActions: DataTableBulkAction<Branch>[] = [
+    {
+      label: "Deactivate",
+      description: "Deactivate every selected active branch so staff can no longer use it",
+      icon: <PowerOff className="h-4 w-4" />,
+      variant: "secondary",
+      onClick: (_ids, rows) => {
+        const eligible = rows.filter((b) => b.isActive !== false).map((b) => b.id);
+        if (eligible.length === 0) {
+          toast.info("None of the selected branches are currently active");
+          return;
+        }
+        setBulkOp("deactivate");
+        setBulkTargetIds(eligible);
+      },
+    },
+    {
+      label: "Delete",
+      description: "Permanently delete every selected branch — this cannot be undone",
+      icon: <Trash2 className="h-4 w-4" />,
+      variant: "destructive",
+      onClick: (ids) => {
+        if (ids.length === 0) return;
+        setBulkOp("delete");
+        setBulkTargetIds(ids);
+      },
+    },
+  ];
 
   const handleDeleteClick = (branch: Branch) => {
     setBranchToDelete(branch);
@@ -221,6 +282,10 @@ export function BranchesPageClient() {
         emptyTitle="No branches"
         emptyDescription="Add your first office location to get started."
         mobileCard={mobileCard}
+        selectable
+        getRowId={(branch) => branch.id}
+        itemNoun="branch"
+        bulkActions={bulkActions}
       />
 
       <ConfirmDialog
@@ -242,6 +307,34 @@ export function BranchesPageClient() {
         variant="destructive"
         isLoading={deleteMutation.isPending}
         onConfirm={handleDeleteConfirm}
+      />
+
+      <ConfirmDialog
+        open={bulkOp !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setBulkOp(null);
+            setBulkTargetIds([]);
+          }
+        }}
+        title={
+          bulkOp === "delete"
+            ? `Delete ${bulkTargetIds.length} branch${bulkTargetIds.length === 1 ? "" : "es"}`
+            : bulkOp === "deactivate"
+              ? `Deactivate ${bulkTargetIds.length} branch${bulkTargetIds.length === 1 ? "" : "es"}`
+              : ""
+        }
+        description={
+          bulkOp === "delete"
+            ? `Permanently delete ${bulkTargetIds.length} branch${bulkTargetIds.length === 1 ? "" : "es"}. This cannot be undone.`
+            : bulkOp === "deactivate"
+              ? `Deactivate ${bulkTargetIds.length} branch${bulkTargetIds.length === 1 ? "" : "es"}. Staff will no longer be able to use them.`
+              : ""
+        }
+        confirmLabel={bulkOp === "delete" ? "Delete" : "Deactivate"}
+        variant={bulkOp === "delete" ? "destructive" : "default"}
+        isLoading={bulkPending}
+        onConfirm={handleBulkConfirm}
       />
     </div>
   );

@@ -14,7 +14,7 @@ import {
 import { toast } from "sonner";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
-import { DataTable } from "@/components/recipes/data-table";
+import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -156,6 +156,50 @@ export function OnboardingQueueClient() {
   const submissions = data ?? [];
 
   const archive = useArchiveOnboarding();
+
+  const [bulkArchiveIds, setBulkArchiveIds] = useState<string[] | null>(null);
+  const [bulkPending, setBulkPending] = useState(false);
+
+  async function handleBulkArchiveConfirm() {
+    if (!bulkArchiveIds || bulkArchiveIds.length === 0) return;
+    setBulkPending(true);
+    try {
+      const results = await Promise.allSettled(
+        bulkArchiveIds.map((id) => archive.mutateAsync(id))
+      );
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.length - ok;
+      if (failed === 0) {
+        toast.success(`${ok} submission${ok === 1 ? "" : "s"} archived`);
+      } else if (ok === 0) {
+        toast.error(`Failed to archive ${failed} submission${failed === 1 ? "" : "s"}`);
+      } else {
+        toast.warning(`${ok} archived, ${failed} failed`);
+      }
+      setBulkArchiveIds(null);
+    } finally {
+      setBulkPending(false);
+    }
+  }
+
+  const bulkActions: DataTableBulkAction<OnboardingSubmission>[] = [
+    {
+      label: "Archive",
+      description: "Archive every selected new or rejected submission as spam or duplicate — no tenant is provisioned",
+      icon: <ShieldOff className="h-4 w-4" />,
+      variant: "destructive",
+      onClick: (_ids, rows) => {
+        const eligible = rows
+          .filter((s) => s.status === "new" || s.status === "rejected")
+          .map((s) => s.id);
+        if (eligible.length === 0) {
+          toast.info("Only New or Rejected submissions can be archived");
+          return;
+        }
+        setBulkArchiveIds(eligible);
+      },
+    },
+  ];
 
   function handleArchiveConfirm() {
     if (!archiveTarget) return;
@@ -413,6 +457,23 @@ export function OnboardingQueueClient() {
             : "Try a different status filter to find what you're looking for."
         }
         mobileCard={mobileCard}
+        selectable
+        getRowId={(submission) => submission.id}
+        itemNoun="submission"
+        bulkActions={bulkActions}
+      />
+
+      <ConfirmDialog
+        open={bulkArchiveIds !== null}
+        onOpenChange={(open) => {
+          if (!open) setBulkArchiveIds(null);
+        }}
+        title={`Archive ${bulkArchiveIds?.length ?? 0} submission${(bulkArchiveIds?.length ?? 0) === 1 ? "" : "s"}`}
+        description={`Archive ${bulkArchiveIds?.length ?? 0} submission${(bulkArchiveIds?.length ?? 0) === 1 ? "" : "s"} as spam or duplicate. They will not be provisioned and disappear from the default queue. They remain visible under the Archived tab.`}
+        confirmLabel="Archive"
+        variant="destructive"
+        isLoading={bulkPending}
+        onConfirm={handleBulkArchiveConfirm}
       />
     </div>
   );

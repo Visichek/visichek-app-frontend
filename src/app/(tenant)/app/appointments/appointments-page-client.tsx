@@ -10,8 +10,9 @@ import {
   Trash2,
   Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/recipes/page-header";
-import { DataTable } from "@/components/recipes/data-table";
+import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +61,42 @@ export function AppointmentsPageClient() {
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [appointmentToDelete, setAppointmentToDelete] = useState<string>("");
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
+  const [bulkPending, setBulkPending] = useState(false);
+
+  async function handleBulkDeleteConfirm() {
+    if (!bulkDeleteIds || bulkDeleteIds.length === 0) return;
+    setBulkPending(true);
+    try {
+      const results = await Promise.allSettled(
+        bulkDeleteIds.map((id) => deleteAppointmentMutation.mutateAsync(id))
+      );
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.length - ok;
+      if (failed === 0) {
+        toast.success(`${ok} appointment${ok === 1 ? "" : "s"} deleted`);
+      } else if (ok === 0) {
+        toast.error(`Failed to delete ${failed} appointment${failed === 1 ? "" : "s"}`);
+      } else {
+        toast.warning(`${ok} deleted, ${failed} failed`);
+      }
+      setBulkDeleteIds(null);
+    } finally {
+      setBulkPending(false);
+    }
+  }
+
+  const bulkActions: DataTableBulkAction<Appointment>[] = [
+    {
+      label: "Delete",
+      description: "Permanently delete every selected appointment — this cannot be undone",
+      icon: <Trash2 className="h-4 w-4" />,
+      variant: "destructive",
+      onClick: (ids) => {
+        if (ids.length > 0) setBulkDeleteIds(ids);
+      },
+    },
+  ];
 
   const handleDeleteClick = useCallback((appointmentId: string) => {
     setAppointmentToDelete(appointmentId);
@@ -231,6 +268,10 @@ export function AppointmentsPageClient() {
         mobileCard={mobileCard}
         emptyTitle="No appointments"
         emptyDescription="Schedule an appointment to get started."
+        selectable
+        getRowId={(appt) => appt.id}
+        itemNoun="appointment"
+        bulkActions={bulkActions}
       />
 
       <ConfirmDialog
@@ -243,6 +284,19 @@ export function AppointmentsPageClient() {
         onConfirm={handleConfirmDelete}
         variant="destructive"
         isLoading={deleteAppointmentMutation.isPending}
+      />
+
+      <ConfirmDialog
+        open={bulkDeleteIds !== null}
+        onOpenChange={(open) => {
+          if (!open) setBulkDeleteIds(null);
+        }}
+        title={`Delete ${bulkDeleteIds?.length ?? 0} appointment${(bulkDeleteIds?.length ?? 0) === 1 ? "" : "s"}`}
+        description={`Permanently delete ${bulkDeleteIds?.length ?? 0} appointment${(bulkDeleteIds?.length ?? 0) === 1 ? "" : "s"}. This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        isLoading={bulkPending}
+        onConfirm={handleBulkDeleteConfirm}
       />
     </div>
   );

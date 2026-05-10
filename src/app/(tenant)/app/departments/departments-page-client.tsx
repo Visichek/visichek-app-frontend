@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Plus, Edit2, Trash2, MoreHorizontal, Loader2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
-import { DataTable } from "@/components/recipes/data-table";
+import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +39,8 @@ export function DepartmentsPageClient() {
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deptToDelete, setDeptToDelete] = useState<Department | undefined>();
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
+  const [bulkPending, setBulkPending] = useState(false);
 
   const handleDeleteClick = (dept: Department) => {
     setDeptToDelete(dept);
@@ -58,6 +60,40 @@ export function DepartmentsPageClient() {
       );
     }
   };
+
+  async function handleBulkDeleteConfirm() {
+    if (!bulkDeleteIds || bulkDeleteIds.length === 0) return;
+    setBulkPending(true);
+    try {
+      const results = await Promise.allSettled(
+        bulkDeleteIds.map((id) => deleteQuery.mutateAsync(id))
+      );
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.length - ok;
+      if (failed === 0) {
+        toast.success(`${ok} department${ok === 1 ? "" : "s"} deleted`);
+      } else if (ok === 0) {
+        toast.error(`Failed to delete ${failed} department${failed === 1 ? "" : "s"}`);
+      } else {
+        toast.warning(`${ok} deleted, ${failed} failed`);
+      }
+      setBulkDeleteIds(null);
+    } finally {
+      setBulkPending(false);
+    }
+  }
+
+  const bulkActions: DataTableBulkAction<Department>[] = [
+    {
+      label: "Delete",
+      description: "Permanently delete every selected department — this cannot be undone",
+      icon: <Trash2 className="h-4 w-4" />,
+      variant: "destructive",
+      onClick: (ids) => {
+        if (ids.length > 0) setBulkDeleteIds(ids);
+      },
+    },
+  ];
 
   const columns: ColumnDef<Department>[] = [
     {
@@ -134,6 +170,10 @@ export function DepartmentsPageClient() {
         emptyTitle="No departments"
         emptyDescription="Create your first department to get started."
         mobileCard={mobileCard}
+        selectable
+        getRowId={(dept) => dept.id}
+        itemNoun="department"
+        bulkActions={bulkActions}
       />
 
       <ConfirmDialog
@@ -145,6 +185,19 @@ export function DepartmentsPageClient() {
         variant="destructive"
         isLoading={deleteQuery.isPending}
         onConfirm={handleDeleteConfirm}
+      />
+
+      <ConfirmDialog
+        open={bulkDeleteIds !== null}
+        onOpenChange={(open) => {
+          if (!open) setBulkDeleteIds(null);
+        }}
+        title={`Delete ${bulkDeleteIds?.length ?? 0} department${(bulkDeleteIds?.length ?? 0) === 1 ? "" : "s"}`}
+        description={`Permanently delete ${bulkDeleteIds?.length ?? 0} department${(bulkDeleteIds?.length ?? 0) === 1 ? "" : "s"}. This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        isLoading={bulkPending}
+        onConfirm={handleBulkDeleteConfirm}
       />
     </div>
   );

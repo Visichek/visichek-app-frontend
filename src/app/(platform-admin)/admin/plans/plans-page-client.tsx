@@ -9,11 +9,13 @@ import {
   Trash2,
   MoreHorizontal,
   Loader2,
+  Archive,
+  CheckCircle2,
 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/recipes/page-header";
-import { DataTable } from "@/components/recipes/data-table";
+import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -84,6 +86,11 @@ export function PlansPageClient() {
   const [planToDelete, setPlanToDelete] = useState<Plan | undefined>();
   const [planToActivate, setPlanToActivate] = useState<Plan | undefined>();
   const [planToArchive, setPlanToArchive] = useState<Plan | undefined>();
+
+  type BulkOp = "delete" | "archive" | "activate";
+  const [bulkOp, setBulkOp] = useState<BulkOp | null>(null);
+  const [bulkTargetIds, setBulkTargetIds] = useState<string[]>([]);
+  const [bulkPending, setBulkPending] = useState(false);
 
   const handleDeleteClick = (plan: Plan) => {
     setPlanToDelete(plan);
@@ -156,6 +163,95 @@ export function PlansPageClient() {
       );
     }
   };
+
+  function openBulkConfirm(op: BulkOp, ids: string[]) {
+    if (ids.length === 0) return;
+    setBulkOp(op);
+    setBulkTargetIds(ids);
+  }
+
+  async function runBulk(op: BulkOp, ids: string[]): Promise<{ ok: number; failed: number }> {
+    const runners: Record<BulkOp, (id: string) => Promise<unknown>> = {
+      delete: (id) => deleteMutation.mutateAsync(id),
+      archive: (id) => archiveMutation.mutateAsync(id),
+      activate: (id) => activateMutation.mutateAsync(id),
+    };
+    const run = runners[op];
+    const results = await Promise.allSettled(ids.map((id) => run(id)));
+    let ok = 0;
+    let failed = 0;
+    for (const r of results) {
+      if (r.status === "fulfilled") ok += 1;
+      else failed += 1;
+    }
+    return { ok, failed };
+  }
+
+  async function handleBulkConfirm() {
+    if (!bulkOp || bulkTargetIds.length === 0) return;
+    const op = bulkOp;
+    const ids = bulkTargetIds;
+    setBulkPending(true);
+    try {
+      const { ok, failed } = await runBulk(op, ids);
+      const verbPast: Record<BulkOp, string> = {
+        delete: "deleted",
+        archive: "archived",
+        activate: "activated",
+      };
+      if (failed === 0) {
+        toast.success(`${ok} plan${ok === 1 ? "" : "s"} ${verbPast[op]}`);
+      } else if (ok === 0) {
+        toast.error(`Failed to ${op} ${failed} plan${failed === 1 ? "" : "s"}`);
+      } else {
+        toast.warning(
+          `${ok} ${verbPast[op]}, ${failed} failed — check the table for any rows that did not change`
+        );
+      }
+      setBulkOp(null);
+      setBulkTargetIds([]);
+    } finally {
+      setBulkPending(false);
+    }
+  }
+
+  const bulkActions: DataTableBulkAction<Plan>[] = [
+    {
+      label: "Activate",
+      description: "Activate every selected plan so it is available to new subscriptions",
+      icon: <CheckCircle2 className="h-4 w-4" />,
+      variant: "default",
+      onClick: (ids, rows) => {
+        const eligible = rows.filter((p) => p.status !== "active").map((p) => p.id);
+        if (eligible.length === 0) {
+          toast.info("All selected plans are already active");
+          return;
+        }
+        openBulkConfirm("activate", eligible);
+      },
+    },
+    {
+      label: "Archive",
+      description: "Archive every selected plan so new subscriptions cannot use it",
+      icon: <Archive className="h-4 w-4" />,
+      variant: "secondary",
+      onClick: (ids, rows) => {
+        const eligible = rows.filter((p) => p.status === "active").map((p) => p.id);
+        if (eligible.length === 0) {
+          toast.info("None of the selected plans are currently active");
+          return;
+        }
+        openBulkConfirm("archive", eligible);
+      },
+    },
+    {
+      label: "Delete",
+      description: "Permanently delete every selected plan — this cannot be undone",
+      icon: <Trash2 className="h-4 w-4" />,
+      variant: "destructive",
+      onClick: (ids) => openBulkConfirm("delete", ids),
+    },
+  ];
 
   const columns: ColumnDef<Plan>[] = [
     {
@@ -366,6 +462,10 @@ export function PlansPageClient() {
         emptyTitle="No plans yet"
         emptyDescription="Create your first subscription plan to get started."
         mobileCard={mobileCard}
+        selectable
+        getRowId={(plan) => plan.id}
+        itemNoun="plan"
+        bulkActions={bulkActions}
       />
 
       <ConfirmDialog
@@ -397,6 +497,40 @@ export function PlansPageClient() {
         variant="destructive"
         isLoading={deleteMutation.isPending}
         onConfirm={handleDeleteConfirm}
+      />
+
+      <ConfirmDialog
+        open={bulkOp !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setBulkOp(null);
+            setBulkTargetIds([]);
+          }
+        }}
+        title={
+          bulkOp === "delete"
+            ? `Delete ${bulkTargetIds.length} plan${bulkTargetIds.length === 1 ? "" : "s"}`
+            : bulkOp === "archive"
+              ? `Archive ${bulkTargetIds.length} plan${bulkTargetIds.length === 1 ? "" : "s"}`
+              : bulkOp === "activate"
+                ? `Activate ${bulkTargetIds.length} plan${bulkTargetIds.length === 1 ? "" : "s"}`
+                : ""
+        }
+        description={
+          bulkOp === "delete"
+            ? `Permanently delete ${bulkTargetIds.length} plan${bulkTargetIds.length === 1 ? "" : "s"}. This cannot be undone.`
+            : bulkOp === "archive"
+              ? `Archive ${bulkTargetIds.length} active plan${bulkTargetIds.length === 1 ? "" : "s"}. New subscriptions will not be able to use them.`
+              : bulkOp === "activate"
+                ? `Activate ${bulkTargetIds.length} plan${bulkTargetIds.length === 1 ? "" : "s"} so they are offered to new subscriptions.`
+                : ""
+        }
+        confirmLabel={
+          bulkOp === "delete" ? "Delete" : bulkOp === "archive" ? "Archive" : "Activate"
+        }
+        variant={bulkOp === "delete" ? "destructive" : "default"}
+        isLoading={bulkPending}
+        onConfirm={handleBulkConfirm}
       />
     </div>
   );

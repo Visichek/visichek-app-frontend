@@ -9,10 +9,12 @@ import {
   AlertTriangle,
   Edit2,
   Loader2,
+  CheckCircle2,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/recipes/page-header";
-import { DataTable } from "@/components/recipes/data-table";
+import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
+import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -118,6 +120,57 @@ export default function IncidentsPage() {
   const [pendingNotificationId, setPendingNotificationId] = useState<
     string | null
   >(null);
+  const [bulkNotifyIds, setBulkNotifyIds] = useState<string[] | null>(null);
+  const [bulkPending, setBulkPending] = useState(false);
+
+  async function handleBulkMarkNotifiedConfirm() {
+    if (!bulkNotifyIds || bulkNotifyIds.length === 0) return;
+    setBulkPending(true);
+    try {
+      const now = Math.floor(Date.now() / 1000);
+      const results = await Promise.allSettled(
+        bulkNotifyIds.map((id) =>
+          markNotifiedMutation.mutateAsync({
+            id,
+            data: {
+              ndpcNotified: true,
+              notificationSentAt: now,
+            },
+          })
+        )
+      );
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.length - ok;
+      if (failed === 0) {
+        toast.success(`${ok} incident${ok === 1 ? "" : "s"} marked as notified`);
+      } else if (ok === 0) {
+        toast.error(`Failed to mark ${failed} incident${failed === 1 ? "" : "s"}`);
+      } else {
+        toast.warning(`${ok} marked, ${failed} failed`);
+      }
+      setBulkNotifyIds(null);
+      refetch();
+    } finally {
+      setBulkPending(false);
+    }
+  }
+
+  const bulkActions: DataTableBulkAction<Incident>[] = [
+    {
+      label: "Mark as Notified",
+      description: "Mark every selected incident as notified to NDPC with the current timestamp",
+      icon: <CheckCircle2 className="h-4 w-4" />,
+      variant: "default",
+      onClick: (_ids, rows) => {
+        const eligible = rows.filter((i) => !i.ndpcNotified).map((i) => i.id);
+        if (eligible.length === 0) {
+          toast.info("All selected incidents are already marked as notified");
+          return;
+        }
+        setBulkNotifyIds(eligible);
+      },
+    },
+  ];
 
   const handleMarkAsNotified = useCallback(
     (incident: Incident) => {
@@ -349,6 +402,22 @@ export default function IncidentsPage() {
         mobileCard={mobileCard}
         emptyTitle="No incidents"
         emptyDescription="No security incidents have been reported."
+        selectable
+        getRowId={(incident) => incident.id}
+        itemNoun="incident"
+        bulkActions={bulkActions}
+      />
+
+      <ConfirmDialog
+        open={bulkNotifyIds !== null}
+        onOpenChange={(open) => {
+          if (!open) setBulkNotifyIds(null);
+        }}
+        title={`Mark ${bulkNotifyIds?.length ?? 0} incident${(bulkNotifyIds?.length ?? 0) === 1 ? "" : "s"} as notified`}
+        description={`Record NDPC notification for ${bulkNotifyIds?.length ?? 0} incident${(bulkNotifyIds?.length ?? 0) === 1 ? "" : "s"} with the current timestamp.`}
+        confirmLabel="Mark as Notified"
+        isLoading={bulkPending}
+        onConfirm={handleBulkMarkNotifiedConfirm}
       />
     </div>
   );

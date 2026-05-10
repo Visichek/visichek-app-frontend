@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
-import { DataTable } from "@/components/recipes/data-table";
+import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -72,6 +72,35 @@ export function UsersPageClient() {
   const [superAdminBlockedHint, setSuperAdminBlockedHint] = useState<
     string | null
   >(null);
+
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
+  const [bulkSkippedCount, setBulkSkippedCount] = useState(0);
+  const [bulkPending, setBulkPending] = useState(false);
+
+  async function handleBulkDeleteConfirm() {
+    if (!bulkDeleteIds || bulkDeleteIds.length === 0) return;
+    setBulkPending(true);
+    try {
+      const results = await Promise.allSettled(
+        bulkDeleteIds.map((id) => deleteMutation.mutateAsync(id))
+      );
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.length - ok;
+      const skipped = bulkSkippedCount;
+      const skippedSuffix = skipped > 0 ? ` (${skipped} super_admin row${skipped === 1 ? "" : "s"} skipped)` : "";
+      if (failed === 0) {
+        toast.success(`${ok} user${ok === 1 ? "" : "s"} deleted${skippedSuffix}`);
+      } else if (ok === 0) {
+        toast.error(`Failed to delete ${failed} user${failed === 1 ? "" : "s"}${skippedSuffix}`);
+      } else {
+        toast.warning(`${ok} deleted, ${failed} failed${skippedSuffix}`);
+      }
+      setBulkDeleteIds(null);
+      setBulkSkippedCount(0);
+    } finally {
+      setBulkPending(false);
+    }
+  }
 
   const branchById = useMemo(() => {
     const map = new Map<string, Branch>();
@@ -227,6 +256,28 @@ export function UsersPageClient() {
     );
   };
 
+  const bulkActions: DataTableBulkAction<SystemUser>[] = [
+    {
+      label: "Delete",
+      description: "Permanently delete every selected user — super_admin rows are skipped automatically",
+      icon: <Trash2 className="h-4 w-4" />,
+      variant: "destructive",
+      onClick: (_ids, rows) => {
+        const eligible = rows
+          .filter((u) => u.role !== "super_admin")
+          .filter((u) => !isSelf(u))
+          .map((u) => u.id);
+        const skipped = rows.length - eligible.length;
+        if (eligible.length === 0) {
+          toast.info("No eligible users selected — super_admins and your own account cannot be deleted here");
+          return;
+        }
+        setBulkSkippedCount(skipped);
+        setBulkDeleteIds(eligible);
+      },
+    },
+  ];
+
   const columns: ColumnDef<SystemUser>[] = [
     {
       accessorKey: "fullName",
@@ -331,6 +382,10 @@ export function UsersPageClient() {
         emptyTitle="No users"
         emptyDescription="Invite your first team member to get started."
         mobileCard={mobileCard}
+        selectable
+        getRowId={(user) => user.id}
+        itemNoun="user"
+        bulkActions={bulkActions}
       />
 
       <ConfirmDialog
@@ -342,6 +397,26 @@ export function UsersPageClient() {
         variant="destructive"
         isLoading={deleteMutation.isPending}
         onConfirm={handleDeleteConfirm}
+      />
+
+      <ConfirmDialog
+        open={bulkDeleteIds !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setBulkDeleteIds(null);
+            setBulkSkippedCount(0);
+          }
+        }}
+        title={`Delete ${bulkDeleteIds?.length ?? 0} user${(bulkDeleteIds?.length ?? 0) === 1 ? "" : "s"}`}
+        description={
+          bulkSkippedCount > 0
+            ? `Permanently delete ${bulkDeleteIds?.length ?? 0} user${(bulkDeleteIds?.length ?? 0) === 1 ? "" : "s"}. ${bulkSkippedCount} protected row${bulkSkippedCount === 1 ? "" : "s"} (super_admin or yourself) will be skipped. This cannot be undone.`
+            : `Permanently delete ${bulkDeleteIds?.length ?? 0} user${(bulkDeleteIds?.length ?? 0) === 1 ? "" : "s"}. This cannot be undone.`
+        }
+        confirmLabel="Delete"
+        variant="destructive"
+        isLoading={bulkPending}
+        onConfirm={handleBulkDeleteConfirm}
       />
 
       <EditUserDialog
