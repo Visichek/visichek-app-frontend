@@ -3,10 +3,11 @@
 /**
  * Wraps the Dojah React widget for use on the kiosk.
  *
- * The widget config is provided whole by `POST /v1/kyc/initiate` —
- * credentials, widget_id, pages, and metadata all come from the backend.
- * The frontend never reads Dojah credentials from environment variables;
- * this component is a thin pass-through.
+ * `appID`, `publicKey`, `widget_id`, and `type` are hardcoded below —
+ * they're public Dojah identifiers (safe to ship in the bundle) and the
+ * backend wasn't reliably populating them on the widget config. Per-checkin
+ * `metadata` (tenantId, checkinId, etc.) still comes from
+ * `POST /v1/kyc/initiate` so the webhook can correlate.
  *
  * The SDK touches `window` on import, so we lazy-load via `next/dynamic`
  * with `ssr: false` to keep the kiosk shell server-renderable and to
@@ -20,6 +21,11 @@ import type {
   DojahProps,
 } from "dojah-kyc-sdk-react";
 import type { KycWidgetConfig } from "@/types/kyc";
+
+const DOJAH_APP_ID = "69f0e700ece0dca6443aba71";
+const DOJAH_PUBLIC_KEY = "test_pk_g8uhAUb41FTYPzvuRMXS4u3Ts";
+const DOJAH_WIDGET_ID = "69f241470f649c817fbc2db8";
+const DOJAH_WIDGET_TYPE = "custom";
 
 const Dojah = dynamic<DojahProps>(() => import("dojah-kyc-sdk-react"), {
   ssr: false,
@@ -69,10 +75,10 @@ export interface KycWidgetProps {
 export function KycWidget({ widgetConfig, userData, onEvent }: KycWidgetProps) {
   return (
     <Dojah
-      appID={widgetConfig.app_id}
-      publicKey={widgetConfig.public_key}
-      type={widgetConfig.type}
-      config={widgetConfig.config}
+      appID={DOJAH_APP_ID}
+      publicKey={DOJAH_PUBLIC_KEY}
+      type={DOJAH_WIDGET_TYPE}
+      config={{ widget_id: DOJAH_WIDGET_ID }}
       metadata={widgetConfig.metadata as Record<string, unknown>}
       userData={userData}
       response={onEvent}

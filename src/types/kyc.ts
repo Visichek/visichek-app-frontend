@@ -28,14 +28,14 @@ export interface KycWidgetPage {
 }
 
 /**
- * Inner `config` block of `WidgetConfig`. Fields beyond `widget_id`,
- * `pages`, and `review_process` are forwarded verbatim to Dojah without
- * frontend interpretation.
+ * Inner `config` block of `WidgetConfig`. Backend returns camelCase
+ * (`widgetId`, `reviewProcess`); the kyc-widget wrapper transforms
+ * `widgetId` → `widget_id` for the Dojah SDK, which expects snake_case.
  */
 export interface KycWidgetInnerConfig {
-  widget_id: string;
+  widgetId: string;
   pages: KycWidgetPage[];
-  review_process?: "automatic" | "manual";
+  reviewProcess?: "automatic" | "manual";
   [key: string]: unknown;
 }
 
@@ -55,22 +55,21 @@ export interface KycWidgetMetadata {
 }
 
 /**
- * Full payload the backend emits on `POST /v1/kyc/initiate`. Forwarded
- * verbatim to the Dojah widget — the frontend does not synthesise any
- * fields itself, and never reads Dojah credentials from environment
- * variables.
+ * Full payload the backend emits on `POST /v1/kyc/initiate`. The API
+ * client converts the wire response to camelCase, matching the rest of
+ * the app's response types.
  *
- * Wire field names use snake_case here because they are passed through to
- * the third-party widget unchanged; the rest of the app's response types
- * are camelCase.
+ * Note: `appId`, `publicKey`, and `widgetId` are currently overridden by
+ * hardcoded constants in `KycWidget` because the backend doesn't reliably
+ * populate them. Only `metadata` (per-checkin correlation) is used as-is.
  */
 export interface KycWidgetConfig {
-  app_id: string;
-  public_key: string;
+  appId: string;
+  publicKey: string;
   type: string;
   config: KycWidgetInnerConfig;
   metadata: KycWidgetMetadata;
-  base_url: string;
+  baseUrl: string;
 }
 
 export interface KycInitiateRequest {

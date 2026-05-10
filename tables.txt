@@ -1,0 +1,662 @@
+================================================================================
+VisiChek Tables — Backend Spec for List Routes, Filters, Pagination & Bulk Actions
+================================================================================
+
+Audience: backend engineers
+Author:   frontend
+Date:     2026-05-10
+Status:   open — frontend currently works around several gaps client-side
+
+This file is the authoritative request from the frontend for what every list
+endpoint should support so that tables, tabs, filters, pagination and bulk
+actions can be wired correctly. Items marked [BLOCKING] are causing visible
+bugs or perf issues today. Items marked [WORKAROUND] are things the frontend
+is currently faking client-side.
+
+
+================================================================================
+0. CROSS-CUTTING REQUIREMENTS (read first)
+================================================================================
+
+0.1  PAGINATION CONTRACT  [BLOCKING]
+─────────────────────────────────────
+Today /v1/tenants and several other list endpoints return up to 100 rows by
+default and the frontend can't tell whether more exist. Tables that genuinely
+hold >100 rows (tenants, audit logs, visitor sessions) silently truncate.
+
+REQUIRED for every list endpoint:
+
+  • Accept `skip` (int, default 0) and `limit` (int, default 25, max 200).
+    Settle on `skip`/`limit` everywhere; deprecate the older `start`/`stop`
+    pair on /v1/visitors/sessions/*. (CLAUDE.md currently documents both —
+    we want to converge on one.)
+  • Return responses in this envelope:
+
+        {
+          "data": [...],
+          "meta": {
+            "total":    1234,   // total rows matching the filter set
+            "skip":     0,
+            "limit":    25,
+            "hasMore":  true
+          }
+        }
+
+    Without `total`, the frontend cannot render "Page X of Y" for server-side
+    pagination. We are willing to accept `hasMore` only on extremely hot
+    endpoints (visitor live feed) where COUNT(*) is too expensive — flag
+    those explicitly so we render an infinite-scroll UI instead.
+  • Every list endpoint must accept `?limit=` so a small front-end tool can
+    bump it for debugging, with the hard cap enforced server-side.
+
+0.2  STABLE SORT  [BLOCKING]
+─────────────────────────────
+Pagination without a stable order is meaningless. Every list endpoint must:
+
+  • Accept `sort` query param: comma-separated `field` or `-field` (descending),
+    e.g. `?sort=-dateCreated,companyName`.
+  • Have a documented default sort that includes a tiebreaker on `id` so two
+    rows with the same `dateCreated` always resolve to the same page.
+  • Return 400 with `data.code = INVALID_SORT_FIELD` if the client passes a
+    sort field the endpoint does not allowlist.
+
+0.3  SEARCH PARAM  [BLOCKING]
+──────────────────────────────
+Replace the per-endpoint `?q`/`?search`/`?email` zoo with a single, consistent:
+
+  • `?q=<string>` — case-insensitive partial match against a documented set
+    of fields per resource (listed below).
+  • Trim whitespace, ignore queries shorter than 2 chars (return everything).
+  • Combine with filters using AND, not OR.
+
+0.4  FILTER NAMING  [WORKAROUND]
+─────────────────────────────────
+Filters should be plain query params with these conventions:
+
+  • Single value:        `?status=active`
+  • Multiple values:     `?status=active&status=trialing` (repeated key) OR
+                         `?status=active,trialing` (CSV) — pick one and stick
+                         to it across all endpoints. The frontend strongly
+                         prefers repeated key (RFC 6570 form-style).
+  • Date ranges:         `?createdAtGte=<unix>&createdAtLte=<unix>`
+                         (always unix epoch seconds; consistent with the rest
+                         of the API per CLAUDE.md).
+  • Boolean:             `?isActive=true` (literal "true"/"false", not 1/0).
+  • Null/empty:          `?planTier=none` for "no plan attached".
+
+0.5  BULK ACTION ENDPOINTS  [WORKAROUND]
+─────────────────────────────────────────
+The frontend currently fans out N single-item mutations via Promise.allSettled
+for every bulk action. This is wasteful (N round-trips, N audit-log entries
+per action, N invalidations of the same query). For each mutation listed in
+the per-resource sections, we want a sibling bulk endpoint:
+
+    POST /v1/<resource>/bulk/<action>
+    body: { ids: string[], <action-specific extras> }
+    response:
+      {
+        "succeeded":  ["id1", "id2"],
+        "failed":     [{ "id": "id3", "error": { "code": "...", "message": "..." } }]
+      }
+
+The endpoint MUST be all-or-nothing optional via a `?atomic=true` flag (default
+false). When atomic, any failure rolls back the whole batch and returns 422
+with the same shape so the UI can highlight the failing rows.
+
+Audit logs: emit ONE bulk audit entry per bulk call (with the id list inside),
+not N entries. This is what auditor expects.
+
+0.6  CSV / EXPORT  [NICE-TO-HAVE]
+──────────────────────────────────
+Several read-only views (audit logs, billing invoices, payments) want a
+"Download selected" or "Download all matching the current filter" action.
+Add `Accept: text/csv` on the same list endpoints, with the same filter
+params, returning a streaming CSV. Same auth and pagination rules apply
+(but `limit` should default to 10k for CSV, capped at 100k).
+
+
+================================================================================
+1. PLATFORM-ADMIN TABLES
+================================================================================
+
+1.1  /v1/tenants  (Tenants list)
+─────────────────────────────────
+Frontend page:    src/app/(platform-admin)/admin/tenants/tenants-page-client.tsx
+Currently shows:  100 rows max — [BLOCKING]
+Frontend has:     active/inactive/all tabs + plan tier filter + subscription filter,
+                  all CLIENT-SIDE today against the truncated 100-row payload.
+
+Required filters (move from client to server):
+  • status:               active | inactive | all                 (default: active)
+  • planTier:             free | starter | professional | enterprise | custom | none
+  • subscriptionStatus:   active | trialing | past_due | cancelled | suspended |
+                          expired | none
+  • createdAtGte / createdAtLte
+  • q  →  matches: companyName, contactEmail, primaryDomain, tenantId
+
+Sort allowlist:           companyName, dateCreated, isActive, subscriptionStatus
+
+Tabs / separation:
+  • Active        (where isActive = true)
+  • Inactive      (where isActive = false; covers offboarded + suspended)
+  • All
+
+  Frontend renders a count badge on each tab. We need the response to include
+  per-tab totals via a `?facets=status` query (returns
+  `meta.facets.status = { active: N, inactive: M, all: K }`) so the badges
+  reflect the FULL dataset, not the current page.
+
+Per-row actions:
+  • View Details
+  • View Subscriptions
+  • Subscribe to Plan      (POST /v1/subscriptions)
+  • View Usage
+  • Offboard Tenant        (POST /v1/admins/tenants/{id}/offboard)
+
+Bulk actions (frontend wires these today via fan-out):
+  • Offboard               POST /v1/tenants/bulk/offboard       { ids[] }
+  • (future) Suspend/resume billing
+  • (future) Send announcement
+
+
+1.2  /v1/plans  (Plans list)
+─────────────────────────────
+Frontend page:    src/app/(platform-admin)/admin/plans/plans-page-client.tsx
+
+Required filters:
+  • status:               draft | active | archived | all          (default: active)
+  • tier:                 free | starter | professional | enterprise | custom
+  • includedFeature:      <featureKey>  (returns plans that include this feature)
+  • q  →  matches: name, displayName
+
+Sort allowlist:           displayName, basePriceMonthly, dateCreated, status
+
+Tabs:
+  • Active | Draft | Archived | All  (with `meta.facets.status` counts)
+
+Per-row actions:
+  • Edit
+  • Activate               (POST /v1/plans/{id}/activate)
+  • Archive                (POST /v1/plans/{id}/archive)
+  • Clone                  (POST /v1/plans/{id}/clone)
+  • Delete                 (DELETE /v1/plans/{id})
+
+Bulk actions:
+  • Activate               POST /v1/plans/bulk/activate    { ids[] }
+  • Archive                POST /v1/plans/bulk/archive     { ids[] }
+  • Delete                 POST /v1/plans/bulk/delete      { ids[] }
+
+
+1.3  /v1/subscriptions  (Subscriptions list)
+─────────────────────────────────────────────
+Frontend page:    src/app/(platform-admin)/admin/subscriptions/subscriptions-page-client.tsx
+Status:           multi-select NOT YET wired on frontend — gated on a usable
+                  bulk-cancel endpoint (cancel needs a `reason`)
+
+Required filters:
+  • tenantId
+  • status:               active | trialing | past_due | cancelled | suspended | expired
+  • planId
+  • billingCycle:         monthly | yearly
+  • renewsAtGte / renewsAtLte
+  • q  →  matches: tenantName, planDisplayName
+
+Sort allowlist:           renewsAt, dateCreated, status, mrr
+
+Tabs:
+  • Active+Trialing | Past Due | Cancelled+Expired | All
+
+Per-row actions:
+  • View
+  • Cancel                 POST /v1/subscriptions/{id}/cancel
+                           body: { reason: string, immediate: boolean }
+
+Bulk actions:
+  • Cancel                 POST /v1/subscriptions/bulk/cancel
+                           body: { ids: string[], reason: string, immediate: boolean }
+  IMPORTANT: cancel requires a `reason` per-batch. The frontend will collect
+  one shared reason for the whole bulk in a modal. Backend should NOT require
+  per-id reasons.
+
+
+1.4  /v1/invoices  (Payments / Invoices — admin scope)
+───────────────────────────────────────────────────────
+Frontend page:    src/app/(platform-admin)/admin/payments/payments-page-client.tsx
+Today:            read-only
+
+Required filters:
+  • tenantId
+  • status:               draft | issued | paid | void | refunded
+  • issuedAtGte / issuedAtLte
+  • amountGte / amountLte
+  • q  →  matches: invoiceNumber, tenantName
+
+Sort allowlist:           issuedAt, amount, status
+
+Tabs:
+  • Unpaid (issued+past_due) | Paid | Void/Refunded | All
+
+Per-row actions:
+  • View
+  • Download PDF           GET /v1/invoices/{id}/pdf
+
+Bulk actions:
+  • Download all selected  POST /v1/invoices/bulk/download
+                           response: { downloadUrl: string, expiresAt: <unix> }
+                           returns a signed URL to a one-time ZIP of PDFs
+  • Mark void              POST /v1/invoices/bulk/void  { ids[], reason }
+
+
+1.5  /v1/discounts  (Discounts list)
+─────────────────────────────────────
+Frontend page:    src/app/(platform-admin)/admin/discounts/discounts-page-client.tsx
+
+Required filters:
+  • status:               active | expired | disabled
+  • discountType:         percentage | fixed
+  • scope:                global | tenant | plan
+  • expiresAtGte / expiresAtLte
+  • q  →  matches: code, description
+
+Sort allowlist:           dateCreated, expiresAt, currentRedemptions, code
+
+Tabs:
+  • Active | Disabled | Expired | All
+
+Per-row actions:
+  • Edit (currently stubbed — backend already exposes the route, frontend
+    is waiting on a finalized PATCH /v1/discounts/{id} contract)
+  • Disable                POST /v1/discounts/{id}/disable
+  • Delete                 DELETE /v1/discounts/{id}
+
+Bulk actions:
+  • Disable                POST /v1/discounts/bulk/disable  { ids[] }
+  • Delete                 POST /v1/discounts/bulk/delete   { ids[] }
+
+
+1.6  /v1/admins/onboarding/submissions  (Onboarding queue)
+───────────────────────────────────────────────────────────
+Frontend page:    src/app/(platform-admin)/admin/tenants/onboarding/onboarding-queue-client.tsx
+
+Required filters:
+  • status:               new | partial_accepted | completed | accepted |
+                          rejected | archived
+  • turnstileVerified:    true | false
+  • submittedAtGte / submittedAtLte
+  • q  →  matches: organizationName, fullName, email
+
+Sort allowlist:           submittedAt, status, organizationName
+
+Tabs already exist on FE (driven by status). Counts via `?facets=status`.
+
+Per-row actions:
+  • Review                 (links to detail page)
+  • Archive                POST /v1/admins/onboarding/{id}/archive
+
+Bulk actions:
+  • Archive                POST /v1/admins/onboarding/bulk/archive { ids[] }
+  • Reject                 POST /v1/admins/onboarding/bulk/reject  { ids[], notes }
+    (frontend will gather a single reviewer-notes string for the batch)
+
+
+1.7  /v1/support-cases  (admin & SLA watch)
+────────────────────────────────────────────
+Frontend pages:
+  • src/app/(platform-admin)/admin/support-cases/page.tsx
+  • src/app/(platform-admin)/admin/support-cases/sla-watch/page.tsx
+Today:            read-only — no per-row mutations
+
+Required filters:
+  • status:               open | acknowledged | in_progress | resolved | closed
+  • severity:             low | medium | high | critical
+  • tenantId
+  • assigneeId
+  • slaState:             on_track | at_risk | breached
+  • createdAtGte / createdAtLte
+  • q  →  matches: title, summary, caseNumber
+
+Sort allowlist:           createdAt, slaDeadline, severity, status
+
+Tabs:
+  • Open (status in open|acknowledged|in_progress) | Resolved | Closed | All
+  • SLA-watch tab is a separate filtered view: `?slaState=at_risk,breached`
+
+Per-row actions (PLEASE EXPOSE — frontend will wire as soon as available):
+  • Assign to me           POST /v1/support-cases/{id}/assign { assigneeId }
+  • Change status          PATCH /v1/support-cases/{id} { status }
+  • Add note               POST /v1/support-cases/{id}/notes { body }
+  • Escalate               POST /v1/support-cases/{id}/escalate { reason }
+
+Bulk actions:
+  • Assign                 POST /v1/support-cases/bulk/assign { ids[], assigneeId }
+  • Change status          POST /v1/support-cases/bulk/status { ids[], status }
+  • Close                  POST /v1/support-cases/bulk/close  { ids[], reason }
+
+
+================================================================================
+2. TENANT-SHELL TABLES
+================================================================================
+
+2.1  /v1/system-users  (Users list)
+────────────────────────────────────
+Frontend page:    src/app/(tenant)/app/users/users-page-client.tsx
+
+Required filters:
+  • role:                 super_admin | dept_admin | receptionist | auditor |
+                          security_officer | dpo
+  • branchId              (single value)
+  • departmentId          (single value)
+  • accountStatus:        ACTIVE | INACTIVE | SUSPENDED
+  • q  →  matches: fullName, email
+
+Sort allowlist:           fullName, email, role, dateCreated, lastLoginAt
+
+Tabs:
+  • Active | Inactive | Suspended | All
+  Plus a quick "by role" tab strip OR keep it as a filter — backend should
+  let us facet on `role` so we can show `meta.facets.role = { receptionist: 12, ... }`.
+
+Per-row actions:
+  • Edit
+  • Reset password         POST /v1/system-users/{id}/reset-password
+  • Delete                 DELETE /v1/system-users/{id}
+                           BLOCKED for super_admin role (server already enforces)
+
+Bulk actions:
+  • Delete                 POST /v1/system-users/bulk/delete { ids[] }
+                           Server must skip super_admin and self silently and
+                           include them in the `failed` array with code
+                           `USER_DELETE_PROTECTED`. Frontend already applies a
+                           pre-filter but backend is the source of truth.
+  • Deactivate             POST /v1/system-users/bulk/deactivate { ids[] }
+                           (currently no per-row deactivate either — please add)
+  • Force password reset   POST /v1/system-users/bulk/reset-password { ids[] }
+
+
+2.2  /v1/departments  (Departments list)
+─────────────────────────────────────────
+Frontend page:    src/app/(tenant)/app/departments/departments-page-client.tsx
+
+Required filters:
+  • branchId
+  • q  →  matches: name
+
+Sort allowlist:           name, dateCreated, userCount
+
+Per-row actions:
+  • Edit
+  • Delete                 DELETE /v1/departments/{id}
+                           (please return 409 with code DEPARTMENT_HAS_USERS
+                            instead of cascade-deleting; frontend will surface
+                            the count and ask the user to reassign first)
+
+Bulk actions:
+  • Delete                 POST /v1/departments/bulk/delete { ids[] }
+
+
+2.3  /v1/branches  (Branches list)
+───────────────────────────────────
+Frontend page:    src/app/(tenant)/app/branches/branches-page-client.tsx
+
+Required filters:
+  • status:               active | inactive
+  • country, state, city
+  • q  →  matches: name, address, city
+
+Sort allowlist:           name, dateCreated, isActive
+
+Tabs:
+  • Active | Inactive | All
+
+Per-row actions:
+  • Edit
+  • Deactivate             POST /v1/branches/{id}/deactivate
+  • Delete                 DELETE /v1/branches/{id}
+
+Bulk actions:
+  • Deactivate             POST /v1/branches/bulk/deactivate { ids[] }
+  • Delete                 POST /v1/branches/bulk/delete { ids[] }
+
+
+2.4  /v1/appointments  (Appointments list)
+───────────────────────────────────────────
+Frontend page:    src/app/(tenant)/app/appointments/appointments-page-client.tsx
+
+Required filters:
+  • status:               scheduled | fulfilled | cancelled | missed
+  • departmentId
+  • hostId
+  • branchId
+  • scheduledAtGte / scheduledAtLte
+  • q  →  matches: visitorNameSnapshot, hostNameSnapshot, purpose
+
+Sort allowlist:           scheduledDatetime, dateCreated, status
+
+Tabs:
+  • Upcoming (scheduled, scheduledDatetime >= now) | Past | Cancelled | All
+
+Per-row actions:
+  • Edit
+  • Cancel                 (please add: PATCH /v1/appointments/{id} { status: cancelled }
+                           is fine but a dedicated POST /cancel that emits the
+                           right audit event is cleaner)
+  • Delete                 DELETE /v1/appointments/{id}
+
+Bulk actions:
+  • Cancel                 POST /v1/appointments/bulk/cancel { ids[], reason? }
+  • Delete                 POST /v1/appointments/bulk/delete { ids[] }
+
+
+2.5  /v1/audit-logs  (Audit log viewer)
+────────────────────────────────────────
+Frontend page:    src/app/(tenant)/app/audit/page.tsx
+Today:            read-only listing + export
+
+Required filters:
+  • actorUserId
+  • actorRole
+  • operation:            create | read | update | delete
+  • resourceType:         visitor | appointment | user | branch | department |
+                          incident | dpo_request | plan | subscription | …
+  • resourceId
+  • timestampGte / timestampLte (REQUIRED — default last 7 days unless
+                                  explicitly broadened, otherwise queries are
+                                  unbounded and slow)
+  • q  →  matches: free-text on the change-summary field
+
+Sort allowlist:           timestamp (default desc)
+
+Tabs:
+  • Last 24h | Last 7d | Last 30d | Custom range
+  These are presets for `timestampGte`. Backend just needs the range filter;
+  frontend computes the preset dates.
+
+Per-row actions:
+  • View detail (drawer)
+
+Bulk actions:
+  • Export selected (CSV)  GET /v1/audit-logs/export?ids=...&format=csv
+                           OR send the same filters as the list call to
+                           re-derive the dataset server-side, returning a
+                           streaming CSV. The list-filter approach is
+                           preferred since selecting specific log rows
+                           across pagination is rare.
+
+
+2.6  /v1/billing/invoices  (Tenant billing)
+────────────────────────────────────────────
+Frontend page:    src/app/(tenant)/app/billing/billing-page-client.tsx
+Today:            read-only
+
+Required filters: same shape as 1.4 but tenant-scoped automatically.
+
+Tabs:
+  • Open (issued+past_due) | Paid | Void/Refunded | All
+
+Per-row actions:
+  • Download PDF
+
+Bulk actions:
+  • Download selected (ZIP of PDFs)  POST /v1/billing/invoices/bulk/download
+
+
+2.7  /v1/dpo/requests  (Data Subject Requests)
+───────────────────────────────────────────────
+Frontend page:    src/app/(tenant)/app/dpo/page.tsx
+Today:            mutations are stubbed — frontend is waiting on the contract
+
+Required filters:
+  • status:               pending | in_progress | completed | rejected
+  • type:                 access | correction | deletion | consent_withdrawal
+  • createdAtGte / createdAtLte
+  • slaState:             on_track | at_risk | breached  (NDPA 30-day clock)
+  • q  →  matches: subjectEmail, subjectName, requestNumber
+
+Sort allowlist:           createdAt, slaDeadline, status
+
+Tabs:
+  • Open (pending+in_progress) | Completed | Rejected | All
+
+Per-row actions (PLEASE WIRE):
+  • Acknowledge            POST /v1/dpo/requests/{id}/acknowledge
+  • Mark complete          POST /v1/dpo/requests/{id}/complete  { resolution }
+  • Reject                 POST /v1/dpo/requests/{id}/reject    { reason }
+  • Download response pkg  GET  /v1/dpo/requests/{id}/package
+
+Bulk actions:
+  • Acknowledge            POST /v1/dpo/requests/bulk/acknowledge { ids[] }
+  • Reject                 POST /v1/dpo/requests/bulk/reject { ids[], reason }
+
+
+2.8  /v1/incidents  (Incidents list)
+─────────────────────────────────────
+Frontend page:    src/app/(tenant)/app/incidents/page.tsx
+
+Required filters:
+  • status:               open | investigating | contained | reported_to_ndpc | closed
+  • incidentType:         data_breach | unauthorized_access | data_export_exposure |
+                          device_loss | misconfiguration | third_party
+  • riskLevel:            low | medium | high | critical
+  • ndpcNotified:         true | false
+  • approachingDeadline:  true   (rows with notification_deadline within 24h)
+  • dateCreatedGte / dateCreatedLte
+  • q  →  matches: description, summary
+
+Sort allowlist:           dateCreated, notificationDeadline, riskLevel, status
+
+Tabs:
+  • Open (open+investigating) | Contained | Reported to NDPC | Closed | All
+  • Approaching Deadline (special tab — `?approachingDeadline=true`)
+
+Per-row actions:
+  • View / Edit
+  • Mark as Notified       PATCH /v1/incidents/{id} { ndpcNotified, notificationSentAt }
+
+Bulk actions:
+  • Mark as Notified       POST /v1/incidents/bulk/mark-notified
+                           body: { ids[], notificationSentAt? } // server defaults to now
+  • Change status          POST /v1/incidents/bulk/status { ids[], status }
+
+
+2.9  /v1/support-cases (tenant scope)
+──────────────────────────────────────
+Same shape as 1.7 but auto-scoped to the caller's tenant.
+
+
+================================================================================
+3. NON-TABLE LIST VIEWS THAT ALSO NEED FILTERS + BULK
+================================================================================
+
+3.1  Visitors — pending approvals queue
+────────────────────────────────────────
+Frontend file:    src/features/visitors/components/pending-approvals-queue.tsx
+
+Endpoint today:   GET /v1/visitors/sessions/pending  (status REGISTERED or
+                  PENDING_VERIFICATION)
+
+Required filters:
+  • departmentId
+  • hostId
+  • registeredAtGte / registeredAtLte
+  • verificationMethod:   id_scan | qr_upload | host_approval | none
+  • q  →  matches: visitorName, phone, hostName
+
+Tabs:
+  • New (REGISTERED) | Awaiting verification (PENDING_VERIFICATION) | All
+
+Bulk actions:
+  • Approve (host approval) POST /v1/visitors/sessions/bulk/host-approve { ids[] }
+  • Deny                    POST /v1/visitors/sessions/bulk/deny { ids[], reason }
+  • Force confirm           POST /v1/visitors/sessions/bulk/confirm
+                            body: { ids: string[], badgeFormat: "A6" | "A7" }
+                            response includes per-id badgePdfBase64 OR a single
+                            ZIP url for batch printing — please pick one and
+                            document.
+
+3.2  Visitors — grouped active list
+────────────────────────────────────
+Frontend file:    src/features/visitors/components/grouped-visitors-list.tsx
+
+Required filters: same as 3.1 but status = CHECKED_IN
+
+Bulk actions:
+  • Print badges (ZIP)     POST /v1/visitors/sessions/bulk/badges
+                           body: { ids: string[], badgeFormat: "A6" | "A7" }
+                           response: { downloadUrl, expiresAt }
+  • Check out              POST /v1/visitors/sessions/bulk/check-out
+                           body: { ids[], method: "qr_scan" | "manual" }
+
+
+================================================================================
+4. ADMIN-WIDE NICE-TO-HAVES
+================================================================================
+
+  • Saved filters per user.   Each list endpoint persists named filter sets
+    keyed on user_id + resource. POST /v1/me/saved-filters and
+    GET /v1/me/saved-filters?resource=tenants. Frontend will surface them
+    as a "Saved views" dropdown next to the search box.
+
+  • Column preferences.       Same shape but for which columns are visible
+    and their order. POST /v1/me/column-prefs?resource=tenants.
+
+  • Webhook notifications.    For long-running bulk actions (>5s) the
+    frontend wants either:
+      – an HTTP 202 with `{ jobId }` and `GET /v1/jobs/{jobId}` polling
+        (matches the existing in-flight-jobs hook), or
+      – a websocket / SSE stream on /v1/jobs/{jobId}/events.
+
+  • Idempotency keys.         All bulk POSTs should accept
+    `Idempotency-Key: <uuid>` and replay the cached response on retries
+    within 24h. Critical for delete/offboard so a flaky network doesn't
+    double-process.
+
+
+================================================================================
+5. SUMMARY TABLE — what's needed per resource (one-line)
+================================================================================
+
+resource              pagination  filters  tabs  bulk-endpoints
+────────────────      ──────────  ───────  ────  ──────────────
+tenants                  ✗          ✗        ✗      offboard
+plans                    ✗          ✗        ✗      activate, archive, delete
+subscriptions            ✗          ✗        ✗      cancel
+invoices (admin)         ✗          ✗        ✗      download, void
+discounts                ✗          ✗        ✗      disable, delete
+support-cases            ✗          ✗        ✗      assign, status, close
+onboarding               ✗          partial  ✓      archive, reject
+system-users             ✗          ✗        ✗      delete, deactivate, reset-pw
+departments              ✗          ✗        —      delete
+branches                 ✗          ✗        ✗      deactivate, delete
+appointments             ✗          ✗        ✗      cancel, delete
+audit-logs               ✗          partial  ✗      export
+billing/invoices         ✗          ✗        ✗      download
+dpo/requests             ✗          ✗        ✗      acknowledge, reject
+incidents                ✗          partial  ✗      mark-notified, status
+visitor sessions         partial    partial  ✗      host-approve, deny,
+                                                    confirm, badges, check-out
+
+✓ = implemented today    partial = some filters present    ✗ = missing entirely
+
+================================================================================
+End of file.
+================================================================================

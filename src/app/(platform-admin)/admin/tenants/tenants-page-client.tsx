@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import {
@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { formatDate } from "@/lib/utils/format-date";
@@ -246,10 +247,63 @@ function TenantActions({ tenant, onSubscribe, onOffboard }: TenantActionsProps) 
   );
 }
 
+type TenantStatusTab = "active" | "inactive" | "all";
+type SubscriptionStatusFilter = "all" | "active" | "trialing" | "past_due" | "cancelled" | "suspended" | "expired" | "none";
+
+const TENANT_TABS: { value: TenantStatusTab; label: string; description: string }[] = [
+  { value: "active", label: "Active", description: "Tenants currently provisioned and serving traffic" },
+  { value: "inactive", label: "Inactive", description: "Tenants that have been offboarded or deactivated" },
+  { value: "all", label: "All", description: "Show every tenant regardless of status" },
+];
+
 export function TenantsPageClient() {
   const { loadingHref, handleNavClick } = useNavigationLoading();
-  const { data, isLoading } = useTenantList();
-  const tenants = data || [];
+  // Tactical fix until the backend wires proper server-side pagination on
+  // /tenants — request a high limit so the client-paginated table can show
+  // every tenant. Spec for proper pagination is in `docs/tables.txt`.
+  const { data, isLoading } = useTenantList({ limit: 1000 });
+  const allTenants = useMemo(() => data || [], [data]);
+
+  const [statusTab, setStatusTab] = useState<TenantStatusTab>("active");
+  const [planFilter, setPlanFilter] = useState<string>("all");
+  const [subscriptionFilter, setSubscriptionFilter] =
+    useState<SubscriptionStatusFilter>("all");
+
+  const planOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const t of allTenants) {
+      const tier = t.planSummary?.planTier;
+      if (tier && !seen.has(tier)) seen.set(tier, tier);
+    }
+    return Array.from(seen.keys()).sort();
+  }, [allTenants]);
+
+  const tenants = useMemo(() => {
+    return allTenants.filter((t) => {
+      if (statusTab === "active" && !t.isActive) return false;
+      if (statusTab === "inactive" && t.isActive) return false;
+      if (planFilter !== "all" && t.planSummary?.planTier !== planFilter) return false;
+      if (subscriptionFilter !== "all") {
+        const sub = t.planSummary?.subscriptionStatus;
+        if (subscriptionFilter === "none") {
+          if (sub) return false;
+        } else if (sub !== subscriptionFilter) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [allTenants, statusTab, planFilter, subscriptionFilter]);
+
+  const tabCounts = useMemo(() => {
+    let active = 0;
+    let inactive = 0;
+    for (const t of allTenants) {
+      if (t.isActive) active += 1;
+      else inactive += 1;
+    }
+    return { active, inactive, all: allTenants.length };
+  }, [allTenants]);
 
   const [subscribeTarget, setSubscribeTarget] = useState<AdminTenant | null>(null);
   const [offboardTarget, setOffboardTarget] = useState<AdminTenant | null>(null);
@@ -493,6 +547,109 @@ export function TenantsPageClient() {
         }
       />
 
+      <Tabs
+        value={statusTab}
+        onValueChange={(v) => setStatusTab(v as TenantStatusTab)}
+      >
+        <TabsList className="flex w-full flex-wrap gap-1 h-auto md:w-auto">
+          {TENANT_TABS.map((tab) => (
+            <Tooltip key={tab.value}>
+              <TooltipTrigger asChild>
+                <TabsTrigger value={tab.value} className="min-h-[44px]">
+                  {tab.label}
+                  <span className="ml-2 rounded-full bg-muted px-2 text-xs text-muted-foreground">
+                    {tabCounts[tab.value]}
+                  </span>
+                </TabsTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{tab.description}</TooltipContent>
+            </Tooltip>
+          ))}
+        </TabsList>
+      </Tabs>
+
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:flex-wrap">
+        <div className="flex flex-1 flex-col gap-1 md:max-w-[220px]">
+          <Label htmlFor="tenant-plan-filter" className="text-xs text-muted-foreground">
+            Plan tier
+          </Label>
+          <Select value={planFilter} onValueChange={setPlanFilter}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <SelectTrigger id="tenant-plan-filter" className="min-h-[44px]">
+                  <SelectValue />
+                </SelectTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Filter the list to a specific plan tier
+              </TooltipContent>
+            </Tooltip>
+            <SelectContent>
+              <SelectItem value="all">All tiers</SelectItem>
+              {planOptions.map((tier) => (
+                <SelectItem key={tier} value={tier} className="capitalize">
+                  {tier}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-1 flex-col gap-1 md:max-w-[240px]">
+          <Label htmlFor="tenant-subscription-filter" className="text-xs text-muted-foreground">
+            Subscription status
+          </Label>
+          <Select
+            value={subscriptionFilter}
+            onValueChange={(v) =>
+              setSubscriptionFilter(v as SubscriptionStatusFilter)
+            }
+          >
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <SelectTrigger id="tenant-subscription-filter" className="min-h-[44px]">
+                  <SelectValue />
+                </SelectTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Filter by the tenant&apos;s current subscription state
+              </TooltipContent>
+            </Tooltip>
+            <SelectContent>
+              <SelectItem value="all">All subscriptions</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="trialing">Trialing</SelectItem>
+              <SelectItem value="past_due">Past due</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+              <SelectItem value="suspended">Suspended</SelectItem>
+              <SelectItem value="expired">Expired</SelectItem>
+              <SelectItem value="none">No subscription</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {(planFilter !== "all" || subscriptionFilter !== "all") && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="md:self-end min-h-[44px]"
+                onClick={() => {
+                  setPlanFilter("all");
+                  setSubscriptionFilter("all");
+                }}
+              >
+                Reset filters
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              Clear plan and subscription filters
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+
       <DataTable
         columns={columns}
         data={tenants}
@@ -501,8 +658,20 @@ export function TenantsPageClient() {
         pageSize={10}
         searchKey="companyName"
         searchPlaceholder="Search tenants…"
-        emptyTitle="No tenants yet"
-        emptyDescription="Bootstrap your first tenant to get started."
+        emptyTitle={
+          statusTab === "inactive"
+            ? "No inactive tenants"
+            : statusTab === "active"
+              ? "No active tenants"
+              : "No tenants yet"
+        }
+        emptyDescription={
+          planFilter !== "all" || subscriptionFilter !== "all"
+            ? "No tenants match the current filters. Try clearing them."
+            : statusTab === "inactive"
+              ? "Inactive tenants will appear here after offboarding."
+              : "Bootstrap your first tenant to get started."
+        }
         mobileCard={mobileCard}
         selectable
         getRowId={(tenant) => tenant.id}
