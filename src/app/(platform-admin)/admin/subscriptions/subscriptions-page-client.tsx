@@ -1,16 +1,20 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Loader2, MoreHorizontal, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   useSubscriptions,
   useCancelSubscription,
   useCreateSubscription,
 } from "@/features/subscriptions/hooks/use-subscriptions";
-import { useTenantList } from "@/features/auth/hooks/use-admin-dashboard";
-import { usePlans } from "@/features/plans/hooks/use-plans";
+import { useTenant, useTenantList } from "@/features/auth/hooks/use-admin-dashboard";
+import { usePlan, usePlans } from "@/features/plans/hooks/use-plans";
+import { TenantUsagePanel } from "@/features/usage/components/tenant-usage-panel";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
 import { Badge } from "@/components/ui/badge";
@@ -38,10 +42,12 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/format-date";
 import { useActionParam } from "@/hooks/use-action-param";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import type { Subscription } from "@/types/billing";
 import type { BillingCycle, SubscriptionStatus } from "@/types/enums";
 
@@ -65,6 +71,61 @@ function statusVariant(status: SubscriptionStatus) {
 function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
+
+/**
+ * The subscriptions list endpoint returns bare `tenantId` / `planId` strings
+ * with no embedded summaries, so each row hydrates its own tenant and plan
+ * lookups. React Query dedupes by key, so multiple subscriptions for the
+ * same tenant or plan share a single fetch.
+ */
+function TenantNameCell({ tenantId }: { tenantId: string }) {
+  const { data, isLoading } = useTenant(tenantId);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-1">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-3 w-40" />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-medium">
+        {data?.companyName ?? <span className="font-mono text-xs">{tenantId}</span>}
+      </p>
+      <p className="font-mono text-xs text-muted-foreground">{tenantId}</p>
+    </div>
+  );
+}
+
+function PlanNameCell({ planId }: { planId: string }) {
+  const { data, isLoading } = usePlan(planId);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-1">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-3 w-16" />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p className="text-sm">
+        {data?.displayName || data?.name || (
+          <span className="font-mono text-xs">{planId}</span>
+        )}
+      </p>
+      {data?.tier && (
+        <p className="text-xs capitalize text-muted-foreground">{data.tier}</p>
+      )}
+    </div>
+  );
+}
+
 
 interface SubscriptionRowProps {
   subscription: Subscription;
@@ -91,7 +152,8 @@ function SubscriptionActions({
     }
   }, [confirmOpen]);
 
-  const tenantLabel = subscription.tenant?.companyName ?? subscription.tenantId;
+  const { data: tenant } = useTenant(subscription.tenantId);
+  const tenantLabel = tenant?.companyName ?? subscription.tenantId;
   const periodEnd = subscription.currentPeriodEnd
     ? formatDate(subscription.currentPeriodEnd)
     : null;
@@ -214,6 +276,95 @@ function SubscriptionActions({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/**
+ * Header rendered above the subscriptions list (or usage view) when the
+ * page is scoped to a single tenant via `?tenantId=...`. Lets admins jump
+ * back to the tenants list and shows the resolved company name.
+ */
+function ScopedTenantHeader({ tenantId }: { tenantId: string }) {
+  const { data: tenant, isLoading } = useTenant(tenantId);
+  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const tenantsHref = "/admin/tenants";
+  const tenantHref = `/admin/tenants/${tenantId}`;
+  const isNavigatingTenants = loadingHref === tenantsHref;
+  const isNavigatingTenant = loadingHref === tenantHref;
+
+  return (
+    <div className="space-y-2">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="-ml-2 min-h-[44px]"
+          >
+            <Link href={tenantsHref} onClick={() => handleNavClick(tenantsHref)}>
+              {isNavigatingTenants ? (
+                <Loader2
+                  className="mr-2 h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Back to tenants
+            </Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          Return to the tenants list
+        </TooltipContent>
+      </Tooltip>
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        {isLoading ? (
+          <Skeleton className="h-5 w-48" />
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                href={tenantHref}
+                onClick={() => handleNavClick(tenantHref)}
+                className="text-sm font-medium underline-offset-2 hover:underline"
+              >
+                {isNavigatingTenant ? (
+                  <Loader2
+                    className="mr-1 inline h-3 w-3 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : null}
+                {tenant?.companyName ?? tenantId}
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              Open this tenant&apos;s overview page
+            </TooltipContent>
+          </Tooltip>
+        )}
+        <span className="font-mono text-xs text-muted-foreground break-all">
+          {tenantId}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Usage view rendered when the page URL includes `?tab=usage&tenantId=...`.
+ * The tenant detail page links here for the "Usage" CTA.
+ */
+function UsageView({ tenantId }: { tenantId: string }) {
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Usage"
+        description="Plan caps, monthly counters, and storage usage for this tenant"
+      />
+      <TenantUsagePanel tenantId={tenantId} />
+    </div>
   );
 }
 
@@ -344,7 +495,22 @@ function CreateSubscriptionModal({ open, onOpenChange }: CreateSubscriptionModal
 }
 
 export function SubscriptionsPageClient() {
-  const { data, isLoading, isError, refetch } = useSubscriptions({ limit: 100, sort: "-dateCreated" });
+  const searchParams = useSearchParams();
+  const tenantIdParam = searchParams.get("tenantId");
+  const tabParam = searchParams.get("tab");
+  const isUsageView = tabParam === "usage" && !!tenantIdParam;
+
+  const queryClient = useQueryClient();
+
+  // Filter the list by tenantId when the page is scoped to a single tenant.
+  const subscriptionsParams = React.useMemo(
+    () =>
+      tenantIdParam
+        ? { limit: 100, sort: "-dateCreated", tenantId: tenantIdParam }
+        : { limit: 100, sort: "-dateCreated" },
+    [tenantIdParam],
+  );
+  const { data, isLoading, isError, refetch } = useSubscriptions(subscriptionsParams);
   const { mutate: cancelSubscription, isPending } = useCancelSubscription();
   const [createModalOpen, setCreateModalOpen] = React.useState(false);
 
@@ -362,8 +528,16 @@ export function SubscriptionsPageClient() {
     const subscription = subscriptions.find((s) => s.id === subscriptionId);
     if (!subscription) return;
 
-    const tenantLabel =
-      subscription.tenant?.companyName ?? subscription.tenantId;
+    // Pull the tenant company name from React Query's cache (populated by
+    // <TenantNameCell> when it rendered the row). Fall back to the raw ID
+    // if the cache hasn't been hydrated yet.
+    const cachedTenant = queryClient.getQueryData<{ companyName?: string }>([
+      "admin",
+      "tenants",
+      "detail",
+      subscription.tenantId,
+    ]);
+    const tenantLabel = cachedTenant?.companyName ?? subscription.tenantId;
 
     cancelSubscription(
       {
@@ -392,36 +566,12 @@ export function SubscriptionsPageClient() {
     {
       id: "tenant",
       header: "Tenant",
-      cell: ({ row }) => {
-        const sub = row.original;
-        return (
-          <div>
-            <p className="text-sm font-medium">
-              {sub.tenant?.companyName ?? sub.tenantId}
-            </p>
-            {sub.tenant && (
-              <p className="text-xs text-muted-foreground">{sub.tenantId}</p>
-            )}
-          </div>
-        );
-      },
+      cell: ({ row }) => <TenantNameCell tenantId={row.original.tenantId} />,
     },
     {
       id: "plan",
       header: "Plan",
-      cell: ({ row }) => {
-        const sub = row.original;
-        return (
-          <div>
-            <p className="text-sm">{sub.plan?.displayName ?? sub.planId}</p>
-            {sub.plan && (
-              <p className="text-xs text-muted-foreground capitalize">
-                {sub.plan.tier}
-              </p>
-            )}
-          </div>
-        );
-      },
+      cell: ({ row }) => <PlanNameCell planId={row.original.planId} />,
     },
     {
       accessorKey: "status",
@@ -485,28 +635,38 @@ export function SubscriptionsPageClient() {
         onOpenChange={setCreateModalOpen}
       />
 
-      <PageHeader
-        title="Subscriptions"
-        description="Manage tenant subscriptions and billing"
-        actions={
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                className="w-full md:w-auto min-h-[44px]"
-                onClick={() => setCreateModalOpen(true)}
-              >
-                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                New Subscription
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              Subscribe a tenant to a plan with a billing cycle of your choice
-            </TooltipContent>
-          </Tooltip>
-        }
-      />
+      {tenantIdParam && <ScopedTenantHeader tenantId={tenantIdParam} />}
 
-      {isError ? (
+      {isUsageView ? (
+        <UsageView tenantId={tenantIdParam!} />
+      ) : (
+        <PageHeader
+          title={tenantIdParam ? "Tenant Subscriptions" : "Subscriptions"}
+          description={
+            tenantIdParam
+              ? "Subscriptions for this tenant"
+              : "Manage tenant subscriptions and billing"
+          }
+          actions={
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  className="w-full md:w-auto min-h-[44px]"
+                  onClick={() => setCreateModalOpen(true)}
+                >
+                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                  New Subscription
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Subscribe a tenant to a plan with a billing cycle of your choice
+              </TooltipContent>
+            </Tooltip>
+          }
+        />
+      )}
+
+      {isUsageView ? null : isError ? (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
           <p className="text-sm text-destructive">
             Failed to load subscriptions.{" "}
@@ -528,13 +688,9 @@ export function SubscriptionsPageClient() {
           mobileCard={(subscription) => (
             <div className="rounded-lg border p-4 space-y-3">
               <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">
-                    {subscription.tenant?.companyName ?? subscription.tenantId}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {subscription.plan?.displayName ?? subscription.planId}
-                  </p>
+                <div className="flex-1 min-w-0 space-y-2">
+                  <TenantNameCell tenantId={subscription.tenantId} />
+                  <PlanNameCell planId={subscription.planId} />
                 </div>
                 <Badge variant={statusVariant(subscription.status)}>
                   {capitalize(subscription.status.replace(/_/g, " "))}
