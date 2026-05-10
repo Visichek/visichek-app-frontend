@@ -8,7 +8,7 @@ import {
   Users2,
 } from "lucide-react";
 import { DistributionPie } from "@/components/recipes/distribution-pie";
-import { StatCard } from "@/components/recipes/stat-card";
+import { StatGroup } from "@/components/recipes/stat-group";
 import { TimeSeriesChart } from "@/components/recipes/time-series-chart";
 import type { TenantDashboardStats } from "@/types/dashboard";
 
@@ -26,141 +26,143 @@ export function ComplianceTab({ stats }: ComplianceTabProps) {
   const hasIncidentTrend = stats.incidentsLast30Days.some((p) => p.value > 0);
 
   return (
-    <div className="space-y-8">
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">
-          Data subject requests
-        </h2>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <StatCard
-            title="Open"
-            value={stats.openDsrRequests}
-            icon={<ClipboardList className="h-4 w-4" />}
-            description="Awaiting response"
-          />
-          <StatCard
-            title="Last 30 days"
-            value={stats.dsrRequests30d}
-            icon={<TrendingUp className="h-4 w-4" />}
-          />
-          <StatCard
-            title="All time"
-            value={stats.totalDsrRequests}
-            icon={<ClipboardList className="h-4 w-4" />}
-          />
-          <StatCard
-            title="Deadline incidents"
-            value={stats.incidentsApproachingDeadline}
-            icon={<AlertTriangle className="h-4 w-4" />}
-            description="Within 24h of NDPC"
-          />
-        </div>
-      </section>
+    <div className="space-y-6">
+      <StatGroup
+        title="Data subject requests"
+        items={[
+          {
+            label: "Open",
+            value: stats.openDsrRequests,
+            description: "Awaiting response",
+            icon: <ClipboardList className="h-4 w-4" />,
+            tone: stats.openDsrRequests > 0 ? "warning" : "default",
+          },
+          {
+            label: "Last 30d",
+            value: stats.dsrRequests30d,
+            icon: <TrendingUp className="h-4 w-4" />,
+          },
+          {
+            label: "All time",
+            value: stats.totalDsrRequests,
+            icon: <ClipboardList className="h-4 w-4" />,
+          },
+          {
+            label: "Deadline incidents",
+            value: stats.incidentsApproachingDeadline,
+            description: "Within 24h of NDPC",
+            icon: <AlertTriangle className="h-4 w-4" />,
+            tone:
+              stats.incidentsApproachingDeadline > 0 ? "danger" : "default",
+          },
+        ]}
+        columns={4}
+      />
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">
-          Incidents
-        </h2>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <StatCard
-            title="Total"
-            value={stats.totalIncidents}
-            icon={<ShieldAlert className="h-4 w-4" />}
-          />
-          <StatCard
-            title="Open"
-            value={stats.openIncidents}
-            icon={<ShieldAlert className="h-4 w-4" />}
-          />
-          <StatCard
-            title="Critical"
-            value={stats.criticalIncidents}
-            icon={<AlertTriangle className="h-4 w-4" />}
-          />
-          <StatCard
-            title="Today"
-            value={stats.incidentsToday}
-            icon={<ShieldAlert className="h-4 w-4" />}
-          />
-        </div>
-        {(hasIncidentTrend || hasIncidentTypes || hasIncidentStatuses) && (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            {hasIncidentTrend && (
-              <div className="lg:col-span-2">
-                <TimeSeriesChart
-                  title="Incidents — last 30 days"
-                  data={stats.incidentsLast30Days}
-                  color="hsl(0 84% 60%)"
-                  valueLabel="Incidents"
-                  height={220}
-                />
-              </div>
-            )}
-            {hasIncidentTypes && (
-              <DistributionPie
-                title="Incident type"
-                data={stats.incidentTypeDistribution}
+      <StatGroup
+        title="Incidents"
+        items={[
+          {
+            label: "Total",
+            value: stats.totalIncidents,
+            icon: <ShieldAlert className="h-4 w-4" />,
+          },
+          {
+            label: "Open",
+            value: stats.openIncidents,
+            icon: <ShieldAlert className="h-4 w-4" />,
+            tone: stats.openIncidents > 0 ? "warning" : "default",
+          },
+          {
+            label: "Critical",
+            value: stats.criticalIncidents,
+            icon: <AlertTriangle className="h-4 w-4" />,
+            tone: stats.criticalIncidents > 0 ? "danger" : "default",
+          },
+          {
+            label: "Today",
+            value: stats.incidentsToday,
+            icon: <ShieldAlert className="h-4 w-4" />,
+          },
+        ]}
+        columns={4}
+      />
+
+      {(hasIncidentTrend || hasIncidentTypes || hasIncidentStatuses) && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          {hasIncidentTrend && (
+            <div className="lg:col-span-2">
+              <TimeSeriesChart
+                title="Incidents — last 30 days"
+                data={stats.incidentsLast30Days}
+                color="hsl(0 84% 60%)"
+                valueLabel="Incidents"
                 height={220}
               />
-            )}
-            {hasIncidentStatuses && !hasIncidentTypes && (
-              <DistributionPie
-                title="Incident status"
-                data={stats.incidentStatusDistribution}
-                height={220}
-              />
-            )}
-          </div>
-        )}
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">
-          Audit activity
-        </h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <StatCard
-            title="Today"
-            value={stats.auditEventsToday}
-            icon={<FileSearch className="h-4 w-4" />}
-            description="Events recorded"
-          />
-          <StatCard
-            title="Last 7 days"
-            value={stats.auditEvents7d}
-            icon={<FileSearch className="h-4 w-4" />}
-          />
-          <StatCard
-            title="All time"
-            value={stats.totalAuditEvents}
-            icon={<FileSearch className="h-4 w-4" />}
-          />
+            </div>
+          )}
+          {hasIncidentTypes && (
+            <DistributionPie
+              title="Incident type"
+              data={stats.incidentTypeDistribution}
+              height={220}
+            />
+          )}
+          {hasIncidentStatuses && !hasIncidentTypes && (
+            <DistributionPie
+              title="Incident status"
+              data={stats.incidentStatusDistribution}
+              height={220}
+            />
+          )}
         </div>
-      </section>
+      )}
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">
-          Privacy posture
-        </h2>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          <StatCard
-            title="Privacy notices"
-            value={stats.privacyNoticesCount}
-            icon={<FileText className="h-4 w-4" />}
-            description="Published"
-          />
-          <StatCard
-            title="Retention policies"
-            value={stats.retentionPoliciesCount}
-            icon={<ClipboardList className="h-4 w-4" />}
-          />
-          <StatCard
-            title="Sub-processors"
-            value={stats.subProcessorsCount}
-            icon={<Users2 className="h-4 w-4" />}
-          />
-        </div>
-      </section>
+      <StatGroup
+        title="Audit activity"
+        items={[
+          {
+            label: "Today",
+            value: stats.auditEventsToday,
+            description: "Events recorded",
+            icon: <FileSearch className="h-4 w-4" />,
+          },
+          {
+            label: "Last 7d",
+            value: stats.auditEvents7d,
+            icon: <FileSearch className="h-4 w-4" />,
+          },
+          {
+            label: "All time",
+            value: stats.totalAuditEvents,
+            icon: <FileSearch className="h-4 w-4" />,
+          },
+        ]}
+        columns={3}
+      />
+
+      <StatGroup
+        title="Privacy posture"
+        items={[
+          {
+            label: "Privacy notices",
+            value: stats.privacyNoticesCount,
+            description: "Published",
+            icon: <FileText className="h-4 w-4" />,
+          },
+          {
+            label: "Retention policies",
+            value: stats.retentionPoliciesCount,
+            icon: <ClipboardList className="h-4 w-4" />,
+          },
+          {
+            label: "Sub-processors",
+            value: stats.subProcessorsCount,
+            icon: <Users2 className="h-4 w-4" />,
+          },
+        ]}
+        columns={3}
+      />
 
       {stats.consentWithdrawalCount > 0 && (
         <p className="text-xs text-muted-foreground">

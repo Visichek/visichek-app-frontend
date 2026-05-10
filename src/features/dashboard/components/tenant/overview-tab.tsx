@@ -9,7 +9,7 @@ import {
   Users,
 } from "lucide-react";
 import { DistributionPie } from "@/components/recipes/distribution-pie";
-import { StatCard } from "@/components/recipes/stat-card";
+import { StatGroup } from "@/components/recipes/stat-group";
 import { TimeSeriesChart } from "@/components/recipes/time-series-chart";
 import { RecentCheckInsCard } from "@/features/dashboard/components/recent-checkins-card";
 import { UpcomingAppointmentsCard } from "@/features/dashboard/components/upcoming-appointments-card";
@@ -35,61 +35,68 @@ function pct(value: number | undefined): string {
  */
 export function OverviewTab({ stats }: OverviewTabProps) {
   return (
-    <div className="space-y-8">
-      <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard
-          title="Total visitors"
-          value={stats.totalVisitors}
-          icon={<Users className="h-4 w-4" />}
-          description="Lifetime"
-        />
-        <StatCard
-          title="Total appointments"
-          value={stats.totalAppointments}
-          icon={<CalendarDays className="h-4 w-4" />}
-          description="Lifetime"
-        />
-        <StatCard
-          title="New this month"
-          value={stats.newSignupsThisMonth}
-          icon={<TrendingUp className="h-4 w-4" />}
-          trend={asTrend(stats.signupsGrowthMom)}
-          description="vs last month"
-        />
-        <StatCard
-          title="Retention rate"
-          value={pct(stats.visitorRetentionRate)}
-          icon={<Repeat className="h-4 w-4" />}
-          description={`${stats.returningVisitorCount} returning visitors`}
-        />
-      </section>
+    <div className="space-y-6">
+      <StatGroup
+        title="Headline"
+        items={[
+          {
+            label: "Total visitors",
+            value: stats.totalVisitors,
+            description: "Lifetime",
+            icon: <Users className="h-4 w-4" />,
+          },
+          {
+            label: "Total appointments",
+            value: stats.totalAppointments,
+            description: "Lifetime",
+            icon: <CalendarDays className="h-4 w-4" />,
+          },
+          {
+            label: "New this month",
+            value: stats.newSignupsThisMonth,
+            trend: asTrend(stats.signupsGrowthMom),
+            description: "vs last month",
+            icon: <TrendingUp className="h-4 w-4" />,
+          },
+          {
+            label: "Retention rate",
+            value: pct(stats.visitorRetentionRate),
+            description: `${stats.returningVisitorCount} returning`,
+            icon: <Repeat className="h-4 w-4" />,
+          },
+        ]}
+        columns={4}
+      />
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">Live now</h2>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <StatCard
-            title="Active"
-            value={stats.currentlyActive}
-            icon={<UserCheck className="h-4 w-4" />}
-            description="On site"
-          />
-          <StatCard
-            title="Awaiting checkout"
-            value={stats.awaitingCheckout}
-            icon={<UserMinus className="h-4 w-4" />}
-          />
-          <StatCard
-            title="Pending approval"
-            value={stats.pendingApproval}
-            icon={<ShieldAlert className="h-4 w-4" />}
-          />
-          <StatCard
-            title="Pending KYC"
-            value={stats.pendingKyc}
-            icon={<ShieldCheck className="h-4 w-4" />}
-          />
-        </div>
-      </section>
+      <StatGroup
+        title="Live now"
+        items={[
+          {
+            label: "Active",
+            value: stats.currentlyActive,
+            description: "On site",
+            icon: <UserCheck className="h-4 w-4" />,
+          },
+          {
+            label: "Awaiting checkout",
+            value: stats.awaitingCheckout,
+            icon: <UserMinus className="h-4 w-4" />,
+            tone: stats.awaitingCheckout > 0 ? "warning" : "default",
+          },
+          {
+            label: "Pending approval",
+            value: stats.pendingApproval,
+            icon: <ShieldAlert className="h-4 w-4" />,
+            tone: stats.pendingApproval > 0 ? "warning" : "default",
+          },
+          {
+            label: "Pending KYC",
+            value: stats.pendingKyc,
+            icon: <ShieldCheck className="h-4 w-4" />,
+          },
+        ]}
+        columns={4}
+      />
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
@@ -98,14 +105,14 @@ export function OverviewTab({ stats }: OverviewTabProps) {
             description="Daily check-ins"
             data={stats.visitsLast30Days}
             valueLabel="Visits"
-            height={260}
+            height={240}
           />
         </div>
         <DistributionPie
           title="New vs returning"
           description={`${stats.totalVisitors} visitor${stats.totalVisitors === 1 ? "" : "s"} all time`}
           data={stats.newVsReturning}
-          height={260}
+          height={240}
           emptyTitle="No visitors yet"
         />
       </section>

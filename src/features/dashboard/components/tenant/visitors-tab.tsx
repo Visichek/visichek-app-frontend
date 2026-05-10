@@ -1,6 +1,6 @@
 import { Crown, Repeat, TrendingUp, UserPlus, Users } from "lucide-react";
 import { DistributionPie } from "@/components/recipes/distribution-pie";
-import { StatCard } from "@/components/recipes/stat-card";
+import { StatGroup } from "@/components/recipes/stat-group";
 import { TimeSeriesChart } from "@/components/recipes/time-series-chart";
 import { TopList } from "@/components/recipes/top-list";
 import { GrowthRow } from "@/features/dashboard/components/growth-row";
@@ -86,61 +86,64 @@ export function VisitorsTab({ stats }: VisitorsTabProps) {
   ]);
 
   return (
-    <div className="space-y-8">
-      <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard
-          title="Total"
-          value={stats.totalVisitors}
-          icon={<Users className="h-4 w-4" />}
-          description="Lifetime visitor profiles"
-        />
-        <StatCard
-          title="Returning"
-          value={stats.returningVisitorCount}
-          icon={<Repeat className="h-4 w-4" />}
-          description="2 or more visits"
-        />
-        <StatCard
-          title="VIPs"
-          value={stats.vipVisitorCount}
-          icon={<Crown className="h-4 w-4" />}
-          description="5 or more visits"
-        />
-        <StatCard
-          title="Retention rate"
-          value={pct(stats.visitorRetentionRate)}
-          icon={<TrendingUp className="h-4 w-4" />}
-        />
-      </section>
+    <div className="space-y-6">
+      <StatGroup
+        title="Visitor base"
+        items={[
+          {
+            label: "Total",
+            value: stats.totalVisitors,
+            description: "Lifetime profiles",
+            icon: <Users className="h-4 w-4" />,
+          },
+          {
+            label: "Returning",
+            value: stats.returningVisitorCount,
+            description: "2+ visits",
+            icon: <Repeat className="h-4 w-4" />,
+          },
+          {
+            label: "VIPs",
+            value: stats.vipVisitorCount,
+            description: "5+ visits",
+            icon: <Crown className="h-4 w-4" />,
+          },
+          {
+            label: "Retention rate",
+            value: pct(stats.visitorRetentionRate),
+            icon: <TrendingUp className="h-4 w-4" />,
+          },
+        ]}
+        columns={4}
+      />
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">
-          New signups
-        </h2>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <StatCard
-            title="Today"
-            value={stats.newSignupsToday}
-            icon={<UserPlus className="h-4 w-4" />}
-          />
-          <StatCard
-            title="Last 7 days"
-            value={stats.newSignups7d}
-            icon={<UserPlus className="h-4 w-4" />}
-          />
-          <StatCard
-            title="Last 30 days"
-            value={stats.newSignups30d}
-            icon={<UserPlus className="h-4 w-4" />}
-          />
-          <StatCard
-            title="This month"
-            value={stats.newSignupsThisMonth}
-            icon={<UserPlus className="h-4 w-4" />}
-            description={`vs ${stats.newSignupsLastMonth} last`}
-          />
-        </div>
-      </section>
+      <StatGroup
+        title="New signups"
+        items={[
+          {
+            label: "Today",
+            value: stats.newSignupsToday,
+            icon: <UserPlus className="h-4 w-4" />,
+          },
+          {
+            label: "Last 7d",
+            value: stats.newSignups7d,
+            icon: <UserPlus className="h-4 w-4" />,
+          },
+          {
+            label: "Last 30d",
+            value: stats.newSignups30d,
+            icon: <UserPlus className="h-4 w-4" />,
+          },
+          {
+            label: "This month",
+            value: stats.newSignupsThisMonth,
+            description: `vs ${stats.newSignupsLastMonth} last`,
+            icon: <UserPlus className="h-4 w-4" />,
+          },
+        ]}
+        columns={4}
+      />
 
       <GrowthRow
         metrics={[

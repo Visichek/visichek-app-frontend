@@ -14,6 +14,11 @@ import { ErrorState } from "@/components/feedback/error-state";
 import { PageSkeleton } from "@/components/feedback/page-skeleton";
 import { PageHeader } from "@/components/recipes/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { QuickActions } from "@/components/tenant/quick-actions";
 import { ComplianceTab } from "@/features/dashboard/components/tenant/compliance-tab";
 import { OperationsTab } from "@/features/dashboard/components/tenant/operations-tab";
@@ -28,18 +33,35 @@ interface TabConfig {
   id: TabId;
   label: string;
   icon: LucideIcon;
+  description: string;
 }
 
 const BASE_TABS: TabConfig[] = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "visitors", label: "Visitors", icon: Users },
-  { id: "operations", label: "Operations", icon: Activity },
+  {
+    id: "overview",
+    label: "Overview",
+    icon: LayoutDashboard,
+    description: "Headline KPIs, live state, and recent activity",
+  },
+  {
+    id: "visitors",
+    label: "Visitors",
+    icon: Users,
+    description: "Visitor base, signups, distributions, and top performers",
+  },
+  {
+    id: "operations",
+    label: "Operations",
+    icon: Activity,
+    description: "Today, appointments, quality metrics, and traffic patterns",
+  },
 ];
 
 const COMPLIANCE_TAB: TabConfig = {
   id: "compliance",
   label: "Compliance",
   icon: ClipboardList,
+  description: "DSRs, incidents, audit activity, and privacy posture",
 };
 
 function canSeeCompliance(role: TenantDashboardStats["roleView"]): boolean {
@@ -87,21 +109,22 @@ export function DashboardPageClient() {
             const Icon = tab.icon;
             const showSpinner = isPending && pendingTab === tab.id;
             return (
-              <TabsTrigger
-                key={tab.id}
-                value={tab.id}
-                className="gap-2 px-4 py-2"
-              >
-                {showSpinner ? (
-                  <Loader2
-                    className="h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <Icon className="h-4 w-4" aria-hidden="true" />
-                )}
-                {tab.label}
-              </TabsTrigger>
+              <Tooltip key={tab.id}>
+                <TooltipTrigger asChild>
+                  <TabsTrigger value={tab.id} className="gap-2 px-4 py-2">
+                    {showSpinner ? (
+                      <Loader2
+                        className="h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <Icon className="h-4 w-4" aria-hidden="true" />
+                    )}
+                    {tab.label}
+                  </TabsTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{tab.description}</TooltipContent>
+              </Tooltip>
             );
           })}
         </TabsList>
