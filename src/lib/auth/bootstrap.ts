@@ -6,6 +6,7 @@ import {
   clearSessionState,
   markBootstrapDone,
 } from "@/lib/store/session-slice";
+import { readAuthHint } from "@/lib/auth/auth-hint";
 import { ApiError } from "@/types/api";
 import type {
   AdminProfile,
@@ -21,10 +22,11 @@ import type {
  * `withCredentials`, and on a 401 the axios interceptor will refresh once
  * before giving up.
  *
- * Strategy:
- *   1. Try `/system-users/me` first (the common case)
- *   2. On 4xx, fall back to `/admins/profile`
- *   3. If both fail, treat the user as logged out
+ * Strategy: pick the probe order based on the last-known session type
+ * (auth hint) or the current URL shell, then try the other endpoint as
+ * fallback. This avoids burning a guaranteed 403 on `/system-users/me`
+ * for platform admins (and a 403 on `/admins/profile` for tenant users)
+ * on every cold load.
  *
  * Returns `true` if a session was hydrated into Redux, `false` otherwise.
  */
@@ -37,6 +39,27 @@ import type {
 // runBootstrap had already set seconds earlier, which silently logs the
 // user out partway through their session.)
 const BOOTSTRAP_HARD_TIMEOUT_MS = 8_000;
+
+type ProbeOrder = "system_user_first" | "admin_first";
+
+// Decide which profile endpoint to probe first. The auth hint (last-known
+// session type, written to localStorage on login) is the strongest signal.
+// If it's missing we fall back to the URL shell — `/admin/*` is the
+// platform-admin shell, `/app/*` is the tenant shell. Anything else
+// defaults to system_user first since that's the broader user base.
+function pickProbeOrder(): ProbeOrder {
+  const hint = readAuthHint();
+  if (hint?.sessionType === "admin") return "admin_first";
+  if (hint?.sessionType === "system_user") return "system_user_first";
+
+  if (typeof window !== "undefined") {
+    const path = window.location.pathname;
+    if (path.startsWith("/admin")) return "admin_first";
+    if (path.startsWith("/app")) return "system_user_first";
+  }
+
+  return "system_user_first";
+}
 
 export async function bootstrapSession(): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -60,28 +83,56 @@ export async function bootstrapSession(): Promise<boolean> {
 
 async function runBootstrap(): Promise<boolean> {
   try {
-    const tenantProfile = await tryFetchSystemUserProfile();
-    if (tenantProfile) {
-      store.dispatch(
-        setSystemUserSession({
-          type: "system_user",
-          tokens: { accessToken: "", refreshToken: "" },
-          profile: tenantProfile,
-        })
-      );
-      return true;
-    }
+    const order = pickProbeOrder();
 
-    const adminProfile = await tryFetchAdminProfile();
-    if (adminProfile) {
-      store.dispatch(
-        setAdminSession({
-          type: "admin",
-          tokens: { accessToken: "", refreshToken: "" },
-          profile: adminProfile,
-        })
-      );
-      return true;
+    if (order === "admin_first") {
+      const adminProfile = await tryFetchAdminProfile();
+      if (adminProfile) {
+        store.dispatch(
+          setAdminSession({
+            type: "admin",
+            tokens: { accessToken: "", refreshToken: "" },
+            profile: adminProfile,
+          })
+        );
+        return true;
+      }
+
+      const tenantProfile = await tryFetchSystemUserProfile();
+      if (tenantProfile) {
+        store.dispatch(
+          setSystemUserSession({
+            type: "system_user",
+            tokens: { accessToken: "", refreshToken: "" },
+            profile: tenantProfile,
+          })
+        );
+        return true;
+      }
+    } else {
+      const tenantProfile = await tryFetchSystemUserProfile();
+      if (tenantProfile) {
+        store.dispatch(
+          setSystemUserSession({
+            type: "system_user",
+            tokens: { accessToken: "", refreshToken: "" },
+            profile: tenantProfile,
+          })
+        );
+        return true;
+      }
+
+      const adminProfile = await tryFetchAdminProfile();
+      if (adminProfile) {
+        store.dispatch(
+          setAdminSession({
+            type: "admin",
+            tokens: { accessToken: "", refreshToken: "" },
+            profile: adminProfile,
+          })
+        );
+        return true;
+      }
     }
 
     store.dispatch(clearSessionState());
