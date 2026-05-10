@@ -325,3 +325,81 @@ export interface TenantUsageSummary {
     storageMbLimit?: number | null;
   };
 }
+
+// ── Plan Limitations (`GET /v1/me/limitations`) ───────────────────────
+//
+// One-shot manifest of "what is denied / what is locked under the active
+// plan." The backend is the single source of truth; the frontend just
+// consumes the lists. See frontend-docs/limitations.txt §2 for the
+// canonical shape.
+
+/**
+ * Stable short keys for plan-gated features. Match these against
+ * `Limitations.deniedFeatures` to decide whether to render a nav item or
+ * action button. New keys may appear server-side without a frontend
+ * release — code defensively, treat unknown strings as "denied" if you
+ * see them here, and never invert the test.
+ */
+export type PlanFeatureKey =
+  | "appointments"
+  | "badges"
+  | "branding"
+  | "kyc"
+  | "csv_export"
+  | "host_email_notifications"
+  | "multi_location"
+  | "watchlist"
+  | "sso";
+
+export interface LimitationsPlanSummary {
+  id: string;
+  name: string;
+  displayName?: string;
+  tier: string;
+  /** True when the tenant landed on Free via cancel/dunning, not signup. */
+  isFreeFallback: boolean;
+  subscriptionStatus: string;
+  currentPeriodEnd?: number | null;
+  billingCycle?: string;
+  effectivePrice?: number;
+  basePriceMonthly?: number;
+  basePriceYearly?: number;
+  currency?: string;
+}
+
+export interface LimitationsCaps {
+  maxBranches: number | null;
+  maxDepartments: number | null;
+  maxSystemUsers: number | null;
+  maxVisitorsPerMonth: number | null;
+  maxAppointmentsPerMonth: number | null;
+}
+
+export interface DeniedEndpoint {
+  pattern: string;
+  methods: string[];
+  description?: string;
+}
+
+export interface LockedEntities {
+  branches: string[];
+  departments: string[];
+}
+
+export interface LimitationsEnterprise {
+  isEnterprise: boolean;
+  /** `/v1/enterprise/<plan-name>` when isEnterprise, else null. */
+  subAppPrefix: string | null;
+}
+
+export interface Limitations {
+  /** null for application admins (no tenant scope). */
+  tenantId: string | null;
+  plan: LimitationsPlanSummary | null;
+  caps: LimitationsCaps;
+  deniedEndpoints: DeniedEndpoint[];
+  /** Stable keys — drive nav and action visibility. */
+  deniedFeatures: PlanFeatureKey[] | string[];
+  lockedEntities: LockedEntities;
+  enterprise: LimitationsEnterprise;
+}

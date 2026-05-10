@@ -112,6 +112,8 @@ export function useChangePlan() {
       queryClient.invalidateQueries({
         queryKey: ["subscriptions", "tenant", subscription.tenantId, "active"],
       });
+      queryClient.invalidateQueries({ queryKey: ["me", "limitations"] });
+      queryClient.invalidateQueries({ queryKey: ["usage"] });
     },
   });
 }
@@ -132,6 +134,11 @@ export function useCancelSubscription() {
       queryClient.invalidateQueries({
         queryKey: ["subscriptions", "tenant", subscription.tenantId, "active"],
       });
+      // Cancel rotates the active plan (immediate → Free now, end-of-period
+      // → Free at period end). Refresh the limitations manifest so locked
+      // entities and denied features re-render.
+      queryClient.invalidateQueries({ queryKey: ["me", "limitations"] });
+      queryClient.invalidateQueries({ queryKey: ["usage"] });
     },
   });
 }

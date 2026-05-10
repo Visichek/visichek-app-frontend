@@ -105,13 +105,16 @@ export default function CheckoutStatusPage() {
   }, [session]);
 
   // When the session succeeds, refresh active subscription so the billing
-  // overview reflects the new plan when the user navigates back.
+  // overview reflects the new plan when the user navigates back. Also
+  // invalidate the plan-limitations manifest so locked branches /
+  // departments / denied nav re-render against the new plan.
   useEffect(() => {
     if (session?.status === "succeeded" && tenantId) {
       queryClient.invalidateQueries({
         queryKey: ["subscriptions", "tenant", tenantId, "active"],
       });
       queryClient.invalidateQueries({ queryKey: ["usage"] });
+      queryClient.invalidateQueries({ queryKey: ["me", "limitations"] });
     }
   }, [session?.status, tenantId, queryClient]);
 

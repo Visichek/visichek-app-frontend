@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Plus,
@@ -36,17 +36,34 @@ import {
 } from "@/features/branches/hooks/use-branches";
 import { summarizeBulkResult } from "@/lib/api/bulk";
 import { useCapabilities } from "@/hooks/use-capabilities";
+import { useCapability } from "@/features/limitations/hooks/use-limitations";
+import { LockedBadge } from "@/features/limitations/components/locked-badge";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
+import { cn } from "@/lib/utils/cn";
 import type { Branch } from "@/types/tenant";
 
 export function BranchesPageClient() {
   const { hasCapability } = useCapabilities();
-  const canCreate = hasCapability(CAPABILITIES.BRANCH_CREATE);
+  const {
+    isBranchLocked,
+    can,
+    capFor,
+    limitations,
+    isFreeFallback,
+  } = useCapability();
+  const planLabel = limitations?.plan?.displayName ?? limitations?.plan?.name;
+  const canCreate =
+    hasCapability(CAPABILITIES.BRANCH_CREATE) && can("multi_location");
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
   const { data: branchesList, isLoading } = useBranches({ limit: 200, sort: "name" });
   const data = branchesList?.items ?? [];
+  const branchCap = capFor("maxBranches");
+  const lockedCount = useMemo(
+    () => data.filter((b) => isBranchLocked(b.id)).length,
+    [data, isBranchLocked],
+  );
   const deleteMutation = useDeleteBranch();
   const deactivateMutation = useDeactivateBranch();
   const bulkDeactivate = useBulkBranchAction("deactivate");
@@ -91,7 +108,11 @@ export function BranchesPageClient() {
       icon: <PowerOff className="h-4 w-4" />,
       variant: "secondary",
       onClick: (_ids, rows) => {
-        const eligible = rows.filter((b) => b.isActive !== false).map((b) => b.id);
+        // Locked branches are already inactive and the backend rejects
+        // writes against them — skip them in bulk deactivate.
+        const eligible = rows
+          .filter((b) => b.isActive !== false && !isBranchLocked(b.id))
+          .map((b) => b.id);
         if (eligible.length === 0) {
           toast.info("None of the selected branches are currently active");
           return;
@@ -102,6 +123,8 @@ export function BranchesPageClient() {
     },
     {
       label: "Delete",
+      // Delete is intentionally allowed on locked rows so the tenant can
+      // come back under cap without upgrading.
       description: "Permanently delete every selected branch — this cannot be undone",
       icon: <Trash2 className="h-4 w-4" />,
       variant: "destructive",
@@ -155,7 +178,20 @@ export function BranchesPageClient() {
     {
       accessorKey: "name",
       header: "Name",
-      cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+      cell: ({ row }) => {
+        const locked = isBranchLocked(row.original.id);
+        return (
+          <span
+            className={cn(
+              "flex items-center gap-2 font-medium",
+              locked && "text-muted-foreground",
+            )}
+          >
+            {row.original.name}
+            {locked && <LockedBadge noun="branch" planLabel={planLabel} />}
+          </span>
+        );
+      },
     },
     {
       accessorKey: "address",
@@ -203,6 +239,7 @@ export function BranchesPageClient() {
       cell: ({ row }) => (
         <RowActions
           branch={row.original}
+          locked={isBranchLocked(row.original.id)}
           onDelete={handleDeleteClick}
           onDeactivate={handleDeactivateClick}
           loadingHref={loadingHref}
@@ -213,30 +250,42 @@ export function BranchesPageClient() {
     },
   ];
 
-  const mobileCard = (branch: Branch) => (
-    <div className="rounded-lg border p-4 space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="font-medium">{branch.name}</span>
-        <Badge
-          variant={
-            branch.isActive === false ? "secondary" : "success"
-          }
-        >
-          {branch.isActive === false ? "Inactive" : "Active"}
-        </Badge>
+  const mobileCard = (branch: Branch) => {
+    const locked = isBranchLocked(branch.id);
+    return (
+      <div
+        className={cn(
+          "rounded-lg border p-4 space-y-2",
+          locked && "opacity-60",
+        )}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-medium">{branch.name}</span>
+          <div className="flex items-center gap-1">
+            {locked && <LockedBadge noun="branch" planLabel={planLabel} />}
+            <Badge
+              variant={
+                branch.isActive === false ? "secondary" : "success"
+              }
+            >
+              {branch.isActive === false ? "Inactive" : "Active"}
+            </Badge>
+          </div>
+        </div>
+        {branch.address && (
+          <div className="text-sm text-muted-foreground">{branch.address}</div>
+        )}
+        <RowActions
+          branch={branch}
+          locked={locked}
+          onDelete={handleDeleteClick}
+          onDeactivate={handleDeactivateClick}
+          loadingHref={loadingHref}
+          handleNavClick={handleNavClick}
+        />
       </div>
-      {branch.address && (
-        <div className="text-sm text-muted-foreground">{branch.address}</div>
-      )}
-      <RowActions
-        branch={branch}
-        onDelete={handleDeleteClick}
-        onDeactivate={handleDeactivateClick}
-        loadingHref={loadingHref}
-        handleNavClick={handleNavClick}
-      />
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -268,6 +317,27 @@ export function BranchesPageClient() {
           ) : undefined
         }
       />
+
+      {lockedCount > 0 && (
+        <div
+          className="flex items-start gap-3 rounded-lg border border-amber-300/60 bg-amber-50 p-4 text-sm dark:border-amber-500/30 dark:bg-amber-500/10"
+          role="status"
+        >
+          <div className="space-y-1">
+            <p className="font-medium">
+              {lockedCount} branch{lockedCount === 1 ? "" : "es"} locked
+              under {planLabel ?? "your current plan"}
+            </p>
+            <p className="text-muted-foreground">
+              {isFreeFallback
+                ? "Your subscription dropped to Free, so non-HQ branches were deactivated automatically. Re-upgrade to bring them back, or delete them to free up the slot."
+                : `Your plan only includes ${
+                    branchCap ?? 1
+                  } location${branchCap === 1 ? "" : "s"}. Upgrade to unlock the rest, or delete the locked rows.`}
+            </p>
+          </div>
+        </div>
+      )}
 
       <DataTable
         columns={columns}
@@ -340,12 +410,14 @@ export function BranchesPageClient() {
 
 function RowActions({
   branch,
+  locked = false,
   onDelete,
   onDeactivate,
   loadingHref,
   handleNavClick,
 }: {
   branch: Branch;
+  locked?: boolean;
   onDelete: (b: Branch) => void;
   onDeactivate: (b: Branch) => void;
   loadingHref: string | null;
@@ -365,25 +437,29 @@ function RowActions({
           </DropdownMenuTrigger>
         </TooltipTrigger>
         <TooltipContent side="left">
-          Open actions for this branch
+          {locked
+            ? "Locked branch — only delete is available"
+            : "Open actions for this branch"}
         </TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem asChild>
-          <Link
-            href={editHref}
-            onClick={() => handleNavClick(editHref)}
-            className="flex items-center"
-          >
-            {isLoadingEdit ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Edit2 className="mr-2 h-4 w-4" />
-            )}
-            Edit
-          </Link>
-        </DropdownMenuItem>
-        {branch.isActive !== false && (
+        {!locked && (
+          <DropdownMenuItem asChild>
+            <Link
+              href={editHref}
+              onClick={() => handleNavClick(editHref)}
+              className="flex items-center"
+            >
+              {isLoadingEdit ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Edit2 className="mr-2 h-4 w-4" />
+              )}
+              Edit
+            </Link>
+          </DropdownMenuItem>
+        )}
+        {!locked && branch.isActive !== false && (
           <DropdownMenuItem onClick={() => onDeactivate(branch)}>
             <PowerOff className="mr-2 h-4 w-4" />
             Deactivate

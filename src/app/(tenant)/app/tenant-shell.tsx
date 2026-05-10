@@ -40,6 +40,8 @@ import { ROLE_ROUTES } from "@/lib/permissions/route-access";
 import { cn } from "@/lib/utils/cn";
 import { useThemeSync } from "@/hooks/use-theme-sync";
 import { requestUserLocation } from "@/lib/geolocation/user-location";
+import { useCapability } from "@/features/limitations/hooks/use-limitations";
+import type { PlanFeatureKey } from "@/types/billing";
 
 // Roles that act as geofencing approvers in approver-proximity mode. When
 // a tenant has not configured a fixed reference coordinate, visitor submits
@@ -53,7 +55,14 @@ const GEOFENCE_APPROVER_ROLES = new Set([
   "receptionist",
 ]);
 
-const ALL_TENANT_NAV_ITEMS: NavItem[] = [
+/**
+ * Map a nav item to a plan feature key. When the key is in
+ * `Limitations.deniedFeatures` we hide the entry — the backend will
+ * 403 every request anyway, so showing it would be a dead link.
+ */
+type GatedNavItem = NavItem & { feature?: PlanFeatureKey };
+
+const ALL_TENANT_NAV_ITEMS: GatedNavItem[] = [
   {
     label: "Dashboard",
     href: "/app/dashboard",
@@ -71,6 +80,7 @@ const ALL_TENANT_NAV_ITEMS: NavItem[] = [
     href: "/app/appointments",
     icon: CalendarDays,
     description: "Schedule, view, and manage visitor appointments with hosts in your organization",
+    feature: "appointments",
   },
   {
     label: "Departments",
@@ -83,6 +93,7 @@ const ALL_TENANT_NAV_ITEMS: NavItem[] = [
     href: "/app/branches",
     icon: GitBranch,
     description: "Manage physical branch locations and their operational status",
+    feature: "multi_location",
   },
   {
     label: "Users",
@@ -179,13 +190,25 @@ export function TenantShell({ children }: { children: React.ReactNode }) {
   const workspaceName = branding?.companyName ?? "VisiChek";
   const workspaceLogo = branding?.logoUrl;
 
+  const { can, isLoading: limitationsLoading } = useCapability();
+
   const visibleNavItems = useMemo(() => {
     if (!currentRole) return [];
     const allowedRoutes = ROLE_ROUTES[currentRole] ?? [];
-    return ALL_TENANT_NAV_ITEMS.filter((item) =>
-      allowedRoutes.some((route) => item.href.startsWith(route))
-    );
-  }, [currentRole]);
+    return ALL_TENANT_NAV_ITEMS.filter((item) => {
+      const allowedByRole = allowedRoutes.some((route) =>
+        item.href.startsWith(route),
+      );
+      if (!allowedByRole) return false;
+      // While limitations are loading, render every role-allowed item so
+      // the sidebar doesn't flash a missing entry. Once the manifest
+      // arrives, hide anything the backend would 403 anyway.
+      if (item.feature && !limitationsLoading && !can(item.feature)) {
+        return false;
+      }
+      return true;
+    });
+  }, [currentRole, can, limitationsLoading]);
 
   return (
     <AuthGuard shell="system_user">

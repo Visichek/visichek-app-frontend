@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Plus, Edit2, Trash2, MoreHorizontal, Loader2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -27,17 +27,32 @@ import {
 } from "@/features/departments/hooks/use-departments";
 import { summarizeBulkResult } from "@/lib/api/bulk";
 import { useCapabilities } from "@/hooks/use-capabilities";
+import { useCapability } from "@/features/limitations/hooks/use-limitations";
+import { LockedBadge } from "@/features/limitations/components/locked-badge";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
+import { cn } from "@/lib/utils/cn";
 import type { Department } from "@/types/tenant";
 
 export function DepartmentsPageClient() {
   const { hasCapability } = useCapabilities();
+  const {
+    isDepartmentLocked,
+    capFor,
+    limitations,
+    isFreeFallback,
+  } = useCapability();
+  const planLabel = limitations?.plan?.displayName ?? limitations?.plan?.name;
   const canCreate = hasCapability(CAPABILITIES.DEPARTMENT_CREATE);
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
   const { data: departmentsList, isLoading } = useDepartments({ limit: 200, sort: "name" });
   const data = departmentsList?.items ?? [];
+  const deptCap = capFor("maxDepartments");
+  const lockedCount = useMemo(
+    () => data.filter((d) => isDepartmentLocked(d.id)).length,
+    [data, isDepartmentLocked],
+  );
   const deleteQuery = useDeleteDepartment();
   const bulkDeleteQuery = useBulkDeleteDepartments();
 
@@ -96,7 +111,20 @@ export function DepartmentsPageClient() {
     {
       accessorKey: "name",
       header: "Name",
-      cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+      cell: ({ row }) => {
+        const locked = isDepartmentLocked(row.original.id);
+        return (
+          <span
+            className={cn(
+              "flex items-center gap-2 font-medium",
+              locked && "text-muted-foreground",
+            )}
+          >
+            {row.original.name}
+            {locked && <LockedBadge noun="department" planLabel={planLabel} />}
+          </span>
+        );
+      },
     },
     {
       id: "actions",
@@ -104,6 +132,7 @@ export function DepartmentsPageClient() {
       cell: ({ row }) => (
         <RowActions
           dept={row.original}
+          locked={isDepartmentLocked(row.original.id)}
           onDelete={handleDeleteClick}
           loadingHref={loadingHref}
           handleNavClick={handleNavClick}
@@ -113,17 +142,34 @@ export function DepartmentsPageClient() {
     },
   ];
 
-  const mobileCard = (dept: Department) => (
-    <div className="rounded-lg border p-4 flex items-center justify-between">
-      <span className="font-medium">{dept.name}</span>
-      <RowActions
-        dept={dept}
-        onDelete={handleDeleteClick}
-        loadingHref={loadingHref}
-        handleNavClick={handleNavClick}
-      />
-    </div>
-  );
+  const mobileCard = (dept: Department) => {
+    const locked = isDepartmentLocked(dept.id);
+    return (
+      <div
+        className={cn(
+          "rounded-lg border p-4 flex items-center justify-between gap-2",
+          locked && "opacity-60",
+        )}
+      >
+        <span
+          className={cn(
+            "flex items-center gap-2 font-medium",
+            locked && "text-muted-foreground",
+          )}
+        >
+          {dept.name}
+          {locked && <LockedBadge noun="department" planLabel={planLabel} />}
+        </span>
+        <RowActions
+          dept={dept}
+          locked={locked}
+          onDelete={handleDeleteClick}
+          loadingHref={loadingHref}
+          handleNavClick={handleNavClick}
+        />
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -155,6 +201,27 @@ export function DepartmentsPageClient() {
           ) : undefined
         }
       />
+
+      {lockedCount > 0 && (
+        <div
+          className="flex items-start gap-3 rounded-lg border border-amber-300/60 bg-amber-50 p-4 text-sm dark:border-amber-500/30 dark:bg-amber-500/10"
+          role="status"
+        >
+          <div className="space-y-1">
+            <p className="font-medium">
+              {lockedCount} department{lockedCount === 1 ? "" : "s"} locked
+              under {planLabel ?? "your current plan"}
+            </p>
+            <p className="text-muted-foreground">
+              {isFreeFallback
+                ? "Your subscription dropped to Free, so departments above the cap were locked. Re-upgrade to bring them back, or delete them to free up the slot."
+                : `Your plan only includes ${
+                    deptCap ?? 1
+                  } department${deptCap === 1 ? "" : "s"}. Upgrade to unlock the rest, or delete the locked rows.`}
+            </p>
+          </div>
+        </div>
+      )}
 
       <DataTable
         columns={columns}
@@ -202,11 +269,13 @@ export function DepartmentsPageClient() {
 
 function RowActions({
   dept,
+  locked = false,
   onDelete,
   loadingHref,
   handleNavClick,
 }: {
   dept: Department;
+  locked?: boolean;
   onDelete: (d: Department) => void;
   loadingHref: string | null;
   handleNavClick: (href: string) => void;
@@ -225,24 +294,28 @@ function RowActions({
           </DropdownMenuTrigger>
         </TooltipTrigger>
         <TooltipContent side="left">
-          Open actions for this department
+          {locked
+            ? "Locked department — only delete is available"
+            : "Open actions for this department"}
         </TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem asChild>
-          <Link
-            href={editHref}
-            onClick={() => handleNavClick(editHref)}
-            className="flex items-center"
-          >
-            {isLoadingEdit ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Edit2 className="mr-2 h-4 w-4" />
-            )}
-            Edit
-          </Link>
-        </DropdownMenuItem>
+        {!locked && (
+          <DropdownMenuItem asChild>
+            <Link
+              href={editHref}
+              onClick={() => handleNavClick(editHref)}
+              className="flex items-center"
+            >
+              {isLoadingEdit ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Edit2 className="mr-2 h-4 w-4" />
+              )}
+              Edit
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           onClick={() => onDelete(dept)}
           className="text-destructive"
