@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useContext, useEffect, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
+  NAVIGATION_COMMIT_EVENT,
   NavigationLoadingContext,
+  ensureNavigationCommitEvents,
   type NavigationLoadingContextValue,
 } from "@/lib/routing/navigation-context";
 
@@ -46,14 +48,21 @@ export function useNavLoading(
   const ctx = useContext(NavigationLoadingContext);
 
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const router = useRouter();
   const [localLoadingHref, setLocalLoadingHref] = useState<string | null>(null);
-  const committedSearch = searchParams.toString();
 
   useEffect(() => {
     setLocalLoadingHref(null);
-  }, [pathname, committedSearch]);
+  }, [pathname]);
+
+  useEffect(() => {
+    ensureNavigationCommitEvents();
+    const clearLoading = () => setLocalLoadingHref(null);
+    window.addEventListener(NAVIGATION_COMMIT_EVENT, clearLoading);
+    return () => {
+      window.removeEventListener(NAVIGATION_COMMIT_EVENT, clearLoading);
+    };
+  }, []);
 
   const localHandleNavClick = useCallback(
     (href: string) => {

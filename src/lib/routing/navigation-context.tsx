@@ -7,7 +7,35 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+
+export const NAVIGATION_COMMIT_EVENT = "visichek:navigation-commit";
+
+let historyEventsInstalled = false;
+
+export function ensureNavigationCommitEvents(): void {
+  if (typeof window === "undefined" || historyEventsInstalled) return;
+  historyEventsInstalled = true;
+
+  const notify = () => {
+    window.dispatchEvent(new Event(NAVIGATION_COMMIT_EVENT));
+  };
+  const originalPushState = window.history.pushState;
+  const originalReplaceState = window.history.replaceState;
+
+  window.history.pushState = function pushState(...args) {
+    const result = originalPushState.apply(this, args);
+    notify();
+    return result;
+  };
+  window.history.replaceState = function replaceState(...args) {
+    const result = originalReplaceState.apply(this, args);
+    notify();
+    return result;
+  };
+
+  window.addEventListener("popstate", notify);
+}
 
 export interface NavigationLoadingContextValue {
   /** True while a route transition is in flight. */
@@ -64,14 +92,21 @@ export function NavigationLoadingProvider({
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const router = useRouter();
   const [loadingHref, setLoadingHref] = useState<string | null>(null);
-  const committedSearch = searchParams.toString();
 
   useEffect(() => {
     setLoadingHref(null);
-  }, [pathname, committedSearch]);
+  }, [pathname]);
+
+  useEffect(() => {
+    ensureNavigationCommitEvents();
+    const clearLoading = () => setLoadingHref(null);
+    window.addEventListener(NAVIGATION_COMMIT_EVENT, clearLoading);
+    return () => {
+      window.removeEventListener(NAVIGATION_COMMIT_EVENT, clearLoading);
+    };
+  }, []);
 
   const handleNavClick = useCallback(
     (href: string) => {
