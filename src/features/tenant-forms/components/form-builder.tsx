@@ -1,9 +1,11 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   useState,
   useTransition,
   type DragEvent,
@@ -13,7 +15,9 @@ import Link from "next/link";
 import { toast } from "sonner";
 import {
   ArrowLeft,
+  Check,
   CheckCircle2,
+  CircleAlert,
   Eye,
   FileText,
   Layers3,
@@ -92,6 +96,15 @@ const TARGET_TABS: FormTargetType[] = [
   "appointment",
   "visit_session",
 ];
+
+const AUTOSAVE_DEBOUNCE_MS = 3000;
+
+type SaveStatus =
+  | { kind: "idle" }
+  | { kind: "saving" }
+  | { kind: "saved"; at: number }
+  | { kind: "error"; message: string }
+  | { kind: "blocked"; reason: string };
 
 function ordered(fields: FormFieldDefinition[]): FormFieldDefinition[] {
   return [...fields].sort((a, b) => {
@@ -233,6 +246,44 @@ function draftReducer(state: DraftState, action: DraftAction): DraftState {
   }
 }
 
+interface SavablePayload {
+  name: string;
+  description: string;
+  fields: FormFieldDefinition[];
+}
+
+function payloadFromDraft(draft: DraftState): SavablePayload {
+  return {
+    name: draft.name,
+    description: draft.description,
+    fields: restamp(ordered(draft.fields)),
+  };
+}
+
+function payloadSignature(payload: SavablePayload): string {
+  return JSON.stringify(payload);
+}
+
+function validatePayload(payload: SavablePayload): {
+  blocked: boolean;
+  reason?: string;
+} {
+  if (!payload.name.trim()) {
+    return { blocked: true, reason: "Add a form title to enable autosave." };
+  }
+  if (payload.fields.length === 0) {
+    return { blocked: true, reason: "Add a question to enable autosave." };
+  }
+  const missingLabel = payload.fields.find((field) => !field.label.trim());
+  if (missingLabel) {
+    return {
+      blocked: true,
+      reason: "Every question needs a title before autosave can run.",
+    };
+  }
+  return { blocked: false };
+}
+
 export function FormBuilder({
   defaultTarget = "checkin",
   backHref = "/app/visitors",
@@ -257,26 +308,132 @@ export function FormBuilder({
   const activeForm = activeFormQuery.data ?? null;
   const fields = useMemo(() => ordered(draft.fields), [draft.fields]);
 
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: "idle" });
+  const lastSavedSignatureRef = useRef<string | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inflightAbortRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
     setTarget(defaultTarget);
   }, [defaultTarget]);
 
+  // Hydrate from the active form for the current target. Reset the saved
+  // signature here so the first autosave isn't a no-op when the user starts
+  // editing what we just loaded.
   useEffect(() => {
     if (activeFormQuery.isLoading) return;
     const key = activeForm
       ? `${target}:${activeForm.formId}:${activeForm.version}`
       : `${target}:none`;
     if (hydratedKey === key) return;
-    dispatchDraft({
-      type: "hydrate",
-      draft: activeForm ? formToDraft(activeForm) : emptyDraft(target),
-    });
+    const next = activeForm ? formToDraft(activeForm) : emptyDraft(target);
+    dispatchDraft({ type: "hydrate", draft: next });
+    lastSavedSignatureRef.current = payloadSignature(payloadFromDraft(next));
+    setSaveStatus({ kind: "idle" });
     setHydratedKey(key);
   }, [activeForm, activeFormQuery.isLoading, hydratedKey, target]);
 
   useEffect(() => {
     if (!isSwitchPending) setSwitchingTo(null);
   }, [isSwitchPending]);
+
+  const runSave = useCallback(
+    async (payload: SavablePayload) => {
+      // Cancel any earlier in-flight save — we always want the most recent
+      // payload to win, not the first to land.
+      if (inflightAbortRef.current) inflightAbortRef.current.abort();
+      const controller = new AbortController();
+      inflightAbortRef.current = controller;
+
+      setSaveStatus({ kind: "saving" });
+      try {
+        if (activeForm) {
+          await updateMutation.mutateAsync({
+            formId: activeForm.formId,
+            name: payload.name.trim(),
+            description: payload.description.trim() || null,
+            fields: payload.fields,
+          });
+        } else {
+          await createMutation.mutateAsync({
+            targetType: target,
+            name: payload.name.trim(),
+            description: payload.description.trim() || null,
+            fields: payload.fields,
+          });
+        }
+        if (controller.signal.aborted) return;
+        lastSavedSignatureRef.current = payloadSignature(payload);
+        setSaveStatus({ kind: "saved", at: Date.now() });
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setSaveStatus({
+          kind: "error",
+          message: err instanceof Error ? err.message : "Couldn't save changes.",
+        });
+      } finally {
+        if (inflightAbortRef.current === controller) {
+          inflightAbortRef.current = null;
+        }
+      }
+    },
+    [activeForm, createMutation, updateMutation, target],
+  );
+
+  // Debounced autosave. Fires AUTOSAVE_DEBOUNCE_MS after the last change.
+  // Skips when:
+  //   - the form is still hydrating (no signature baseline)
+  //   - the payload hasn't changed since the last successful save
+  //   - validation gates it (missing name / labels / empty)
+  useEffect(() => {
+    if (lastSavedSignatureRef.current === null) return;
+
+    const payload = payloadFromDraft(draft);
+    const signature = payloadSignature(payload);
+    if (signature === lastSavedSignatureRef.current) {
+      // The latest change cancels nothing — but if we were showing a
+      // "saved" or "blocked" state already it should stay.
+      return;
+    }
+
+    const validation = validatePayload(payload);
+    if (validation.blocked) {
+      setSaveStatus({
+        kind: "blocked",
+        reason: validation.reason ?? "Autosave paused.",
+      });
+      return;
+    }
+
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      void runSave(payload);
+    }, AUTOSAVE_DEBOUNCE_MS);
+
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [draft, runSave]);
+
+  // Best-effort flush on tab close. The browser kills in-flight XHRs after
+  // ~1s but the standard mutation hits go through credentials:include axios
+  // — sendBeacon would need a different transport. We just dispatch a sync
+  // save attempt and let it race the unload.
+  useEffect(() => {
+    function onBeforeUnload() {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+        const payload = payloadFromDraft(draft);
+        if (payloadSignature(payload) !== lastSavedSignatureRef.current) {
+          const validation = validatePayload(payload);
+          if (!validation.blocked) void runSave(payload);
+        }
+      }
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [draft, runSave]);
 
   function switchTarget(nextTarget: FormTargetType) {
     if (nextTarget === target) return;
@@ -300,59 +457,51 @@ export function FormBuilder({
     setDraggingFieldId(null);
   }
 
-  async function handleSave() {
-    if (!draft.name.trim()) {
-      toast.error("Form name is required.");
+  async function handlePublishClick() {
+    const payload = payloadFromDraft(draft);
+    const validation = validatePayload(payload);
+    if (validation.blocked) {
+      toast.error(validation.reason ?? "Form isn't ready to publish yet.");
       return;
     }
-    if (fields.length === 0) {
-      toast.error("Add at least one question before saving.");
-      return;
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
     }
-    const missingLabel = fields.find((field) => !field.label.trim());
-    if (missingLabel) {
-      toast.error("Every question needs a label before saving.");
-      dispatchDraft({ type: "focus", fieldId: missingLabel.fieldId });
-      return;
-    }
-
-    const payloadFields = restamp(fields);
     try {
-      if (activeForm) {
-        await updateMutation.mutateAsync({
-          formId: activeForm.formId,
-          name: draft.name.trim(),
-          description: draft.description.trim() || null,
-          fields: payloadFields,
-        });
-        toast.success("Form updated. A new version is now active.");
-      } else {
-        await createMutation.mutateAsync({
-          targetType: target,
-          name: draft.name.trim(),
-          description: draft.description.trim() || null,
-          fields: payloadFields,
-        });
-        toast.success("Form published.");
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save form.");
+      await runSave(payload);
+      toast.success(
+        activeForm ? "Form updated. The new version is live." : "Form published.",
+      );
+    } catch {
+      // runSave already set the error status; toast is redundant.
     }
   }
 
-  const submitting = createMutation.isPending || updateMutation.isPending;
+  const submitting =
+    saveStatus.kind === "saving" ||
+    createMutation.isPending ||
+    updateMutation.isPending;
 
   return (
-    <div className="min-h-[calc(100vh-7rem)]">
-      <div className="sticky top-0 z-sticky -mx-4 border-b bg-background/95 px-4 py-3 backdrop-blur lg:-mx-6 lg:px-6">
+    <div className="min-h-[calc(100vh-7rem)] bg-muted/20">
+      <header className="sticky top-0 z-sticky -mx-4 border-b bg-background/95 px-4 py-3 backdrop-blur lg:-mx-6 lg:px-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 items-center gap-3">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" asChild className="min-h-[44px]">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  asChild
+                  className="min-h-[44px]"
+                >
                   <Link href={backHref} onClick={() => handleNavClick(backHref)}>
                     {loadingHref === backHref ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                      <Loader2
+                        className="mr-2 h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
                     ) : (
                       <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
                     )}
@@ -368,17 +517,13 @@ export function FormBuilder({
               <p className="text-xs font-medium text-muted-foreground">
                 Tenant form builder
               </p>
-              <input
-                value={draft.name}
-                onChange={(event) =>
-                  dispatchDraft({ type: "setName", value: event.target.value })
-                }
-                aria-label="Form name"
-                className="min-h-[44px] w-full min-w-0 bg-transparent text-xl font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
+              <h1 className="truncate text-lg font-semibold tracking-tight">
+                {draft.name || "Untitled form"}
+              </h1>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <SaveStatusPill status={saveStatus} />
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -400,26 +545,30 @@ export function FormBuilder({
                 <span>
                   <LoadingButton
                     type="button"
-                    onClick={handleSave}
+                    onClick={handlePublishClick}
                     isLoading={submitting}
-                    loadingText={activeForm ? "Publishing..." : "Creating..."}
+                    loadingText={activeForm ? "Saving…" : "Publishing…"}
                     className="min-h-[44px]"
                   >
-                    {activeForm ? "Save form" : "Publish form"}
+                    {activeForm ? "Publish update" : "Publish form"}
                   </LoadingButton>
                 </span>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                Publish this draft as the active version for the selected form target
+                Force-save the draft and publish it as the active version
               </TooltipContent>
             </Tooltip>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="grid gap-4 py-6 lg:grid-cols-[minmax(0,1fr)_64px]">
-        <main className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-          <div className="flex gap-2 overflow-x-auto border-b" role="tablist" aria-label="Form target">
+      <div className="grid gap-6 py-6 lg:grid-cols-[minmax(0,1fr)_64px]">
+        <main className="mx-auto flex w-full max-w-3xl flex-col gap-5">
+          <div
+            className="flex gap-2 overflow-x-auto border-b"
+            role="tablist"
+            aria-label="Form target"
+          >
             {TARGET_TABS.map((id) => {
               const meta = TARGET_TYPE_LABEL[id];
               const isActive = target === id;
@@ -433,21 +582,26 @@ export function FormBuilder({
                       aria-selected={isActive}
                       onClick={() => switchTarget(id)}
                       className={cn(
-                        "inline-flex min-h-[44px] items-center gap-2 whitespace-nowrap border-b-2 px-2 text-sm font-medium transition-colors",
+                        "inline-flex min-h-[44px] items-center gap-2 whitespace-nowrap border-b-2 px-3 text-sm font-medium transition-colors",
                         isActive
                           ? "border-primary text-primary"
                           : "border-transparent text-muted-foreground hover:text-foreground",
                       )}
                     >
                       {loading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                        <Loader2
+                          className="h-4 w-4 animate-spin"
+                          aria-hidden="true"
+                        />
                       ) : (
                         <Layers3 className="h-4 w-4" aria-hidden="true" />
                       )}
                       {meta.title}
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom">{meta.description}</TooltipContent>
+                  <TooltipContent side="bottom">
+                    {meta.description}
+                  </TooltipContent>
                 </Tooltip>
               );
             })}
@@ -463,26 +617,45 @@ export function FormBuilder({
             <>
               <section
                 className={cn(
-                  "rounded-lg border bg-card p-5 shadow-sm",
-                  draft.focusedFieldId === null && "border-primary shadow-primary/10",
+                  "relative overflow-hidden rounded-xl border bg-card shadow-sm transition",
+                  draft.focusedFieldId === null
+                    ? "ring-1 ring-primary/30"
+                    : "hover:border-muted-foreground/30",
                 )}
                 onClick={() => dispatchDraft({ type: "focus", fieldId: null })}
               >
-                <div className="mb-4 h-2 rounded-t-md bg-primary" />
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="tenant-form-name">Form title</Label>
+                <div
+                  className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-primary/60 to-primary/20"
+                  aria-hidden="true"
+                />
+                <div className="space-y-4 p-6">
+                  <div className="space-y-1">
+                    <Label
+                      htmlFor="tenant-form-name"
+                      className="text-xs uppercase tracking-wide text-muted-foreground"
+                    >
+                      Form title
+                    </Label>
                     <Input
                       id="tenant-form-name"
                       value={draft.name}
                       onChange={(event) =>
-                        dispatchDraft({ type: "setName", value: event.target.value })
+                        dispatchDraft({
+                          type: "setName",
+                          value: event.target.value,
+                        })
                       }
-                      className="min-h-[44px] text-base md:text-sm"
+                      placeholder="Untitled form"
+                      className="min-h-[44px] border-0 border-b border-input bg-muted/40 px-3 text-lg font-semibold shadow-none focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-ring md:text-base"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="tenant-form-description">Description</Label>
+                  <div className="space-y-1">
+                    <Label
+                      htmlFor="tenant-form-description"
+                      className="text-xs uppercase tracking-wide text-muted-foreground"
+                    >
+                      Description
+                    </Label>
                     <Textarea
                       id="tenant-form-description"
                       value={draft.description}
@@ -492,12 +665,19 @@ export function FormBuilder({
                           value: event.target.value,
                         })
                       }
-                      className="text-base md:text-sm"
+                      placeholder="What does this form capture? (Optional)"
+                      className="min-h-[80px] border-0 bg-muted/30 px-3 text-sm shadow-none focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-ring"
                     />
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <Badge variant="outline">{TARGET_TYPE_LABEL[target].title}</Badge>
-                    {activeForm ? <span>Active version v{activeForm.version}</span> : <span>New draft</span>}
+                  <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-muted-foreground">
+                    <Badge variant="outline" className="font-normal">
+                      {TARGET_TYPE_LABEL[target].title}
+                    </Badge>
+                    {activeForm ? (
+                      <span>Active version v{activeForm.version}</span>
+                    ) : (
+                      <span>New draft</span>
+                    )}
                   </div>
                 </div>
               </section>
@@ -505,21 +685,33 @@ export function FormBuilder({
               {activeFormQuery.isLoading ? (
                 <div className="space-y-3">
                   {[1, 2, 3].map((id) => (
-                    <div key={id} className="h-28 animate-pulse rounded-lg bg-muted" />
+                    <div
+                      key={id}
+                      className="h-28 animate-pulse rounded-xl bg-muted"
+                    />
                   ))}
                 </div>
               ) : fields.length === 0 ? (
-                <section className="rounded-lg border border-dashed bg-card p-8 text-center">
-                  <FileText className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden="true" />
-                  <h2 className="mt-3 text-base font-semibold">No questions yet</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                <section className="flex flex-col items-center rounded-xl border border-dashed bg-card/50 p-10 text-center">
+                  <div className="rounded-full bg-primary/10 p-3 text-primary">
+                    <FileText className="h-6 w-6" aria-hidden="true" />
+                  </div>
+                  <h2 className="mt-4 text-base font-semibold">
+                    No questions yet
+                  </h2>
+                  <p className="mt-1 max-w-sm text-sm text-muted-foreground">
                     Add a question to start configuring what this form captures.
+                    Every change is autosaved.
                   </p>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button type="button" onClick={addQuestion} className="mt-4 min-h-[44px]">
+                      <Button
+                        type="button"
+                        onClick={addQuestion}
+                        className="mt-5 min-h-[44px]"
+                      >
                         <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                        Add question
+                        Add first question
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top">
@@ -539,13 +731,22 @@ export function FormBuilder({
                       existingFieldIds={draft.fields.map((f) => f.fieldId)}
                       onChange={(next) => updateField(next, field.fieldId)}
                       onFocus={() =>
-                        dispatchDraft({ type: "focus", fieldId: field.fieldId })
+                        dispatchDraft({
+                          type: "focus",
+                          fieldId: field.fieldId,
+                        })
                       }
                       onDelete={() =>
-                        dispatchDraft({ type: "removeField", fieldId: field.fieldId })
+                        dispatchDraft({
+                          type: "removeField",
+                          fieldId: field.fieldId,
+                        })
                       }
                       onDuplicate={() =>
-                        dispatchDraft({ type: "duplicateField", fieldId: field.fieldId })
+                        dispatchDraft({
+                          type: "duplicateField",
+                          fieldId: field.fieldId,
+                        })
                       }
                       onDragStart={() => setDraggingFieldId(field.fieldId)}
                       onDragEnd={() => setDraggingFieldId(null)}
@@ -553,13 +754,15 @@ export function FormBuilder({
                       onDrop={(event) => handleDrop(event, index)}
                     />
                   ))}
-                  <div
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={(event) => handleDrop(event, fields.length)}
-                    className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground"
-                  >
-                    Drop here to move a question to the end
-                  </div>
+                  {draggingFieldId && (
+                    <div
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => handleDrop(event, fields.length)}
+                      className="rounded-xl border-2 border-dashed border-primary/50 bg-primary/5 p-4 text-center text-sm text-primary"
+                    >
+                      Drop here to move to the end
+                    </div>
+                  )}
                   <div className="flex justify-center pt-1">
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -584,7 +787,7 @@ export function FormBuilder({
           )}
         </main>
 
-        <aside className="flex gap-2 lg:sticky lg:top-24 lg:h-fit lg:flex-col">
+        <aside className="hidden lg:flex lg:sticky lg:top-24 lg:h-fit lg:flex-col lg:gap-2">
           <SideRailButton
             label="Add question"
             description="Append a new blank question to the form draft and focus it"
@@ -611,6 +814,83 @@ export function FormBuilder({
   );
 }
 
+function SaveStatusPill({ status }: { status: SaveStatus }) {
+  // Re-render every 20s while in saved state so "saved 2 minutes ago" stays
+  // accurate. Idle/saving/error states don't need this tick.
+  const [, force] = useState(0);
+  useEffect(() => {
+    if (status.kind !== "saved") return;
+    const id = setInterval(() => force((n) => n + 1), 20_000);
+    return () => clearInterval(id);
+  }, [status.kind]);
+
+  if (status.kind === "idle") return null;
+
+  let label: string;
+  let icon: ReactNode;
+  let tone: string;
+  switch (status.kind) {
+    case "saving":
+      label = "Saving…";
+      icon = (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+      );
+      tone = "text-muted-foreground";
+      break;
+    case "saved":
+      label = relativeSaveLabel(status.at);
+      icon = <Check className="h-3.5 w-3.5" aria-hidden="true" />;
+      tone = "text-emerald-600 dark:text-emerald-400";
+      break;
+    case "error":
+      label = status.message || "Save failed";
+      icon = <CircleAlert className="h-3.5 w-3.5" aria-hidden="true" />;
+      tone = "text-destructive";
+      break;
+    case "blocked":
+      label = status.reason;
+      icon = <CircleAlert className="h-3.5 w-3.5" aria-hidden="true" />;
+      tone = "text-amber-600 dark:text-amber-400";
+      break;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-3 py-1.5 text-xs font-medium",
+            tone,
+          )}
+          aria-live="polite"
+        >
+          {icon}
+          <span className="max-w-[24ch] truncate">{label}</span>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">
+        {status.kind === "blocked"
+          ? "Autosave is paused while the form is incomplete"
+          : status.kind === "error"
+            ? "Click Publish to retry, or keep editing — autosave will try again."
+            : status.kind === "saving"
+              ? "Changes are being saved automatically"
+              : "Last saved time updates as you keep working"}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function relativeSaveLabel(at: number): string {
+  const seconds = Math.max(0, Math.round((Date.now() - at) / 1000));
+  if (seconds < 5) return "Saved just now";
+  if (seconds < 60) return `Saved ${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `Saved ${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  return `Saved ${hours}h ago`;
+}
+
 function SideRailButton({
   label,
   description,
@@ -634,7 +914,7 @@ function SideRailButton({
           disabled={disabled}
           onClick={onClick}
           aria-label={label}
-          className="min-h-[44px] min-w-[44px]"
+          className="min-h-[44px] min-w-[44px] shadow-sm"
         >
           {icon}
         </Button>
@@ -734,7 +1014,7 @@ function PreviewControl({ field }: { field: FormFieldDefinition }) {
         multiple={field.type === "multi_select"}
         className="min-h-[44px] w-full rounded-md border bg-background px-3 py-2 text-base md:text-sm"
       >
-        <option value="">Choose...</option>
+        <option value="">Choose…</option>
         {(field.options ?? []).map((option) => (
           <option key={option.key} value={option.key}>
             {option.label}
@@ -754,7 +1034,10 @@ function PreviewControl({ field }: { field: FormFieldDefinition }) {
 
   if (field.type === "rating") {
     return (
-      <div className="flex gap-1 text-lg text-muted-foreground" aria-hidden="true">
+      <div
+        className="flex gap-1 text-lg text-muted-foreground"
+        aria-hidden="true"
+      >
         {Array.from({ length: 5 }).map((_, index) => (
           <span key={index}>*</span>
         ))}

@@ -85,9 +85,6 @@ export function FieldInlineEditor({
   onDrop,
 }: FieldInlineEditorProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [autoIdFromLabel, setAutoIdFromLabel] = useState(
-    () => !field.label || slugify(field.label) === field.fieldId,
-  );
 
   const idCollision = useMemo(() => {
     if (!field.fieldId) return false;
@@ -104,12 +101,11 @@ export function FieldInlineEditor({
   }
 
   function handleLabelChange(label: string) {
-    const next: FormFieldDefinition = { ...field, label };
-    if (autoIdFromLabel) {
-      const slug = slugify(label);
-      if (slug) next.fieldId = ensureUniqueId(slug, field.fieldId, existingFieldIds);
-    }
-    onChange(next);
+    // Don't touch fieldId here — it's the React key on the parent map. Mutating
+    // it on every keystroke (auto-slug from label) unmounts the input and the
+    // user loses focus after typing one character. Users who want a pretty id
+    // can set it in Advanced settings.
+    onChange({ ...field, label });
   }
 
   function handleTypeChange(type: FormFieldType) {
@@ -191,15 +187,11 @@ export function FieldInlineEditor({
             labelInputId={labelInputId}
             descriptionInputId={descriptionInputId}
             idCollision={idCollision}
-            autoIdFromLabel={autoIdFromLabel}
             showAdvanced={showAdvanced}
             onToggleAdvanced={() => setShowAdvanced((prev) => !prev)}
             onLabelChange={handleLabelChange}
             onTypeChange={handleTypeChange}
-            onFieldIdChange={(value) => {
-              setAutoIdFromLabel(false);
-              update("fieldId", slugify(value));
-            }}
+            onFieldIdChange={(value) => update("fieldId", slugify(value))}
             onUpdate={update}
             onAddOption={addOption}
             onAddOtherOption={addOtherOption}
@@ -278,21 +270,6 @@ export function FieldInlineEditor({
   );
 }
 
-function ensureUniqueId(
-  candidate: string,
-  currentId: string,
-  existing: string[],
-): string {
-  if (!existing.some((id) => id !== currentId && id === candidate)) {
-    return candidate;
-  }
-  let i = 2;
-  while (existing.some((id) => id !== currentId && id === `${candidate}_${i}`)) {
-    i += 1;
-  }
-  return `${candidate}_${i}`;
-}
-
 function ensureUniqueOptionKey(
   candidate: string,
   options: FormFieldOption[],
@@ -310,7 +287,6 @@ interface ExpandedEditorProps {
   labelInputId: string;
   descriptionInputId: string;
   idCollision: boolean;
-  autoIdFromLabel: boolean;
   showAdvanced: boolean;
   onToggleAdvanced: () => void;
   onLabelChange: (value: string) => void;
@@ -331,7 +307,6 @@ function ExpandedEditor({
   labelInputId,
   descriptionInputId,
   idCollision,
-  autoIdFromLabel,
   showAdvanced,
   onToggleAdvanced,
   onLabelChange,
@@ -443,7 +418,6 @@ function ExpandedEditor({
         <AdvancedSettings
           field={field}
           idCollision={idCollision}
-          autoIdFromLabel={autoIdFromLabel}
           onFieldIdChange={onFieldIdChange}
           onUpdate={onUpdate}
         />
@@ -479,7 +453,7 @@ function FieldTypeBody({
     return (
       <div className="space-y-2">
         {options.map((option, idx) => (
-          <div key={`${option.key}-${idx}`} className="flex items-center gap-3">
+          <div key={option.key} className="flex items-center gap-3">
             <span
               aria-hidden="true"
               className={cn(
@@ -632,13 +606,11 @@ function FieldTypeBody({
 function AdvancedSettings({
   field,
   idCollision,
-  autoIdFromLabel,
   onFieldIdChange,
   onUpdate,
 }: {
   field: FormFieldDefinition;
   idCollision: boolean;
-  autoIdFromLabel: boolean;
   onFieldIdChange: (value: string) => void;
   onUpdate: <K extends keyof FormFieldDefinition>(
     key: K,
@@ -664,10 +636,7 @@ function AdvancedSettings({
           className="min-h-[40px] text-base md:text-sm"
         />
         <p className="text-xs text-muted-foreground">
-          Stable identifier across versions.{" "}
-          {autoIdFromLabel
-            ? "Auto-generated from the question text — type here to override."
-            : "Once a form is published with this id, don't change it."}
+          Stable identifier across versions. Once a form is published with this id, don&apos;t change it — that&apos;s how historical submissions resolve.
         </p>
         {idCollision && (
           <p className="text-xs text-destructive" role="alert">

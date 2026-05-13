@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Plus,
@@ -19,6 +19,7 @@ import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-t
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -83,10 +84,54 @@ function isCanonicalPlan(plan: Plan): boolean {
   return CANONICAL_PLAN_NAMES.has(plan.name);
 }
 
+type PlanStatusTab = "active" | "archived" | "all";
+
+const PLAN_TABS: { value: PlanStatusTab; label: string; description: string }[] = [
+  {
+    value: "active",
+    label: "Active",
+    description: "Plans currently offered to new and existing subscriptions",
+  },
+  {
+    value: "archived",
+    label: "Archived",
+    description: "Plans no longer offered to new subscriptions — existing subscriptions are unaffected",
+  },
+  {
+    value: "all",
+    label: "All",
+    description: "Show every plan regardless of status (including drafts)",
+  },
+];
+
 export function PlansPageClient() {
   const { loadingHref, handleNavClick } = useNavigationLoading();
-  const { data, isLoading } = usePlans({ skip: 0, limit: 50, sort: "-dateCreated" });
+
+  const [statusTab, setStatusTab] = useState<PlanStatusTab>("active");
+
+  const listFilters = useMemo(() => {
+    const params: Record<string, unknown> = {
+      skip: 0,
+      limit: 50,
+      sort: "-dateCreated",
+      facets: "status",
+    };
+    if (statusTab !== "all") params.status = statusTab;
+    return params;
+  }, [statusTab]);
+
+  const { data, isLoading } = usePlans(listFilters);
   const plans = data?.items ?? [];
+  const meta = data?.meta;
+
+  const tabCounts = useMemo(() => {
+    const facet = meta?.facets?.status ?? {};
+    return {
+      active: facet.active ?? 0,
+      archived: facet.archived ?? 0,
+      all: facet.all ?? meta?.total ?? 0,
+    };
+  }, [meta]);
   const deleteMutation = useDeletePlan();
   const activateMutation = useActivatePlan();
   const archiveMutation = useArchivePlan();
@@ -466,6 +511,27 @@ export function PlansPageClient() {
         }
       />
 
+      <Tabs
+        value={statusTab}
+        onValueChange={(v) => setStatusTab(v as PlanStatusTab)}
+      >
+        <TabsList className="flex w-full flex-wrap gap-1 h-auto md:w-auto">
+          {PLAN_TABS.map((tab) => (
+            <Tooltip key={tab.value}>
+              <TooltipTrigger asChild>
+                <TabsTrigger value={tab.value} className="min-h-[44px]">
+                  {tab.label}
+                  <span className="ml-2 rounded-full bg-muted px-2 text-xs text-muted-foreground">
+                    {tabCounts[tab.value]}
+                  </span>
+                </TabsTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{tab.description}</TooltipContent>
+            </Tooltip>
+          ))}
+        </TabsList>
+      </Tabs>
+
       <DataTable
         columns={columns}
         data={plans}
@@ -474,8 +540,20 @@ export function PlansPageClient() {
         pageSize={10}
         searchKey="displayName"
         searchPlaceholder="Search plans..."
-        emptyTitle="No plans yet"
-        emptyDescription="Create your first subscription plan to get started."
+        emptyTitle={
+          statusTab === "archived"
+            ? "No archived plans"
+            : statusTab === "active"
+              ? "No active plans"
+              : "No plans yet"
+        }
+        emptyDescription={
+          statusTab === "archived"
+            ? "Plans you archive will appear here. Archived plans are not offered to new subscriptions."
+            : statusTab === "active"
+              ? "Activate or create a plan to make it available to new subscriptions."
+              : "Create your first subscription plan to get started."
+        }
         mobileCard={mobileCard}
         selectable
         getRowId={(plan) => plan.id}
