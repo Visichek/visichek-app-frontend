@@ -3,6 +3,7 @@ import { store } from "@/lib/store";
 import { clearSessionState } from "@/lib/store/session-slice";
 import { clearBranding } from "@/lib/store/branding-slice";
 import { clearUserLocation } from "@/lib/geolocation/user-location";
+import { isLogoutTransitionActive } from "@/lib/auth/auth-transition";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.visichek.app/v1";
@@ -77,6 +78,11 @@ export function clearSession(): void {
   clearUserLocation();
 
   if (typeof window === "undefined") return;
+
+  // Explicit logout owns its own final redirect. In-flight requests may
+  // still fail with 401 while the backend is clearing cookies; do not let
+  // those failures race the logout flow and bounce through dashboard/login.
+  if (isLogoutTransitionActive()) return;
 
   const currentPath = window.location.pathname;
 

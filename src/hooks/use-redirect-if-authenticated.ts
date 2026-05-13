@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "./use-session";
+import { shouldSuppressAuthRehydrate } from "@/lib/auth/auth-transition";
 import { getPostLoginPath } from "@/lib/routing/redirects";
 
 /**
@@ -24,6 +25,10 @@ export function useRedirectIfAuthenticated() {
   const [isChecking, setIsChecking] = useState(isAuthenticated);
 
   useEffect(() => {
+    if (shouldSuppressAuthRehydrate()) {
+      setIsChecking(false);
+      return;
+    }
     if (!isAuthenticated || !sessionType) {
       setIsChecking(false);
       return;

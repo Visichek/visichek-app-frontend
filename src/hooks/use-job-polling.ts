@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api/request";
+import { isPollingAllowed } from "@/lib/query/polling";
 import type { JobRecord } from "@/types/job";
 import {
   JOB_POLL_START_MS,
@@ -74,6 +75,7 @@ export function useJobPolling<TResult = unknown>(
     queryFn: () => apiGet<JobRecord<TResult>>(`/jobs/${jobId}`),
     enabled: !!jobId,
     refetchInterval: (q) => {
+      if (!isPollingAllowed()) return false;
       const status = q.state.data?.status;
       if (status === "succeeded" || status === "failed") return false;
 
@@ -139,4 +141,3 @@ export function useJobPolling<TResult = unknown>(
     refetch: query.refetch,
   };
 }
-

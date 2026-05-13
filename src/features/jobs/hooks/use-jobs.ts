@@ -2,6 +2,7 @@
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api/request";
+import { POLLING_INTERVALS, pollWhenAuthenticated } from "@/lib/query/polling";
 import type { JobListParams, JobRecord } from "@/types/job";
 
 // Centralised keys so anything that invalidates jobs can do so cleanly.
@@ -24,7 +25,7 @@ export function useJobs(params?: JobListParams) {
     queryFn: () => apiGet<JobRecord[]>("/jobs", params),
     placeholderData: keepPreviousData,
     // Jobs change fast; keep the list fresh without beating the endpoint.
-    refetchInterval: 5_000,
+    refetchInterval: () => pollWhenAuthenticated(POLLING_INTERVALS.jobsList),
     refetchIntervalInBackground: false,
     staleTime: 2_000,
   });
@@ -43,7 +44,7 @@ export function useJob(taskId: string | null | undefined) {
     refetchInterval: (q) => {
       const status = q.state.data?.status;
       if (status === "succeeded" || status === "failed") return false;
-      return 1_000;
+      return pollWhenAuthenticated(POLLING_INTERVALS.jobDetail);
     },
   });
 }

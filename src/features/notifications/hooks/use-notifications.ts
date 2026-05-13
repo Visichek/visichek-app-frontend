@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiGet, apiPatch, apiPost, apiDelete, apiPut } from "@/lib/api/request";
+import { POLLING_INTERVALS, pollWhenAuthenticated } from "@/lib/query/polling";
 import type {
   NotificationOut,
   NotificationListPage,
@@ -63,7 +64,8 @@ export function useNotifications(params?: {
       return normalizeNotificationList(raw);
     },
     placeholderData: keepPreviousData,
-    refetchInterval: 30_000,
+    refetchInterval: () =>
+      pollWhenAuthenticated(POLLING_INTERVALS.notifications),
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     staleTime: 15_000,
@@ -79,7 +81,8 @@ export function useUnreadCount() {
     // Keep the bell fresh: poll every 30s, refresh when the window gets focus
     // again, and treat any value older than 15s as stale. This matches the
     // queued-write guide's "safety-net" behaviour for failure notifications.
-    refetchInterval: 30_000,
+    refetchInterval: () =>
+      pollWhenAuthenticated(POLLING_INTERVALS.notifications),
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     staleTime: 15_000,

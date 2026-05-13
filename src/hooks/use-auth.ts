@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback } from "react";
+import axios from "axios";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useAppDispatch, useAppSelector } from "@/lib/store/hooks";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import {
@@ -11,7 +14,14 @@ import {
 } from "@/lib/store/session-slice";
 import { clearBranding } from "@/lib/store/branding-slice";
 import { apiPost } from "@/lib/api/request";
-import apiClient from "@/lib/api/client";
+import { clearUserLocation } from "@/lib/geolocation/user-location";
+import {
+  beginLogoutTransition,
+  clearExplicitLogout,
+  finishLogoutTransition,
+  isLogoutTransitionActive,
+  markExplicitLogout,
+} from "@/lib/auth/auth-transition";
 import { getPostLoginPath } from "@/lib/routing/redirects";
 import {
   isOtpChallenge,
@@ -28,6 +38,9 @@ import type {
   SystemUserLoginResponse,
   SuperAdminGlobalLoginResponse,
 } from "@/types/auth";
+
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.visichek.app/v1";
 
 /**
  * Auth tokens live in httpOnly cookies set by the backend on every login
@@ -74,6 +87,7 @@ const EMPTY_TOKENS = { accessToken: "", refreshToken: "" };
 
 export function useAuth() {
   const dispatch = useAppDispatch();
+  const queryClient = useQueryClient();
   const sessionType = useAppSelector(selectSessionType);
   const { navigate } = useNavigationLoading();
 
@@ -105,6 +119,7 @@ export function useAuth() {
         email: loginData.email,
       };
 
+      clearExplicitLogout();
       dispatch(setAdminSession({ type: "admin", tokens: EMPTY_TOKENS, profile }));
       navigate(getPostLoginPath("admin"));
       return { kind: "complete" };
@@ -151,6 +166,7 @@ export function useAuth() {
       const loginData = data as SystemUserLoginResponse;
       const profile = extractProfile(loginData);
 
+      clearExplicitLogout();
       dispatch(
         setSystemUserSession({
           type: "system_user",
@@ -190,6 +206,7 @@ export function useAuth() {
       const loginData = data as SystemUserLoginResponse;
       const profile = extractProfile(loginData);
 
+      clearExplicitLogout();
       dispatch(
         setSystemUserSession({
           type: "system_user",
@@ -242,6 +259,7 @@ export function useAuth() {
       );
 
       const profile = extractProfile(data);
+      clearExplicitLogout();
       dispatch(
         setSystemUserSession({
           type: "system_user",
@@ -282,11 +300,13 @@ export function useAuth() {
           fullName: adminData.fullName,
           email: adminData.email,
         };
+        clearExplicitLogout();
         dispatch(setAdminSession({ type: "admin", tokens: EMPTY_TOKENS, profile }));
         navigate(getPostLoginPath("admin"));
       } else {
         const userData = data as SystemUserLoginResponse;
         const profile = extractProfile(userData);
+        clearExplicitLogout();
         dispatch(
           setSystemUserSession({
             type: "system_user",
@@ -304,19 +324,46 @@ export function useAuth() {
    * Logout: call backend to clear httpOnly cookies, then clear local state.
    */
   const logout = useCallback(async () => {
+    if (isLogoutTransitionActive()) return;
+
     const logoutEndpoint =
       sessionType === "admin" ? "/admins/logout" : "/system-users/logout";
+    const loginPath = sessionType === "admin" ? "/admin/login" : "/app/login";
 
     try {
-      await apiClient.post(logoutEndpoint);
-    } catch {
-      // Best-effort — still clear local state even if this fails.
+      beginLogoutTransition();
+      await axios.post(
+        `${API_BASE_URL}${logoutEndpoint}`,
+        {},
+        {
+          withCredentials: true,
+          headers: { "Content-Type": "application/json" },
+          timeout: 10_000,
+        },
+      );
+    } catch (err) {
+      if (!axios.isAxiosError(err) || err.response?.status !== 401) {
+        finishLogoutTransition();
+        toast.error("Couldn't sign out. Please check your connection and try again.");
+        return;
+      }
+      // A 401 means the backend already considers this browser logged out.
+      // Continue locally without invoking the refresh interceptor.
     }
 
+    markExplicitLogout();
+    await queryClient.cancelQueries();
+    queryClient.clear();
     dispatch(clearSessionState());
     dispatch(clearBranding());
-    navigate(sessionType === "admin" ? "/admin/login" : "/app/login");
-  }, [dispatch, navigate, sessionType]);
+    clearUserLocation();
+
+    if (typeof window !== "undefined") {
+      window.location.replace(loginPath);
+    } else {
+      navigate(loginPath);
+    }
+  }, [dispatch, navigate, queryClient, sessionType]);
 
   return {
     loginAdmin,

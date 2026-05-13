@@ -21,7 +21,6 @@ import {
 import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
 import { MobileNavSheet } from "@/components/navigation/mobile-nav-sheet";
 import { Topbar } from "@/components/navigation/topbar";
-import { FullReloadNavInterceptor } from "@/components/navigation/full-reload-nav-interceptor";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useTenantBranding } from "@/hooks/use-tenant-branding";
 import { useAppSelector } from "@/lib/store/hooks";
@@ -212,7 +211,6 @@ export function TenantShell({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthGuard shell="system_user">
-      <FullReloadNavInterceptor />
       <div className="min-h-screen bg-background">
         <AppSidebar
           items={visibleNavItems}

@@ -12,6 +12,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '@/lib/api/request';
+import { POLLING_INTERVALS, pollWhenAuthenticated } from '@/lib/query/polling';
 import type {
   VisitSession,
   VisitorProfile,
@@ -78,7 +79,8 @@ export function useActiveVisitors(departmentId?: string) {
       });
       return (data ?? []).map(normalizeSession);
     },
-    refetchInterval: 5000,
+    refetchInterval: () =>
+      pollWhenAuthenticated(POLLING_INTERVALS.activeVisitors),
     refetchIntervalInBackground: false,
     staleTime: 2000,
   });
@@ -173,7 +175,8 @@ export function useAwaitingCheckout(params?: {
       );
       return data ?? [];
     },
-    refetchInterval: 5000,
+    refetchInterval: () =>
+      pollWhenAuthenticated(POLLING_INTERVALS.awaitingCheckout),
     refetchIntervalInBackground: false,
     staleTime: 2000,
   });

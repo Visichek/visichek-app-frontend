@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api/request";
+import { POLLING_INTERVALS, pollWhenAuthenticated } from "@/lib/query/polling";
 import type { TenantDashboardStats } from "@/types/dashboard";
 
 /**
@@ -10,7 +11,6 @@ import type { TenantDashboardStats } from "@/types/dashboard";
  * server invalidations from queued writes (which mark the scope dirty for
  * an immediate recompute on next read).
  */
-const REFETCH_INTERVAL_MS = 30_000;
 const STALE_TIME_MS = 30_000;
 
 const dashboardKeys = {
@@ -41,7 +41,8 @@ export function useDashboardStats(options: UseDashboardStatsOptions = {}) {
       ),
     enabled,
     staleTime: STALE_TIME_MS,
-    refetchInterval: REFETCH_INTERVAL_MS,
+    refetchInterval: () =>
+      pollWhenAuthenticated(POLLING_INTERVALS.dashboardStats),
     refetchOnWindowFocus: true,
   });
 }

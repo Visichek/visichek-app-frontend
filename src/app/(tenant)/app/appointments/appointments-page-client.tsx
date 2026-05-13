@@ -9,6 +9,7 @@ import {
   Edit2,
   Trash2,
   Loader2,
+  Settings2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/recipes/page-header";
@@ -34,6 +35,7 @@ import {
 } from "@/features/appointments/hooks/use-appointments";
 import { summarizeBulkResult } from "@/lib/api/bulk";
 import { useCapabilities } from "@/hooks/use-capabilities";
+import { useSession } from "@/hooks/use-session";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import { formatDateTime } from "@/lib/utils/format-date";
@@ -55,7 +57,9 @@ function statusVariant(status: AppointmentStatus) {
 
 export function AppointmentsPageClient() {
   const { hasCapability } = useCapabilities();
+  const { currentRole } = useSession();
   const canCreate = hasCapability(CAPABILITIES.APPOINTMENT_CREATE);
+  const canConfigureForms = currentRole === "super_admin";
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
   const { data: appointmentsList, isLoading } = useAppointments({ limit: 100, sort: "-scheduledDatetime" });
@@ -229,28 +233,52 @@ export function AppointmentsPageClient() {
         title="Appointments"
         description="Scheduled and past appointments"
         actions={
-          canCreate ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button asChild className="w-full md:w-auto min-h-[44px]">
-                  <Link
-                    href="/app/appointments/new"
-                    onClick={() => handleNavClick("/app/appointments/new")}
-                  >
-                    {loadingHref === "/app/appointments/new" ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                    ) : (
-                      <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                    )}
-                    New Appointment
-                  </Link>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                Open the scheduling form to create a new appointment
-              </TooltipContent>
-            </Tooltip>
-          ) : undefined
+          <div className="flex flex-col gap-2 md:flex-row">
+            {canConfigureForms ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button asChild variant="outline" className="w-full min-h-[44px] md:w-auto">
+                    <Link
+                      href="/app/settings/forms?target=appointment"
+                      onClick={() => handleNavClick("/app/settings/forms?target=appointment")}
+                    >
+                      {loadingHref === "/app/settings/forms?target=appointment" ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Settings2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                      )}
+                      Configure form
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  Open the tenant form builder to configure appointment booking fields
+                </TooltipContent>
+              </Tooltip>
+            ) : null}
+            {canCreate ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button asChild className="w-full md:w-auto min-h-[44px]">
+                    <Link
+                      href="/app/appointments/new"
+                      onClick={() => handleNavClick("/app/appointments/new")}
+                    >
+                      {loadingHref === "/app/appointments/new" ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                      )}
+                      New Appointment
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  Open the scheduling form to create a new appointment
+                </TooltipContent>
+              </Tooltip>
+            ) : null}
+          </div>
         }
       />
 

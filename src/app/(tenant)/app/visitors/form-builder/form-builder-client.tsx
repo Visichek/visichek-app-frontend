@@ -27,5 +27,11 @@ export function FormBuilderClient() {
     );
   }
 
-  return <FormBuilder defaultTarget="checkin" />;
+  return (
+    <FormBuilder
+      defaultTarget="checkin"
+      backHref="/app/visitors"
+      backLabel="Back to visitors"
+    />
+  );
 }

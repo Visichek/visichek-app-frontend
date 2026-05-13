@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/hooks/use-session";
+import { isLogoutTransitionActive } from "@/lib/auth/auth-transition";
 import type { SessionType } from "@/types/auth";
 
 interface AuthGuardProps {
@@ -27,16 +28,17 @@ interface AuthGuardProps {
 export function AuthGuard({ shell, children }: AuthGuardProps) {
   const router = useRouter();
   const { isAuthenticated, sessionType } = useSession();
+  const isLoggingOut = isLogoutTransitionActive();
 
   const redirectPath = resolveRedirect(shell, isAuthenticated, sessionType);
 
   useEffect(() => {
-    if (redirectPath) {
+    if (!isLoggingOut && redirectPath) {
       router.replace(redirectPath);
     }
-  }, [redirectPath, router]);
+  }, [isLoggingOut, redirectPath, router]);
 
-  if (redirectPath) return null;
+  if (isLoggingOut || redirectPath) return null;
 
   return <>{children}</>;
 }

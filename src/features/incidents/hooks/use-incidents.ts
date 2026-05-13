@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tansta
 import { apiGet, apiPost, apiPatch } from "@/lib/api/request";
 import { apiGetList } from "@/lib/api/list";
 import { bulkAction } from "@/lib/api/bulk";
+import { POLLING_INTERVALS, pollWhenAuthenticated } from "@/lib/query/polling";
 import type {
   Incident,
   CreateIncidentRequest,
@@ -92,7 +93,8 @@ export function useApproachingDeadlineIncidents() {
     queryKey: ["incidents", "approaching-deadline"],
     queryFn: () =>
       apiGetList<Incident>("/incidents", { approachingDeadline: true }),
-    refetchInterval: 60000,
+    refetchInterval: () =>
+      pollWhenAuthenticated(POLLING_INTERVALS.approachingIncidents),
     refetchIntervalInBackground: false,
     staleTime: 30000,
   });

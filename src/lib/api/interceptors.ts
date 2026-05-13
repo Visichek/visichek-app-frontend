@@ -1,5 +1,6 @@
 import type { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from "axios";
 import { refreshSession, clearSession } from "@/lib/auth/session";
+import { isLogoutTransitionActive } from "@/lib/auth/auth-transition";
 import { peekUserLocationHeader } from "@/lib/geolocation/user-location";
 import { ApiError, type ErrorEnvelope } from "@/types/api";
 
@@ -88,9 +89,15 @@ export function setupInterceptors(client: AxiosInstance) {
     async (error: AxiosError<ErrorEnvelope>) => {
       const originalRequest = error.config as InternalAxiosRequestConfig & {
         _retry?: boolean;
+        skipAuthRefresh?: boolean;
       };
 
-      if (error.response?.status !== 401 || originalRequest._retry) {
+      if (
+        error.response?.status !== 401 ||
+        originalRequest._retry ||
+        originalRequest.skipAuthRefresh ||
+        isLogoutTransitionActive()
+      ) {
         return Promise.reject(normalizeError(error));
       }
 

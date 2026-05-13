@@ -3,7 +3,6 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -63,8 +62,7 @@ function formatTimestampToDatetime(timestamp: number): string {
 }
 
 export function AppointmentForm({ appointment }: AppointmentFormProps) {
-  const router = useRouter();
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref, handleNavClick, navigate } = useNavigationLoading();
   const createMutation = useCreateAppointment();
   const updateMutation = useUpdateAppointment();
   const departmentsQuery = useDepartments();
@@ -135,7 +133,7 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
         });
         toast.success("Appointment created");
       }
-      router.push("/app/appointments");
+      navigate("/app/appointments");
     } catch (err) {
       toast.error(
         err instanceof Error

@@ -1,15 +1,11 @@
 "use client";
 
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useContext, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   NavigationLoadingContext,
   type NavigationLoadingContextValue,
 } from "@/lib/routing/navigation-context";
-import { isTenantSpaNavEnabled } from "@/lib/routing/spa-nav-flag";
-
-/** Mirror of the global-provider fallback budget; see navigation-context.tsx. */
-const SPA_COMMIT_FALLBACK_MS = 4000;
 
 export type NavLoadingScope = "global" | "local";
 
@@ -50,24 +46,14 @@ export function useNavLoading(
   const ctx = useContext(NavigationLoadingContext);
 
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [localLoadingHref, setLocalLoadingHref] = useState<string | null>(null);
-  const fallbackTimerRef = useRef<number | null>(null);
-
-  function clearFallbackTimer() {
-    if (fallbackTimerRef.current != null) {
-      window.clearTimeout(fallbackTimerRef.current);
-      fallbackTimerRef.current = null;
-    }
-  }
+  const committedSearch = searchParams.toString();
 
   useEffect(() => {
     setLocalLoadingHref(null);
-    clearFallbackTimer();
-  }, [pathname]);
-
-  // Cancel any in-flight fallback timer if the consumer unmounts.
-  useEffect(() => clearFallbackTimer, []);
+  }, [pathname, committedSearch]);
 
   const localHandleNavClick = useCallback(
     (href: string) => {
@@ -88,18 +74,18 @@ export function useNavLoading(
       if (isCurrentLocation(pathname, href)) return;
 
       setLocalLoadingHref(href);
-      clearFallbackTimer();
+      router.push(href);
+    },
+    [pathname, router],
+  );
 
-      if (isTenantSpaNavEnabled()) {
-        router.push(href);
-        fallbackTimerRef.current = window.setTimeout(() => {
-          fallbackTimerRef.current = null;
-          window.location.assign(href);
-        }, SPA_COMMIT_FALLBACK_MS);
-        return;
-      }
+  const localReplace = useCallback(
+    (href: string) => {
+      if (typeof window === "undefined") return;
+      if (isCurrentLocation(pathname, href)) return;
 
-      window.location.assign(href);
+      setLocalLoadingHref(href);
+      router.replace(href);
     },
     [pathname, router],
   );
@@ -119,6 +105,7 @@ export function useNavLoading(
     isNavigating: localLoadingHref !== null,
     loadingHref: localLoadingHref,
     navigate: localNavigate,
+    replace: localReplace,
     handleNavClick: localHandleNavClick,
   };
 }

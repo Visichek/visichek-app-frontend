@@ -7,6 +7,7 @@ import {
   markBootstrapDone,
 } from "@/lib/store/session-slice";
 import { readAuthHint } from "@/lib/auth/auth-hint";
+import { shouldSuppressAuthRehydrate } from "@/lib/auth/auth-transition";
 import { ApiError } from "@/types/api";
 import type {
   AdminProfile,
@@ -62,6 +63,12 @@ function pickProbeOrder(): ProbeOrder {
 }
 
 export async function bootstrapSession(): Promise<boolean> {
+  if (shouldSuppressAuthRehydrate()) {
+    store.dispatch(clearSessionState());
+    store.dispatch(markBootstrapDone());
+    return false;
+  }
+
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<boolean>((resolve) => {
     timer = setTimeout(() => resolve(false), BOOTSTRAP_HARD_TIMEOUT_MS);

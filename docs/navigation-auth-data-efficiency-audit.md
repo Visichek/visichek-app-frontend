@@ -2,9 +2,18 @@
 
 Date: 2026-05-09
 
+Update: 2026-05-13
+
 Scope: navigation loading loops, auth/session boot, React Query polling, and speed/security tradeoffs. This is not a whole-frontend audit.
 
 Source of truth used: `AGENTS.md`, `docs/`, package metadata, and source code. `frontend-docs/` and `api-docs/` were not present in this checkout.
+
+Current implementation notes:
+
+- The compliance export hook now uses the shared cookie-based API client for its blob download. Current targeted scans should show no `localStorage` token read or frontend `Authorization` header in that hook.
+- The tenant full-reload navigation interceptor has been retired from the tenant shell, and shared navigation now uses `router.push`/`router.replace` with loading state cleared on pathname and search-param commits.
+- `next` has been upgraded to `^16.2.6`; `postcss` is resolved through the root non-vulnerable package via npm `overrides.postcss = "$postcss"`.
+- Current `npm audit --omit=dev` should report zero production vulnerabilities after the package-lock update.
 
 ## Executive Summary
 
