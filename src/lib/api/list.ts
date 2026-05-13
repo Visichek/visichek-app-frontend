@@ -1,39 +1,63 @@
-import { apiGet, type RequestConfig } from "./request";
+import apiClient from "./client";
+import { type RequestConfig } from "./request";
 import type { ListResponse, ListMeta } from "@/types/list";
 
 /**
- * Typed GET for any backend list endpoint. The new contract returns
- * `{ items, meta }` directly inside the success envelope (already unwrapped
- * by the response interceptor).
+ * Typed GET for any backend list endpoint. The success envelope is
+ *   { success, data, meta, ... }
+ * and the response interceptor unwraps it so that:
+ *   - `axiosResponse.data` is the envelope `data` (an array OR { items, meta })
+ *   - `axiosResponse.meta` is the envelope `meta` (pagination + facets)
  *
- * For migration tolerance only, this helper also accepts a bare array
- * response (the legacy contract). Bare arrays are wrapped into a synthetic
- * `{ items, meta }` so consumers always see the new shape. Once every list
- * endpoint is on the new contract, the legacy branch can be removed.
+ * `apiGet` returns only `axiosResponse.data`, which loses the envelope-level
+ * `meta.facets` when the backend ships `data` as a bare array. We bypass it
+ * here to capture both.
+ *
+ * Tolerated shapes (in priority order):
+ *   1. `data` is a bare array + envelope `meta` is present (current contract)
+ *   2. `data` is `{ items, meta }` (older or per-endpoint contract)
+ *   3. `data` is a bare array with no envelope meta (legacy)
  */
 export async function apiGetList<TItem>(
   url: string,
   params?: Record<string, unknown>,
   config?: RequestConfig,
 ): Promise<ListResponse<TItem>> {
-  const data = await apiGet<unknown>(url, params, config);
+  const response = await apiClient.get(url, { ...config, params });
+  const data = response.data as unknown;
+  // The interceptor attaches `meta` from the envelope onto the axios
+  // response object itself. Axios doesn't type it, so cast.
+  const envelopeMeta = (response as { meta?: Partial<ListMeta> }).meta;
 
   if (Array.isArray(data)) {
     const items = data as TItem[];
+    const incoming = envelopeMeta ?? {};
     const meta: ListMeta = {
-      total: items.length,
-      skip: typeof params?.skip === "number" ? (params.skip as number) : 0,
+      total: incoming.total ?? items.length,
+      skip:
+        incoming.skip ??
+        (typeof params?.skip === "number" ? (params.skip as number) : 0),
       limit:
-        typeof params?.limit === "number" ? (params.limit as number) : items.length,
-      hasMore: false,
+        incoming.limit ??
+        (typeof params?.limit === "number"
+          ? (params.limit as number)
+          : items.length),
+      hasMore: incoming.hasMore ?? false,
+      facets: incoming.facets,
     };
     return { items, meta };
   }
 
-  if (data && typeof data === "object" && "items" in (data as Record<string, unknown>)) {
+  if (
+    data &&
+    typeof data === "object" &&
+    "items" in (data as Record<string, unknown>)
+  ) {
     const obj = data as { items: TItem[]; meta?: Partial<ListMeta> };
     const items = obj.items ?? [];
-    const incoming = obj.meta ?? {};
+    // Prefer the meta nested inside `data` for this shape; fall back to the
+    // envelope meta in case the backend split them.
+    const incoming = obj.meta ?? envelopeMeta ?? {};
     const meta: ListMeta = {
       total: incoming.total ?? items.length,
       skip: incoming.skip ?? 0,
