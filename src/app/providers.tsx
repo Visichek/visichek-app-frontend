@@ -34,6 +34,7 @@ interface ProvidersProps {
 // no way out. Each login page already runs `useRedirectIfAuthenticated`,
 // which is a sufficient (and recoverable) defense against the form-flash.
 const PUBLIC_PATH_PREFIXES = [
+  "/login",
   "/admin/login",
   "/app/login",
   "/register",

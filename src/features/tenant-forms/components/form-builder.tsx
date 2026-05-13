@@ -14,16 +14,11 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   CheckCircle2,
-  Copy,
   Eye,
   FileText,
-  GripVertical,
   Layers3,
   Loader2,
-  Pencil,
   Plus,
-  Settings,
-  Trash2,
 } from "lucide-react";
 import {
   Tooltip,
@@ -48,10 +43,7 @@ import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { cn } from "@/lib/utils/cn";
 import { useSession } from "@/hooks/use-session";
 import {
-  FIELD_TYPE_GROUPS,
-  MAPS_TO_OPTIONS,
   TARGET_TYPE_LABEL,
-  fieldTypeMeta,
   isFileType,
   isNumericType,
   isOptionType,
@@ -69,7 +61,7 @@ import type {
   FormTargetType,
   TenantForm,
 } from "../types";
-import { FieldEditor } from "./field-editor";
+import { FieldInlineEditor } from "./field-inline-editor";
 
 interface FormBuilderProps {
   defaultTarget?: FormTargetType;
@@ -89,7 +81,8 @@ type DraftAction =
   | { type: "setName"; value: string }
   | { type: "setDescription"; value: string }
   | { type: "focus"; fieldId: string | null }
-  | { type: "upsertField"; field: FormFieldDefinition; previousFieldId?: string }
+  | { type: "addField"; field: FormFieldDefinition }
+  | { type: "updateField"; field: FormFieldDefinition; previousFieldId: string }
   | { type: "removeField"; fieldId: string }
   | { type: "duplicateField"; fieldId: string }
   | { type: "moveField"; fieldId: string; toIndex: number };
@@ -130,6 +123,32 @@ function formToDraft(form: TenantForm): DraftState {
   };
 }
 
+function uniqueFieldId(base: string, existing: string[]): string {
+  const seed = base || "question";
+  if (!existing.includes(seed)) return seed;
+  let i = 2;
+  while (existing.includes(`${seed}_${i}`)) {
+    i += 1;
+  }
+  return `${seed}_${i}`;
+}
+
+function createBlankField(existingIds: string[]): FormFieldDefinition {
+  const fieldId = uniqueFieldId("question", existingIds);
+  return {
+    fieldId,
+    type: "text",
+    label: "",
+    helpText: "",
+    placeholder: "",
+    required: false,
+    visible: true,
+    order: 0,
+    mapsTo: null,
+    trim: true,
+  };
+}
+
 function duplicateId(fieldId: string, existingIds: string[]): string {
   const base = `${fieldId}_copy`.slice(0, 58);
   let candidate = base;
@@ -151,20 +170,25 @@ function draftReducer(state: DraftState, action: DraftAction): DraftState {
       return { ...state, description: action.value };
     case "focus":
       return { ...state, focusedFieldId: action.fieldId };
-    case "upsertField": {
+    case "addField": {
+      const fields = [
+        ...state.fields,
+        { ...action.field, order: (state.fields.length + 1) * 10 },
+      ];
+      return {
+        ...state,
+        fields: restamp(ordered(fields)),
+        focusedFieldId: action.field.fieldId,
+      };
+    }
+    case "updateField": {
       const index = state.fields.findIndex(
-        (field) =>
-          field.fieldId === (action.previousFieldId ?? action.field.fieldId),
+        (field) => field.fieldId === action.previousFieldId,
       );
-      const fields =
-        index >= 0
-          ? state.fields.map((field, i) =>
-              i === index ? { ...action.field, order: field.order } : field,
-            )
-          : [
-              ...state.fields,
-              { ...action.field, order: (state.fields.length + 1) * 10 },
-            ];
+      if (index < 0) return state;
+      const fields = state.fields.map((field, i) =>
+        i === index ? { ...action.field, order: field.order } : field,
+      );
       return {
         ...state,
         fields: restamp(ordered(fields)),
@@ -192,7 +216,7 @@ function draftReducer(state: DraftState, action: DraftAction): DraftState {
       const clone: FormFieldDefinition = {
         ...structuredClone(source),
         fieldId,
-        label: source.label ? `${source.label} (copy)` : "Untitled field",
+        label: source.label ? `${source.label} (copy)` : "Untitled question",
       };
       const next = [...fields.slice(0, index + 1), clone, ...fields.slice(index + 1)];
       return { ...state, fields: restamp(next), focusedFieldId: fieldId };
@@ -219,8 +243,6 @@ export function FormBuilder({
   const [target, setTarget] = useState<FormTargetType>(defaultTarget);
   const [isSwitchPending, startSwitch] = useTransition();
   const [switchingTo, setSwitchingTo] = useState<FormTargetType | null>(null);
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editingField, setEditingField] = useState<FormFieldDefinition | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [draggingFieldId, setDraggingFieldId] = useState<string | null>(null);
   const [hydratedKey, setHydratedKey] = useState<string | null>(null);
@@ -234,8 +256,6 @@ export function FormBuilder({
   const updateMutation = useUpdateTenantForm(tenantId ?? undefined);
   const activeForm = activeFormQuery.data ?? null;
   const fields = useMemo(() => ordered(draft.fields), [draft.fields]);
-  const focusedField =
-    fields.find((field) => field.fieldId === draft.focusedFieldId) ?? null;
 
   useEffect(() => {
     setTarget(defaultTarget);
@@ -264,24 +284,13 @@ export function FormBuilder({
     startSwitch(() => setTarget(nextTarget));
   }
 
-  function openNewField() {
-    setEditingField(null);
-    setEditorOpen(true);
+  function addQuestion() {
+    const field = createBlankField(draft.fields.map((f) => f.fieldId));
+    dispatchDraft({ type: "addField", field });
   }
 
-  function openEditField(field: FormFieldDefinition) {
-    setEditingField(field);
-    setEditorOpen(true);
-  }
-
-  function persistField(field: FormFieldDefinition) {
-    dispatchDraft({
-      type: "upsertField",
-      field,
-      previousFieldId: editingField?.fieldId,
-    });
-    setEditorOpen(false);
-    setEditingField(null);
+  function updateField(next: FormFieldDefinition, previousFieldId: string) {
+    dispatchDraft({ type: "updateField", field: next, previousFieldId });
   }
 
   function handleDrop(event: DragEvent<HTMLDivElement>, toIndex: number) {
@@ -297,7 +306,13 @@ export function FormBuilder({
       return;
     }
     if (fields.length === 0) {
-      toast.error("Add at least one field before saving.");
+      toast.error("Add at least one question before saving.");
+      return;
+    }
+    const missingLabel = fields.find((field) => !field.label.trim());
+    if (missingLabel) {
+      toast.error("Every question needs a label before saving.");
+      dispatchDraft({ type: "focus", fieldId: missingLabel.fieldId });
       return;
     }
 
@@ -496,15 +511,15 @@ export function FormBuilder({
               ) : fields.length === 0 ? (
                 <section className="rounded-lg border border-dashed bg-card p-8 text-center">
                   <FileText className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden="true" />
-                  <h2 className="mt-3 text-base font-semibold">No fields yet</h2>
+                  <h2 className="mt-3 text-base font-semibold">No questions yet</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Add a field to start configuring what this form captures.
+                    Add a question to start configuring what this form captures.
                   </p>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button type="button" onClick={openNewField} className="mt-4 min-h-[44px]">
+                      <Button type="button" onClick={addQuestion} className="mt-4 min-h-[44px]">
                         <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                        Add field
+                        Add question
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top">
@@ -515,16 +530,17 @@ export function FormBuilder({
               ) : (
                 <div className="space-y-3">
                   {fields.map((field, index) => (
-                    <FieldCard
+                    <FieldInlineEditor
                       key={field.fieldId}
                       field={field}
                       index={index}
                       focused={draft.focusedFieldId === field.fieldId}
                       dragging={draggingFieldId === field.fieldId}
+                      existingFieldIds={draft.fields.map((f) => f.fieldId)}
+                      onChange={(next) => updateField(next, field.fieldId)}
                       onFocus={() =>
                         dispatchDraft({ type: "focus", fieldId: field.fieldId })
                       }
-                      onEdit={() => openEditField(field)}
                       onDelete={() =>
                         dispatchDraft({ type: "removeField", fieldId: field.fieldId })
                       }
@@ -542,7 +558,25 @@ export function FormBuilder({
                     onDrop={(event) => handleDrop(event, fields.length)}
                     className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground"
                   >
-                    Drop here to move a field to the end
+                    Drop here to move a question to the end
+                  </div>
+                  <div className="flex justify-center pt-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={addQuestion}
+                          className="min-h-[44px]"
+                        >
+                          <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                          Add question
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        Append a new blank question to the form draft
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
               )}
@@ -552,37 +586,19 @@ export function FormBuilder({
 
         <aside className="flex gap-2 lg:sticky lg:top-24 lg:h-fit lg:flex-col">
           <SideRailButton
-            label="Add field"
-            description="Add a new question to the current form draft"
+            label="Add question"
+            description="Append a new blank question to the form draft and focus it"
             icon={<Plus className="h-4 w-4" aria-hidden="true" />}
-            onClick={openNewField}
-          />
-          <SideRailButton
-            label="Edit focused field"
-            description="Open the settings for the selected field card"
-            icon={<Settings className="h-4 w-4" aria-hidden="true" />}
-            disabled={!focusedField}
-            onClick={() => focusedField && openEditField(focusedField)}
+            onClick={addQuestion}
           />
           <SideRailButton
             label="Preview"
-            description="Preview how the current draft will render to users"
+            description="Preview how the current draft will render to respondents"
             icon={<Eye className="h-4 w-4" aria-hidden="true" />}
             onClick={() => setPreviewOpen(true)}
           />
         </aside>
       </div>
-
-      <FieldEditor
-        open={editorOpen}
-        initialField={editingField}
-        existingFieldIds={draft.fields.map((field) => field.fieldId)}
-        onClose={() => {
-          setEditorOpen(false);
-          setEditingField(null);
-        }}
-        onSave={persistField}
-      />
 
       <PreviewDialog
         open={previewOpen}
@@ -628,162 +644,6 @@ function SideRailButton({
   );
 }
 
-function FieldCard({
-  field,
-  index,
-  focused,
-  dragging,
-  onFocus,
-  onEdit,
-  onDelete,
-  onDuplicate,
-  onDragStart,
-  onDragEnd,
-  onDragOver,
-  onDrop,
-}: {
-  field: FormFieldDefinition;
-  index: number;
-  focused: boolean;
-  dragging: boolean;
-  onFocus: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-  onDuplicate: () => void;
-  onDragStart: () => void;
-  onDragEnd: () => void;
-  onDragOver: (event: DragEvent<HTMLDivElement>) => void;
-  onDrop: (event: DragEvent<HTMLDivElement>) => void;
-}) {
-  const meta = fieldTypeMeta(field.type);
-  const mapsToLabel =
-    MAPS_TO_OPTIONS.find((option) => option.value === field.mapsTo)?.label ??
-    null;
-
-  return (
-    <article
-      className={cn(
-        "group rounded-lg border bg-card p-4 shadow-sm transition",
-        focused && "border-primary shadow-primary/10",
-        dragging && "opacity-50",
-      )}
-      onClick={onFocus}
-      draggable
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-    >
-      <div className="mb-3 flex justify-center text-muted-foreground opacity-60 group-hover:opacity-100">
-        <GripVertical className="h-4 w-4" aria-hidden="true" />
-      </div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">Field {index + 1}</Badge>
-            <Badge variant="secondary">{meta.label}</Badge>
-            {field.required && <Badge>Required</Badge>}
-            {!field.visible && <Badge variant="outline">Hidden</Badge>}
-          </div>
-          <div>
-            <h3 className="truncate text-base font-semibold">
-              {field.label || "Untitled field"}
-            </h3>
-            <code className="text-xs text-muted-foreground">{field.fieldId}</code>
-          </div>
-          {field.helpText ? (
-            <p className="text-sm text-muted-foreground">{field.helpText}</p>
-          ) : null}
-          {mapsToLabel ? (
-            <p className="text-xs text-muted-foreground">Mirrors to {mapsToLabel}</p>
-          ) : null}
-          <FieldPreviewLine field={field} />
-        </div>
-        <div className="flex items-center gap-1">
-          <IconAction label={`Edit ${field.label}`} description="Open this field's settings" icon={<Pencil className="h-4 w-4" aria-hidden="true" />} onClick={onEdit} />
-          <IconAction label={`Duplicate ${field.label}`} description="Clone this field directly below the original" icon={<Copy className="h-4 w-4" aria-hidden="true" />} onClick={onDuplicate} />
-          <IconAction label={`Delete ${field.label}`} description="Remove this field from the working draft" icon={<Trash2 className="h-4 w-4" aria-hidden="true" />} onClick={onDelete} destructive />
-        </div>
-      </div>
-    </article>
-  );
-}
-
-function IconAction({
-  label,
-  description,
-  icon,
-  destructive,
-  onClick,
-}: {
-  label: string;
-  description: string;
-  icon: ReactNode;
-  destructive?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          aria-label={label}
-          onClick={(event) => {
-            event.stopPropagation();
-            onClick();
-          }}
-          className={cn("min-h-[44px]", destructive && "text-destructive hover:text-destructive")}
-        >
-          {icon}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side="top">{description}</TooltipContent>
-    </Tooltip>
-  );
-}
-
-function FieldPreviewLine({ field }: { field: FormFieldDefinition }) {
-  if (isOptionType(field.type)) {
-    return (
-      <div className="flex flex-wrap gap-2">
-        {(field.options ?? []).slice(0, 4).map((option) => (
-          <span key={option.key} className="rounded-md border px-2 py-1 text-xs">
-            {option.label}
-          </span>
-        ))}
-      </div>
-    );
-  }
-
-  if (isFileType(field.type)) {
-    return (
-      <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-        Upload control preview
-      </div>
-    );
-  }
-
-  if (field.type === "consent_checkbox") {
-    return (
-      <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
-        {field.consentText || "Consent text will appear here."}
-      </p>
-    );
-  }
-
-  if (field.type === "rating") {
-    return <p className="text-sm text-muted-foreground">Rating scale preview</p>;
-  }
-
-  return (
-    <div className="h-10 rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-      {field.placeholder || fieldTypeMeta(field.type).description}
-    </div>
-  );
-}
-
 function PreviewDialog({
   open,
   onOpenChange,
@@ -808,7 +668,7 @@ function PreviewDialog({
         </DialogHeader>
         {fields.length === 0 ? (
           <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-            Add at least one field to preview the form.
+            Add at least one question to preview the form.
           </div>
         ) : (
           <div className="space-y-5">
@@ -831,7 +691,7 @@ function PreviewDialog({
 function PreviewField({ field }: { field: FormFieldDefinition }) {
   const commonLabel = (
     <Label htmlFor={`preview-${field.fieldId}`}>
-      {field.label || "Untitled field"}
+      {field.label || "Untitled question"}
       {field.required ? <span className="text-destructive"> *</span> : null}
     </Label>
   );
