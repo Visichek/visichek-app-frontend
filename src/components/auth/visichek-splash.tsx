@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldCheck } from "lucide-react";
 import { useSession } from "@/hooks/use-session";
 
 /**
@@ -21,6 +20,7 @@ import { useSession } from "@/hooks/use-session";
 
 const MIN_VISIBLE_MS = 1600;
 const SAFETY_TIMEOUT_MS = 10_000;
+const BRAND_GREEN = "#359300";
 
 export function VisichekSplash() {
   const router = useRouter();
@@ -85,20 +85,12 @@ export function VisichekSplash() {
           0%   { opacity: 0; }
           100% { opacity: 1; }
         }
-        @keyframes visichek-pulse-ring {
-          0%   { transform: scale(0.85); opacity: 0.55; }
-          70%  { transform: scale(1.6); opacity: 0; }
-          100% { transform: scale(1.6); opacity: 0; }
-        }
         @keyframes visichek-progress-slide {
           0%   { transform: translateX(-100%); }
           100% { transform: translateX(400%); }
         }
         .visichek-logo {
           animation: visichek-logo-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
-        }
-        .visichek-ring {
-          animation: visichek-pulse-ring 2.2s ease-out 400ms infinite;
         }
         .visichek-wordmark {
           animation: visichek-fade-up 520ms cubic-bezier(0.22, 1, 0.36, 1) 320ms both;
@@ -111,7 +103,6 @@ export function VisichekSplash() {
         }
         @media (prefers-reduced-motion: reduce) {
           .visichek-logo,
-          .visichek-ring,
           .visichek-wordmark,
           .visichek-tagline,
           .visichek-progress-bar {
@@ -120,30 +111,14 @@ export function VisichekSplash() {
         }
       `}</style>
 
-      <div
-        className="pointer-events-none absolute right-[-10%] top-[-15%] h-[55%] w-[55%] rounded-full bg-[#00D287]/10 blur-[140px]"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none absolute bottom-[-15%] left-[-10%] h-[55%] w-[55%] rounded-full bg-emerald-100/50 blur-[140px]"
-        aria-hidden="true"
-      />
-
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6">
-        <div className="relative flex items-center justify-center">
-          <span
-            aria-hidden="true"
-            className="visichek-ring absolute inline-block h-20 w-20 rounded-3xl border-2 border-[#00D287]/40"
-          />
-          <span
-            aria-hidden="true"
-            className="visichek-ring absolute inline-block h-20 w-20 rounded-3xl border-2 border-[#00D287]/30"
-            style={{ animationDelay: "1.1s" }}
-          />
-          <div className="visichek-logo flex h-20 w-20 items-center justify-center rounded-3xl bg-[#00D287] text-white shadow-[0_18px_50px_-12px_rgba(0,210,135,0.5)]">
-            <ShieldCheck className="h-9 w-9" aria-hidden="true" />
-          </div>
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/visichek_logo.svg"
+          alt=""
+          aria-hidden="true"
+          className="visichek-logo h-28 w-28 sm:h-32 sm:w-32"
+        />
 
         <div className="mt-8 flex flex-col items-center text-center">
           <span className="visichek-wordmark font-display text-4xl font-bold tracking-tight text-gray-900">
@@ -156,10 +131,16 @@ export function VisichekSplash() {
       </div>
 
       <div
-        className="absolute bottom-0 left-0 right-0 h-[3px] overflow-hidden bg-emerald-50"
+        className="absolute bottom-0 left-0 right-0 h-[3px] overflow-hidden"
+        style={{ backgroundColor: "rgba(53, 147, 0, 0.08)" }}
         aria-hidden="true"
       >
-        <div className="visichek-progress-bar h-full w-1/4 bg-gradient-to-r from-transparent via-[#00D287] to-transparent" />
+        <div
+          className="visichek-progress-bar h-full w-1/4"
+          style={{
+            background: `linear-gradient(to right, transparent, ${BRAND_GREEN}, transparent)`,
+          }}
+        />
       </div>
 
       <span className="sr-only">Loading VisiChek, please wait.</span>
