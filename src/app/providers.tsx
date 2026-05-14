@@ -14,6 +14,7 @@ import { isPermissionError } from "@/types/api";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { NavigationLoadingProvider } from "@/lib/routing/navigation-context";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
+import { BrandedSplash } from "@/components/auth/branded-splash";
 
 interface ProvidersProps {
   children: ReactNode;
@@ -112,11 +113,7 @@ function BootstrapGate({ children }: { children: ReactNode }) {
   const isBootstrapping = useAppSelector(selectIsBootstrapping);
 
   if (isBootstrapping && !isPublicPath(pathname)) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
-      </div>
-    );
+    return <BrandedSplash />;
   }
   return <>{children}</>;
 }

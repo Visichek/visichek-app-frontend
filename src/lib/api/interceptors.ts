@@ -1,6 +1,7 @@
 import type { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from "axios";
 import { refreshSession, clearSession } from "@/lib/auth/session";
 import { isLogoutTransitionActive } from "@/lib/auth/auth-transition";
+import { readAuthHint } from "@/lib/auth/auth-hint";
 import { peekUserLocationHeader } from "@/lib/geolocation/user-location";
 import { ApiError, type ErrorEnvelope } from "@/types/api";
 
@@ -98,6 +99,15 @@ export function setupInterceptors(client: AxiosInstance) {
         originalRequest.skipAuthRefresh ||
         isLogoutTransitionActive()
       ) {
+        return Promise.reject(normalizeError(error));
+      }
+
+      // No auth-hint = user never logged in (or logged out cleanly). The
+      // unified refresh endpoint has no refresh cookie to rotate, so
+      // burning three timed-out attempts on it just to confirm "still
+      // logged out" is pointless. Reject as a normal 401 — the caller's
+      // empty/error state shows, no cascade fires.
+      if (typeof window !== "undefined" && !readAuthHint()) {
         return Promise.reject(normalizeError(error));
       }
 

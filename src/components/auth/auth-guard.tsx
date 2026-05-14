@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/hooks/use-session";
 import { useAppSelector } from "@/lib/store/hooks";
 import { selectIsBootstrapping } from "@/lib/store/session-slice";
 import { isLogoutTransitionActive } from "@/lib/auth/auth-transition";
+import { readAuthHint } from "@/lib/auth/auth-hint";
 import type { SessionType } from "@/types/auth";
 
 interface AuthGuardProps {
@@ -16,16 +17,25 @@ interface AuthGuardProps {
 /**
  * Client guard for authenticated shells.
  *
- * Providers already blocks render until `bootstrapSession()` finishes, so by
- * the time this mounts, `isAuthenticated` and `sessionType` are authoritative.
+ * Decision order (designed to render NOTHING — and call NO endpoints —
+ * while we're still figuring out whether the user belongs here):
  *
- * Rules:
- * - not authenticated → replace with this shell's login page
- * - authenticated on the wrong shell → replace with the correct dashboard
- *   (admin user on /app/* → /admin/dashboard; tenant user on /admin/* →
- *   /app/dashboard)
- *
- * Render nothing while redirecting to avoid flashing protected UI.
+ *  1. Synchronous localStorage check. If there's no auth hint, the user
+ *     has not successfully logged in on this browser, so we redirect
+ *     immediately to the right login page without waiting on bootstrap
+ *     and without firing any API request. This is what eliminates the
+ *     "/me → /auth/refresh × 3" cascade you'd otherwise see for
+ *     logged-out users opening a protected URL.
+ *  2. While bootstrap is still in flight, render null. `BootstrapGate`
+ *     is already showing the splash; AuthGuard's children must not mount
+ *     yet, or their data hooks will fire before we know who (if anyone)
+ *     is logged in.
+ *  3. Once bootstrap settles, redirect when authenticated for the wrong
+ *     shell, or to login when no session was hydrated.
+ *  4. Only when everything matches do we render `children`. Because the
+ *     shells now isolate every data-fetching hook inside the inner
+ *     component, no protected endpoint is ever called for an unauthed
+ *     user.
  */
 export function AuthGuard({ shell, children }: AuthGuardProps) {
   const router = useRouter();
@@ -33,12 +43,29 @@ export function AuthGuard({ shell, children }: AuthGuardProps) {
   const isBootstrapping = useAppSelector(selectIsBootstrapping);
   const isLoggingOut = isLogoutTransitionActive();
 
-  // While bootstrap is unresolved, session state is unknown. Render nothing
-  // (BootstrapGate is already showing a spinner) so we never flash protected
-  // shell UI for the wrong identity in the window before bootstrap settles.
-  const redirectPath = isBootstrapping
-    ? null
-    : resolveRedirect(shell, isAuthenticated, sessionType);
+  // Read the auth hint ONCE on mount. We use it as a synchronous tripwire
+  // for the no-session case. Recomputing on every render isn't worth the
+  // cost — the hint is updated by the Redux subscription on login/logout,
+  // and the consumer of "no hint → redirect" only cares about the value
+  // at mount.
+  const [hasHint] = useState<boolean>(() => readAuthHint() !== null);
+
+  const targetShellLogin = shell === "admin" ? "/admin/login" : "/app/login";
+
+  // 1. No hint → not logged in. Redirect immediately, render nothing.
+  useEffect(() => {
+    if (!hasHint && !isLoggingOut) {
+      router.replace(targetShellLogin);
+    }
+    // The hint is read once; intentionally not in the deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 2/3. Once bootstrap is done, resolve a redirect based on real state.
+  const redirectPath =
+    !hasHint || isBootstrapping
+      ? null
+      : resolveRedirect(shell, isAuthenticated, sessionType);
 
   useEffect(() => {
     if (!isLoggingOut && redirectPath) {
@@ -46,7 +73,9 @@ export function AuthGuard({ shell, children }: AuthGuardProps) {
     }
   }, [isLoggingOut, redirectPath, router]);
 
-  if (isBootstrapping || isLoggingOut || redirectPath) return null;
+  if (!hasHint || isBootstrapping || isLoggingOut || redirectPath) {
+    return null;
+  }
 
   return <>{children}</>;
 }

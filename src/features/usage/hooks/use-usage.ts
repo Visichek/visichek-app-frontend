@@ -2,6 +2,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api/request';
+import { useAppSelector } from '@/lib/store/hooks';
+import { selectIsAuthenticated } from '@/lib/store/session-slice';
 import type { TenantUsageSummary } from '@/types/billing';
 
 /**
@@ -18,12 +20,14 @@ const usageKeys = {
  * Available to any authenticated user (admin or system user).
  */
 export function useMyUsage() {
+  const isAuthenticated = useAppSelector(selectIsAuthenticated);
   return useQuery({
     queryKey: usageKeys.my(),
     queryFn: async () => {
       const data = await apiGet<TenantUsageSummary>('/usage/my-usage');
       return data;
     },
+    enabled: isAuthenticated,
     staleTime: 300000, // 5 minutes
   });
 }
@@ -33,6 +37,7 @@ export function useMyUsage() {
  * Admin only - fetch usage for a specific tenant.
  */
 export function useTenantUsage(tenantId: string) {
+  const isAuthenticated = useAppSelector(selectIsAuthenticated);
   return useQuery({
     queryKey: usageKeys.tenant(tenantId),
     queryFn: async () => {
@@ -41,7 +46,7 @@ export function useTenantUsage(tenantId: string) {
       );
       return data;
     },
-    enabled: !!tenantId,
+    enabled: !!tenantId && isAuthenticated,
     staleTime: 300000, // 5 minutes
   });
 }

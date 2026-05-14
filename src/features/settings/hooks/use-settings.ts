@@ -4,7 +4,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 import { apiGet, apiPatch } from "@/lib/api/request";
 import { useAppSelector } from "@/lib/store/hooks";
-import { selectSessionType } from "@/lib/store/session-slice";
+import {
+  selectIsAuthenticated,
+  selectSessionType,
+} from "@/lib/store/session-slice";
 import type {
   SettingsManifest,
   SettingsSection,
@@ -57,9 +60,11 @@ export const settingsKeys = {
  * Returns which sections to show, their endpoints, and enforcement state.
  */
 export function useSettingsManifest() {
+  const isAuthenticated = useAppSelector(selectIsAuthenticated);
   return useQuery({
     queryKey: settingsKeys.manifest,
     queryFn: () => apiGet<SettingsManifest>("/settings"),
+    enabled: isAuthenticated,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
@@ -94,9 +99,11 @@ export function useVisibleSections(
 
 export function useUserSettings() {
   const basePath = useSettingsBasePath();
+  const isAuthenticated = useAppSelector(selectIsAuthenticated);
   return useQuery({
     queryKey: settingsKeys.user,
     queryFn: () => apiGet<UserSettings>(basePath),
+    enabled: isAuthenticated,
   });
 }
 
@@ -123,9 +130,11 @@ export function useUpdateUserSettings() {
 
 export function useUserPreferences() {
   const basePath = usePreferencesBasePath();
+  const isAuthenticated = useAppSelector(selectIsAuthenticated);
   return useQuery({
     queryKey: settingsKeys.preferences,
     queryFn: () => apiGet<UserPreferences>(basePath),
+    enabled: isAuthenticated,
   });
 }
 
@@ -148,10 +157,11 @@ export function useUpdateUserPreference() {
 // ── Tenant Settings (super_admin only) ───────────────────────────────
 
 export function useTenantSettings(tenantId: string) {
+  const isAuthenticated = useAppSelector(selectIsAuthenticated);
   return useQuery({
     queryKey: settingsKeys.tenant(tenantId),
     queryFn: () => apiGet<TenantSettings>(`/tenants/${tenantId}/settings`),
-    enabled: !!tenantId,
+    enabled: !!tenantId && isAuthenticated,
   });
 }
 
@@ -173,9 +183,11 @@ export function useUpdateTenantSettings(tenantId: string) {
 // ── Platform Settings (admin only) ───────────────────────────────────
 
 export function usePlatformSettings() {
+  const isAuthenticated = useAppSelector(selectIsAuthenticated);
   return useQuery({
     queryKey: settingsKeys.platform,
     queryFn: () => apiGet<PlatformSettings>("/admins/platform-settings"),
+    enabled: isAuthenticated,
   });
 }
 

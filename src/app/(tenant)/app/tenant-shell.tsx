@@ -153,6 +153,20 @@ function formatRole(role: string): string {
 }
 
 export function TenantShell({ children }: { children: React.ReactNode }) {
+  // CRITICAL: do NOT call any data-fetching hooks here. AuthGuard's children
+  // are only instantiated when the gate decides to render — that's how we
+  // guarantee zero API traffic (no /me, no /settings, no /limitations,
+  // no /branding) for users without a valid session. All shell hooks live
+  // inside <TenantShellInner>, which only mounts when AuthGuard renders
+  // its children.
+  return (
+    <AuthGuard shell="system_user">
+      <TenantShellInner>{children}</TenantShellInner>
+    </AuthGuard>
+  );
+}
+
+function TenantShellInner({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -213,7 +227,7 @@ export function TenantShell({ children }: { children: React.ReactNode }) {
   }, [currentRole, can, limitationsLoading]);
 
   return (
-    <AuthGuard shell="system_user">
+    <>
       <div className="min-h-screen bg-background">
         <AppSidebar
           items={visibleNavItems}
@@ -273,6 +287,6 @@ export function TenantShell({ children }: { children: React.ReactNode }) {
           <CommandLauncher externalOpen={commandOpen} onExternalOpenChange={setCommandOpen} />
         )}
       </div>
-    </AuthGuard>
+    </>
   );
 }

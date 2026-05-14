@@ -112,6 +112,18 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
+  // CRITICAL: keep this body hook-free. The inner component only mounts
+  // when AuthGuard renders, which guarantees zero API traffic
+  // (/me, /settings, /branding, etc.) for users without a valid admin
+  // session.
+  return (
+    <AuthGuard shell="admin">
+      <AdminShellInner>{children}</AdminShellInner>
+    </AuthGuard>
+  );
+}
+
+function AdminShellInner({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -143,7 +155,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthGuard shell="admin">
+    <>
       <div className="min-h-screen bg-background">
         <AppSidebar
           items={ADMIN_NAV_ITEMS}
@@ -190,6 +202,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <CommandLauncher externalOpen={commandOpen} onExternalOpenChange={setCommandOpen} />
         )}
       </div>
-    </AuthGuard>
+    </>
   );
 }
