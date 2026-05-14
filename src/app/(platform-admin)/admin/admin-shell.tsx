@@ -122,7 +122,7 @@ function AdminShellInner({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { adminProfile } = useSession();
   const { logout } = useAuth();
-  const { navigate } = useNavigationLoading();
+  const { navigateFromOverlay } = useNavigationLoading();
 
   useThemeSync();
 
@@ -163,7 +163,7 @@ function AdminShellInner({ children }: { children: React.ReactNode }) {
             initial: adminProfile?.fullName?.charAt(0) ?? "A",
           }}
           onSearchClick={() => setCommandOpen(true)}
-          onSettingsClick={() => navigate("/admin/settings")}
+          onSettingsClick={() => navigateFromOverlay("/admin/settings")}
           settingsHref="/admin/settings"
           onLogoutClick={logout}
           collapsed={sidebarCollapsed}

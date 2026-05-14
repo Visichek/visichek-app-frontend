@@ -103,15 +103,21 @@ export function useNavLoading(
   // See that function for why the double rAF is required.
   const localNavigateFromOverlay = useCallback(
     (href: string) => {
+      console.debug("[overlay-nav] requested (local)", { href, from: pathname });
+
       if (typeof window === "undefined") {
         router.push(href);
         return;
       }
-      if (isCurrentLocation(pathname, href)) return;
+      if (isCurrentLocation(pathname, href)) {
+        console.debug("[overlay-nav] skipped (already at target)", { href });
+        return;
+      }
 
       setLocalLoadingHref(href);
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
+          console.debug("[overlay-nav] firing router.push (local)", { href });
           router.push(href);
         });
       });

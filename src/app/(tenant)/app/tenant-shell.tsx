@@ -172,7 +172,7 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { currentRole, systemUserProfile } = useSession();
   const { logout } = useAuth();
-  const { navigate } = useNavigationLoading();
+  const { navigateFromOverlay } = useNavigationLoading();
   const pathname = usePathname() ?? "";
 
   useEffect(() => {
@@ -252,9 +252,9 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
             initial: systemUserProfile?.fullName?.charAt(0) ?? "U",
           }}
           onSearchClick={() => setCommandOpen(true)}
-          onSettingsClick={() => navigate("/app/settings")}
+          onSettingsClick={() => navigateFromOverlay("/app/settings")}
           settingsHref="/app/settings"
-          onHelpClick={() => navigate("/app/support-cases")}
+          onHelpClick={() => navigateFromOverlay("/app/support-cases")}
           helpHref="/app/support-cases"
           onLogoutClick={logout}
           collapsed={sidebarCollapsed}

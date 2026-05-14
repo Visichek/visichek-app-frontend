@@ -154,11 +154,19 @@ export function NavigationLoadingProvider({
 
   const navigateFromOverlay = useCallback(
     (href: string) => {
+      // Logs are filterable in DevTools (Verbose level shows them, Default
+      // hides them). Tagged so a future repro can be reconstructed from the
+      // console: who asked, from where, and exactly when each phase fired.
+      console.debug("[overlay-nav] requested", { href, from: pathname });
+
       if (typeof window === "undefined") {
         router.push(href);
         return;
       }
-      if (isCurrentLocation(pathname, href)) return;
+      if (isCurrentLocation(pathname, href)) {
+        console.debug("[overlay-nav] skipped (already at target)", { href });
+        return;
+      }
 
       setLoadingHref(href);
       // Two rAFs: the first lets the overlay's close handler run and React
@@ -166,6 +174,7 @@ export function NavigationLoadingProvider({
       // that commit before we trigger the page-tree swap.
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
+          console.debug("[overlay-nav] firing router.push", { href });
           router.push(href);
         });
       });
