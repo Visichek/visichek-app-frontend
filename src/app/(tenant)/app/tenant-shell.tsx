@@ -279,21 +279,8 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen bg-background">
         <AppSidebar
           items={visibleNavItems}
-          header={
-            <div className="flex min-w-0 items-center gap-2">
-              {workspaceLogo ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={workspaceLogo}
-                  alt=""
-                  className="h-7 w-7 shrink-0 rounded object-contain"
-                />
-              ) : null}
-              <span className="truncate text-lg font-bold font-display tracking-tight">
-                {workspaceName}
-              </span>
-            </div>
-          }
+          logoUrl={workspaceLogo}
+          brandName={workspaceName}
           userInfo={{
             name: systemUserProfile?.fullName ?? "User",
             detail: currentRole ? formatRole(currentRole) : systemUserProfile?.email ?? "",

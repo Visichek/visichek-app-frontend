@@ -24,6 +24,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils/cn";
@@ -612,10 +613,13 @@ function KioskShell({
     <div className="mx-auto w-full max-w-2xl p-4 md:p-6 space-y-6">
       <header className="flex items-center gap-3">
         {config.logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={config.logoUrl}
             alt={`${config.tenantName} logo`}
+            width={40}
+            height={40}
+            priority
+            unoptimized={config.logoUrl.endsWith(".svg")}
             className="h-10 w-10 rounded object-contain"
           />
         ) : (

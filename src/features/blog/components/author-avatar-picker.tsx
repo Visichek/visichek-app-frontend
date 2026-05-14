@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { Loader2, User as UserIcon, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -50,11 +51,12 @@ export function AuthorAvatarPicker({ value, onChange }: AuthorAvatarPickerProps)
       />
       <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
         {previewSrc ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={previewSrc}
             alt="Author avatar"
-            className="h-full w-full object-cover"
+            fill
+            sizes="64px"
+            className="object-cover"
           />
         ) : (
           <UserIcon className="h-6 w-6 text-muted-foreground" />

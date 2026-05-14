@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { useMyUsage } from "@/features/usage/hooks/use-usage";
@@ -42,11 +43,13 @@ export function FreePlanBanner({ pathname }: { pathname: string }) {
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-200/70 ring-1 ring-amber-500/40 dark:bg-amber-500/20 dark:ring-amber-400/40"
             aria-hidden="true"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <Image
               src="/visichek_logo.svg"
               alt=""
               aria-hidden="true"
+              width={16}
+              height={16}
+              unoptimized
               className="h-4 w-4"
             />
           </span>

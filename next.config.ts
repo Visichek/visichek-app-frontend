@@ -1,7 +1,31 @@
 import type { NextConfig } from "next";
+import withBundleAnalyzer from "@next/bundle-analyzer";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+
+  // ── next/image: tenant logos and avatars live on the API origin, never
+  // on the frontend host. We must allow that origin explicitly or the
+  // Image component refuses to optimize them.
+  images: {
+    // Prefer AVIF when the browser supports it; fall back to WebP. Both
+    // dramatically smaller than the PNGs tenants upload.
+    formats: ["image/avif", "image/webp"],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "api.visichek.app",
+        pathname: "/v1/documents/**",
+      },
+      // Local dev sometimes proxies through the frontend origin via
+      // `next.config rewrites`. Allow that path so logos render in dev too.
+      {
+        protocol: "http",
+        hostname: "localhost",
+        pathname: "/api/v1/documents/**",
+      },
+    ],
+  },
 
   // Tell Next.js to tree-shake these packages at the import level so only
   // the symbols actually used end up in each route's bundle. The biggest
@@ -66,4 +90,10 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Wrap with the bundle analyzer so `ANALYZE=true npm run build` (and the
+// dedicated `analyze` script) emits the route-by-route treemap reports.
+// When `ANALYZE` is unset, this is a no-op — production builds are not
+// affected.
+export default withBundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+})(nextConfig);

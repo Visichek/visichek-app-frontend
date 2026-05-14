@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { UserCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,10 +30,11 @@ export function ReturningVisitorCard({
     <div className="rounded-lg border bg-card p-4 space-y-3">
       <div className="flex items-start gap-3">
         {visitor.portraitUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={visitor.portraitUrl}
             alt=""
+            width={48}
+            height={48}
             className="h-12 w-12 rounded-full object-cover border"
           />
         ) : (

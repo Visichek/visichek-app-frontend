@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
 import {
   ChevronRight,
   Eye,
@@ -218,10 +219,11 @@ export function GroupedVisitorsList({
                       className="w-full flex items-start gap-3 p-3 md:p-4 text-left transition-colors hover:bg-muted/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[44px]"
                     >
                       {group.portraitUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
+                        <Image
                           src={group.portraitUrl}
                           alt=""
+                          width={40}
+                          height={40}
                           className="h-10 w-10 rounded-full object-cover border shrink-0"
                         />
                       ) : (

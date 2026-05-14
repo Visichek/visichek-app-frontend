@@ -1,15 +1,6 @@
 "use client";
 
-import { useId } from "react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import dynamic from "next/dynamic";
 import {
   Card,
   CardContent,
@@ -17,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ChartBodySkeleton } from "./chart-body-skeleton";
 import type { TimeSeriesPoint } from "@/types/dashboard";
 
 interface TimeSeriesChartProps {
@@ -34,7 +26,32 @@ interface TimeSeriesChartProps {
   valueFormatter?: (value: number) => string;
 }
 
+/** Internal props consumed by the recharts-using body. Lives in the
+ *  public wrapper module so the dynamic import target only depends on
+ *  recharts, never on the wrapper's eagerly-loaded Card primitives. */
+export type TimeSeriesChartBodyProps = Required<
+  Pick<
+    TimeSeriesChartProps,
+    "data" | "color" | "height" | "xAxisFormat" | "valueLabel" | "valueFormatter"
+  >
+>;
+
 const DEFAULT_COLOR = "hsl(217 91% 60%)";
+
+// Charts are below-the-fold on every route they appear in, and recharts
+// is ~80KB gzipped. Loading the body lazily keeps that cost off the
+// initial bundle for non-dashboard routes that happen to import a chart
+// recipe transitively (search results, audit log, etc.).
+const TimeSeriesChartBody = dynamic(
+  () =>
+    import("./time-series-chart-impl").then((m) => ({
+      default: m.TimeSeriesChartBody,
+    })),
+  {
+    ssr: false,
+    loading: () => <ChartBodySkeleton height={240} />,
+  },
+);
 
 export function TimeSeriesChart({
   title,
@@ -46,10 +63,6 @@ export function TimeSeriesChart({
   valueLabel = "Value",
   valueFormatter = (value: number) => value.toLocaleString(),
 }: TimeSeriesChartProps) {
-  const id = useId();
-  const gradientId = `ts-grad-${id}`;
-  const formatX = xAxisFormat === "short" ? toShortDate : (l: string) => l;
-
   return (
     <Card>
       <CardHeader>
@@ -57,69 +70,15 @@ export function TimeSeriesChart({
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={height}>
-          <AreaChart
-            data={data}
-            margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-          >
-            <defs>
-              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={color} stopOpacity={0.4} />
-                <stop offset="100%" stopColor={color} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="hsl(var(--border))"
-              vertical={false}
-            />
-            <XAxis
-              dataKey="label"
-              tickFormatter={formatX}
-              stroke="hsl(var(--muted-foreground))"
-              fontSize={11}
-              tickLine={false}
-              axisLine={false}
-              minTickGap={20}
-            />
-            <YAxis
-              stroke="hsl(var(--muted-foreground))"
-              fontSize={11}
-              allowDecimals={false}
-              tickLine={false}
-              axisLine={false}
-              width={48}
-              tickFormatter={valueFormatter}
-            />
-            <Tooltip
-              contentStyle={{
-                background: "hsl(var(--popover))",
-                color: "hsl(var(--popover-foreground))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: 8,
-                fontSize: 12,
-              }}
-              labelStyle={{ color: "hsl(var(--muted-foreground))" }}
-              formatter={(value: number) => [valueFormatter(value), valueLabel]}
-            />
-            <Area
-              type="monotone"
-              dataKey="value"
-              stroke={color}
-              strokeWidth={2}
-              fill={`url(#${gradientId})`}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        <TimeSeriesChartBody
+          data={data}
+          color={color}
+          height={height}
+          xAxisFormat={xAxisFormat}
+          valueLabel={valueLabel}
+          valueFormatter={valueFormatter}
+        />
       </CardContent>
     </Card>
   );
-}
-
-/** YYYY-MM-DD → MM/DD. */
-function toShortDate(label: string): string {
-  if (typeof label === "string" && label.length === 10) {
-    return label.slice(5).replace("-", "/");
-  }
-  return label;
 }

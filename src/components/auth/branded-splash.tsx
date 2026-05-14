@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 const BRAND_GREEN = "#359300";
 
 /**
@@ -58,11 +60,14 @@ export function BrandedSplash({ label }: { label?: string }) {
       `}</style>
 
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <Image
           src="/visichek_logo.svg"
           alt=""
           aria-hidden="true"
+          width={128}
+          height={128}
+          priority
+          unoptimized
           className="branded-splash-logo h-28 w-28 sm:h-32 sm:w-32"
         />
 

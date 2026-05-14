@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -62,7 +63,18 @@ interface UserInfo {
 
 interface AppSidebarProps {
   items: NavItem[];
+  /**
+   * Custom header content. When omitted (or when `brandName` / `logoUrl`
+   * are provided) the sidebar renders its own branded header: the tenant
+   * (or platform) logo plus the workspace name. The expanded rail places
+   * the logo on the left; the collapsed rail uses the logo itself as the
+   * expand trigger (hover swaps it for the panel-open icon).
+   */
   header?: React.ReactNode;
+  /** Workspace logo URL — falls back to the VisiChek logo in `/public`. */
+  logoUrl?: string;
+  /** Workspace name shown next to the logo in the expanded rail. */
+  brandName?: string;
   /** User info displayed at the bottom of the sidebar */
   userInfo?: UserInfo;
   /** Callback when search / command launcher is triggered */
@@ -83,9 +95,17 @@ interface AppSidebarProps {
   onCollapsedChange?: (collapsed: boolean) => void;
 }
 
+/** Path to the bundled VisiChek mark in `/public`. Used as the fallback
+ *  whenever a tenant has not uploaded its own logo (and unconditionally in
+ *  the platform-admin shell, which never applies tenant branding). */
+const DEFAULT_BRAND_LOGO = "/visichek_logo.svg";
+const DEFAULT_BRAND_NAME = "VisiChek";
+
 export function AppSidebar({
   items,
   header,
+  logoUrl,
+  brandName,
   userInfo,
   onSearchClick,
   onSettingsClick,
@@ -96,6 +116,8 @@ export function AppSidebar({
   collapsed = false,
   onCollapsedChange,
 }: AppSidebarProps) {
+  const resolvedLogoUrl = logoUrl ?? DEFAULT_BRAND_LOGO;
+  const resolvedBrandName = brandName ?? DEFAULT_BRAND_NAME;
   const pathname = usePathname() ?? "";
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
@@ -159,37 +181,100 @@ export function AppSidebar({
           collapsed ? "justify-center px-2" : "justify-between px-5",
         )}
       >
-        {!collapsed &&
-          (header || (
-            <span className="text-lg font-bold font-display tracking-tight text-sidebar-foreground">
-              VisiChek
-            </span>
-          ))}
+        {collapsed ? (
+          // Collapsed rail: the logo IS the expand trigger. Hovering swaps
+          // the logo for the panel-open icon so the affordance is obvious.
+          onCollapsedChange ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => onCollapsedChange(false)}
+                  className={cn(
+                    "group relative flex items-center justify-center rounded-md p-1 transition-colors",
+                    "hover:bg-sidebar-accent",
+                    "min-h-[36px] min-w-[36px]",
+                  )}
+                  aria-label="Expand sidebar"
+                >
+                  <Image
+                    src={resolvedLogoUrl}
+                    alt=""
+                    width={28}
+                    height={28}
+                    priority
+                    unoptimized={resolvedLogoUrl.endsWith(".svg")}
+                    className="h-7 w-7 shrink-0 rounded object-contain transition-opacity duration-150 group-hover:opacity-0"
+                  />
+                  <PanelLeft
+                    className="absolute h-4 w-4 text-sidebar-foreground/70 opacity-0 transition-opacity duration-150 group-hover:opacity-100"
+                    aria-hidden="true"
+                  />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                Expand the sidebar to show full navigation labels
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  className="flex h-9 w-9 items-center justify-center"
+                  aria-label={resolvedBrandName}
+                >
+                  <Image
+                    src={resolvedLogoUrl}
+                    alt=""
+                    width={28}
+                    height={28}
+                    priority
+                    unoptimized={resolvedLogoUrl.endsWith(".svg")}
+                    className="h-7 w-7 shrink-0 rounded object-contain"
+                  />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="right">{resolvedBrandName}</TooltipContent>
+            </Tooltip>
+          )
+        ) : (
+          <>
+            {header ?? (
+              <div className="flex min-w-0 items-center gap-2">
+                <Image
+                  src={resolvedLogoUrl}
+                  alt=""
+                  width={28}
+                  height={28}
+                  priority
+                  unoptimized={resolvedLogoUrl.endsWith(".svg")}
+                  className="h-7 w-7 shrink-0 rounded object-contain"
+                />
+                <span className="truncate text-lg font-bold font-display tracking-tight text-sidebar-foreground">
+                  {resolvedBrandName}
+                </span>
+              </div>
+            )}
 
-        {onCollapsedChange && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => onCollapsedChange(!collapsed)}
-                className={cn(
-                  "flex items-center justify-center rounded-md p-1.5 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors",
-                  "min-h-[32px] min-w-[32px]",
-                )}
-                aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              >
-                {collapsed ? (
-                  <PanelLeft className="h-4 w-4" />
-                ) : (
-                  <PanelLeftClose className="h-4 w-4" />
-                )}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              {collapsed
-                ? "Expand the sidebar to show full navigation labels"
-                : "Collapse the sidebar to an icon-only rail"}
-            </TooltipContent>
-          </Tooltip>
+            {onCollapsedChange && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => onCollapsedChange(true)}
+                    className={cn(
+                      "flex items-center justify-center rounded-md p-1.5 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors",
+                      "min-h-[32px] min-w-[32px]",
+                    )}
+                    aria-label="Collapse sidebar"
+                  >
+                    <PanelLeftClose className="h-4 w-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  Collapse the sidebar to an icon-only rail
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </>
         )}
       </div>
 

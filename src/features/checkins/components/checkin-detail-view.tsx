@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -97,10 +98,11 @@ export function CheckinDetailView({ checkin }: CheckinDetailViewProps) {
             </h2>
             <div className="flex items-start gap-3">
               {checkin.visitor.portraitUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <Image
                   src={checkin.visitor.portraitUrl}
                   alt=""
+                  width={64}
+                  height={64}
                   className="h-16 w-16 rounded-full object-cover border"
                 />
               ) : (

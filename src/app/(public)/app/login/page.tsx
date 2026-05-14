@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import {
   Mail,
   Lock,
@@ -29,7 +31,17 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
+import { apiGet } from "@/lib/api/request";
+import { resolveDocumentUrl } from "@/lib/utils/document-url";
 import type { TenantSelectionCandidate } from "@/types/account";
+
+interface PublicTenantBranding {
+  tenantId: string;
+  logoUrl?: string | null;
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  accentColor?: string | null;
+}
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email address"),
@@ -524,12 +536,6 @@ function TenantChooserView({
         {tenants.map((tenant) => {
           const isThisLoading = loadingTenantId === tenant.tenantId;
           const isAnyLoading = loadingTenantId !== null;
-          const initials = tenant.companyName
-            .split(/\s+/)
-            .filter(Boolean)
-            .slice(0, 2)
-            .map((w) => w[0]?.toUpperCase() ?? "")
-            .join("");
 
           return (
             <li key={tenant.tenantId}>
@@ -541,12 +547,10 @@ function TenantChooserView({
                     disabled={isAnyLoading}
                     className="w-full flex items-center gap-4 py-4 px-2 -mx-2 rounded-xl text-left transition-colors hover:bg-gray-50 disabled:opacity-60 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00D287]/30 min-h-[64px]"
                   >
-                    {/* Avatar */}
-                    <div className="flex-shrink-0 h-11 w-11 rounded-full bg-[#00D287]/10 text-[#00D287] flex items-center justify-center font-semibold text-sm">
-                      {initials || (
-                        <Building2 size={18} aria-hidden="true" />
-                      )}
-                    </div>
+                    <TenantWorkspaceAvatar
+                      tenantId={tenant.tenantId}
+                      companyName={tenant.companyName}
+                    />
 
                     {/* Body */}
                     <div className="flex-1 min-w-0">
@@ -705,6 +709,72 @@ function OtpView({
           Cancel verification and return to the sign-in screen
         </TooltipContent>
       </Tooltip>
+    </div>
+  );
+}
+
+// ── Tenant chooser avatar ─────────────────────────────────────────────
+//
+// Fetches the tenant's public branding so the workspace card can show its
+// real logo instead of generic initials. The endpoint is public (no auth
+// required) which is what we need here — the user has a `selectionToken`
+// at this point but no session cookie yet, so any authenticated branding
+// route would 401.
+function useTenantPublicBranding(tenantId: string) {
+  return useQuery({
+    queryKey: ["public", "tenant-branding", tenantId],
+    queryFn: async () => {
+      const data = await apiGet<PublicTenantBranding>(
+        `/branding/public/tenant/${tenantId}`
+      );
+      return {
+        ...data,
+        logoUrl: resolveDocumentUrl(data.logoUrl) ?? undefined,
+      };
+    },
+    enabled: !!tenantId,
+    staleTime: 5 * 60 * 1000,
+    retry: 0,
+  });
+}
+
+function TenantWorkspaceAvatar({
+  tenantId,
+  companyName,
+}: {
+  tenantId: string;
+  companyName: string;
+}) {
+  const { data } = useTenantPublicBranding(tenantId);
+  const logoUrl = data?.logoUrl;
+  const initials = companyName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+
+  return (
+    <div className="flex-shrink-0 h-11 w-11 rounded-full bg-[#00D287]/10 text-[#00D287] flex items-center justify-center overflow-hidden font-semibold text-sm">
+      {logoUrl ? (
+        <Image
+          src={logoUrl}
+          alt=""
+          width={44}
+          height={44}
+          className="h-full w-full object-cover"
+          onError={(event) => {
+            // If the public document URL fails to load (e.g. tenant removed
+            // the logo between fetches), drop the image so the initials
+            // fallback shows through instead of a broken-image glyph.
+            event.currentTarget.style.display = "none";
+          }}
+        />
+      ) : initials ? (
+        initials
+      ) : (
+        <Building2 size={18} aria-hidden="true" />
+      )}
     </div>
   );
 }

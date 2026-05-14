@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import {
   Plus,
   Edit2,
@@ -131,10 +132,11 @@ export function BlogsPageClient() {
         return (
           <div className="flex items-start gap-3">
             {blog.featureImage?.url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 src={resolveDocumentUrl(blog.featureImage.url) ?? blog.featureImage.url}
                 alt={blog.featureImage.altText ?? ""}
+                width={64}
+                height={48}
                 className="h-12 w-16 shrink-0 rounded-md object-cover"
               />
             ) : (
@@ -230,10 +232,11 @@ export function BlogsPageClient() {
     <div className="space-y-2 rounded-lg border border-border bg-card p-4">
       <div className="flex items-start gap-3">
         {blog.featureImage?.url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={resolveDocumentUrl(blog.featureImage.url) ?? blog.featureImage.url}
             alt={blog.featureImage.altText ?? ""}
+            width={80}
+            height={64}
             className="h-16 w-20 shrink-0 rounded-md object-cover"
           />
         ) : (

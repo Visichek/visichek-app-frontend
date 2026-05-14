@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -184,10 +185,11 @@ export function ConfirmCheckinForm({
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             {checkin.visitor?.portraitUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 src={checkin.visitor.portraitUrl}
                 alt=""
+                width={48}
+                height={48}
                 className="h-12 w-12 rounded-full object-cover border"
               />
             ) : (

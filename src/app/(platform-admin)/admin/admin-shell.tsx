@@ -198,11 +198,7 @@ function AdminShellInner({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen bg-background">
         <AppSidebar
           items={ADMIN_NAV_ITEMS}
-          header={
-            <span className="text-lg font-bold font-display tracking-tight">
-              VisiChek Admin
-            </span>
-          }
+          brandName="VisiChek Admin"
           userInfo={{
             name: adminProfile?.fullName ?? "Admin",
             detail: adminProfile?.email ?? "",

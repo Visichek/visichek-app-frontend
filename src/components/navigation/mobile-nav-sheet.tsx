@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   Sheet,
@@ -55,7 +56,12 @@ export function MobileNavSheet({
   const workspaceName = isAdmin
     ? "VisiChek Admin"
     : branding?.companyName ?? "VisiChek";
-  const workspaceLogo = isAdmin ? undefined : branding?.logoUrl;
+  // Tenant shell uses the tenant's uploaded logo when present, otherwise
+  // falls back to the bundled VisiChek mark. Platform admin always uses
+  // the platform mark — never tenant branding.
+  const workspaceLogo = isAdmin
+    ? "/visichek_logo.svg"
+    : branding?.logoUrl ?? "/visichek_logo.svg";
 
   const displayName = isAdmin
     ? adminProfile?.fullName
@@ -169,14 +175,15 @@ export function MobileNavSheet({
         <SheetHeader className="border-b px-5 py-4">
           <SheetTitle asChild>
             <div className="flex min-w-0 items-center gap-2 text-left">
-              {workspaceLogo ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={workspaceLogo}
-                  alt=""
-                  className="h-7 w-7 shrink-0 rounded object-contain"
-                />
-              ) : null}
+              <Image
+                src={workspaceLogo}
+                alt=""
+                width={28}
+                height={28}
+                priority
+                unoptimized={workspaceLogo.endsWith(".svg")}
+                className="h-7 w-7 shrink-0 rounded object-contain"
+              />
               <span className="truncate text-lg font-bold font-display tracking-tight">
                 {workspaceName}
               </span>

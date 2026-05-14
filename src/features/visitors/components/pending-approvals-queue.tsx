@@ -15,6 +15,7 @@
  */
 
 import { useMemo, useState, type ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
@@ -284,10 +285,11 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
         cell: ({ row }) => (
           <div className="flex items-center gap-3 min-w-0">
             {row.original.photoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 src={row.original.photoUrl}
                 alt=""
+                width={36}
+                height={36}
                 className="h-9 w-9 rounded-full object-cover border"
               />
             ) : (
@@ -543,10 +545,11 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex items-center gap-3">
               {item.photoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <Image
                   src={item.photoUrl}
                   alt=""
+                  width={36}
+                  height={36}
                   className="h-9 w-9 rounded-full object-cover border"
                 />
               ) : (
@@ -611,10 +614,11 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex items-center gap-3">
             {item.photoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 src={item.photoUrl}
                 alt=""
+                width={36}
+                height={36}
                 className="h-9 w-9 rounded-full object-cover border"
               />
             ) : (

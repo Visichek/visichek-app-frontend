@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -361,10 +362,11 @@ export function ScanCheckoutFlow({ onDone }: ScanCheckoutFlowProps = {}) {
         <div className="rounded-lg border bg-card p-4">
           <div className="flex items-start gap-3">
             {photo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 src={photo}
                 alt=""
+                width={48}
+                height={48}
                 className="h-12 w-12 rounded-full object-cover border shrink-0"
               />
             ) : (
@@ -558,10 +560,11 @@ export function ScanCheckoutFlow({ onDone }: ScanCheckoutFlowProps = {}) {
                     >
                       <div className="flex items-start gap-3 min-w-0 flex-1">
                         {photo ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
+                          <Image
                             src={photo}
                             alt=""
+                            width={40}
+                            height={40}
                             className="h-10 w-10 rounded-full object-cover border shrink-0"
                           />
                         ) : (

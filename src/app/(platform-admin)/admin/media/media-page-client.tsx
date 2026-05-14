@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import NextImage from "next/image";
 import {
   Upload,
   Image as ImageIcon,
@@ -276,13 +277,14 @@ function MediaCard({
 }) {
   return (
     <div className="group relative overflow-hidden rounded-lg border border-border bg-card">
-      <div className="aspect-square w-full bg-muted">
+      <div className="relative aspect-square w-full bg-muted">
         {item.mediaType === "image" ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <NextImage
             src={resolveDocumentUrl(item.url) ?? item.url}
             alt={item.name}
-            className="h-full w-full object-cover"
+            fill
+            sizes="(max-width: 768px) 50vw, 25vw"
+            className="object-cover"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">

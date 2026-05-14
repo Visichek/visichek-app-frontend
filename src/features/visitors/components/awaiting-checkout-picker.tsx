@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -599,10 +600,11 @@ export function AwaitingCheckoutPicker({
                       </Tooltip>
                     </div>
                     {photo ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
+                      <Image
                         src={photo}
                         alt=""
+                        width={40}
+                        height={40}
                         className="h-10 w-10 rounded-full object-cover border shrink-0"
                       />
                     ) : (

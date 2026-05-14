@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import NextImage from "next/image";
 import { Image as ImageIcon, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -45,12 +46,13 @@ export function FeatureImagePicker({ value, onChange }: FeatureImagePickerProps)
       />
       {value?.url ? (
         <div className="space-y-2">
-          <div className="relative overflow-hidden rounded-lg border border-border">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+          <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg border border-border">
+            <NextImage
               src={resolveDocumentUrl(value.url) ?? value.url}
               alt={value.altText || "Feature image"}
-              className="block aspect-[16/9] w-full object-cover"
+              fill
+              sizes="(max-width: 768px) 100vw, 720px"
+              className="object-cover"
             />
             <Tooltip>
               <TooltipTrigger asChild>

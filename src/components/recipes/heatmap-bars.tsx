@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  Bar,
-  BarChart,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import dynamic from "next/dynamic";
 import {
   Card,
   CardContent,
@@ -16,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ChartBodySkeleton } from "./chart-body-skeleton";
 
 interface HeatmapBarsProps {
   title: string;
@@ -28,7 +21,22 @@ interface HeatmapBarsProps {
   unit?: string;
 }
 
+export type HeatmapBarsBodyProps = Required<
+  Pick<HeatmapBarsProps, "data" | "height" | "color">
+> & { unit?: string };
+
 const DEFAULT_COLOR = "hsl(217 91% 60%)";
+
+const HeatmapBarsBody = dynamic(
+  () =>
+    import("./heatmap-bars-impl").then((m) => ({
+      default: m.HeatmapBarsBody,
+    })),
+  {
+    ssr: false,
+    loading: () => <ChartBodySkeleton height={200} />,
+  },
+);
 
 /**
  * Single-row bar visualization for fixed-width buckets — used for the
@@ -44,8 +52,6 @@ export function HeatmapBars({
   color = DEFAULT_COLOR,
   unit,
 }: HeatmapBarsProps) {
-  const max = Math.max(1, ...data.map((d) => d.value));
-
   return (
     <Card>
       <CardHeader>
@@ -53,52 +59,7 @@ export function HeatmapBars({
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={height}>
-          <BarChart
-            data={data}
-            margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-          >
-            <XAxis
-              dataKey="label"
-              stroke="hsl(var(--muted-foreground))"
-              fontSize={11}
-              interval={0}
-              tickLine={false}
-              axisLine={false}
-            />
-            <YAxis
-              stroke="hsl(var(--muted-foreground))"
-              fontSize={11}
-              allowDecimals={false}
-              tickLine={false}
-              axisLine={false}
-              width={32}
-            />
-            <Tooltip
-              cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
-              contentStyle={{
-                background: "hsl(var(--popover))",
-                color: "hsl(var(--popover-foreground))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: 8,
-                fontSize: 12,
-              }}
-              formatter={(value: number) => [
-                `${value.toLocaleString()}${unit ? ` ${unit}` : ""}`,
-                "",
-              ]}
-            />
-            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-              {data.map((d, i) => (
-                <Cell
-                  key={`${d.label}-${i}`}
-                  fill={color}
-                  fillOpacity={0.25 + 0.75 * (d.value / max)}
-                />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        <HeatmapBarsBody data={data} height={height} color={color} unit={unit} />
       </CardContent>
     </Card>
   );

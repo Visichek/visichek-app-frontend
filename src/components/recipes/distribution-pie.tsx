@@ -1,14 +1,6 @@
 "use client";
 
-import { useId } from "react";
-import {
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-} from "recharts";
+import dynamic from "next/dynamic";
 import {
   Card,
   CardContent,
@@ -17,6 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/feedback/empty-state";
+import { ChartBodySkeleton } from "./chart-body-skeleton";
 import type { DistributionSlice } from "@/types/dashboard";
 
 /**
@@ -42,6 +35,21 @@ interface DistributionPieProps {
   emptyTitle?: string;
 }
 
+export type DistributionPieBodyProps = Required<
+  Pick<DistributionPieProps, "data" | "height">
+>;
+
+const DistributionPieBody = dynamic(
+  () =>
+    import("./distribution-pie-impl").then((m) => ({
+      default: m.DistributionPieBody,
+    })),
+  {
+    ssr: false,
+    loading: () => <ChartBodySkeleton height={240} />,
+  },
+);
+
 export function DistributionPie({
   title,
   description,
@@ -49,8 +57,6 @@ export function DistributionPie({
   height = 240,
   emptyTitle = "No data yet",
 }: DistributionPieProps) {
-  const id = useId();
-
   return (
     <Card>
       <CardHeader>
@@ -61,49 +67,7 @@ export function DistributionPie({
         {data.length === 0 ? (
           <EmptyState title={emptyTitle} />
         ) : (
-          <ResponsiveContainer width="100%" height={height}>
-            <PieChart>
-              <Pie
-                data={data}
-                dataKey="value"
-                nameKey="label"
-                cx="50%"
-                cy="50%"
-                innerRadius="55%"
-                outerRadius="85%"
-                paddingAngle={data.length > 1 ? 2 : 0}
-                stroke="hsl(var(--card))"
-                strokeWidth={2}
-              >
-                {data.map((slice, idx) => (
-                  <Cell
-                    key={`${id}-${slice.key}`}
-                    fill={CHART_PALETTE[idx % CHART_PALETTE.length]}
-                  />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(value: number, _name, payload) => [
-                  `${value.toLocaleString()} (${payload?.payload?.percentage?.toFixed(1) ?? 0}%)`,
-                  payload?.payload?.label,
-                ]}
-                contentStyle={{
-                  background: "hsl(var(--popover))",
-                  color: "hsl(var(--popover-foreground))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: 8,
-                  fontSize: 12,
-                }}
-              />
-              <Legend
-                verticalAlign="bottom"
-                height={36}
-                iconType="circle"
-                iconSize={8}
-                wrapperStyle={{ fontSize: 12 }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
+          <DistributionPieBody data={data} height={height} />
         )}
       </CardContent>
     </Card>
