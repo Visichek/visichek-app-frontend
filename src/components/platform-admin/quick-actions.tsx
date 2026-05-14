@@ -13,7 +13,6 @@ import {
   Package,
   Tags,
   CreditCard,
-  Receipt,
   GripVertical,
   Settings2,
   RotateCcw,
@@ -69,15 +68,6 @@ const ALL_ACTIONS: QuickAction[] = [
     href: "/admin/subscriptions?action=create",
     color: "bg-violet-50",
     iconColor: "text-violet-600",
-  },
-  {
-    id: "view-invoices",
-    label: "View Invoices",
-    description: "Browse all invoices, filter by status, and download PDFs",
-    icon: Receipt,
-    href: "/admin/payments",
-    color: "bg-sky-50",
-    iconColor: "text-sky-600",
   },
 ];
 

@@ -19,7 +19,6 @@ export const PATHS = {
   ADMIN_PLANS: "/admin/plans",
   ADMIN_SUBSCRIPTIONS: "/admin/subscriptions",
   ADMIN_DISCOUNTS: "/admin/discounts",
-  ADMIN_PAYMENTS: "/admin/payments",
   ADMIN_SETTINGS: "/admin/settings",
 
   // Tenant

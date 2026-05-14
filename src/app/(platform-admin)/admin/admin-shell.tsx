@@ -11,7 +11,6 @@ import {
   Megaphone,
   Package,
   Tags,
-  Wallet,
   LifeBuoy,
   AlarmClock,
   Activity,
@@ -78,12 +77,6 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     href: "/admin/discounts",
     icon: Tags,
     description: "Create discount codes, set redemption limits, and track usage",
-  },
-  {
-    label: "Payments",
-    href: "/admin/payments",
-    icon: Wallet,
-    description: "View payment transactions, invoices, and revenue history",
   },
   {
     label: "Support Cases",

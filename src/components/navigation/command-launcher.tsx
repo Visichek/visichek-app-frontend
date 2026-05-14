@@ -259,14 +259,6 @@ export function CommandLauncher({ externalOpen, onExternalOpenChange }: CommandL
         href: PATHS.ADMIN_DISCOUNTS,
       });
 
-      navigationItems.push({
-        id: "nav-payments",
-        label: "Payments",
-        description: "View payment history",
-        icon: <CreditCard className="h-4 w-4" />,
-        keywords: ["payments", "invoices", "transactions"],
-        href: PATHS.ADMIN_PAYMENTS,
-      });
     }
 
     // ACTIONS: Quick actions based on capabilities
