@@ -380,6 +380,18 @@ export function FormBuilder({
     [activeForm, createMutation, updateMutation, target],
   );
 
+  // `runSave` is re-created every render because react-query's mutation
+  // objects (`createMutation` / `updateMutation`) are not stable across
+  // renders. Putting it in the autosave effect's dep array would trigger
+  // the effect every render, which sets state, which re-renders → loop
+  // (React error #185). Stash the latest closure in a ref instead so the
+  // setTimeout always calls the current `runSave` without it appearing
+  // as a dependency.
+  const runSaveRef = useRef(runSave);
+  useEffect(() => {
+    runSaveRef.current = runSave;
+  }, [runSave]);
+
   // Debounced autosave. Fires AUTOSAVE_DEBOUNCE_MS after the last change.
   // Skips when:
   //   - the form is still hydrating (no signature baseline)
@@ -391,29 +403,40 @@ export function FormBuilder({
     const payload = payloadFromDraft(draft);
     const signature = payloadSignature(payload);
     if (signature === lastSavedSignatureRef.current) {
-      // The latest change cancels nothing — but if we were showing a
-      // "saved" or "blocked" state already it should stay.
       return;
     }
 
     const validation = validatePayload(payload);
     if (validation.blocked) {
-      setSaveStatus({
-        kind: "blocked",
-        reason: validation.reason ?? "Autosave paused.",
-      });
+      const nextReason = validation.reason ?? "Autosave paused.";
+      // Prev-check so we don't churn a new object identity on every render
+      // (which would also cascade into the same #185 loop the ref above
+      // already broke).
+      setSaveStatus((prev) =>
+        prev.kind === "blocked" && prev.reason === nextReason
+          ? prev
+          : { kind: "blocked", reason: nextReason },
+      );
       return;
     }
 
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      void runSave(payload);
+      void runSaveRef.current(payload);
     }, AUTOSAVE_DEBOUNCE_MS);
 
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [draft, runSave]);
+  }, [draft]);
+
+  // Latest draft snapshot for the beforeunload flush. Same rationale as
+  // `runSaveRef` above — we can't put `draft` in the effect's deps without
+  // rebinding the listener every keystroke.
+  const draftRef = useRef(draft);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
 
   // Best-effort flush on tab close. The browser kills in-flight XHRs after
   // ~1s but the standard mutation hits go through credentials:include axios
@@ -424,16 +447,16 @@ export function FormBuilder({
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
-        const payload = payloadFromDraft(draft);
+        const payload = payloadFromDraft(draftRef.current);
         if (payloadSignature(payload) !== lastSavedSignatureRef.current) {
           const validation = validatePayload(payload);
-          if (!validation.blocked) void runSave(payload);
+          if (!validation.blocked) void runSaveRef.current(payload);
         }
       }
     }
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [draft, runSave]);
+  }, []);
 
   function switchTarget(nextTarget: FormTargetType) {
     if (nextTarget === target) return;
