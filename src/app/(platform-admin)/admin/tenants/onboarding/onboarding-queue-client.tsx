@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import {
   ArrowLeft,
   Eye,
@@ -16,6 +15,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
 import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
+import { NavButton } from "@/components/recipes/nav-button";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -141,7 +141,7 @@ function RowActions({ submission, onArchive }: RowActionsProps) {
 }
 
 export function OnboardingQueueClient() {
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
   const [statusFilter, setStatusFilter] =
     useState<OnboardingStatus | "all">("new");
   const [archiveTarget, setArchiveTarget] =
@@ -328,19 +328,17 @@ export function OnboardingQueueClient() {
         <div className="flex items-center justify-between pt-1">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button asChild size="sm" variant="outline" className="min-h-[44px]">
-                <Link href={href} onClick={() => handleNavClick(href)}>
-                  {loadingHref === href ? (
-                    <Loader2
-                      className="mr-2 h-4 w-4 animate-spin"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
-                  )}
-                  Review
-                </Link>
-              </Button>
+              <NavButton href={href} size="sm" variant="outline" className="min-h-[44px]">
+                {loadingHref === href ? (
+                  <Loader2
+                    className="mr-2 h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
+                )}
+                Review
+              </NavButton>
             </TooltipTrigger>
             <TooltipContent>
               Open this submission to accept, partial-accept, or reject it
@@ -372,27 +370,22 @@ export function OnboardingQueueClient() {
 
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
+          <NavButton
+            href={TENANTS_HREF}
             variant="ghost"
             size="sm"
-            asChild
             className="-ml-2 min-h-[44px]"
           >
-            <Link
-              href={TENANTS_HREF}
-              onClick={() => handleNavClick(TENANTS_HREF)}
-            >
-              {loadingHref === TENANTS_HREF ? (
-                <Loader2
-                  className="mr-2 h-4 w-4 animate-spin"
-                  aria-hidden="true"
-                />
-              ) : (
-                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-              )}
-              Back to tenants
-            </Link>
-          </Button>
+            {loadingHref === TENANTS_HREF ? (
+              <Loader2
+                className="mr-2 h-4 w-4 animate-spin"
+                aria-hidden="true"
+              />
+            ) : (
+              <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+            )}
+            Back to tenants
+          </NavButton>
         </TooltipTrigger>
         <TooltipContent side="bottom">
           Return to the live tenants list

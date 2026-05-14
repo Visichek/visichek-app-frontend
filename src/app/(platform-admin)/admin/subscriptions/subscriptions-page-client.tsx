@@ -17,6 +17,7 @@ import { usePlan, usePlans } from "@/features/plans/hooks/use-plans";
 import { TenantUsagePanel } from "@/features/usage/components/tenant-usage-panel";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
+import { NavButton } from "@/components/recipes/nav-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -286,7 +287,7 @@ function SubscriptionActions({
  */
 function ScopedTenantHeader({ tenantId }: { tenantId: string }) {
   const { data: tenant, isLoading } = useTenant(tenantId);
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref, navigateFromOverlay } = useNavigationLoading();
   const tenantsHref = "/admin/tenants";
   const tenantHref = `/admin/tenants/${tenantId}`;
   const isNavigatingTenants = loadingHref === tenantsHref;
@@ -296,24 +297,22 @@ function ScopedTenantHeader({ tenantId }: { tenantId: string }) {
     <div className="space-y-2">
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
+          <NavButton
+            href={tenantsHref}
             variant="ghost"
             size="sm"
-            asChild
             className="-ml-2 min-h-[44px]"
           >
-            <Link href={tenantsHref} onClick={() => handleNavClick(tenantsHref)}>
-              {isNavigatingTenants ? (
-                <Loader2
-                  className="mr-2 h-4 w-4 animate-spin"
-                  aria-hidden="true"
-                />
-              ) : (
-                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-              )}
-              Back to tenants
-            </Link>
-          </Button>
+            {isNavigatingTenants ? (
+              <Loader2
+                className="mr-2 h-4 w-4 animate-spin"
+                aria-hidden="true"
+              />
+            ) : (
+              <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+            )}
+            Back to tenants
+          </NavButton>
         </TooltipTrigger>
         <TooltipContent side="bottom">
           Return to the tenants list
@@ -327,7 +326,25 @@ function ScopedTenantHeader({ tenantId }: { tenantId: string }) {
             <TooltipTrigger asChild>
               <Link
                 href={tenantHref}
-                onClick={() => handleNavClick(tenantHref)}
+                onClick={(event) => {
+                  // Preserve cmd/ctrl/shift/middle-click default of opening
+                  // in a new tab; only intercept plain left-click so we can
+                  // defer the in-app navigation past the tooltip portal
+                  // unmount (otherwise the page-tree swap races the close
+                  // and crashes the React 19 reconciler).
+                  if (
+                    event.defaultPrevented ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey ||
+                    event.button !== 0
+                  ) {
+                    return;
+                  }
+                  event.preventDefault();
+                  navigateFromOverlay(tenantHref);
+                }}
                 className="text-sm font-medium underline-offset-2 hover:underline"
               >
                 {isNavigatingTenant ? (

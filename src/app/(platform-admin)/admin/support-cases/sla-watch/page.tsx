@@ -5,7 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { AlarmClock, ArrowLeft, Clock, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
-import { Button } from "@/components/ui/button";
+import { NavButton } from "@/components/recipes/nav-button";
 import {
   Tooltip,
   TooltipTrigger,
@@ -23,7 +23,7 @@ import { formatRelative } from "@/lib/utils/format-date";
 import type { SupportCase } from "@/types/support-case";
 
 export default function AdminSlaWatchPage() {
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref, handleNavClick, navigateFromOverlay } = useNavigationLoading();
 
   const { data, isLoading, isError, refetch } = useApproachingSla();
   const cases = Array.isArray(data) ? data : [];
@@ -41,7 +41,20 @@ export default function AdminSlaWatchPage() {
             <TooltipTrigger asChild>
               <Link
                 href={href}
-                onClick={() => handleNavClick(href)}
+                onClick={(event) => {
+                  if (
+                    event.defaultPrevented ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey ||
+                    event.button !== 0
+                  ) {
+                    return;
+                  }
+                  event.preventDefault();
+                  navigateFromOverlay(href);
+                }}
                 className="inline-flex items-center gap-2 font-medium text-sm hover:underline"
               >
                 {isLoadingRow && (
@@ -141,19 +154,14 @@ export default function AdminSlaWatchPage() {
       <div className="flex items-center gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" asChild className="min-h-[44px]">
-              <Link
-                href="/admin/support-cases"
-                onClick={() => handleNavClick("/admin/support-cases")}
-              >
-                {loadingHref === "/admin/support-cases" ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                )}
-                Back to cases
-              </Link>
-            </Button>
+            <NavButton href="/admin/support-cases" variant="ghost" size="sm" className="min-h-[44px]">
+              {loadingHref === "/admin/support-cases" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Back to cases
+            </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             Return to the full support cases queue

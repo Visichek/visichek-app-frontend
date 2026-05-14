@@ -34,6 +34,7 @@ import {
 
 import { DataTable } from "@/components/recipes/data-table";
 import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
+import { NavButton } from "@/components/recipes/nav-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -655,24 +656,22 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
         <div className="flex gap-2 flex-wrap">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
+              <NavButton
+                href={viewHref}
                 size="sm"
                 variant="outline"
-                asChild
                 className="min-h-[44px]"
               >
-                <Link href={viewHref} onClick={() => handleNavClick(viewHref)}>
-                  {loadingHref === viewHref ? (
-                    <Loader2
-                      className="mr-1 h-3.5 w-3.5 animate-spin"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <Eye className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-                  )}
-                  Details
-                </Link>
-              </Button>
+                {loadingHref === viewHref ? (
+                  <Loader2
+                    className="mr-1 h-3.5 w-3.5 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Eye className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                )}
+                Details
+              </NavButton>
             </TooltipTrigger>
             <TooltipContent side="top">
               Open the full details for this check-in
@@ -758,25 +757,24 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
             <>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button size="sm" asChild className="flex-1 min-h-[44px]">
-                    <Link
-                      href={approveHref}
-                      onClick={() => handleNavClick(approveHref)}
-                    >
-                      {loadingHref === approveHref ? (
-                        <Loader2
-                          className="mr-1 h-3.5 w-3.5 animate-spin"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <CheckCircle2
-                          className="mr-1 h-3.5 w-3.5"
-                          aria-hidden="true"
-                        />
-                      )}
-                      Approve
-                    </Link>
-                  </Button>
+                  <NavButton
+                    href={approveHref}
+                    size="sm"
+                    className="flex-1 min-h-[44px]"
+                  >
+                    {loadingHref === approveHref ? (
+                      <Loader2
+                        className="mr-1 h-3.5 w-3.5 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <CheckCircle2
+                        className="mr-1 h-3.5 w-3.5"
+                        aria-hidden="true"
+                      />
+                    )}
+                    Approve
+                  </NavButton>
                 </TooltipTrigger>
                 <TooltipContent side="top">
                   Let this visitor in and issue a badge
@@ -784,30 +782,25 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
+                  <NavButton
+                    href={rejectHref}
                     size="sm"
                     variant="destructive"
-                    asChild
                     className="min-h-[44px]"
                   >
-                    <Link
-                      href={rejectHref}
-                      onClick={() => handleNavClick(rejectHref)}
-                    >
-                      {loadingHref === rejectHref ? (
-                        <Loader2
-                          className="mr-1 h-3.5 w-3.5 animate-spin"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <XCircle
-                          className="mr-1 h-3.5 w-3.5"
-                          aria-hidden="true"
-                        />
-                      )}
-                      Reject
-                    </Link>
-                  </Button>
+                    {loadingHref === rejectHref ? (
+                      <Loader2
+                        className="mr-1 h-3.5 w-3.5 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <XCircle
+                        className="mr-1 h-3.5 w-3.5"
+                        aria-hidden="true"
+                      />
+                    )}
+                    Reject
+                  </NavButton>
                 </TooltipTrigger>
                 <TooltipContent side="top">
                   Deny this visitor entry and notify their host

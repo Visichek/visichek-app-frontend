@@ -6,6 +6,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { AlarmClock, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
+import { NavButton } from "@/components/recipes/nav-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -46,7 +47,7 @@ type CategoryFilter = SupportCaseCategory | "all";
 type TierFilter = SupportTier | "all";
 
 export default function AdminSupportCasesPage() {
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref, handleNavClick, navigateFromOverlay } = useNavigationLoading();
 
   const [status, setStatus] = useState<StatusFilter>("all");
   const [priority, setPriority] = useState<PriorityFilter>("all");
@@ -83,7 +84,23 @@ export default function AdminSupportCasesPage() {
             <TooltipTrigger asChild>
               <Link
                 href={href}
-                onClick={() => handleNavClick(href)}
+                onClick={(event) => {
+                  // Intercept plain left-click only; preserve cmd/ctrl/middle
+                  // for open-in-new-tab. The defer is what stops the page-tree
+                  // swap from racing the tooltip portal unmount.
+                  if (
+                    event.defaultPrevented ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey ||
+                    event.button !== 0
+                  ) {
+                    return;
+                  }
+                  event.preventDefault();
+                  navigateFromOverlay(href);
+                }}
                 className="inline-flex items-center gap-2 font-medium text-sm hover:underline"
               >
                 {isLoadingRow && (
@@ -194,19 +211,18 @@ export default function AdminSupportCasesPage() {
         actions={
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button asChild variant="outline" className="min-h-[44px]">
-                <Link
-                  href="/admin/support-cases/sla-watch"
-                  onClick={() => handleNavClick("/admin/support-cases/sla-watch")}
-                >
-                  {loadingHref === "/admin/support-cases/sla-watch" ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <AlarmClock className="mr-2 h-4 w-4" aria-hidden="true" />
-                  )}
-                  SLA watch
-                </Link>
-              </Button>
+              <NavButton
+                href="/admin/support-cases/sla-watch"
+                variant="outline"
+                className="min-h-[44px]"
+              >
+                {loadingHref === "/admin/support-cases/sla-watch" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <AlarmClock className="mr-2 h-4 w-4" aria-hidden="true" />
+                )}
+                SLA watch
+              </NavButton>
             </TooltipTrigger>
             <TooltipContent side="bottom">
               Jump to cases whose SLA deadline falls in the next 24 hours

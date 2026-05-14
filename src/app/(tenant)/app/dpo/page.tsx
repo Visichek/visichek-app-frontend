@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import {
   Plus,
   Edit2,
@@ -13,6 +12,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
 import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
+import { NavButton } from "@/components/recipes/nav-button";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -54,7 +54,7 @@ function statusVariant(status: DSRStatus) {
 export default function DPOPage() {
   const { hasCapability } = useCapabilities();
   const canCreate = hasCapability(CAPABILITIES.DSR_CREATE);
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
 
   const { data, isLoading } = useDataSubjectRequests({ limit: 100, sort: "-dateCreated" });
   const requests = data?.items ?? [];
@@ -139,8 +139,6 @@ export default function DPOPage() {
       <RowActions
         dsr={dsr}
         onDelete={handleDeleteClick}
-        loadingHref={loadingHref}
-        handleNavClick={handleNavClick}
       />
     </div>
   );
@@ -154,19 +152,14 @@ export default function DPOPage() {
           canCreate ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button asChild className="w-full md:w-auto min-h-[44px]">
-                  <Link
-                    href="/app/dpo/requests/new"
-                    onClick={() => handleNavClick("/app/dpo/requests/new")}
-                  >
-                    {loadingHref === "/app/dpo/requests/new" ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                    ) : (
-                      <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                    )}
-                    New Request
-                  </Link>
-                </Button>
+                <NavButton href="/app/dpo/requests/new" className="w-full md:w-auto min-h-[44px]">
+                  {loadingHref === "/app/dpo/requests/new" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                  )}
+                  New Request
+                </NavButton>
               </TooltipTrigger>
               <TooltipContent side="bottom">
                 Open the new data subject request form

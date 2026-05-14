@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 import {
   Plus,
@@ -15,6 +14,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
 import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
+import { NavButton } from "@/components/recipes/nav-button";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { summarizeBulkResult } from "@/lib/api/bulk";
 import { Button } from "@/components/ui/button";
@@ -301,16 +301,14 @@ export default function IncidentsPage() {
         </div>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button size="sm" variant="outline" asChild className="w-full min-h-[44px]">
-              <Link href={editHref} onClick={() => handleNavClick(editHref)}>
-                {isLoadingEdit ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <Edit2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                )}
-                View / Edit
-              </Link>
-            </Button>
+            <NavButton href={editHref} size="sm" variant="outline" className="w-full min-h-[44px]">
+              {isLoadingEdit ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Edit2 className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              View / Edit
+            </NavButton>
           </TooltipTrigger>
           <TooltipContent side="top">Open this incident&apos;s edit form</TooltipContent>
         </Tooltip>
@@ -327,19 +325,14 @@ export default function IncidentsPage() {
           canCreate ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button asChild className="w-full md:w-auto min-h-[44px]">
-                  <Link
-                    href="/app/incidents/new"
-                    onClick={() => handleNavClick("/app/incidents/new")}
-                  >
-                    {loadingHref === "/app/incidents/new" ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                    ) : (
-                      <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                    )}
-                    Report Incident
-                  </Link>
-                </Button>
+                <NavButton href="/app/incidents/new" className="w-full md:w-auto min-h-[44px]">
+                  {loadingHref === "/app/incidents/new" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                  )}
+                  Report Incident
+                </NavButton>
               </TooltipTrigger>
               <TooltipContent side="bottom">
                 Open the incident reporting form to log a new incident

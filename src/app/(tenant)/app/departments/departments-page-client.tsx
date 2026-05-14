@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { Plus, Edit2, Trash2, MoreHorizontal, Loader2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
 import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
+import { NavButton } from "@/components/recipes/nav-button";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,7 +45,7 @@ export function DepartmentsPageClient() {
   } = useCapability();
   const planLabel = limitations?.plan?.displayName ?? limitations?.plan?.name;
   const canCreate = hasCapability(CAPABILITIES.DEPARTMENT_CREATE);
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
 
   const { data: departmentsList, isLoading } = useDepartments({ limit: 200, sort: "name" });
   const data = departmentsList?.items ?? [];
@@ -177,19 +177,14 @@ export function DepartmentsPageClient() {
           canCreate ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button asChild className="w-full md:w-auto min-h-[44px]">
-                  <Link
-                    href="/app/departments/new"
-                    onClick={() => handleNavClick("/app/departments/new")}
-                  >
-                    {loadingHref === "/app/departments/new" ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                    ) : (
-                      <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                    )}
-                    Add Department
-                  </Link>
-                </Button>
+                <NavButton href="/app/departments/new" className="w-full md:w-auto min-h-[44px]">
+                  {loadingHref === "/app/departments/new" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                  )}
+                  Add Department
+                </NavButton>
               </TooltipTrigger>
               <TooltipContent side="bottom">
                 Open the new-department form to add a department

@@ -31,27 +31,22 @@ export default function TenantDetailPage({
         <div className="mx-auto max-w-4xl space-y-4">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
+              <NavButton
+                href={LIST_HREF}
                 variant="ghost"
                 size="sm"
-                asChild
                 className="min-h-[44px] -ml-2"
               >
-                <Link
-                  href={LIST_HREF}
-                  onClick={() => handleNavClick(LIST_HREF)}
-                >
-                  {loadingHref === LIST_HREF ? (
-                    <Loader2
-                      className="mr-2 h-4 w-4 animate-spin"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                  )}
-                  Back to tenants
-                </Link>
-              </Button>
+                {loadingHref === LIST_HREF ? (
+                  <Loader2
+                    className="mr-2 h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+                )}
+                Back to tenants
+              </NavButton>
             </TooltipTrigger>
             <TooltipContent side="bottom">
               Return to the tenants list

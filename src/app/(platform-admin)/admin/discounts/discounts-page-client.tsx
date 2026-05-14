@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { Loader2, MoreHorizontal, Plus, Trash2, PowerOff } from "lucide-react";
@@ -14,6 +13,7 @@ import {
 import { summarizeBulkResult } from "@/lib/api/bulk";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
+import { NavButton } from "@/components/recipes/nav-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -149,7 +149,7 @@ function DiscountActions({
 }
 
 export function DiscountsPageClient() {
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
   const { data: discountsList, isLoading, isError, refetch } = useDiscounts({ limit: 100, sort: "-dateCreated" });
   const discounts = discountsList?.items ?? [];
   const deleteDiscountMutation = useDeleteDiscount();
@@ -325,25 +325,20 @@ export function DiscountsPageClient() {
         actions={
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                asChild
+              <NavButton
+                href={NEW_DISCOUNT_HREF}
                 className="w-full md:w-auto min-h-[44px]"
               >
-                <Link
-                  href={NEW_DISCOUNT_HREF}
-                  onClick={() => handleNavClick(NEW_DISCOUNT_HREF)}
-                >
-                  {isNavigatingToNew ? (
-                    <Loader2
-                      className="mr-2 h-4 w-4 animate-spin"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                  )}
-                  <span>Create Discount</span>
-                </Link>
-              </Button>
+                {isNavigatingToNew ? (
+                  <Loader2
+                    className="mr-2 h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                )}
+                <span>Create Discount</span>
+              </NavButton>
             </TooltipTrigger>
             <TooltipContent side="bottom">
               Open the discount creation wizard to add a new promo code

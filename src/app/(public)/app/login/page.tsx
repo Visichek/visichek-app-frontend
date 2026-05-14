@@ -20,6 +20,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useRedirectIfAuthenticated } from "@/hooks/use-redirect-if-authenticated";
 import { ApiError } from "@/types/api";
 import { OtpInput } from "@/components/ui/otp-input";
@@ -47,6 +48,7 @@ const SELECTION_TOKEN_TTL_MS = 5 * 60 * 1000;
 export default function AppLoginPage() {
   const { isChecking } = useRedirectIfAuthenticated();
   const { loginSystemUser, selectTenant, verifyOtp } = useAuth();
+  const { navigateFromOverlay } = useNavigationLoading();
 
   const [view, setView] = useState<View>("credentials");
   const [error, setError] = useState<string | null>(null);
@@ -307,6 +309,20 @@ export default function AppLoginPage() {
             <TooltipTrigger asChild>
               <Link
                 href="/support"
+                onClick={(event) => {
+                  if (
+                    event.defaultPrevented ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey ||
+                    event.button !== 0
+                  ) {
+                    return;
+                  }
+                  event.preventDefault();
+                  navigateFromOverlay("/support");
+                }}
                 className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors"
               >
                 <HelpCircle size={16} aria-hidden="true" />

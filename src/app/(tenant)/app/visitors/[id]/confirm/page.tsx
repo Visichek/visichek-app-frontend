@@ -1,10 +1,9 @@
 "use client";
 
 import { use } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { NavButton } from "@/components/recipes/nav-button";
 import {
   Tooltip,
   TooltipTrigger,
@@ -29,7 +28,7 @@ export default function ConfirmCheckinPage({
   const searchParams = useSearchParams();
   const defaultAction = parseDefaultAction(searchParams.get("action"));
 
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
   const { data, isLoading, isError, refetch } = useCheckinDetail(id);
 
   if (isError || (!isLoading && !data)) {
@@ -37,25 +36,20 @@ export default function ConfirmCheckinPage({
       <div className="mx-auto max-w-xl space-y-4">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" asChild className="min-h-[44px]">
-              <Link
-                href="/app/visitors/pending"
-                onClick={() => handleNavClick("/app/visitors/pending")}
-              >
-                {loadingHref === "/app/visitors/pending" ? (
-                  <Loader2
-                    className="mr-2 h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <ArrowLeft
-                    className="mr-2 h-4 w-4"
-                    aria-hidden="true"
-                  />
-                )}
-                Back to visitors
-              </Link>
-            </Button>
+            <NavButton href="/app/visitors/pending" variant="ghost" size="sm" className="min-h-[44px]">
+              {loadingHref === "/app/visitors/pending" ? (
+                <Loader2
+                  className="mr-2 h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ArrowLeft
+                  className="mr-2 h-4 w-4"
+                  aria-hidden="true"
+                />
+              )}
+              Back to visitors
+            </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             Return to the visitors list

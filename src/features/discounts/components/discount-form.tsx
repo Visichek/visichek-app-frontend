@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -14,6 +13,7 @@ import {
   Target,
 } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
+import { NavButton } from "@/components/recipes/nav-button";
 import {
   StepIndicator,
   ReviewRow,
@@ -131,7 +131,7 @@ const LIST_HREF = "/admin/discounts";
  * consistent whether they live in a page or a modal.
  */
 export function DiscountForm() {
-  const { loadingHref, handleNavClick, navigate } = useNavigationLoading();
+  const { loadingHref, navigate } = useNavigationLoading();
   const createMutation = useCreateDiscount();
 
   const {
@@ -208,22 +208,17 @@ export function DiscountForm() {
       <div className="flex items-center gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" asChild className="min-h-[44px]">
-              <Link
-                href={LIST_HREF}
-                onClick={() => handleNavClick(LIST_HREF)}
-              >
-                {loadingHref === LIST_HREF ? (
-                  <Loader2
-                    className="mr-2 h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                )}
-                Back to discounts
-              </Link>
-            </Button>
+            <NavButton href={LIST_HREF} variant="ghost" size="sm" className="min-h-[44px]">
+              {loadingHref === LIST_HREF ? (
+                <Loader2
+                  className="mr-2 h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Back to discounts
+            </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             Return to the discounts list without creating a new one
@@ -531,19 +526,13 @@ export function DiscountForm() {
           <Tooltip>
             <TooltipTrigger asChild>
               {stepForm.isFirstStep ? (
-                <Button
-                  type="button"
+                <NavButton
+                  href={LIST_HREF}
                   variant="outline"
-                  asChild
                   className="w-full md:w-auto min-h-[44px]"
                 >
-                  <Link
-                    href={LIST_HREF}
-                    onClick={() => handleNavClick(LIST_HREF)}
-                  >
-                    Cancel
-                  </Link>
-                </Button>
+                  Cancel
+                </NavButton>
               ) : (
                 <Button
                   type="button"

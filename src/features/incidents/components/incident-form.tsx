@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,6 +7,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
+import { NavButton } from "@/components/recipes/nav-button";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { LoadingButton } from "@/components/feedback/loading-button";
@@ -73,7 +73,7 @@ function formatType(type: string): string {
 
 export function IncidentForm({ incident }: IncidentFormProps) {
   const router = useRouter();
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
   const createMutation = useCreateIncident();
   const updateMutation = useUpdateIncident(incident?.id ?? "");
   const isEditing = !!incident;
@@ -128,19 +128,14 @@ export function IncidentForm({ incident }: IncidentFormProps) {
       <div className="flex items-center gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" asChild className="min-h-[44px]">
-              <Link
-                href="/app/incidents"
-                onClick={() => handleNavClick("/app/incidents")}
-              >
-                {loadingHref === "/app/incidents" ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                )}
-                Back to incidents
-              </Link>
-            </Button>
+            <NavButton href="/app/incidents" variant="ghost" size="sm" className="min-h-[44px]">
+              {loadingHref === "/app/incidents" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Back to incidents
+            </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             Return to the incidents list without saving
@@ -253,20 +248,14 @@ export function IncidentForm({ incident }: IncidentFormProps) {
         <div className="flex flex-col gap-2 pt-2 md:flex-row md:justify-end">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                type="button"
+              <NavButton
+                href="/app/incidents"
                 variant="outline"
-                asChild
                 disabled={submitting}
                 className="w-full min-h-[44px] md:w-auto"
               >
-                <Link
-                  href="/app/incidents"
-                  onClick={() => handleNavClick("/app/incidents")}
-                >
-                  Cancel
-                </Link>
-              </Button>
+                Cancel
+              </NavButton>
             </TooltipTrigger>
             <TooltipContent side="top">
               Discard this draft and return to the incidents list

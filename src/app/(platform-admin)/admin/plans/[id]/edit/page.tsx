@@ -1,15 +1,14 @@
 "use client";
 
 import { use } from "react";
-import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ErrorState } from "@/components/feedback/error-state";
+import { NavButton } from "@/components/recipes/nav-button";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { usePlan } from "@/features/plans/hooks/use-plans";
 import { PlanEditForm } from "@/features/plans/components/plan-edit-form";
@@ -20,7 +19,7 @@ export default function EditPlanPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
   const { data, isLoading, isError, refetch } = usePlan(id);
 
   if (isError || (!isLoading && !data)) {
@@ -29,22 +28,17 @@ export default function EditPlanPage({
         <div className="mx-auto max-w-3xl space-y-4">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="sm" asChild className="min-h-[44px]">
-                <Link
-                  href="/admin/plans"
-                  onClick={() => handleNavClick("/admin/plans")}
-                >
-                  {loadingHref === "/admin/plans" ? (
-                    <Loader2
-                      className="mr-2 h-4 w-4 animate-spin"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                  )}
-                  Back to plans
-                </Link>
-              </Button>
+              <NavButton href="/admin/plans" variant="ghost" size="sm" className="min-h-[44px]">
+                {loadingHref === "/admin/plans" ? (
+                  <Loader2
+                    className="mr-2 h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+                )}
+                Back to plans
+              </NavButton>
             </TooltipTrigger>
             <TooltipContent side="bottom">
               Return to the plans list

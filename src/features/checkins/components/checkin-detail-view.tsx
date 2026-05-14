@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -11,7 +10,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
-import { Button } from "@/components/ui/button";
+import { NavButton } from "@/components/recipes/nav-button";
 import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
@@ -39,7 +38,7 @@ export interface CheckinDetailViewProps {
  * CTAs that navigate to the confirm flow with the selected action preset.
  */
 export function CheckinDetailView({ checkin }: CheckinDetailViewProps) {
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
 
   const visitorName = checkin.visitor?.fullName || "Visitor";
   const isPending = checkin.state === "pending_approval";
@@ -55,27 +54,22 @@ export function CheckinDetailView({ checkin }: CheckinDetailViewProps) {
       <div>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
+            <NavButton
+              href={LIST_HREF}
               variant="ghost"
               size="sm"
-              asChild
               className="min-h-[44px] -ml-2"
             >
-              <Link
-                href={LIST_HREF}
-                onClick={() => handleNavClick(LIST_HREF)}
-              >
-                {isNavigatingBack ? (
-                  <Loader2
-                    className="mr-2 h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                )}
-                Back to visitors
-              </Link>
-            </Button>
+              {isNavigatingBack ? (
+                <Loader2
+                  className="mr-2 h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Back to visitors
+            </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             Return to the visitors list
@@ -206,28 +200,23 @@ export function CheckinDetailView({ checkin }: CheckinDetailViewProps) {
           <div className="flex flex-col gap-2 pt-2 border-t sm:flex-row">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  asChild
+                <NavButton
+                  href={approveHref}
                   className="min-h-[44px] sm:flex-1"
                 >
-                  <Link
-                    href={approveHref}
-                    onClick={() => handleNavClick(approveHref)}
-                  >
-                    {isNavigatingApprove ? (
-                      <Loader2
-                        className="mr-2 h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <CheckCircle2
-                        className="mr-2 h-4 w-4"
-                        aria-hidden="true"
-                      />
-                    )}
-                    Approve check-in
-                  </Link>
-                </Button>
+                  {isNavigatingApprove ? (
+                    <Loader2
+                      className="mr-2 h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <CheckCircle2
+                      className="mr-2 h-4 w-4"
+                      aria-hidden="true"
+                    />
+                  )}
+                  Approve check-in
+                </NavButton>
               </TooltipTrigger>
               <TooltipContent side="top">
                 Let this visitor in and issue a badge
@@ -236,26 +225,21 @@ export function CheckinDetailView({ checkin }: CheckinDetailViewProps) {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  asChild
+                <NavButton
+                  href={rejectHref}
                   variant="destructive"
                   className="min-h-[44px] sm:flex-1"
                 >
-                  <Link
-                    href={rejectHref}
-                    onClick={() => handleNavClick(rejectHref)}
-                  >
-                    {isNavigatingReject ? (
-                      <Loader2
-                        className="mr-2 h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <XCircle className="mr-2 h-4 w-4" aria-hidden="true" />
-                    )}
-                    Reject check-in
-                  </Link>
-                </Button>
+                  {isNavigatingReject ? (
+                    <Loader2
+                      className="mr-2 h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <XCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+                  )}
+                  Reject check-in
+                </NavButton>
               </TooltipTrigger>
               <TooltipContent side="top">
                 Deny this visitor entry and notify their host

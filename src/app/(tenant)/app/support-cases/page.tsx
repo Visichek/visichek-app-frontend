@@ -6,6 +6,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Plus, LifeBuoy, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
+import { NavButton } from "@/components/recipes/nav-button";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -54,7 +55,7 @@ export default function SupportCasesPage() {
   const [status, setStatus] = useState<StatusFilter>("all");
   const [priority, setPriority] = useState<PriorityFilter>("all");
   const [category, setCategory] = useState<CategoryFilter>("all");
-  const { loadingHref, handleNavClick, navigate } = useNavigationLoading();
+  const { loadingHref, handleNavClick, navigate, navigateFromOverlay } = useNavigationLoading();
 
   const params = useMemo(
     () => ({
@@ -89,7 +90,20 @@ export default function SupportCasesPage() {
             <TooltipTrigger asChild>
               <Link
                 href={href}
-                onClick={() => handleNavClick(href)}
+                onClick={(event) => {
+                  if (
+                    event.defaultPrevented ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey ||
+                    event.button !== 0
+                  ) {
+                    return;
+                  }
+                  event.preventDefault();
+                  navigateFromOverlay(href);
+                }}
                 className="inline-flex items-center gap-2 font-medium text-sm hover:underline"
               >
                 {isLoadingRow && (
@@ -191,19 +205,14 @@ export default function SupportCasesPage() {
                     New case
                   </Button>
                 ) : (
-                  <Button asChild className="w-full min-h-[44px] md:w-auto">
-                    <Link
-                      href="/app/support-cases/new"
-                      onClick={() => handleNavClick("/app/support-cases/new")}
-                    >
-                      {loadingHref === "/app/support-cases/new" ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                      ) : (
-                        <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                      )}
-                      New case
-                    </Link>
-                  </Button>
+                  <NavButton href="/app/support-cases/new" className="w-full min-h-[44px] md:w-auto">
+                    {loadingHref === "/app/support-cases/new" ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                    )}
+                    New case
+                  </NavButton>
                 )}
               </span>
             </TooltipTrigger>

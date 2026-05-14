@@ -20,6 +20,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useNavigationLoading } from "@/lib/routing/navigation-context";
 
 // UUID v4-ish matcher (backend uses uuid strings for tenant_id)
 const UUID_RE =
@@ -58,6 +59,7 @@ function extractTenantFromPayload(
 
 export default function ScanPage() {
   const router = useRouter();
+  const { navigateFromOverlay } = useNavigationLoading();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -183,6 +185,20 @@ export default function ScanPage() {
           <TooltipTrigger asChild>
             <Link
               href="/app/login"
+              onClick={(event) => {
+                if (
+                  event.defaultPrevented ||
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey ||
+                  event.button !== 0
+                ) {
+                  return;
+                }
+                event.preventDefault();
+                navigateFromOverlay("/app/login");
+              }}
               className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
               aria-label="Back to login"
             >

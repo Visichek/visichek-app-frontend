@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import {
   Plus,
   Edit2,
@@ -17,6 +16,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
 import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
+import { NavButton } from "@/components/recipes/nav-button";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -106,7 +106,7 @@ const PLAN_TABS: { value: PlanStatusTab; label: string; description: string }[] 
 ];
 
 export function PlansPageClient() {
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
 
   const [statusTab, setStatusTab] = useState<PlanStatusTab>("active");
 
@@ -472,22 +472,17 @@ export function PlansPageClient() {
         actions={
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button asChild className="w-full md:w-auto min-h-[44px]">
-                <Link
-                  href={NEW_PLAN_HREF}
-                  onClick={() => handleNavClick(NEW_PLAN_HREF)}
-                >
-                  {isNavigatingToNew ? (
-                    <Loader2
-                      className="mr-2 h-4 w-4 animate-spin"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                  )}
-                  Create Plan
-                </Link>
-              </Button>
+              <NavButton href={NEW_PLAN_HREF} className="w-full md:w-auto min-h-[44px]">
+                {isNavigatingToNew ? (
+                  <Loader2
+                    className="mr-2 h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                )}
+                Create Plan
+              </NavButton>
             </TooltipTrigger>
             <TooltipContent side="bottom">
               Open the plan creation wizard to add a new subscription tier

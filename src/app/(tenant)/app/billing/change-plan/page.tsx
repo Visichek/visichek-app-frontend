@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { NavButton } from "@/components/recipes/nav-button";
 import {
   Tooltip,
   TooltipContent,
@@ -20,7 +19,7 @@ const LIST_HREF = "/app/billing";
 
 export default function ChangePlanPage() {
   const { tenantId, currentRole } = useSession();
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
   const canManageBilling = currentRole === "super_admin";
 
   const { data: activeSubscription } = useActiveSubscription(
@@ -36,27 +35,22 @@ export default function ChangePlanPage() {
       <div className="mx-auto max-w-3xl space-y-4">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
+            <NavButton
+              href={LIST_HREF}
               variant="ghost"
               size="sm"
-              asChild
               className="min-h-[44px] -ml-2"
             >
-              <Link
-                href={LIST_HREF}
-                onClick={() => handleNavClick(LIST_HREF)}
-              >
-                {loadingHref === LIST_HREF ? (
-                  <Loader2
-                    className="mr-2 h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                )}
-                Back to billing
-              </Link>
-            </Button>
+              {loadingHref === LIST_HREF ? (
+                <Loader2
+                  className="mr-2 h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Back to billing
+            </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             Return to the billing and usage page

@@ -1,7 +1,6 @@
 "use client";
 
 import { use } from "react";
-import Link from "next/link";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -19,6 +18,7 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/recipes/page-header";
+import { NavButton } from "@/components/recipes/nav-button";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import {
   useSupportCase,
@@ -42,7 +42,7 @@ export default function SupportCaseDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: caseId } = use(params);
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
 
   const { data: detail, isLoading, isError, refetch } = useSupportCase(caseId);
   const { data: messages } = useSupportCaseMessages(caseId, !!detail);
@@ -53,7 +53,7 @@ export default function SupportCaseDetailPage({
   if (isError || (!isLoading && !detail)) {
     return (
       <div className="space-y-4">
-        <BackLink loadingHref={loadingHref} handleNavClick={handleNavClick} />
+        <BackLink loadingHref={loadingHref} />
         <ErrorState
           title="Couldn't load this case"
           message="The case may have been closed, or your connection dropped."
@@ -66,7 +66,7 @@ export default function SupportCaseDetailPage({
   if (isLoading || !detail) {
     return (
       <div className="space-y-6">
-        <BackLink loadingHref={loadingHref} handleNavClick={handleNavClick} />
+        <BackLink loadingHref={loadingHref} />
         <div className="h-8 w-2/3 animate-pulse rounded-md bg-muted" />
         <div className="space-y-3">
           <div className="h-24 w-full animate-pulse rounded-md bg-muted" />
@@ -120,7 +120,7 @@ export default function SupportCaseDetailPage({
 
   return (
     <div className="space-y-6">
-      <BackLink loadingHref={loadingHref} handleNavClick={handleNavClick} />
+      <BackLink loadingHref={loadingHref} />
 
       <PageHeader
         title={supportCase.subject}
@@ -243,25 +243,21 @@ export default function SupportCaseDetailPage({
 
 function BackLink({
   loadingHref,
-  handleNavClick,
 }: {
   loadingHref: string | null;
-  handleNavClick: (href: string) => void;
 }) {
   const href = "/app/support-cases";
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="ghost" size="sm" asChild className="min-h-[44px]">
-          <Link href={href} onClick={() => handleNavClick(href)}>
-            {loadingHref === href ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-            )}
-            Back to cases
-          </Link>
-        </Button>
+        <NavButton href={href} variant="ghost" size="sm" className="min-h-[44px]">
+          {loadingHref === href ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+          )}
+          Back to cases
+        </NavButton>
       </TooltipTrigger>
       <TooltipContent side="bottom">
         Return to your list of support cases

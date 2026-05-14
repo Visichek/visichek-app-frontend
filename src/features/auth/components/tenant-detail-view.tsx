@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import {
   ArrowLeft,
   CreditCard,
@@ -10,6 +9,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
+import { NavButton } from "@/components/recipes/nav-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -349,27 +349,22 @@ export function TenantDetailView({ tenant }: TenantDetailViewProps) {
       <div>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
+            <NavButton
+              href={LIST_HREF}
               variant="ghost"
               size="sm"
-              asChild
               className="min-h-[44px] -ml-2"
             >
-              <Link
-                href={LIST_HREF}
-                onClick={() => handleNavClick(LIST_HREF)}
-              >
-                {isNavigatingBack ? (
-                  <Loader2
-                    className="mr-2 h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                )}
-                Back to tenants
-              </Link>
-            </Button>
+              {isNavigatingBack ? (
+                <Loader2
+                  className="mr-2 h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Back to tenants
+            </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             Return to the tenants list

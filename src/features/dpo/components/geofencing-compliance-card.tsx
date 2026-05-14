@@ -16,11 +16,10 @@
  * reminder banner when the feature is actually enabled.
  */
 
-import Link from "next/link";
 import { MapPin, ShieldCheck, AlertTriangle, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { NavButton } from "@/components/recipes/nav-button";
 import {
   Tooltip,
   TooltipTrigger,
@@ -33,7 +32,7 @@ import { useNavigationLoading } from "@/lib/routing/navigation-context";
 export function GeofencingComplianceCard() {
   const { tenantId } = useSession();
   const { data, isLoading } = useTenantSettings(tenantId ?? "");
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
 
   if (!tenantId || isLoading || !data) {
     return (
@@ -127,25 +126,20 @@ export function GeofencingComplianceCard() {
         <div className="flex flex-wrap gap-2 pt-1">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                asChild
+              <NavButton
+                href={settingsHref}
                 variant="outline"
                 size="sm"
                 className="min-h-[36px]"
               >
-                <Link
-                  href={settingsHref}
-                  onClick={() => handleNavClick(settingsHref)}
-                >
-                  {settingsLoading ? (
-                    <Loader2
-                      className="mr-2 h-3.5 w-3.5 animate-spin"
-                      aria-hidden="true"
-                    />
-                  ) : null}
-                  Open geofencing settings
-                </Link>
-              </Button>
+                {settingsLoading ? (
+                  <Loader2
+                    className="mr-2 h-3.5 w-3.5 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : null}
+                Open geofencing settings
+              </NavButton>
             </TooltipTrigger>
             <TooltipContent side="bottom">
               Go to the Advanced settings tab to change the radius, reference

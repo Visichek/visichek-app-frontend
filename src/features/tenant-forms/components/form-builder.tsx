@@ -11,7 +11,6 @@ import {
   type DragEvent,
   type ReactNode,
 } from "react";
-import Link from "next/link";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -30,6 +29,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
+import { NavButton } from "@/components/recipes/nav-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -311,7 +311,7 @@ export function FormBuilder({
   backLabel = "Back to visitors",
 }: FormBuilderProps) {
   const { tenantId } = useSession();
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
   const [target, setTarget] = useState<FormTargetType>(defaultTarget);
   const [isSwitchPending, startSwitch] = useTransition();
   const [switchingTo, setSwitchingTo] = useState<FormTargetType | null>(null);
@@ -558,24 +558,22 @@ export function FormBuilder({
           <div className="flex min-w-0 items-center gap-3">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
+                <NavButton
+                  href={backHref}
                   variant="ghost"
                   size="sm"
-                  asChild
                   className="min-h-[44px]"
                 >
-                  <Link href={backHref} onClick={() => handleNavClick(backHref)}>
-                    {loadingHref === backHref ? (
-                      <Loader2
-                        className="mr-2 h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                    )}
-                    {backLabel}
-                  </Link>
-                </Button>
+                  {loadingHref === backHref ? (
+                    <Loader2
+                      className="mr-2 h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+                  )}
+                  {backLabel}
+                </NavButton>
               </TooltipTrigger>
               <TooltipContent side="bottom">
                 Leave the builder and return to the previous workspace view

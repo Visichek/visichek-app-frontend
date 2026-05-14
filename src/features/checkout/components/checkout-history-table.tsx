@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Loader2, ExternalLink, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { DataTable } from "@/components/recipes/data-table";
+import { NavButton } from "@/components/recipes/nav-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -140,17 +140,15 @@ export function CheckoutHistoryTable() {
             <div className="flex items-center gap-1">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    asChild
+                  <NavButton
+                    href={`/app/billing/checkout/${session.id}`}
                     variant="ghost"
                     size="sm"
                     className="h-8 gap-2"
                   >
-                    <Link href={`/app/billing/checkout/${session.id}`}>
-                      <ExternalLink className="h-4 w-4" />
-                      <span className="hidden sm:inline">View</span>
-                    </Link>
-                  </Button>
+                    <ExternalLink className="h-4 w-4" />
+                    <span className="hidden sm:inline">View</span>
+                  </NavButton>
                 </TooltipTrigger>
                 <TooltipContent side="top">
                   Open this checkout session to view its status and details

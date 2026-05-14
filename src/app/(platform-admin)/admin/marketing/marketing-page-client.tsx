@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import {
   ArrowLeft,
   Check,
@@ -14,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/recipes/page-header";
+import { NavButton } from "@/components/recipes/nav-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,7 +65,7 @@ function downloadCsv(emails: string[]) {
 }
 
 export function MarketingPageClient() {
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
   const { data, isLoading, isError, error, refetch } = useMarketingOptIns();
   const [search, setSearch] = useState("");
   const [copiedAll, setCopiedAll] = useState(false);
@@ -122,24 +122,22 @@ export function MarketingPageClient() {
     <div className="space-y-6">
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
+          <NavButton
+            href={BACK_HREF}
             variant="ghost"
             size="sm"
-            asChild
             className="-ml-2 min-h-[44px]"
           >
-            <Link href={BACK_HREF} onClick={() => handleNavClick(BACK_HREF)}>
-              {loadingHref === BACK_HREF ? (
-                <Loader2
-                  className="mr-2 h-4 w-4 animate-spin"
-                  aria-hidden="true"
-                />
-              ) : (
-                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-              )}
-              Back to onboarding queue
-            </Link>
-          </Button>
+            {loadingHref === BACK_HREF ? (
+              <Loader2
+                className="mr-2 h-4 w-4 animate-spin"
+                aria-hidden="true"
+              />
+            ) : (
+              <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+            )}
+            Back to onboarding queue
+          </NavButton>
         </TooltipTrigger>
         <TooltipContent side="bottom">
           Return to the onboarding queue to review individual submissions

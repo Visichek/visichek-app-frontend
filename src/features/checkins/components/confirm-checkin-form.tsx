@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -14,6 +13,7 @@ import {
   Copy,
 } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
+import { NavButton } from "@/components/recipes/nav-button";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -96,7 +96,7 @@ export function ConfirmCheckinForm({
   defaultAction,
 }: ConfirmCheckinFormProps) {
   const router = useRouter();
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
   const confirmMutation = useConfirmCheckin();
 
   const [action, setAction] = useState<CheckinConfirmAction>(defaultAction);
@@ -153,25 +153,20 @@ export function ConfirmCheckinForm({
       <div className="flex items-center gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" asChild className="min-h-[44px]">
-              <Link
-                href="/app/visitors/pending"
-                onClick={() => handleNavClick("/app/visitors/pending")}
-              >
-                {loadingHref === "/app/visitors/pending" ? (
-                  <Loader2
-                    className="mr-2 h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <ArrowLeft
-                    className="mr-2 h-4 w-4"
-                    aria-hidden="true"
-                  />
-                )}
-                Back to visitors
-              </Link>
-            </Button>
+            <NavButton href="/app/visitors/pending" variant="ghost" size="sm" className="min-h-[44px]">
+              {loadingHref === "/app/visitors/pending" ? (
+                <Loader2
+                  className="mr-2 h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ArrowLeft
+                  className="mr-2 h-4 w-4"
+                  aria-hidden="true"
+                />
+              )}
+              Back to visitors
+            </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             Return to the visitors list without making a decision
@@ -321,18 +316,13 @@ export function ConfirmCheckinForm({
             )}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
+                <NavButton
+                  href="/app/visitors/pending"
                   variant="outline"
-                  asChild
                   className="min-h-[44px] md:ml-auto"
                 >
-                  <Link
-                    href="/app/visitors/pending"
-                    onClick={() => handleNavClick("/app/visitors/pending")}
-                  >
-                    Done
-                  </Link>
-                </Button>
+                  Done
+                </NavButton>
               </TooltipTrigger>
               <TooltipContent side="top">
                 Return to the visitors list
@@ -441,20 +431,14 @@ export function ConfirmCheckinForm({
           <div className="flex flex-col-reverse gap-2 pt-2 md:flex-row md:justify-end">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  type="button"
+                <NavButton
                   variant="outline"
-                  asChild
                   disabled={confirmMutation.isPending}
                   className="w-full min-h-[44px] md:w-auto"
+                  href="/app/visitors/pending"
                 >
-                  <Link
-                    href="/app/visitors/pending"
-                    onClick={() => handleNavClick("/app/visitors/pending")}
-                  >
-                    Cancel
-                  </Link>
-                </Button>
+                  Cancel
+                </NavButton>
               </TooltipTrigger>
               <TooltipContent side="top">
                 Close without changing the check-in

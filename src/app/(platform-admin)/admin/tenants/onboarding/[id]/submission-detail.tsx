@@ -128,30 +128,25 @@ export function OnboardingSubmissionDetail({
     <div className="mx-auto max-w-4xl space-y-6">
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
+          <NavButton
+            href={QUEUE_HREF}
             variant="ghost"
             size="sm"
-            asChild
             className="-ml-2 min-h-[44px]"
           >
-            <Link
-              href={QUEUE_HREF}
-              onClick={() => handleNavClick(QUEUE_HREF)}
-            >
-              {loadingHref === QUEUE_HREF ? (
-                <Loader2
-                  className="mr-2 h-4 w-4 animate-spin"
-                  aria-hidden="true"
-                />
-              ) : (
-                <ArrowLeft
-                  className="mr-2 h-4 w-4"
-                  aria-hidden="true"
-                />
-              )}
-              Back to onboarding queue
-            </Link>
-          </Button>
+            {loadingHref === QUEUE_HREF ? (
+              <Loader2
+                className="mr-2 h-4 w-4 animate-spin"
+                aria-hidden="true"
+              />
+            ) : (
+              <ArrowLeft
+                className="mr-2 h-4 w-4"
+                aria-hidden="true"
+              />
+            )}
+            Back to onboarding queue
+          </NavButton>
         </TooltipTrigger>
         <TooltipContent side="bottom">
           Return to the onboarding queue

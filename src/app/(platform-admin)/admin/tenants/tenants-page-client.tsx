@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import {
   Plus,
@@ -254,7 +253,7 @@ const TENANT_PLAN_TIERS = [
 ] as const;
 
 export function TenantsPageClient() {
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
 
   const [statusTab, setStatusTab] = useState<TenantStatusTab>("active");
   const [planFilter, setPlanFilter] = useState<string>("all");
@@ -476,26 +475,21 @@ export function TenantsPageClient() {
           <div className="flex w-full flex-col gap-2 md:flex-row md:items-center md:gap-2 md:w-auto">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  asChild
+                <NavButton
+                  href={ONBOARDING_QUEUE_HREF}
                   variant="outline"
                   className="w-full md:w-auto min-h-[44px]"
                 >
-                  <Link
-                    href={ONBOARDING_QUEUE_HREF}
-                    onClick={() => handleNavClick(ONBOARDING_QUEUE_HREF)}
-                  >
-                    {isNavigatingToQueue ? (
-                      <Loader2
-                        className="mr-2 h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <Inbox className="mr-2 h-4 w-4" aria-hidden="true" />
-                    )}
-                    Onboarding queue
-                  </Link>
-                </Button>
+                  {isNavigatingToQueue ? (
+                    <Loader2
+                      className="mr-2 h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Inbox className="mr-2 h-4 w-4" aria-hidden="true" />
+                  )}
+                  Onboarding queue
+                </NavButton>
               </TooltipTrigger>
               <TooltipContent>
                 Review self-service signups submitted from the marketing site
@@ -503,22 +497,17 @@ export function TenantsPageClient() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button asChild className="w-full md:w-auto min-h-[44px]">
-                  <Link
-                    href={NEW_TENANT_HREF}
-                    onClick={() => handleNavClick(NEW_TENANT_HREF)}
-                  >
-                    {isNavigatingToNew ? (
-                      <Loader2
-                        className="mr-2 h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                    )}
-                    Bootstrap Tenant
-                  </Link>
-                </Button>
+                <NavButton href={NEW_TENANT_HREF} className="w-full md:w-auto min-h-[44px]">
+                  {isNavigatingToNew ? (
+                    <Loader2
+                      className="mr-2 h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                  )}
+                  Bootstrap Tenant
+                </NavButton>
               </TooltipTrigger>
               <TooltipContent>
                 Create a new tenant and their first super admin account

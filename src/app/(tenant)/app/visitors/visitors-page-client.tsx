@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo } from "react";
-import Link from "next/link";
 import { QrCode, Loader2, UserMinus, Settings2 } from "lucide-react";
 
 import {
@@ -11,7 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
 import { PageHeader } from "@/components/recipes/page-header";
-import { Button } from "@/components/ui/button";
+import { NavButton } from "@/components/recipes/nav-button";
 import {
   usePendingApprovals,
   useTenantCheckins,
@@ -147,28 +146,23 @@ export function VisitorsPageClient({ activeState }: VisitorsPageClientProps) {
             {canConfigureForm && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    asChild
+                  <NavButton
+                    href={formBuilderHref}
                     className="flex-1 sm:flex-none min-h-[44px]"
                   >
-                    <Link
-                      href={formBuilderHref}
-                      onClick={() => handleNavClick(formBuilderHref)}
-                    >
-                      {loadingHref === formBuilderHref ? (
-                        <Loader2
-                          className="mr-2 h-4 w-4 animate-spin"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <Settings2
-                          className="mr-2 h-4 w-4"
-                          aria-hidden="true"
-                        />
-                      )}
-                      Configure form
-                    </Link>
-                  </Button>
+                    {loadingHref === formBuilderHref ? (
+                      <Loader2
+                        className="mr-2 h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <Settings2
+                        className="mr-2 h-4 w-4"
+                        aria-hidden="true"
+                      />
+                    )}
+                    Configure form
+                  </NavButton>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
                   Customise the fields visitors fill in when they check in,
@@ -178,29 +172,24 @@ export function VisitorsPageClient({ activeState }: VisitorsPageClientProps) {
             )}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  asChild
+                <NavButton
+                  href="/app/visitors/checkout"
                   variant="outline"
                   className="flex-1 sm:flex-none min-h-[44px]"
                 >
-                  <Link
-                    href="/app/visitors/checkout"
-                    onClick={() => handleNavClick("/app/visitors/checkout")}
-                  >
-                    {loadingHref === "/app/visitors/checkout" ? (
-                      <Loader2
-                        className="mr-2 h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <UserMinus
-                        className="mr-2 h-4 w-4"
-                        aria-hidden="true"
-                      />
-                    )}
-                    Check out visitor
-                  </Link>
-                </Button>
+                  {loadingHref === "/app/visitors/checkout" ? (
+                    <Loader2
+                      className="mr-2 h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <UserMinus
+                      className="mr-2 h-4 w-4"
+                      aria-hidden="true"
+                    />
+                  )}
+                  Check out visitor
+                </NavButton>
               </TooltipTrigger>
               <TooltipContent side="bottom">
                 Choose how to check a visitor out — by scanning their badge or
@@ -209,29 +198,24 @@ export function VisitorsPageClient({ activeState }: VisitorsPageClientProps) {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  asChild
+                <NavButton
+                  href="/app/visitors/qr"
                   variant="outline"
                   className="flex-1 sm:flex-none min-h-[44px]"
                 >
-                  <Link
-                    href="/app/visitors/qr"
-                    onClick={() => handleNavClick("/app/visitors/qr")}
-                  >
-                    {loadingHref === "/app/visitors/qr" ? (
-                      <Loader2
-                        className="mr-2 h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <QrCode
-                        className="mr-2 h-4 w-4"
-                        aria-hidden="true"
-                      />
-                    )}
-                    Registration QR
-                  </Link>
-                </Button>
+                  {loadingHref === "/app/visitors/qr" ? (
+                    <Loader2
+                      className="mr-2 h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <QrCode
+                      className="mr-2 h-4 w-4"
+                      aria-hidden="true"
+                    />
+                  )}
+                  Registration QR
+                </NavButton>
               </TooltipTrigger>
               <TooltipContent side="bottom">
                 Generate a QR code visitors can scan to self-register from their

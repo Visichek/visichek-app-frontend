@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { NavButton } from "@/components/recipes/nav-button";
 import {
   Tooltip,
   TooltipContent,
@@ -14,29 +13,24 @@ import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { AwaitingCheckoutPicker } from "@/features/visitors/components/awaiting-checkout-picker";
 
 export default function ManualCheckOutPage() {
-  const { loadingHref, handleNavClick, navigate } = useNavigationLoading();
+  const { loadingHref, navigate } = useNavigationLoading();
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" asChild className="min-h-[44px]">
-              <Link
-                href="/app/visitors/checkout"
-                onClick={() => handleNavClick("/app/visitors/checkout")}
-              >
-                {loadingHref === "/app/visitors/checkout" ? (
-                  <Loader2
-                    className="mr-2 h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                )}
-                Back to checkout method
-              </Link>
-            </Button>
+            <NavButton href="/app/visitors/checkout" variant="ghost" size="sm" className="min-h-[44px]">
+              {loadingHref === "/app/visitors/checkout" ? (
+                <Loader2
+                  className="mr-2 h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Back to checkout method
+            </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             Return to choose between scanning and manual entry

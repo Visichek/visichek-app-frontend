@@ -12,6 +12,7 @@ import {
   Info,
 } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
+import { NavButton } from "@/components/recipes/nav-button";
 import { StatCard } from "@/components/recipes/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -247,29 +248,24 @@ export function BillingPageClient() {
                 )}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button asChild className="min-h-[44px] gap-2">
-                      <Link
-                        href={CHANGE_PLAN_HREF}
-                        onClick={() => handleNavClick(CHANGE_PLAN_HREF)}
-                      >
-                        {loadingHref === CHANGE_PLAN_HREF ? (
-                          <Loader2
-                            className="h-4 w-4 animate-spin"
-                            aria-hidden="true"
-                          />
-                        ) : (
-                          <CreditCard
-                            className="h-4 w-4"
-                            aria-hidden="true"
-                          />
-                        )}
-                        {isOnFree
-                          ? "Upgrade plan"
-                          : hasActiveSubscription
-                            ? "Change plan"
-                            : "Subscribe"}
-                      </Link>
-                    </Button>
+                    <NavButton href={CHANGE_PLAN_HREF} className="min-h-[44px] gap-2">
+                      {loadingHref === CHANGE_PLAN_HREF ? (
+                        <Loader2
+                          className="h-4 w-4 animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <CreditCard
+                          className="h-4 w-4"
+                          aria-hidden="true"
+                        />
+                      )}
+                      {isOnFree
+                        ? "Upgrade plan"
+                        : hasActiveSubscription
+                          ? "Change plan"
+                          : "Subscribe"}
+                    </NavButton>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
                     {isOnFree

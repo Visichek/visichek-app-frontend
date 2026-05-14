@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
 import {
   Plus,
@@ -15,6 +14,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
 import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
+import { NavButton } from "@/components/recipes/nav-button";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -194,16 +194,14 @@ export function AppointmentsPageClient() {
         <div className="flex gap-2 pt-2">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button size="sm" variant="outline" asChild className="flex-1 min-h-[44px]">
-                <Link href={editHref} onClick={() => handleNavClick(editHref)}>
-                  {isLoadingEdit ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <Edit2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                  )}
-                  Edit
-                </Link>
-              </Button>
+              <NavButton href={editHref} size="sm" variant="outline" className="flex-1 min-h-[44px]">
+                {isLoadingEdit ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Edit2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                )}
+                Edit
+              </NavButton>
             </TooltipTrigger>
             <TooltipContent side="top">Open this appointment&apos;s edit form</TooltipContent>
           </Tooltip>
@@ -236,19 +234,18 @@ export function AppointmentsPageClient() {
             {canConfigureForms ? (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button asChild variant="outline" className="w-full min-h-[44px] md:w-auto">
-                    <Link
-                      href="/app/settings/forms?target=appointment"
-                      onClick={() => handleNavClick("/app/settings/forms?target=appointment")}
-                    >
-                      {loadingHref === "/app/settings/forms?target=appointment" ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                      ) : (
-                        <Settings2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                      )}
-                      Configure form
-                    </Link>
-                  </Button>
+                  <NavButton
+                    href="/app/settings/forms?target=appointment"
+                    variant="outline"
+                    className="w-full min-h-[44px] md:w-auto"
+                  >
+                    {loadingHref === "/app/settings/forms?target=appointment" ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Settings2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                    )}
+                    Configure form
+                  </NavButton>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
                   Open the tenant form builder to configure appointment booking fields
@@ -258,19 +255,14 @@ export function AppointmentsPageClient() {
             {canCreate ? (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button asChild className="w-full md:w-auto min-h-[44px]">
-                    <Link
-                      href="/app/appointments/new"
-                      onClick={() => handleNavClick("/app/appointments/new")}
-                    >
-                      {loadingHref === "/app/appointments/new" ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                      ) : (
-                        <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                      )}
-                      New Appointment
-                    </Link>
-                  </Button>
+                  <NavButton href="/app/appointments/new" className="w-full md:w-auto min-h-[44px]">
+                    {loadingHref === "/app/appointments/new" ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                    )}
+                    New Appointment
+                  </NavButton>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
                   Open the scheduling form to create a new appointment

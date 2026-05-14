@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { FileQuestion, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { NavButton } from "@/components/recipes/nav-button";
 import { useSession } from "@/hooks/use-session";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 
@@ -15,7 +14,7 @@ function homeHrefFor(isAdmin: boolean, isSystemUser: boolean): string {
 
 export default function NotFound() {
   const { isAuthenticated, isAdmin, isSystemUser } = useSession();
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
 
   const href = homeHrefFor(isAdmin, isSystemUser);
   const label = isAuthenticated ? "Back to dashboard" : "Go back home";
@@ -37,14 +36,12 @@ export default function NotFound() {
       </div>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button asChild className="min-h-[44px]">
-            <Link href={href} onClick={() => handleNavClick(href)}>
-              {isLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : null}
-              {label}
-            </Link>
-          </Button>
+          <NavButton href={href} className="min-h-[44px]">
+            {isLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : null}
+            {label}
+          </NavButton>
         </TooltipTrigger>
         <TooltipContent side="bottom">{tooltipCopy}</TooltipContent>
       </Tooltip>

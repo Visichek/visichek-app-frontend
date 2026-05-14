@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,6 +7,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
+import { NavButton } from "@/components/recipes/nav-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -51,7 +51,7 @@ type UserFormData = z.infer<typeof userSchema>;
 
 export default function NewUserPage() {
   const router = useRouter();
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
   const createMutation = useCreateSystemUser();
   const departmentsQuery = useDepartments();
 
@@ -103,19 +103,14 @@ export default function NewUserPage() {
       <div className="flex items-center gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" asChild className="min-h-[44px]">
-              <Link
-                href="/app/users"
-                onClick={() => handleNavClick("/app/users")}
-              >
-                {loadingHref === "/app/users" ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                )}
-                Back to users
-              </Link>
-            </Button>
+            <NavButton href="/app/users" variant="ghost" size="sm" className="min-h-[44px]">
+              {loadingHref === "/app/users" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Back to users
+            </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             Return to the users list without saving
@@ -260,20 +255,14 @@ export default function NewUserPage() {
         <div className="flex flex-col gap-2 pt-2 md:flex-row md:justify-end">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                type="button"
+              <NavButton
+                href="/app/users"
                 variant="outline"
-                asChild
                 disabled={submitting}
                 className="w-full min-h-[44px] md:w-auto"
               >
-                <Link
-                  href="/app/users"
-                  onClick={() => handleNavClick("/app/users")}
-                >
-                  Cancel
-                </Link>
-              </Button>
+                Cancel
+              </NavButton>
             </TooltipTrigger>
             <TooltipContent side="top">
               Discard this draft and return to the users list

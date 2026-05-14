@@ -9,7 +9,7 @@ import {
   Keyboard,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { NavButton } from "@/components/recipes/nav-button";
 import {
   Tooltip,
   TooltipContent,
@@ -48,29 +48,24 @@ const METHODS: readonly MethodOption[] = [
 ] as const;
 
 export default function CheckOutMethodChoicePage() {
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref, navigateFromOverlay } = useNavigationLoading();
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" asChild className="min-h-[44px]">
-              <Link
-                href="/app/visitors/pending"
-                onClick={() => handleNavClick("/app/visitors/pending")}
-              >
-                {loadingHref === "/app/visitors/pending" ? (
-                  <Loader2
-                    className="mr-2 h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                )}
-                Back to visitors
-              </Link>
-            </Button>
+            <NavButton href="/app/visitors/pending" variant="ghost" size="sm" className="min-h-[44px]">
+              {loadingHref === "/app/visitors/pending" ? (
+                <Loader2
+                  className="mr-2 h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Back to visitors
+            </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             Return to the visitors list without checking anyone out
@@ -91,7 +86,20 @@ export default function CheckOutMethodChoicePage() {
               <TooltipTrigger asChild>
                 <Link
                   href={href}
-                  onClick={() => handleNavClick(href)}
+                  onClick={(event) => {
+                    if (
+                      event.defaultPrevented ||
+                      event.metaKey ||
+                      event.ctrlKey ||
+                      event.shiftKey ||
+                      event.altKey ||
+                      event.button !== 0
+                    ) {
+                      return;
+                    }
+                    event.preventDefault();
+                    navigateFromOverlay(href);
+                  }}
                   className="group relative flex flex-col gap-3 rounded-xl border bg-card p-5 text-left transition-colors hover:border-primary hover:bg-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[160px]"
                   aria-label={label}
                 >

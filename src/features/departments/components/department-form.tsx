@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,6 +7,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
+import { NavButton } from "@/components/recipes/nav-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,7 @@ interface DepartmentFormProps {
 
 export function DepartmentForm({ department }: DepartmentFormProps) {
   const router = useRouter();
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
   const createMutation = useCreateDepartment();
   const updateMutation = useUpdateDepartment();
   const isEditing = !!department;
@@ -83,19 +83,14 @@ export function DepartmentForm({ department }: DepartmentFormProps) {
       <div className="flex items-center gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" asChild className="min-h-[44px]">
-              <Link
-                href="/app/departments"
-                onClick={() => handleNavClick("/app/departments")}
-              >
-                {loadingHref === "/app/departments" ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                )}
-                Back to departments
-              </Link>
-            </Button>
+            <NavButton href="/app/departments" variant="ghost" size="sm" className="min-h-[44px]">
+              {loadingHref === "/app/departments" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Back to departments
+            </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             Return to the departments list without saving
@@ -133,20 +128,14 @@ export function DepartmentForm({ department }: DepartmentFormProps) {
         <div className="flex flex-col gap-2 pt-2 md:flex-row md:justify-end">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                type="button"
+              <NavButton
+                href="/app/departments"
                 variant="outline"
-                asChild
                 disabled={submitting}
                 className="w-full min-h-[44px] md:w-auto"
               >
-                <Link
-                  href="/app/departments"
-                  onClick={() => handleNavClick("/app/departments")}
-                >
-                  Cancel
-                </Link>
-              </Button>
+                Cancel
+              </NavButton>
             </TooltipTrigger>
             <TooltipContent side="top">
               Discard this draft and return to the departments list

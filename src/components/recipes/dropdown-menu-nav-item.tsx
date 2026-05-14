@@ -35,9 +35,15 @@ export interface DropdownMenuNavItemProps {
  * 'removeChild')` — see [[project_tooltip_link_portal_race]] and the
  * root layout DOM_RECONCILER_GUARD.
  *
- * Mechanism: `onSelect` calls `event.preventDefault()` so Radix still
- * closes the menu, then `navigateFromOverlay()` defers `router.push`
- * until two animation frames later, after the portal has fully unmounted.
+ * Mechanism: `onSelect` does NOT call `preventDefault`, so Radix runs
+ * its default close behavior (commits `setOpen(false)` and unmounts the
+ * portal in the same React tick). `navigateFromOverlay()` then defers
+ * `router.push` until two animation frames later, after the portal has
+ * fully unmounted and the browser has painted, so the page-tree swap
+ * never collides with portal teardown.
+ *
+ * Note: calling `event.preventDefault()` here would *keep the menu
+ * open*, which reintroduces the race — don't add it back.
  */
 export function DropdownMenuNavItem({
   href,
@@ -53,8 +59,7 @@ export function DropdownMenuNavItem({
 
   return (
     <DropdownMenuItem
-      onSelect={(event) => {
-        event.preventDefault();
+      onSelect={() => {
         if (disabled) return;
         navigateFromOverlay(href);
       }}

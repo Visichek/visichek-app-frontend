@@ -1,9 +1,8 @@
 "use client";
 
 import { use } from "react";
-import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { NavButton } from "@/components/recipes/nav-button";
 import {
   Tooltip,
   TooltipContent,
@@ -22,7 +21,7 @@ export default function CheckinDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
   const { data, isLoading, isError, refetch } = useCheckinDetail(id);
 
   if (isError || (!isLoading && !data)) {
@@ -30,27 +29,22 @@ export default function CheckinDetailPage({
       <div className="mx-auto max-w-3xl space-y-4">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
+            <NavButton
+              href={LIST_HREF}
               variant="ghost"
               size="sm"
-              asChild
               className="min-h-[44px] -ml-2"
             >
-              <Link
-                href={LIST_HREF}
-                onClick={() => handleNavClick(LIST_HREF)}
-              >
-                {loadingHref === LIST_HREF ? (
-                  <Loader2
-                    className="mr-2 h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                )}
-                Back to visitors
-              </Link>
-            </Button>
+              {loadingHref === LIST_HREF ? (
+                <Loader2
+                  className="mr-2 h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Back to visitors
+            </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             Return to the visitors list

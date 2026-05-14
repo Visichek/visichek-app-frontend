@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,6 +16,7 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PageHeader } from "@/components/recipes/page-header";
+import { NavButton } from "@/components/recipes/nav-button";
 import {
   StepIndicator,
   ReviewRow,
@@ -102,7 +102,7 @@ const LIST_HREF = "/admin/tenants";
  * with the other admin wizards.
  */
 export function BootstrapTenantForm() {
-  const { loadingHref, handleNavClick, navigate } = useNavigationLoading();
+  const { loadingHref, navigate } = useNavigationLoading();
   const bootstrapMutation = useBootstrapTenant();
   const [showPassword, setShowPassword] = useState(false);
 
@@ -168,22 +168,17 @@ export function BootstrapTenantForm() {
       <div className="flex items-center gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" asChild className="min-h-[44px]">
-              <Link
-                href={LIST_HREF}
-                onClick={() => handleNavClick(LIST_HREF)}
-              >
-                {loadingHref === LIST_HREF ? (
-                  <Loader2
-                    className="mr-2 h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                )}
-                Back to tenants
-              </Link>
-            </Button>
+            <NavButton href={LIST_HREF} variant="ghost" size="sm" className="min-h-[44px]">
+              {loadingHref === LIST_HREF ? (
+                <Loader2
+                  className="mr-2 h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Back to tenants
+            </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             Return to the tenants list without creating a new one
@@ -466,19 +461,13 @@ export function BootstrapTenantForm() {
           <Tooltip>
             <TooltipTrigger asChild>
               {stepForm.isFirstStep ? (
-                <Button
-                  type="button"
+                <NavButton
+                  href={LIST_HREF}
                   variant="outline"
-                  asChild
                   className="w-full md:w-auto min-h-[44px]"
                 >
-                  <Link
-                    href={LIST_HREF}
-                    onClick={() => handleNavClick(LIST_HREF)}
-                  >
-                    Cancel
-                  </Link>
-                </Button>
+                  Cancel
+                </NavButton>
               ) : (
                 <Button
                   type="button"

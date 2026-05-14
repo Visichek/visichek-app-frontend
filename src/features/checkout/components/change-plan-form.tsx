@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowDown,
@@ -17,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { NavButton } from "@/components/recipes/nav-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -120,7 +120,7 @@ export function ChangePlanForm({
   currentPlanTier,
 }: ChangePlanFormProps) {
   const router = useRouter();
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
 
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
@@ -335,28 +335,23 @@ export function ChangePlanForm({
       <div>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
+            <NavButton
+              href={LIST_HREF}
               variant="ghost"
               size="sm"
-              asChild
               className="min-h-[44px] -ml-2"
               disabled={createSession.isPending}
             >
-              <Link
-                href={LIST_HREF}
-                onClick={() => handleNavClick(LIST_HREF)}
-              >
-                {isNavigatingBack ? (
-                  <Loader2
-                    className="mr-2 h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                )}
-                Back to billing
-              </Link>
-            </Button>
+              {isNavigatingBack ? (
+                <Loader2
+                  className="mr-2 h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Back to billing
+            </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             Return to the billing and usage page
@@ -637,18 +632,13 @@ export function ChangePlanForm({
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
+                  <NavButton
+                    href={LIST_HREF}
                     variant="outline"
-                    asChild
                     className="min-h-[44px] w-full sm:w-auto"
                   >
-                    <Link
-                      href={LIST_HREF}
-                      onClick={() => handleNavClick(LIST_HREF)}
-                    >
-                      Back to billing to cancel instead
-                    </Link>
-                  </Button>
+                    Back to billing to cancel instead
+                  </NavButton>
                 </TooltipTrigger>
                 <TooltipContent side="top">
                   Return to billing where you can cancel your subscription —
@@ -879,20 +869,14 @@ export function ChangePlanForm({
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                type="button"
+              <NavButton
+                href={LIST_HREF}
                 variant="outline"
-                asChild
                 disabled={createSession.isPending}
                 className="min-h-[44px] w-full sm:w-auto"
               >
-                <Link
-                  href={LIST_HREF}
-                  onClick={() => handleNavClick(LIST_HREF)}
-                >
-                  Cancel
-                </Link>
-              </Button>
+                Cancel
+              </NavButton>
             </TooltipTrigger>
             <TooltipContent side="top">
               Return to billing without starting a checkout

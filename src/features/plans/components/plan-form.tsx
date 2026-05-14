@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,6 +16,7 @@ import {
   Tag,
 } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
+import { NavButton } from "@/components/recipes/nav-button";
 import {
   StepIndicator,
   ReviewRow,
@@ -289,7 +289,7 @@ interface PlanFormProps {
  */
 export function PlanForm({ plan }: PlanFormProps) {
   const isEdit = !!plan;
-  const { loadingHref, handleNavClick, navigate } = useNavigationLoading();
+  const { loadingHref, navigate } = useNavigationLoading();
   const createMutation = useCreatePlan();
   const updateMutation = useUpdatePlan(plan?.id ?? "");
 
@@ -524,22 +524,17 @@ export function PlanForm({ plan }: PlanFormProps) {
       <div className="flex items-center gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" asChild className="min-h-[44px]">
-              <Link
-                href={LIST_HREF}
-                onClick={() => handleNavClick(LIST_HREF)}
-              >
-                {loadingHref === LIST_HREF ? (
-                  <Loader2
-                    className="mr-2 h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                )}
-                Back to plans
-              </Link>
-            </Button>
+            <NavButton href={LIST_HREF} variant="ghost" size="sm" className="min-h-[44px]">
+              {loadingHref === LIST_HREF ? (
+                <Loader2
+                  className="mr-2 h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Back to plans
+            </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             Return to the plans list without saving
@@ -1072,19 +1067,13 @@ export function PlanForm({ plan }: PlanFormProps) {
           <Tooltip>
             <TooltipTrigger asChild>
               {stepForm.isFirstStep ? (
-                <Button
-                  type="button"
+                <NavButton
+                  href={LIST_HREF}
                   variant="outline"
-                  asChild
                   className="w-full md:w-auto min-h-[44px]"
                 >
-                  <Link
-                    href={LIST_HREF}
-                    onClick={() => handleNavClick(LIST_HREF)}
-                  >
-                    Cancel
-                  </Link>
-                </Button>
+                  Cancel
+                </NavButton>
               ) : (
                 <Button
                   type="button"

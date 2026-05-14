@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import {
   ChevronRight,
   Eye,
@@ -14,6 +13,7 @@ import {
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { NavButton } from "@/components/recipes/nav-button";
 import {
   Tooltip,
   TooltipContent,
@@ -140,7 +140,7 @@ export function GroupedVisitorsList({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [badgePrintTarget, setBadgePrintTarget] =
     useState<AwaitingCheckoutItem | null>(null);
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
 
   const groups = useMemo(() => buildGroups(checkins), [checkins]);
 
@@ -331,30 +331,25 @@ export function GroupedVisitorsList({
                             )}
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Button
+                                <NavButton
+                                  href={viewHref}
                                   size="sm"
                                   variant="outline"
-                                  asChild
                                   className="min-h-[44px]"
                                 >
-                                  <Link
-                                    href={viewHref}
-                                    onClick={() => handleNavClick(viewHref)}
-                                  >
-                                    {isLoadingRow ? (
-                                      <Loader2
-                                        className="mr-1 h-3.5 w-3.5 animate-spin"
-                                        aria-hidden="true"
-                                      />
-                                    ) : (
-                                      <Eye
-                                        className="mr-1 h-3.5 w-3.5"
-                                        aria-hidden="true"
-                                      />
-                                    )}
-                                    Details
-                                  </Link>
-                                </Button>
+                                  {isLoadingRow ? (
+                                    <Loader2
+                                      className="mr-1 h-3.5 w-3.5 animate-spin"
+                                      aria-hidden="true"
+                                    />
+                                  ) : (
+                                    <Eye
+                                      className="mr-1 h-3.5 w-3.5"
+                                      aria-hidden="true"
+                                    />
+                                  )}
+                                  Details
+                                </NavButton>
                               </TooltipTrigger>
                               <TooltipContent side="left">
                                 Open the full details for this check-in

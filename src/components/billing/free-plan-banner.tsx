@@ -21,7 +21,7 @@ const UPGRADE_HREF = "/app/billing/change-plan";
  */
 export function FreePlanBanner({ pathname }: { pathname: string }) {
   const { data: usage, isLoading } = useMyUsage();
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref, navigateFromOverlay } = useNavigationLoading();
 
   if (isLoading) return null;
   if (!usage) return null;
@@ -56,7 +56,20 @@ export function FreePlanBanner({ pathname }: { pathname: string }) {
           <TooltipTrigger asChild>
             <Link
               href={UPGRADE_HREF}
-              onClick={() => handleNavClick(UPGRADE_HREF)}
+              onClick={(event) => {
+                if (
+                  event.defaultPrevented ||
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey ||
+                  event.button !== 0
+                ) {
+                  return;
+                }
+                event.preventDefault();
+                navigateFromOverlay(UPGRADE_HREF);
+              }}
               className="inline-flex min-h-[36px] shrink-0 items-center justify-center gap-1.5 self-start rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 sm:self-auto"
             >
               {isNavigating ? (

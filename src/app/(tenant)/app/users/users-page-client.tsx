@@ -14,6 +14,7 @@ import {
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
+import { NavButton } from "@/components/recipes/nav-button";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -344,22 +345,17 @@ export function UsersPageClient() {
         actions={
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button asChild className="w-full md:w-auto min-h-[44px]">
-                <Link
-                  href="/app/users/new"
-                  onClick={() => handleNavClick("/app/users/new")}
-                >
-                  {loadingHref === "/app/users/new" ? (
-                    <Loader2
-                      className="mr-2 h-4 w-4 animate-spin"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
-                  )}
-                  Invite User
-                </Link>
-              </Button>
+              <NavButton href="/app/users/new" className="w-full md:w-auto min-h-[44px]">
+                {loadingHref === "/app/users/new" ? (
+                  <Loader2
+                    className="mr-2 h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+                )}
+                Invite User
+              </NavButton>
             </TooltipTrigger>
             <TooltipContent side="bottom">
               Open the new-user form to invite a new staff member
