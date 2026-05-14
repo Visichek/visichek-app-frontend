@@ -40,6 +40,7 @@ import { LoadingButton } from "@/components/feedback/loading-button";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { BlockEditor } from "@/features/blog/components/block-editor";
 import { FeatureImagePicker } from "@/features/blog/components/feature-image-picker";
+import { AuthorAvatarPicker } from "@/features/blog/components/author-avatar-picker";
 import {
   useCreateBlog,
   useUpdateBlog,
@@ -378,20 +379,12 @@ export function BlogForm({ blog }: BlogFormProps) {
                 }
                 placeholder="Jane Doe"
               />
-              <Label htmlFor="author-avatar" className="pt-2">
-                Author avatar URL
-              </Label>
-              <Input
-                id="author-avatar"
+              <Label className="pt-2">Author avatar</Label>
+              <AuthorAvatarPicker
                 value={state.authorAvatarUrl}
-                onChange={(e) =>
-                  setState((s) => ({
-                    ...s,
-                    authorAvatarUrl: e.target.value,
-                  }))
+                onChange={(url) =>
+                  setState((s) => ({ ...s, authorAvatarUrl: url }))
                 }
-                placeholder="https://… (optional)"
-                inputMode="url"
               />
             </section>
 

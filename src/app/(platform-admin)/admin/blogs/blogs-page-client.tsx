@@ -32,6 +32,7 @@ import {
   BLOG_TYPES,
   type BlogListItem,
 } from "@/types/blog";
+import { resolveDocumentUrl } from "@/lib/utils/document-url";
 
 const NEW_BLOG_HREF = "/admin/blogs/new";
 
@@ -125,7 +126,7 @@ export function BlogsPageClient() {
             {blog.featureImage?.url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={blog.featureImage.url}
+                src={resolveDocumentUrl(blog.featureImage.url) ?? blog.featureImage.url}
                 alt={blog.featureImage.altText ?? ""}
                 className="h-12 w-16 shrink-0 rounded-md object-cover"
               />
@@ -224,7 +225,7 @@ export function BlogsPageClient() {
         {blog.featureImage?.url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={blog.featureImage.url}
+            src={resolveDocumentUrl(blog.featureImage.url) ?? blog.featureImage.url}
             alt={blog.featureImage.altText ?? ""}
             className="h-16 w-20 shrink-0 rounded-md object-cover"
           />

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useUploadMediaFile } from "@/features/blog/hooks/use-media";
+import { resolveDocumentUrl } from "@/lib/utils/document-url";
 import type { MediaAsset } from "@/types/blog";
 
 interface FeatureImagePickerProps {
@@ -47,7 +48,7 @@ export function FeatureImagePicker({ value, onChange }: FeatureImagePickerProps)
           <div className="relative overflow-hidden rounded-lg border border-border">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={value.url}
+              src={resolveDocumentUrl(value.url) ?? value.url}
               alt={value.altText || "Feature image"}
               className="block aspect-[16/9] w-full object-cover"
             />

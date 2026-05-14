@@ -30,6 +30,7 @@ import {
   useCreateMedia,
   useDeleteMedia,
 } from "@/features/blog/hooks/use-media";
+import { resolveDocumentUrl } from "@/lib/utils/document-url";
 import { BLOG_CATEGORIES, type MediaItem, type MediaType } from "@/types/blog";
 
 type TypeTab = "all" | MediaType;
@@ -108,7 +109,7 @@ export function MediaPageClient() {
 
   async function copyUrl(item: MediaItem) {
     try {
-      await navigator.clipboard.writeText(item.url);
+      await navigator.clipboard.writeText(resolveDocumentUrl(item.url) ?? item.url);
       setCopiedId(item.id);
       toast.success("URL copied to clipboard");
       setTimeout(() => setCopiedId((c) => (c === item.id ? null : c)), 1500);
@@ -281,14 +282,14 @@ function MediaCard({
         {item.mediaType === "image" ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={item.url}
+            src={resolveDocumentUrl(item.url) ?? item.url}
             alt={item.name}
             className="h-full w-full object-cover"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
             <video
-              src={item.url}
+              src={resolveDocumentUrl(item.url) ?? item.url}
               className="h-full w-full object-cover"
               muted
               loop

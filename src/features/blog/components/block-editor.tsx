@@ -25,6 +25,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useUploadMediaFile } from "@/features/blog/hooks/use-media";
+import { resolveDocumentUrl } from "@/lib/utils/document-url";
 import { toast } from "sonner";
 import type { Block, BlockType } from "@/types/blog";
 import {
@@ -835,12 +836,16 @@ function MediaBlock({ block, onPropsChange, refSetter }: MediaBlockProps) {
           {isImage ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={url}
+              src={resolveDocumentUrl(url) ?? url}
               alt={block.props?.alt ?? caption ?? ""}
               className="mx-auto max-h-[480px] w-full rounded-md object-contain"
             />
           ) : (
-            <video src={url} controls className="mx-auto max-h-[480px] w-full rounded-md" />
+            <video
+              src={resolveDocumentUrl(url) ?? url}
+              controls
+              className="mx-auto max-h-[480px] w-full rounded-md"
+            />
           )}
           <Input
             value={caption}
