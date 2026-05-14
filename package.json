@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
-    "build:webpack": "next build",
-    "analyze": "cross-env ANALYZE=true next build",
+    "build": "next build",
+    "build:webpack": "next build --webpack",
+    "analyze": "cross-env ANALYZE=true next build --webpack",
     "analyze:turbo": "next experimental-analyze",
     "start": "next start",
     "lint": "next lint",

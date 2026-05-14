@@ -42,9 +42,15 @@ const DEFAULT_COLOR = "hsl(217 91% 60%)";
 // is ~80KB gzipped. Loading the body lazily keeps that cost off the
 // initial bundle for non-dashboard routes that happen to import a chart
 // recipe transitively (search results, audit log, etc.).
+//
+// IMPORTANT: every chart wrapper in this folder must import from
+// `./chart-bodies` (the shared barrel), never from its own `-impl` file.
+// `next/dynamic` keys chunks by import specifier, so a shared specifier
+// collapses all three chart impls into ONE async chunk — recharts (and
+// its lodash dep) ships exactly once per page rather than three times.
 const TimeSeriesChartBody = dynamic(
   () =>
-    import("./time-series-chart-impl").then((m) => ({
+    import("./chart-bodies").then((m) => ({
       default: m.TimeSeriesChartBody,
     })),
   {

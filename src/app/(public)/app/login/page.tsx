@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -747,6 +746,14 @@ function TenantWorkspaceAvatar({
 }) {
   const { data } = useTenantPublicBranding(tenantId);
   const logoUrl = data?.logoUrl;
+  const [imageBroken, setImageBroken] = useState(false);
+
+  // Reset the broken flag when the tenant's logo URL changes so a successful
+  // refetch can re-show the image after a transient failure.
+  useEffect(() => {
+    setImageBroken(false);
+  }, [logoUrl]);
+
   const initials = companyName
     .split(/\s+/)
     .filter(Boolean)
@@ -754,26 +761,31 @@ function TenantWorkspaceAvatar({
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("");
 
+  const showLogo = !!logoUrl && !imageBroken;
+
   return (
-    <div className="flex-shrink-0 h-11 w-11 rounded-full bg-[#00D287]/10 text-[#00D287] flex items-center justify-center overflow-hidden font-semibold text-sm">
-      {logoUrl ? (
-        <Image
-          src={logoUrl}
+    <div className="flex-shrink-0 relative h-11 w-11 rounded-full bg-[#00D287]/10 text-[#00D287] flex items-center justify-center overflow-hidden font-semibold text-sm">
+      {/* Initials/icon sit underneath so they're already painted while the
+          logo loads, and stay visible if the image fails or is absent. */}
+      {initials ? (
+        <span aria-hidden={showLogo}>{initials}</span>
+      ) : (
+        <Building2 size={18} aria-hidden="true" />
+      )}
+      {showLogo && (
+        // Plain <img>: avatars are 44px PNGs straight from the API — the
+        // next/image optimizer adds a moving part (and an extra hop) we
+        // don't need, and silently failing optimizations are how users
+        // end up with empty avatar circles.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={logoUrl!}
           alt=""
           width={44}
           height={44}
-          className="h-full w-full object-cover"
-          onError={(event) => {
-            // If the public document URL fails to load (e.g. tenant removed
-            // the logo between fetches), drop the image so the initials
-            // fallback shows through instead of a broken-image glyph.
-            event.currentTarget.style.display = "none";
-          }}
+          className="absolute inset-0 h-full w-full object-cover bg-white"
+          onError={() => setImageBroken(true)}
         />
-      ) : initials ? (
-        initials
-      ) : (
-        <Building2 size={18} aria-hidden="true" />
       )}
     </div>
   );

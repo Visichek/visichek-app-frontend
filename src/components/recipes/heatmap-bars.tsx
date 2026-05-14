@@ -27,9 +27,12 @@ export type HeatmapBarsBodyProps = Required<
 
 const DEFAULT_COLOR = "hsl(217 91% 60%)";
 
+// Shared dynamic specifier — see comment in `time-series-chart.tsx` for why
+// every chart wrapper imports from `./chart-bodies` rather than its own
+// `-impl` file (collapses three recharts chunks into one).
 const HeatmapBarsBody = dynamic(
   () =>
-    import("./heatmap-bars-impl").then((m) => ({
+    import("./chart-bodies").then((m) => ({
       default: m.HeatmapBarsBody,
     })),
   {

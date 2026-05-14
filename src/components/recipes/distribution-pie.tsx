@@ -39,9 +39,12 @@ export type DistributionPieBodyProps = Required<
   Pick<DistributionPieProps, "data" | "height">
 >;
 
+// Shared dynamic specifier — see comment in `time-series-chart.tsx` for why
+// every chart wrapper imports from `./chart-bodies` rather than its own
+// `-impl` file (collapses three recharts chunks into one).
 const DistributionPieBody = dynamic(
   () =>
-    import("./distribution-pie-impl").then((m) => ({
+    import("./chart-bodies").then((m) => ({
       default: m.DistributionPieBody,
     })),
   {
