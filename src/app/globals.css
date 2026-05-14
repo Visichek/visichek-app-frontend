@@ -150,6 +150,23 @@ html {
   }
 }
 
+/*
+  Block editor — Medium-style contenteditable placeholder.
+  We set `data-empty` on each block whose textContent is empty, and read the
+  prompt copy from `data-placeholder`.
+*/
+.block-editable[data-empty]:before {
+  content: attr(data-placeholder);
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.block-editable {
+  caret-color: hsl(var(--foreground));
+}
+
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
   *,

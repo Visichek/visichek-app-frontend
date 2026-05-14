@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   Sheet,
@@ -9,13 +10,30 @@ import {
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils/cn";
-import { Loader2, Settings, LogOut, HelpCircle } from "lucide-react";
+import {
+  Loader2,
+  Settings,
+  LogOut,
+  HelpCircle,
+  ChevronDown,
+} from "lucide-react";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useSession } from "@/hooks/use-session";
 import { useAuth } from "@/hooks/use-auth";
 import { useAppSelector } from "@/lib/store/hooks";
 import { selectBranding } from "@/lib/store/branding-slice";
 import type { NavItem } from "./app-sidebar";
+
+function isGroup(item: NavItem): item is NavItem & { children: NavItem[] } {
+  return Array.isArray(item.children) && item.children.length > 0;
+}
+
+function groupContainsPath(item: NavItem, pathname: string): boolean {
+  if (!isGroup(item)) return false;
+  return item.children.some(
+    (child) => child.href && pathname.startsWith(child.href),
+  );
+}
 
 interface MobileNavSheetProps {
   open: boolean;
@@ -59,6 +77,92 @@ export function MobileNavSheet({
     (item) => item.label.toLowerCase() !== "settings",
   );
 
+  // Mirror the AppSidebar grouping behavior: groups are collapsed by default
+  // and auto-opened when the current path lives inside them. User toggles
+  // are preserved within the same mount.
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
+    const open = new Set<string>();
+    for (const item of mainNavItems) {
+      if (groupContainsPath(item, pathname ?? "")) open.add(item.label);
+    }
+    return open;
+  });
+
+  useEffect(() => {
+    setOpenGroups((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const item of mainNavItems) {
+        if (groupContainsPath(item, pathname ?? "") && !next.has(item.label)) {
+          next.add(item.label);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [pathname, mainNavItems]);
+
+  function toggleGroup(label: string) {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  }
+
+  function renderLeaf(item: NavItem, nested = false) {
+    const isActive = item.href ? pathname.startsWith(item.href) : false;
+    const isLoading = loadingHref === item.href;
+    const Icon = item.icon;
+    return (
+      <li key={item.href ?? item.label}>
+        <a
+          href={item.href ?? "#"}
+          onClick={() => {
+            if (item.href) handleNavClick(item.href);
+            onOpenChange(false);
+          }}
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]",
+            nested && "pl-10 text-[13px]",
+            isActive
+              ? "bg-accent text-accent-foreground"
+              : "text-foreground/70 hover:bg-accent hover:text-foreground",
+          )}
+          aria-current={isActive ? "page" : undefined}
+        >
+          {isLoading ? (
+            <Loader2
+              className={cn(
+                "shrink-0 animate-spin text-foreground",
+                nested ? "h-4 w-4" : "h-[18px] w-[18px]",
+              )}
+              aria-hidden="true"
+            />
+          ) : (
+            <Icon
+              className={cn(
+                "shrink-0",
+                nested ? "h-4 w-4" : "h-[18px] w-[18px]",
+                isActive ? "text-foreground" : "text-foreground/50",
+              )}
+              aria-hidden="true"
+            />
+          )}
+          <div className="flex-1 min-w-0">
+            <span>{item.label}</span>
+            {!nested && item.description && (
+              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                {item.description}
+              </p>
+            )}
+          </div>
+        </a>
+      </li>
+    );
+  }
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="left" className="w-72 p-0 flex flex-col">
@@ -84,52 +188,55 @@ export function MobileNavSheet({
         <nav className="flex-1 overflow-y-auto px-3 py-3" aria-label="Mobile navigation">
           <ul className="space-y-0.5">
             {mainNavItems.map((item) => {
-              const isActive = pathname.startsWith(item.href);
-              const isLoading = loadingHref === item.href;
-              const Icon = item.icon;
-              return (
-                <li key={item.href}>
-                  {/* Plain <a> = full-page navigation, see app-sidebar
-                      for the rationale. */}
-                  <a
-                    href={item.href}
-                    onClick={() => {
-                      handleNavClick(item.href);
-                      onOpenChange(false);
-                    }}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]",
-                      isActive
-                        ? "bg-accent text-accent-foreground"
-                        : "text-foreground/70 hover:bg-accent hover:text-foreground",
-                    )}
-                    aria-current={isActive ? "page" : undefined}
-                  >
-                    {isLoading ? (
-                      <Loader2
-                        className="h-[18px] w-[18px] shrink-0 animate-spin text-foreground"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <Icon
+              if (isGroup(item)) {
+                const open = openGroups.has(item.label);
+                const containsActive = groupContainsPath(item, pathname ?? "");
+                const GroupIcon = item.icon;
+                return (
+                  <li key={`group:${item.label}`}>
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(item.label)}
+                      aria-expanded={open}
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors min-h-[44px]",
+                        containsActive
+                          ? "text-foreground"
+                          : "text-foreground/70 hover:bg-accent hover:text-foreground",
+                      )}
+                    >
+                      <GroupIcon
                         className={cn(
                           "h-[18px] w-[18px] shrink-0",
-                          isActive ? "text-foreground" : "text-foreground/50",
+                          containsActive ? "text-foreground" : "text-foreground/50",
                         )}
                         aria-hidden="true"
                       />
+                      <div className="flex-1 min-w-0 text-left">
+                        <span>{item.label}</span>
+                        {item.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                            {item.description}
+                          </p>
+                        )}
+                      </div>
+                      <ChevronDown
+                        className={cn(
+                          "h-4 w-4 shrink-0 text-foreground/40 transition-transform",
+                          open && "rotate-180",
+                        )}
+                        aria-hidden="true"
+                      />
+                    </button>
+                    {open && (
+                      <ul className="mt-0.5 space-y-0.5">
+                        {item.children.map((child) => renderLeaf(child, true))}
+                      </ul>
                     )}
-                    <div className="flex-1 min-w-0">
-                      <span>{item.label}</span>
-                      {item.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                          {item.description}
-                        </p>
-                      )}
-                    </div>
-                  </a>
-                </li>
-              );
+                  </li>
+                );
+              }
+              return renderLeaf(item);
             })}
           </ul>
         </nav>

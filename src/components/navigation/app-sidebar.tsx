@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -11,6 +12,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -22,6 +24,7 @@ import {
   Settings,
   LogOut,
   ChevronUp,
+  ChevronDown,
   HelpCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -29,10 +32,24 @@ import { useNavigationLoading } from "@/lib/routing/navigation-context";
 
 export interface NavItem {
   label: string;
-  href: string;
+  /** Required for leaf items; omitted for groups (use `children` instead) */
+  href?: string;
   icon: LucideIcon;
   /** Short description shown on hover — explains what this section does */
   description?: string;
+  /** When present, this item is a group header that expands to reveal these sub-items */
+  children?: NavItem[];
+}
+
+function isGroup(item: NavItem): item is NavItem & { children: NavItem[] } {
+  return Array.isArray(item.children) && item.children.length > 0;
+}
+
+function groupContainsPath(item: NavItem, pathname: string): boolean {
+  if (!isGroup(item)) return false;
+  return item.children.some(
+    (child) => child.href && pathname.startsWith(child.href),
+  );
 }
 
 interface UserInfo {
@@ -79,7 +96,7 @@ export function AppSidebar({
   collapsed = false,
   onCollapsedChange,
 }: AppSidebarProps) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
   const isSettingsLoading = settingsHref ? loadingHref === settingsHref : false;
@@ -89,6 +106,44 @@ export function AppSidebar({
   const mainNavItems = items.filter(
     (item) => item.label.toLowerCase() !== "settings",
   );
+
+  // Track which groups are currently expanded in the rail. We seed from the
+  // active path so a fresh page load opens the group that contains the
+  // current route, and then let the user toggle freely from there. A full
+  // page nav (see comment on the <a> tags below) re-runs this initializer.
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
+    const open = new Set<string>();
+    for (const item of mainNavItems) {
+      if (groupContainsPath(item, pathname)) open.add(item.label);
+    }
+    return open;
+  });
+
+  // If the route changes within the same React tree (e.g., admin shell
+  // internal nav still uses client routing in places), auto-open the group
+  // that owns the new path. We never auto-close a group the user opened.
+  useEffect(() => {
+    setOpenGroups((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const item of mainNavItems) {
+        if (groupContainsPath(item, pathname) && !next.has(item.label)) {
+          next.add(item.label);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [pathname, mainNavItems]);
+
+  function toggleGroup(label: string) {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  }
 
   return (
     <aside
@@ -182,69 +237,29 @@ export function AppSidebar({
       >
         <ul className="space-y-0.5">
           {mainNavItems.map((item) => {
-            const isActive = pathname.startsWith(item.href);
-            const isLoading = loadingHref === item.href;
-            const Icon = item.icon;
-
+            if (isGroup(item)) {
+              return (
+                <SidebarGroup
+                  key={`group:${item.label}`}
+                  item={item}
+                  pathname={pathname}
+                  loadingHref={loadingHref}
+                  handleNavClick={handleNavClick}
+                  collapsed={collapsed}
+                  open={openGroups.has(item.label)}
+                  onToggle={() => toggleGroup(item.label)}
+                />
+              );
+            }
             return (
-              <li key={item.href}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    {/* Plain <a> = full-page navigation. App Router
-                        client transitions kept getting stuck mid-flight on
-                        tenant pages (URL updated, new tree never committed)
-                        and the periodic "stuck nav" recovery was removed.
-                        A full GET is bulletproof and matches the user's
-                        explicit "regular HTML method" preference. */}
-                    <a
-                      href={item.href}
-                      onClick={() => handleNavClick(item.href)}
-                      className={cn(
-                        "group flex items-center rounded-lg text-sm font-medium transition-colors",
-                        collapsed
-                          ? "justify-center p-2 min-h-[40px]"
-                          : "gap-3 px-3 py-2 min-h-[40px]",
-                        isActive
-                          ? "bg-sidebar-accent text-sidebar-foreground"
-                          : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                      )}
-                      aria-current={isActive ? "page" : undefined}
-                    >
-                      {isLoading ? (
-                        <Loader2
-                          className="h-[18px] w-[18px] shrink-0 animate-spin text-sidebar-foreground"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <Icon
-                          className={cn(
-                            "h-[18px] w-[18px] shrink-0 transition-colors",
-                            isActive
-                              ? "text-sidebar-foreground"
-                              : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80",
-                          )}
-                          aria-hidden="true"
-                        />
-                      )}
-                      {!collapsed && item.label}
-                    </a>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="max-w-[220px]">
-                    {collapsed ? (
-                      <div>
-                        <div className="font-medium">{item.label}</div>
-                        {item.description && (
-                          <div className="mt-0.5 text-xs opacity-80">
-                            {item.description}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      item.description || item.label
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              </li>
+              <SidebarLeaf
+                key={item.href ?? item.label}
+                item={item}
+                pathname={pathname}
+                loadingHref={loadingHref}
+                handleNavClick={handleNavClick}
+                collapsed={collapsed}
+              />
             );
           })}
         </ul>
@@ -375,5 +390,261 @@ export function AppSidebar({
         </div>
       )}
     </aside>
+  );
+}
+
+// ── Leaf row ────────────────────────────────────────────────
+interface SidebarLeafProps {
+  item: NavItem;
+  pathname: string;
+  loadingHref: string | null;
+  handleNavClick: (href: string) => void;
+  collapsed: boolean;
+  /** Render indented under a group header */
+  nested?: boolean;
+}
+
+function SidebarLeaf({
+  item,
+  pathname,
+  loadingHref,
+  handleNavClick,
+  collapsed,
+  nested = false,
+}: SidebarLeafProps) {
+  const href = item.href ?? "#";
+  const isActive = item.href ? pathname.startsWith(item.href) : false;
+  const isLoading = loadingHref === item.href;
+  const Icon = item.icon;
+
+  return (
+    <li>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {/* Plain <a> = full-page navigation. App Router
+              client transitions kept getting stuck mid-flight on
+              tenant pages (URL updated, new tree never committed)
+              and the periodic "stuck nav" recovery was removed.
+              A full GET is bulletproof and matches the user's
+              explicit "regular HTML method" preference. */}
+          <a
+            href={href}
+            onClick={() => item.href && handleNavClick(item.href)}
+            className={cn(
+              "group flex items-center rounded-lg text-sm font-medium transition-colors",
+              collapsed
+                ? "justify-center p-2 min-h-[40px]"
+                : "gap-3 px-3 py-2 min-h-[40px]",
+              !collapsed && nested && "pl-9 text-[13px]",
+              isActive
+                ? "bg-sidebar-accent text-sidebar-foreground"
+                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+            )}
+            aria-current={isActive ? "page" : undefined}
+          >
+            {isLoading ? (
+              <Loader2
+                className="h-[18px] w-[18px] shrink-0 animate-spin text-sidebar-foreground"
+                aria-hidden="true"
+              />
+            ) : (
+              <Icon
+                className={cn(
+                  "shrink-0 transition-colors",
+                  nested && !collapsed ? "h-4 w-4" : "h-[18px] w-[18px]",
+                  isActive
+                    ? "text-sidebar-foreground"
+                    : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80",
+                )}
+                aria-hidden="true"
+              />
+            )}
+            {!collapsed && item.label}
+          </a>
+        </TooltipTrigger>
+        <TooltipContent side="right" className="max-w-[220px]">
+          {collapsed ? (
+            <div>
+              <div className="font-medium">{item.label}</div>
+              {item.description && (
+                <div className="mt-0.5 text-xs opacity-80">
+                  {item.description}
+                </div>
+              )}
+            </div>
+          ) : (
+            item.description || item.label
+          )}
+        </TooltipContent>
+      </Tooltip>
+    </li>
+  );
+}
+
+// ── Collapsible group ─────────────────────────────────────────
+interface SidebarGroupProps {
+  item: NavItem & { children: NavItem[] };
+  pathname: string;
+  loadingHref: string | null;
+  handleNavClick: (href: string) => void;
+  collapsed: boolean;
+  open: boolean;
+  onToggle: () => void;
+}
+
+function SidebarGroup({
+  item,
+  pathname,
+  loadingHref,
+  handleNavClick,
+  collapsed,
+  open,
+  onToggle,
+}: SidebarGroupProps) {
+  const Icon = item.icon;
+  const containsActive = groupContainsPath(item, pathname);
+
+  // ── Collapsed rail: render the group icon and reveal children in a
+  // dropdown to the right on click. The dropdown items are real <a> tags
+  // so navigation matches the leaf behavior above.
+  if (collapsed) {
+    return (
+      <li>
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={cn(
+                    "group flex w-full items-center justify-center rounded-lg p-2 min-h-[40px] text-sm font-medium transition-colors",
+                    containsActive
+                      ? "bg-sidebar-accent text-sidebar-foreground"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                  )}
+                  aria-label={item.label}
+                >
+                  <Icon
+                    className={cn(
+                      "h-[18px] w-[18px] shrink-0 transition-colors",
+                      containsActive
+                        ? "text-sidebar-foreground"
+                        : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80",
+                    )}
+                    aria-hidden="true"
+                  />
+                </button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="max-w-[220px]">
+              <div>
+                <div className="font-medium">{item.label}</div>
+                {item.description && (
+                  <div className="mt-0.5 text-xs opacity-80">
+                    {item.description}
+                  </div>
+                )}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent
+            side="right"
+            align="start"
+            sideOffset={8}
+            className="min-w-[12rem]"
+          >
+            <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {item.label}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {item.children.map((child) => {
+              const childActive = child.href
+                ? pathname.startsWith(child.href)
+                : false;
+              const ChildIcon = child.icon;
+              const childLoading = loadingHref === child.href;
+              return (
+                <DropdownMenuItem
+                  key={child.href ?? child.label}
+                  asChild
+                  className={cn(
+                    "gap-2 min-h-[36px]",
+                    childActive && "bg-accent",
+                  )}
+                >
+                  <a
+                    href={child.href ?? "#"}
+                    onClick={() => child.href && handleNavClick(child.href)}
+                  >
+                    {childLoading ? (
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                    ) : (
+                      <ChildIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    )}
+                    <span>{child.label}</span>
+                  </a>
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </li>
+    );
+  }
+
+  // ── Expanded rail: accordion-style header + indented children.
+  return (
+    <li>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={open}
+            className={cn(
+              "group flex w-full items-center gap-3 rounded-lg px-3 py-2 min-h-[40px] text-sm font-medium transition-colors",
+              containsActive
+                ? "text-sidebar-foreground"
+                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+            )}
+          >
+            <Icon
+              className={cn(
+                "h-[18px] w-[18px] shrink-0 transition-colors",
+                containsActive
+                  ? "text-sidebar-foreground"
+                  : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80",
+              )}
+              aria-hidden="true"
+            />
+            <span className="flex-1 text-left">{item.label}</span>
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 shrink-0 text-sidebar-foreground/40 transition-transform",
+                open && "rotate-180",
+              )}
+              aria-hidden="true"
+            />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right" className="max-w-[220px]">
+          {item.description || `${item.label} — click to ${open ? "collapse" : "expand"}`}
+        </TooltipContent>
+      </Tooltip>
+      {open && (
+        <ul className="mt-0.5 space-y-0.5">
+          {item.children.map((child) => (
+            <SidebarLeaf
+              key={child.href ?? child.label}
+              item={child}
+              pathname={pathname}
+              loadingHref={loadingHref}
+              handleNavClick={handleNavClick}
+              collapsed={collapsed}
+              nested
+            />
+          ))}
+        </ul>
+      )}
+    </li>
   );
 }

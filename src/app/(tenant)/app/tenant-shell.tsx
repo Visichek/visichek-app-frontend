@@ -19,6 +19,10 @@ import {
   LifeBuoy,
   Activity,
   Settings,
+  ClipboardCheck,
+  Briefcase,
+  ShieldCheck,
+  Headphones,
 } from "lucide-react";
 import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
 import { MobileNavSheet } from "@/components/navigation/mobile-nav-sheet";
@@ -63,7 +67,9 @@ const GEOFENCE_APPROVER_ROLES = new Set([
  */
 type GatedNavItem = NavItem & { feature?: PlanFeatureKey };
 
-const ALL_TENANT_NAV_ITEMS: GatedNavItem[] = [
+type GatedNavGroup = NavItem & { children: GatedNavItem[] };
+
+const ALL_TENANT_NAV_ITEMS: (GatedNavItem | GatedNavGroup)[] = [
   {
     label: "Dashboard",
     href: "/app/dashboard",
@@ -71,54 +77,75 @@ const ALL_TENANT_NAV_ITEMS: GatedNavItem[] = [
     description: "Overview of today's visitors, appointments, and key metrics for your organization",
   },
   {
-    label: "Visitors",
-    href: "/app/visitors/pending",
-    icon: Users,
-    description: "Check in and check out visitors, view active sessions, and manage visitor profiles",
+    label: "Front Desk",
+    icon: ClipboardCheck,
+    description: "Day-to-day visitor and appointment workflows for the reception team",
+    children: [
+      {
+        label: "Visitors",
+        href: "/app/visitors/pending",
+        icon: Users,
+        description: "Check in and check out visitors, view active sessions, and manage visitor profiles",
+      },
+      {
+        label: "Appointments",
+        href: "/app/appointments",
+        icon: CalendarDays,
+        description: "Schedule, view, and manage visitor appointments with hosts in your organization",
+        feature: "appointments",
+      },
+    ],
   },
   {
-    label: "Appointments",
-    href: "/app/appointments",
-    icon: CalendarDays,
-    description: "Schedule, view, and manage visitor appointments with hosts in your organization",
-    feature: "appointments",
+    label: "Organization",
+    icon: Briefcase,
+    description: "Configure your departments, branch locations, and staff accounts",
+    children: [
+      {
+        label: "Departments",
+        href: "/app/departments",
+        icon: Building,
+        description: "Configure departments, assign managers, and set department-specific visitor rules",
+      },
+      {
+        label: "Branches",
+        href: "/app/branches",
+        icon: GitBranch,
+        description: "Manage physical branch locations and their operational status",
+        feature: "multi_location",
+      },
+      {
+        label: "Users",
+        href: "/app/users",
+        icon: UserCog,
+        description: "Add, edit, and manage staff accounts and their roles within your organization",
+      },
+    ],
   },
   {
-    label: "Departments",
-    href: "/app/departments",
-    icon: Building,
-    description: "Configure departments, assign managers, and set department-specific visitor rules",
-  },
-  {
-    label: "Branches",
-    href: "/app/branches",
-    icon: GitBranch,
-    description: "Manage physical branch locations and their operational status",
-    feature: "multi_location",
-  },
-  {
-    label: "Users",
-    href: "/app/users",
-    icon: UserCog,
-    description: "Add, edit, and manage staff accounts and their roles within your organization",
-  },
-  {
-    label: "Incidents",
-    href: "/app/incidents",
-    icon: ShieldAlert,
-    description: "Report and track security incidents, manage NDPC notification deadlines",
-  },
-  {
-    label: "Audit Log",
-    href: "/app/audit",
-    icon: ScrollText,
-    description: "View a read-only trail of all system actions for compliance and accountability",
-  },
-  {
-    label: "Data Protection",
-    href: "/app/dpo",
-    icon: Shield,
-    description: "Handle data subject requests, manage retention policies, and track compliance",
+    label: "Compliance",
+    icon: ShieldCheck,
+    description: "Incidents, audit trail, and NDPA data-protection tooling in one place",
+    children: [
+      {
+        label: "Incidents",
+        href: "/app/incidents",
+        icon: ShieldAlert,
+        description: "Report and track security incidents, manage NDPC notification deadlines",
+      },
+      {
+        label: "Audit Log",
+        href: "/app/audit",
+        icon: ScrollText,
+        description: "View a read-only trail of all system actions for compliance and accountability",
+      },
+      {
+        label: "Data Protection",
+        href: "/app/dpo",
+        icon: Shield,
+        description: "Handle data subject requests, manage retention policies, and track compliance",
+      },
+    ],
   },
   {
     label: "Billing",
@@ -127,16 +154,23 @@ const ALL_TENANT_NAV_ITEMS: GatedNavItem[] = [
     description: "View your subscription plan, invoices, and manage payment details",
   },
   {
-    label: "Support Cases",
-    href: "/app/support-cases",
-    icon: LifeBuoy,
-    description: "Open support tickets, reply to the VisiChek team, and track resolution of issues",
-  },
-  {
-    label: "Recent Activity",
-    href: "/app/jobs",
-    icon: Activity,
-    description: "Review the background writes you've triggered — pending, succeeded, or failed — and open any failure to debug it",
+    label: "Support",
+    icon: Headphones,
+    description: "Open support tickets and review your recent background jobs",
+    children: [
+      {
+        label: "Support Cases",
+        href: "/app/support-cases",
+        icon: LifeBuoy,
+        description: "Open support tickets, reply to the VisiChek team, and track resolution of issues",
+      },
+      {
+        label: "Recent Activity",
+        href: "/app/jobs",
+        icon: Activity,
+        description: "Review the background writes you've triggered — pending, succeeded, or failed — and open any failure to debug it",
+      },
+    ],
   },
   {
     label: "Settings",
@@ -208,22 +242,36 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
 
   const { can, isLoading: limitationsLoading } = useCapability();
 
-  const visibleNavItems = useMemo(() => {
+  const visibleNavItems = useMemo<NavItem[]>(() => {
     if (!currentRole) return [];
     const allowedRoutes = ROLE_ROUTES[currentRole] ?? [];
-    return ALL_TENANT_NAV_ITEMS.filter((item) => {
+
+    function leafVisible(leaf: GatedNavItem): boolean {
+      if (!leaf.href) return false;
       const allowedByRole = allowedRoutes.some((route) =>
-        item.href.startsWith(route),
+        leaf.href!.startsWith(route),
       );
       if (!allowedByRole) return false;
       // While limitations are loading, render every role-allowed item so
       // the sidebar doesn't flash a missing entry. Once the manifest
       // arrives, hide anything the backend would 403 anyway.
-      if (item.feature && !limitationsLoading && !can(item.feature)) {
+      if (leaf.feature && !limitationsLoading && !can(leaf.feature)) {
         return false;
       }
       return true;
-    });
+    }
+
+    const visible: NavItem[] = [];
+    for (const item of ALL_TENANT_NAV_ITEMS) {
+      if (item.children) {
+        const kids = (item.children as GatedNavItem[]).filter(leafVisible);
+        if (kids.length === 0) continue;
+        visible.push({ ...item, children: kids });
+      } else if (leafVisible(item as GatedNavItem)) {
+        visible.push(item);
+      }
+    }
+    return visible;
   }, [currentRole, can, limitationsLoading]);
 
   return (
