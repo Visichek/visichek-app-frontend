@@ -233,22 +233,18 @@ export function JobsListView({ basePath }: JobsListViewProps) {
       <Tabs value={view} onValueChange={(v) => setView(v as ViewMode)}>
         <div className="flex items-center justify-between">
           <TabsList>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <TabsTrigger value="grouped">Grouped by action</TabsTrigger>
-              </TooltipTrigger>
-              <TooltipContent>
-                Collapse repeated activity by action so you can scan distinct events
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <TabsTrigger value="all">All events</TabsTrigger>
-              </TooltipTrigger>
-              <TooltipContent>
-                Show every individual event in chronological order
-              </TooltipContent>
-            </Tooltip>
+            <TabsTrigger
+              value="grouped"
+              title="Collapse repeated activity by action so you can scan distinct events"
+            >
+              Grouped by action
+            </TabsTrigger>
+            <TabsTrigger
+              value="all"
+              title="Show every individual event in chronological order"
+            >
+              All events
+            </TabsTrigger>
           </TabsList>
           <div className="text-sm text-muted-foreground">
             {rows.length} event{rows.length !== 1 ? "s" : ""}

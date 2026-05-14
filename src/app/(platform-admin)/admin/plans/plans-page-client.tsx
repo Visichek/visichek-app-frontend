@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Plus,
   Edit2,
@@ -105,21 +105,28 @@ const PLAN_TABS: { value: PlanStatusTab; label: string; description: string }[] 
   },
 ];
 
+const PLANS_PAGE_SIZE = 25;
+
 export function PlansPageClient() {
   const { loadingHref } = useNavigationLoading();
 
   const [statusTab, setStatusTab] = useState<PlanStatusTab>("active");
+  const [pageIndex, setPageIndex] = useState(0);
+
+  useEffect(() => {
+    setPageIndex(0);
+  }, [statusTab]);
 
   const listFilters = useMemo(() => {
     const params: Record<string, unknown> = {
-      skip: 0,
-      limit: 50,
+      skip: pageIndex * PLANS_PAGE_SIZE,
+      limit: PLANS_PAGE_SIZE,
       sort: "-dateCreated",
       facets: "status",
     };
     if (statusTab !== "all") params.status = statusTab;
     return params;
-  }, [statusTab]);
+  }, [pageIndex, statusTab]);
 
   const { data, isLoading } = usePlans(listFilters);
   const plans = data?.items ?? [];
@@ -497,17 +504,17 @@ export function PlansPageClient() {
       >
         <TabsList className="flex w-full flex-wrap gap-1 h-auto md:w-auto">
           {PLAN_TABS.map((tab) => (
-            <Tooltip key={tab.value}>
-              <TooltipTrigger asChild>
-                <TabsTrigger value={tab.value} className="min-h-[44px]">
-                  {tab.label}
-                  <span className="ml-2 rounded-full bg-muted px-2 text-xs text-muted-foreground">
-                    {tabCounts[tab.value]}
-                  </span>
-                </TabsTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{tab.description}</TooltipContent>
-            </Tooltip>
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className="min-h-[44px]"
+              title={tab.description}
+            >
+              {tab.label}
+              <span className="ml-2 rounded-full bg-muted px-2 text-xs text-muted-foreground">
+                {tabCounts[tab.value]}
+              </span>
+            </TabsTrigger>
           ))}
         </TabsList>
       </Tabs>
@@ -517,7 +524,12 @@ export function PlansPageClient() {
         data={plans}
         isLoading={isLoading}
         pagination={true}
-        pageSize={10}
+        serverPagination={{
+          pageIndex,
+          pageSize: PLANS_PAGE_SIZE,
+          totalCount: meta?.total ?? null,
+          onPageChange: setPageIndex,
+        }}
         searchKey="displayName"
         searchPlaceholder="Search plans..."
         emptyTitle={

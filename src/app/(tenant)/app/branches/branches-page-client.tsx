@@ -58,8 +58,21 @@ export function BranchesPageClient() {
     hasCapability(CAPABILITIES.BRANCH_CREATE) && can("multi_location");
   const { loadingHref } = useNavigationLoading();
 
-  const { data: branchesList, isLoading } = useBranches({ limit: 200, sort: "name" });
+  const BRANCHES_PAGE_SIZE = 25;
+  const [pageIndex, setPageIndex] = useState(0);
+
+  const listFilters = useMemo(
+    () => ({
+      skip: pageIndex * BRANCHES_PAGE_SIZE,
+      limit: BRANCHES_PAGE_SIZE,
+      sort: "name",
+    }),
+    [pageIndex],
+  );
+
+  const { data: branchesList, isLoading } = useBranches(listFilters);
   const data = branchesList?.items ?? [];
+  const meta = branchesList?.meta;
   const branchCap = capFor("maxBranches");
   const lockedCount = useMemo(
     () => data.filter((b) => isBranchLocked(b.id)).length,
@@ -336,7 +349,12 @@ export function BranchesPageClient() {
         data={data || []}
         isLoading={isLoading}
         pagination={true}
-        pageSize={10}
+        serverPagination={{
+          pageIndex,
+          pageSize: BRANCHES_PAGE_SIZE,
+          totalCount: meta?.total ?? null,
+          onPageChange: setPageIndex,
+        }}
         searchKey="name"
         searchPlaceholder="Search branches..."
         emptyTitle="No branches"

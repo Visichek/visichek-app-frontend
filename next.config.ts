@@ -49,6 +49,21 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+
+  // Dev-only proxy so the browser sees same-origin API calls and the backend's
+  // Set-Cookie is stored against localhost. Prod hits api.visichek.app directly
+  // (same-site with client.visichek.app), so this rewrite is skipped.
+  async rewrites() {
+    if (process.env.NODE_ENV !== "development") return [];
+    const target =
+      process.env.DEV_API_PROXY_TARGET ?? "https://api.visichek.app/v1";
+    return [
+      {
+        source: "/api/v1/:path*",
+        destination: `${target}/:path*`,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

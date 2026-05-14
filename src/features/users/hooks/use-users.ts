@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import {
   apiGet,
   apiPost,
@@ -42,6 +42,7 @@ export function useSystemUsers(filters?: Record<string, unknown>) {
     queryKey: userKeys.list(filters),
     queryFn: () => apiGetList<SystemUser>('/system-users', filters),
     staleTime: 30000,
+    placeholderData: keepPreviousData,
   });
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { AlarmClock, Loader2 } from "lucide-react";
@@ -56,6 +56,13 @@ export default function AdminSupportCasesPage() {
   const [tenantId, setTenantId] = useState("");
   const [assignedAdminId, setAssignedAdminId] = useState("");
 
+  const SUPPORT_CASES_PAGE_SIZE = 25;
+  const [pageIndex, setPageIndex] = useState(0);
+
+  useEffect(() => {
+    setPageIndex(0);
+  }, [status, priority, category, supportTier, tenantId, assignedAdminId]);
+
   const params = useMemo(
     () => ({
       status: status === "all" ? undefined : status,
@@ -64,12 +71,15 @@ export default function AdminSupportCasesPage() {
       supportTier: supportTier === "all" ? undefined : supportTier,
       tenantId: tenantId.trim() || undefined,
       assignedAdminId: assignedAdminId.trim() || undefined,
+      start: pageIndex * SUPPORT_CASES_PAGE_SIZE,
+      stop: pageIndex * SUPPORT_CASES_PAGE_SIZE + SUPPORT_CASES_PAGE_SIZE,
     }),
-    [status, priority, category, supportTier, tenantId, assignedAdminId],
+    [status, priority, category, supportTier, tenantId, assignedAdminId, pageIndex],
   );
 
   const { data, isLoading, isError, refetch } = useAdminSupportCases(params);
   const cases = data?.items ?? [];
+  const meta = data?.meta;
 
   const columns: ColumnDef<SupportCase>[] = [
     {
@@ -326,7 +336,12 @@ export default function AdminSupportCasesPage() {
         searchKey="subject"
         searchPlaceholder="Search by subject…"
         pagination
-        pageSize={15}
+        serverPagination={{
+          pageIndex,
+          pageSize: SUPPORT_CASES_PAGE_SIZE,
+          totalCount: meta?.total ?? null,
+          onPageChange: setPageIndex,
+        }}
         mobileCard={mobileCard}
         emptyTitle="No cases match your filters"
         emptyDescription="Adjust or clear the filters to see more results."

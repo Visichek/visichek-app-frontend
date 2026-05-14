@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api/request';
 import { apiGetList } from '@/lib/api/list';
 import { bulkAction } from '@/lib/api/bulk';
@@ -28,6 +28,7 @@ export function useBranches(filters?: Record<string, unknown>) {
     queryKey: branchKeys.list(filters),
     queryFn: () => apiGetList<Branch>('/branches', filters),
     staleTime: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import {
   Plus,
@@ -29,6 +29,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useAppointments,
   useDeleteAppointment,
@@ -56,6 +57,16 @@ function statusVariant(status: AppointmentStatus) {
   }
 }
 
+const APPOINTMENTS_PAGE_SIZE = 25;
+type AppointmentStatusTab = "all" | "scheduled" | "fulfilled" | "missed" | "cancelled";
+const APPOINTMENT_TABS: { value: AppointmentStatusTab; label: string; description: string }[] = [
+  { value: "all", label: "All", description: "Show every appointment regardless of its current status" },
+  { value: "scheduled", label: "Scheduled", description: "Upcoming appointments that haven't happened yet" },
+  { value: "fulfilled", label: "Fulfilled", description: "Appointments where the visitor showed up and checked in" },
+  { value: "missed", label: "Missed", description: "Appointments the visitor never showed up for" },
+  { value: "cancelled", label: "Cancelled", description: "Appointments that were cancelled before they happened" },
+];
+
 export function AppointmentsPageClient() {
   const { hasCapability } = useCapabilities();
   const { currentRole } = useSession();
@@ -63,8 +74,35 @@ export function AppointmentsPageClient() {
   const canConfigureForms = currentRole === "super_admin";
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
-  const { data: appointmentsList, isLoading } = useAppointments({ limit: 100, sort: "-scheduledDatetime" });
+  const [statusTab, setStatusTab] = useState<AppointmentStatusTab>("all");
+  const [pageIndex, setPageIndex] = useState(0);
+
+  useEffect(() => {
+    setPageIndex(0);
+  }, [statusTab]);
+
+  const listFilters = useMemo(() => {
+    const params: Record<string, unknown> = {
+      skip: pageIndex * APPOINTMENTS_PAGE_SIZE,
+      limit: APPOINTMENTS_PAGE_SIZE,
+      sort: "-scheduledDatetime",
+      facets: "status",
+    };
+    if (statusTab !== "all") params.status = statusTab;
+    return params;
+  }, [pageIndex, statusTab]);
+
+  const { data: appointmentsList, isLoading } = useAppointments(listFilters);
   const appointments = appointmentsList?.items ?? [];
+  const meta = appointmentsList?.meta;
+  const statusFacet = meta?.facets?.status ?? {};
+  const tabCounts: Record<AppointmentStatusTab, number> = {
+    all: statusFacet.all ?? meta?.total ?? 0,
+    scheduled: statusFacet.scheduled ?? 0,
+    fulfilled: statusFacet.fulfilled ?? 0,
+    missed: statusFacet.missed ?? 0,
+    cancelled: statusFacet.cancelled ?? 0,
+  };
   const deleteAppointmentMutation = useDeleteAppointment();
   const bulkDeleteAppointments = useBulkAppointmentAction("delete");
 
@@ -273,6 +311,27 @@ export function AppointmentsPageClient() {
         }
       />
 
+      <Tabs
+        value={statusTab}
+        onValueChange={(v) => setStatusTab(v as AppointmentStatusTab)}
+      >
+        <TabsList className="flex w-full flex-wrap gap-1 h-auto md:w-auto">
+          {APPOINTMENT_TABS.map((tab) => (
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className="min-h-[44px]"
+              title={tab.description}
+            >
+              {tab.label}
+              <span className="ml-2 rounded-full bg-muted px-2 text-xs text-muted-foreground">
+                {tabCounts[tab.value].toLocaleString()}
+              </span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
       <DataTable
         columns={columns}
         data={appointments}
@@ -280,7 +339,12 @@ export function AppointmentsPageClient() {
         searchKey="visitorNameSnapshot"
         searchPlaceholder="Search appointments..."
         pagination={true}
-        pageSize={10}
+        serverPagination={{
+          pageIndex,
+          pageSize: APPOINTMENTS_PAGE_SIZE,
+          totalCount: meta?.total ?? null,
+          onPageChange: setPageIndex,
+        }}
         mobileCard={mobileCard}
         emptyTitle="No appointments"
         emptyDescription="Schedule an appointment to get started."

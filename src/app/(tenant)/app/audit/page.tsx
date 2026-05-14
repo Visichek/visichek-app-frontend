@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
@@ -14,10 +15,23 @@ import {
 } from "@/features/audit/hooks/use-audit-logs";
 import type { AuditLog } from "@/types/audit";
 
+const AUDIT_PAGE_SIZE = 25;
+
 export default function AuditPage() {
-  const { data, isLoading } = useAuditLogs({ limit: 100 });
+  const [pageIndex, setPageIndex] = useState(0);
+
+  const listFilters = useMemo(
+    () => ({
+      skip: pageIndex * AUDIT_PAGE_SIZE,
+      limit: AUDIT_PAGE_SIZE,
+    }),
+    [pageIndex],
+  );
+
+  const { data, isLoading } = useAuditLogs(listFilters);
   const exportMutation = useExportAuditLogs();
   const logs = data?.items ?? [];
+  const meta = data?.meta;
 
   const columns: ColumnDef<AuditLog>[] = [
     {
@@ -129,7 +143,12 @@ export default function AuditPage() {
         data={logs}
         isLoading={isLoading}
         pagination={true}
-        pageSize={20}
+        serverPagination={{
+          pageIndex,
+          pageSize: AUDIT_PAGE_SIZE,
+          totalCount: meta?.total ?? null,
+          onPageChange: setPageIndex,
+        }}
         emptyTitle="No audit events"
         emptyDescription="Audit events will appear here as the system is used."
         mobileCard={mobileCard}

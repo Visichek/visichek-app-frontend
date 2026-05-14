@@ -47,8 +47,21 @@ export function DepartmentsPageClient() {
   const canCreate = hasCapability(CAPABILITIES.DEPARTMENT_CREATE);
   const { loadingHref } = useNavigationLoading();
 
-  const { data: departmentsList, isLoading } = useDepartments({ limit: 200, sort: "name" });
+  const DEPARTMENTS_PAGE_SIZE = 25;
+  const [pageIndex, setPageIndex] = useState(0);
+
+  const listFilters = useMemo(
+    () => ({
+      skip: pageIndex * DEPARTMENTS_PAGE_SIZE,
+      limit: DEPARTMENTS_PAGE_SIZE,
+      sort: "name",
+    }),
+    [pageIndex],
+  );
+
+  const { data: departmentsList, isLoading } = useDepartments(listFilters);
   const data = departmentsList?.items ?? [];
+  const meta = departmentsList?.meta;
   const deptCap = capFor("maxDepartments");
   const lockedCount = useMemo(
     () => data.filter((d) => isDepartmentLocked(d.id)).length,
@@ -220,7 +233,12 @@ export function DepartmentsPageClient() {
         data={data || []}
         isLoading={isLoading}
         pagination={true}
-        pageSize={10}
+        serverPagination={{
+          pageIndex,
+          pageSize: DEPARTMENTS_PAGE_SIZE,
+          totalCount: meta?.total ?? null,
+          onPageChange: setPageIndex,
+        }}
         searchKey="name"
         searchPlaceholder="Search departments..."
         emptyTitle="No departments"

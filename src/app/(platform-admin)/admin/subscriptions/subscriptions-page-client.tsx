@@ -44,6 +44,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/format-date";
@@ -51,6 +52,31 @@ import { useActionParam } from "@/hooks/use-action-param";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import type { Subscription } from "@/types/billing";
 import type { BillingCycle, SubscriptionStatus } from "@/types/enums";
+
+type SubscriptionStatusTab =
+  | "all"
+  | "active"
+  | "trialing"
+  | "past_due"
+  | "cancelled"
+  | "suspended"
+  | "expired";
+
+const SUBSCRIPTION_STATUS_TABS: {
+  value: SubscriptionStatusTab;
+  label: string;
+  description: string;
+}[] = [
+  { value: "all", label: "All", description: "Show every subscription regardless of status" },
+  { value: "active", label: "Active", description: "Subscriptions currently being billed and serving paid features" },
+  { value: "trialing", label: "Trialing", description: "Subscriptions inside their trial window before the first charge" },
+  { value: "past_due", label: "Past due", description: "Subscriptions whose latest invoice failed and is awaiting retry" },
+  { value: "cancelled", label: "Cancelled", description: "Subscriptions that were cancelled by an admin or the tenant" },
+  { value: "suspended", label: "Suspended", description: "Subscriptions paused administratively but not cancelled" },
+  { value: "expired", label: "Expired", description: "Subscriptions that ran past their period without renewal" },
+];
+
+const SUBSCRIPTION_PAGE_SIZE = 25;
 
 function statusVariant(status: SubscriptionStatus) {
   switch (status) {
@@ -519,17 +545,43 @@ export function SubscriptionsPageClient() {
 
   const queryClient = useQueryClient();
 
-  // Filter the list by tenantId when the page is scoped to a single tenant.
-  const subscriptionsParams = React.useMemo(
-    () =>
-      tenantIdParam
-        ? { limit: 100, sort: "-dateCreated", tenantId: tenantIdParam }
-        : { limit: 100, sort: "-dateCreated" },
-    [tenantIdParam],
-  );
+  const [statusTab, setStatusTab] = React.useState<SubscriptionStatusTab>("all");
+  const [pageIndex, setPageIndex] = React.useState(0);
+
+  // Reset pagination whenever the user changes the status filter or the
+  // scoped tenant — otherwise the table can land on a page that doesn't
+  // exist in the new filtered slice.
+  React.useEffect(() => {
+    setPageIndex(0);
+  }, [statusTab, tenantIdParam]);
+
+  const subscriptionsParams = React.useMemo(() => {
+    const params: Record<string, unknown> = {
+      skip: pageIndex * SUBSCRIPTION_PAGE_SIZE,
+      limit: SUBSCRIPTION_PAGE_SIZE,
+      sort: "-dateCreated",
+      facets: "status",
+    };
+    if (tenantIdParam) params.tenantId = tenantIdParam;
+    if (statusTab !== "all") params.status = statusTab;
+    return params;
+  }, [pageIndex, statusTab, tenantIdParam]);
+
   const { data, isLoading, isError, refetch } = useSubscriptions(subscriptionsParams);
   const { mutate: cancelSubscription, isPending } = useCancelSubscription();
   const [createModalOpen, setCreateModalOpen] = React.useState(false);
+
+  const meta = data?.meta;
+  const statusFacet = meta?.facets?.status ?? {};
+  const tabCounts: Record<SubscriptionStatusTab, number> = {
+    all: statusFacet.all ?? meta?.total ?? 0,
+    active: statusFacet.active ?? 0,
+    trialing: statusFacet.trialing ?? 0,
+    past_due: statusFacet.past_due ?? 0,
+    cancelled: statusFacet.cancelled ?? 0,
+    suspended: statusFacet.suspended ?? 0,
+    expired: statusFacet.expired ?? 0,
+  };
 
   useActionParam({
     create: () => setCreateModalOpen(true),
@@ -683,6 +735,29 @@ export function SubscriptionsPageClient() {
         />
       )}
 
+      {isUsageView ? null : (
+        <Tabs
+          value={statusTab}
+          onValueChange={(v) => setStatusTab(v as SubscriptionStatusTab)}
+        >
+          <TabsList className="flex w-full flex-wrap gap-1 h-auto md:w-auto">
+            {SUBSCRIPTION_STATUS_TABS.map((tab) => (
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                className="min-h-[44px]"
+                title={tab.description}
+              >
+                {tab.label}
+                <span className="ml-2 rounded-full bg-muted px-2 text-xs text-muted-foreground">
+                  {tabCounts[tab.value].toLocaleString()}
+                </span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      )}
+
       {isUsageView ? null : isError ? (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
           <p className="text-sm text-destructive">
@@ -702,6 +777,12 @@ export function SubscriptionsPageClient() {
           searchKey="tenantId"
           searchPlaceholder="Search by tenant ID..."
           isLoading={isLoading}
+          serverPagination={{
+            pageIndex,
+            pageSize: SUBSCRIPTION_PAGE_SIZE,
+            totalCount: meta?.total ?? null,
+            onPageChange: setPageIndex,
+          }}
           mobileCard={(subscription) => (
             <div className="rounded-lg border p-4 space-y-3">
               <div className="flex items-start justify-between gap-2">

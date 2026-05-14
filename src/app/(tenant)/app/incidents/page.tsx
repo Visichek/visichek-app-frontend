@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import {
   Plus,
@@ -30,6 +30,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useIncidents,
   useApproachingDeadlineIncidents,
@@ -86,16 +87,45 @@ function incidentLabel(incident: Incident): string {
   return incident.description?.trim() || formatType(incident.incidentType) || "Incident";
 }
 
+const INCIDENTS_PAGE_SIZE = 25;
+type IncidentStatusTab = "all" | "open" | "investigating" | "contained" | "reported_to_ndpc" | "closed";
+const INCIDENT_TABS: { value: IncidentStatusTab; label: string; description: string }[] = [
+  { value: "all", label: "All", description: "Show every incident regardless of status" },
+  { value: "open", label: "Open", description: "Incidents that have just been reported and need triage" },
+  { value: "investigating", label: "Investigating", description: "Incidents being actively investigated by the security team" },
+  { value: "contained", label: "Contained", description: "Incidents where the immediate threat has been contained but a post-mortem is still in flight" },
+  { value: "reported_to_ndpc", label: "Reported to NDPC", description: "Incidents that have been formally notified to the Nigeria Data Protection Commission" },
+  { value: "closed", label: "Closed", description: "Incidents fully resolved with the investigation closed out" },
+];
+
 export default function IncidentsPage() {
   const { hasCapability } = useCapabilities();
   const canCreate = hasCapability(CAPABILITIES.INCIDENT_CREATE);
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
+  const [statusTab, setStatusTab] = useState<IncidentStatusTab>("all");
+  const [pageIndex, setPageIndex] = useState(0);
+
+  useEffect(() => {
+    setPageIndex(0);
+  }, [statusTab]);
+
+  const listFilters = useMemo(() => {
+    const params: Record<string, unknown> = {
+      skip: pageIndex * INCIDENTS_PAGE_SIZE,
+      limit: INCIDENTS_PAGE_SIZE,
+      sort: "-dateCreated",
+      facets: "status",
+    };
+    if (statusTab !== "all") params.status = statusTab;
+    return params;
+  }, [pageIndex, statusTab]);
+
   const {
     data: incidentsResponse,
     isLoading,
     refetch,
-  } = useIncidents({ limit: 100, sort: "-dateCreated" });
+  } = useIncidents(listFilters);
   const { data: deadlineResponse } = useApproachingDeadlineIncidents();
   const bulkMarkNotified = useBulkMarkIncidentsNotified();
 
@@ -114,6 +144,16 @@ export default function IncidentsPage() {
   });
 
   const incidents = incidentsResponse?.items ?? [];
+  const incidentsMeta = incidentsResponse?.meta;
+  const statusFacet = incidentsMeta?.facets?.status ?? {};
+  const tabCounts: Record<IncidentStatusTab, number> = {
+    all: statusFacet.all ?? incidentsMeta?.total ?? 0,
+    open: statusFacet.open ?? 0,
+    investigating: statusFacet.investigating ?? 0,
+    contained: statusFacet.contained ?? 0,
+    reported_to_ndpc: statusFacet.reported_to_ndpc ?? 0,
+    closed: statusFacet.closed ?? 0,
+  };
   const deadlineIncidents = deadlineResponse?.items ?? [];
 
   const [pendingNotificationId, setPendingNotificationId] = useState<
@@ -369,6 +409,27 @@ export default function IncidentsPage() {
         </div>
       )}
 
+      <Tabs
+        value={statusTab}
+        onValueChange={(v) => setStatusTab(v as IncidentStatusTab)}
+      >
+        <TabsList className="flex w-full flex-wrap gap-1 h-auto md:w-auto">
+          {INCIDENT_TABS.map((tab) => (
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className="min-h-[44px]"
+              title={tab.description}
+            >
+              {tab.label}
+              <span className="ml-2 rounded-full bg-muted px-2 text-xs text-muted-foreground">
+                {tabCounts[tab.value].toLocaleString()}
+              </span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
       <DataTable
         columns={columns}
         data={incidents}
@@ -376,7 +437,12 @@ export default function IncidentsPage() {
         searchKey="summary"
         searchPlaceholder="Search incidents..."
         pagination={true}
-        pageSize={10}
+        serverPagination={{
+          pageIndex,
+          pageSize: INCIDENTS_PAGE_SIZE,
+          totalCount: incidentsMeta?.total ?? null,
+          onPageChange: setPageIndex,
+        }}
         mobileCard={mobileCard}
         emptyTitle="No incidents"
         emptyDescription="No security incidents have been reported."

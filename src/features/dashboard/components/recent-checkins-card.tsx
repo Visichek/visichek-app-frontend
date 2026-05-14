@@ -36,9 +36,9 @@ export function RecentCheckInsCard({ items }: RecentCheckInsCardProps) {
           />
         ) : (
           <ul className="divide-y">
-            {items.map((item) => (
+            {items.map((item, index) => (
               <li
-                key={item.sessionId}
+                key={item.sessionId ? `${item.sessionId}-${index}` : `recent-checkin-${index}`}
                 className="flex items-center justify-between gap-3 py-3 text-sm"
               >
                 <div className="min-w-0 flex-1">

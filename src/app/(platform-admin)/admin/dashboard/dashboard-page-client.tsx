@@ -109,22 +109,22 @@ export function AdminDashboardPageClient() {
             const Icon = tab.icon;
             const showSpinner = isPending && pendingTab === tab.id;
             return (
-              <Tooltip key={tab.id}>
-                <TooltipTrigger asChild>
-                  <TabsTrigger value={tab.id} className="gap-2 px-4 py-2">
-                    {showSpinner ? (
-                      <Loader2
-                        className="h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <Icon className="h-4 w-4" aria-hidden="true" />
-                    )}
-                    {tab.label}
-                  </TabsTrigger>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{tab.description}</TooltipContent>
-              </Tooltip>
+              <TabsTrigger
+                key={tab.id}
+                value={tab.id}
+                className="gap-2 px-4 py-2"
+                title={tab.description}
+              >
+                {showSpinner ? (
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                )}
+                {tab.label}
+              </TabsTrigger>
             );
           })}
         </TabsList>

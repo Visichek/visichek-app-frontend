@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api/request';
 import { apiGetList } from '@/lib/api/list';
 import { bulkAction } from '@/lib/api/bulk';
@@ -38,6 +38,7 @@ export function useDepartments(filters?: Record<string, unknown>) {
       };
     },
     staleTime: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 

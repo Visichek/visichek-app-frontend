@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus, LifeBuoy, Loader2 } from "lucide-react";
@@ -57,18 +57,28 @@ export default function SupportCasesPage() {
   const [category, setCategory] = useState<CategoryFilter>("all");
   const { loadingHref, handleNavClick, navigate, navigateFromOverlay } = useNavigationLoading();
 
+  const SUPPORT_CASES_PAGE_SIZE = 25;
+  const [pageIndex, setPageIndex] = useState(0);
+
+  useEffect(() => {
+    setPageIndex(0);
+  }, [status, priority, category]);
+
   const params = useMemo(
     () => ({
       status: status === "all" ? undefined : status,
       priority: priority === "all" ? undefined : priority,
       category: category === "all" ? undefined : category,
+      start: pageIndex * SUPPORT_CASES_PAGE_SIZE,
+      stop: pageIndex * SUPPORT_CASES_PAGE_SIZE + SUPPORT_CASES_PAGE_SIZE,
     }),
-    [status, priority, category],
+    [status, priority, category, pageIndex],
   );
 
   const { data, isLoading, isError, refetch } = useSupportCases(params);
 
   const cases = data?.items ?? [];
+  const meta = data?.meta;
 
   // Count open cases against the cap regardless of current filter.
   const openCases = useMemo(
@@ -291,7 +301,12 @@ export default function SupportCasesPage() {
           searchKey="subject"
           searchPlaceholder="Search by subject…"
           pagination
-          pageSize={10}
+          serverPagination={{
+            pageIndex,
+            pageSize: SUPPORT_CASES_PAGE_SIZE,
+            totalCount: meta?.total ?? null,
+            onPageChange: setPageIndex,
+          }}
           mobileCard={mobileCard}
           emptyTitle="No cases match your filters"
           emptyDescription="Try removing a filter or clearing your search."

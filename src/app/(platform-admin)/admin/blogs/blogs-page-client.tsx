@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Plus,
   Edit2,
@@ -69,21 +69,28 @@ function formatDate(unix?: number | null): string {
   });
 }
 
+const BLOGS_PAGE_SIZE = 25;
+
 export function BlogsPageClient() {
   const { loadingHref } = useNavigationLoading();
   const [stateTab, setStateTab] = useState<StateTab>("all");
   const [deleteTarget, setDeleteTarget] = useState<BlogListItem | undefined>();
+  const [pageIndex, setPageIndex] = useState(0);
+
+  useEffect(() => {
+    setPageIndex(0);
+  }, [stateTab]);
 
   const listFilters = useMemo(() => {
     const params: Record<string, unknown> = {
-      skip: 0,
-      limit: 50,
+      skip: pageIndex * BLOGS_PAGE_SIZE,
+      limit: BLOGS_PAGE_SIZE,
       sort: "-dateCreated",
       facets: "state",
     };
     if (stateTab !== "all") params.state = stateTab;
     return params;
-  }, [stateTab]);
+  }, [pageIndex, stateTab]);
 
   const { data, isLoading } = useBlogs(listFilters);
   const blogs = data?.items ?? [];
@@ -311,17 +318,17 @@ export function BlogsPageClient() {
       >
         <TabsList className="flex w-full flex-wrap gap-1 h-auto md:w-auto">
           {STATE_TABS.map((tab) => (
-            <Tooltip key={tab.value}>
-              <TooltipTrigger asChild>
-                <TabsTrigger value={tab.value} className="min-h-[44px]">
-                  {tab.label}
-                  <span className="ml-2 rounded-full bg-muted px-2 text-xs text-muted-foreground">
-                    {counts[tab.value]}
-                  </span>
-                </TabsTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{tab.description}</TooltipContent>
-            </Tooltip>
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className="min-h-[44px]"
+              title={tab.description}
+            >
+              {tab.label}
+              <span className="ml-2 rounded-full bg-muted px-2 text-xs text-muted-foreground">
+                {counts[tab.value]}
+              </span>
+            </TabsTrigger>
           ))}
         </TabsList>
       </Tabs>
@@ -331,7 +338,12 @@ export function BlogsPageClient() {
         data={blogs}
         isLoading={isLoading}
         pagination={true}
-        pageSize={10}
+        serverPagination={{
+          pageIndex,
+          pageSize: BLOGS_PAGE_SIZE,
+          totalCount: meta?.total ?? null,
+          onPageChange: setPageIndex,
+        }}
         searchKey="article"
         searchPlaceholder="Search articles by title…"
         emptyTitle={

@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPatch } from "@/lib/api/request";
 import { apiGetList } from "@/lib/api/list";
 import { bulkAction } from "@/lib/api/bulk";
@@ -42,6 +42,7 @@ export function useDataSubjectRequests(
         "/dsr",
         params as Record<string, unknown> | undefined,
       ),
+    placeholderData: keepPreviousData,
   });
 }
 

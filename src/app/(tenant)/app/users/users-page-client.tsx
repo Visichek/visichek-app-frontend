@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   UserPlus,
@@ -40,6 +40,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
   useSystemUsers,
@@ -58,9 +59,50 @@ import { ResetPasswordDialog } from "@/features/users/components/reset-password-
 import type { SystemUser } from "@/types/user";
 import type { Branch } from "@/types/tenant";
 
+const USERS_PAGE_SIZE = 25;
+const USER_ROLE_TABS = [
+  { value: "all", label: "All", description: "Show every staff account regardless of role" },
+  { value: "super_admin", label: "Super admin", description: "Tenant owners who can manage every setting in this organisation" },
+  { value: "dept_admin", label: "Dept admin", description: "Admins scoped to a department — manage that department's settings and staff" },
+  { value: "receptionist", label: "Receptionist", description: "Front-desk staff responsible for checking visitors in and out" },
+  { value: "auditor", label: "Auditor", description: "Read-only access to audit logs and compliance exports" },
+  { value: "security_officer", label: "Security", description: "Staff who create, triage, and escalate security incidents" },
+  { value: "dpo", label: "DPO", description: "Data Protection Officers handling subject requests and retention policies" },
+] as const;
+type UserRoleTab = (typeof USER_ROLE_TABS)[number]["value"];
+
 export function UsersPageClient() {
-  const { data: usersList, isLoading } = useSystemUsers({ limit: 200, sort: "-dateCreated" });
+  const [roleTab, setRoleTab] = useState<UserRoleTab>("all");
+  const [pageIndex, setPageIndex] = useState(0);
+
+  useEffect(() => {
+    setPageIndex(0);
+  }, [roleTab]);
+
+  const listFilters = useMemo(() => {
+    const params: Record<string, unknown> = {
+      skip: pageIndex * USERS_PAGE_SIZE,
+      limit: USERS_PAGE_SIZE,
+      sort: "-dateCreated",
+      facets: "role",
+    };
+    if (roleTab !== "all") params.role = roleTab;
+    return params;
+  }, [pageIndex, roleTab]);
+
+  const { data: usersList, isLoading } = useSystemUsers(listFilters);
   const data = usersList?.items ?? [];
+  const meta = usersList?.meta;
+  const roleFacet = meta?.facets?.role ?? {};
+  const tabCounts: Record<UserRoleTab, number> = {
+    all: roleFacet.all ?? meta?.total ?? 0,
+    super_admin: roleFacet.super_admin ?? 0,
+    dept_admin: roleFacet.dept_admin ?? 0,
+    receptionist: roleFacet.receptionist ?? 0,
+    auditor: roleFacet.auditor ?? 0,
+    security_officer: roleFacet.security_officer ?? 0,
+    dpo: roleFacet.dpo ?? 0,
+  };
   const branchesQuery = useBranches();
   const deleteMutation = useDeleteSystemUser();
   const resetPassword = useResetUserPassword();
@@ -364,12 +406,38 @@ export function UsersPageClient() {
         }
       />
 
+      <Tabs
+        value={roleTab}
+        onValueChange={(v) => setRoleTab(v as UserRoleTab)}
+      >
+        <TabsList className="flex w-full flex-wrap gap-1 h-auto md:w-auto">
+          {USER_ROLE_TABS.map((tab) => (
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className="min-h-[44px]"
+              title={tab.description}
+            >
+              {tab.label}
+              <span className="ml-2 rounded-full bg-muted px-2 text-xs text-muted-foreground">
+                {tabCounts[tab.value].toLocaleString()}
+              </span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
       <DataTable
         columns={columns}
         data={data || []}
         isLoading={isLoading}
         pagination={true}
-        pageSize={10}
+        serverPagination={{
+          pageIndex,
+          pageSize: USERS_PAGE_SIZE,
+          totalCount: meta?.total ?? null,
+          onPageChange: setPageIndex,
+        }}
         searchKey="fullName"
         searchPlaceholder="Search users..."
         emptyTitle="No users"

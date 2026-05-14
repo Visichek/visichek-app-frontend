@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import {
   Plus,
@@ -253,6 +253,8 @@ const TENANT_PLAN_TIERS = [
   "custom",
 ] as const;
 
+const TENANTS_PAGE_SIZE = 25;
+
 export function TenantsPageClient() {
   const { loadingHref } = useNavigationLoading();
 
@@ -260,6 +262,13 @@ export function TenantsPageClient() {
   const [planFilter, setPlanFilter] = useState<string>("all");
   const [subscriptionFilter, setSubscriptionFilter] =
     useState<SubscriptionStatusFilter>("all");
+  const [pageIndex, setPageIndex] = useState(0);
+
+  // Whenever the user changes any filter, reset to page 0 — otherwise the
+  // table can land on a page that no longer exists in the filtered slice.
+  useEffect(() => {
+    setPageIndex(0);
+  }, [statusTab, planFilter, subscriptionFilter]);
 
   // Server-side filter set per tables.txt §1.1. The status tab maps to the
   // `status` filter; the dropdowns map to `planTier` and `subscriptionStatus`.
@@ -267,7 +276,8 @@ export function TenantsPageClient() {
   // full dataset so the badges don't drift as the user paginates.
   const listFilters = useMemo(() => {
     const params: Record<string, unknown> = {
-      limit: 50,
+      skip: pageIndex * TENANTS_PAGE_SIZE,
+      limit: TENANTS_PAGE_SIZE,
       sort: "-dateCreated",
       facets: "status",
       status: statusTab,
@@ -275,7 +285,7 @@ export function TenantsPageClient() {
     if (planFilter !== "all") params.planTier = planFilter;
     if (subscriptionFilter !== "all") params.subscriptionStatus = subscriptionFilter;
     return params;
-  }, [statusTab, planFilter, subscriptionFilter]);
+  }, [pageIndex, statusTab, planFilter, subscriptionFilter]);
 
   const { data, isLoading } = useTenantList(listFilters);
   const tenants = useMemo(() => data?.items ?? [], [data]);
@@ -524,17 +534,17 @@ export function TenantsPageClient() {
       >
         <TabsList className="flex w-full flex-wrap gap-1 h-auto md:w-auto">
           {TENANT_TABS.map((tab) => (
-            <Tooltip key={tab.value}>
-              <TooltipTrigger asChild>
-                <TabsTrigger value={tab.value} className="min-h-[44px]">
-                  {tab.label}
-                  <span className="ml-2 rounded-full bg-muted px-2 text-xs text-muted-foreground">
-                    {tabCounts[tab.value]}
-                  </span>
-                </TabsTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{tab.description}</TooltipContent>
-            </Tooltip>
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className="min-h-[44px]"
+              title={tab.description}
+            >
+              {tab.label}
+              <span className="ml-2 rounded-full bg-muted px-2 text-xs text-muted-foreground">
+                {tabCounts[tab.value]}
+              </span>
+            </TabsTrigger>
           ))}
         </TabsList>
       </Tabs>
@@ -627,7 +637,12 @@ export function TenantsPageClient() {
         data={tenants}
         isLoading={isLoading}
         pagination={true}
-        pageSize={10}
+        serverPagination={{
+          pageIndex,
+          pageSize: TENANTS_PAGE_SIZE,
+          totalCount: meta?.total ?? null,
+          onPageChange: setPageIndex,
+        }}
         searchKey="companyName"
         searchPlaceholder="Search tenants…"
         emptyTitle={

@@ -182,16 +182,14 @@ export function MediaPageClient() {
         >
           <TabsList className="flex w-full flex-wrap gap-1 h-auto md:w-auto">
             {TYPE_TABS.map((tab) => (
-              <Tooltip key={tab.value}>
-                <TooltipTrigger asChild>
-                  <TabsTrigger value={tab.value} className="min-h-[44px]">
-                    {tab.label}
-                  </TabsTrigger>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  {tab.description}
-                </TooltipContent>
-              </Tooltip>
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                className="min-h-[44px]"
+                title={tab.description}
+              >
+                {tab.label}
+              </TabsTrigger>
             ))}
           </TabsList>
         </Tabs>

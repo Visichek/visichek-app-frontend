@@ -27,12 +27,27 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import type { Discount } from "@/types/billing";
 import type { DiscountStatus } from "@/types/enums";
 
 const NEW_DISCOUNT_HREF = "/admin/discounts/new";
+const DISCOUNTS_PAGE_SIZE = 25;
+
+type DiscountStatusTab = "all" | "active" | "expired" | "disabled";
+
+const DISCOUNT_STATUS_TABS: {
+  value: DiscountStatusTab;
+  label: string;
+  description: string;
+}[] = [
+  { value: "all", label: "All", description: "Show every discount regardless of status" },
+  { value: "active", label: "Active", description: "Discounts that can currently be applied to subscriptions" },
+  { value: "expired", label: "Expired", description: "Discounts past their validity window — kept for history" },
+  { value: "disabled", label: "Disabled", description: "Discounts that were manually disabled and cannot be applied" },
+];
 
 function statusVariant(status: DiscountStatus | undefined) {
   switch (status) {
@@ -150,8 +165,35 @@ function DiscountActions({
 
 export function DiscountsPageClient() {
   const { loadingHref } = useNavigationLoading();
-  const { data: discountsList, isLoading, isError, refetch } = useDiscounts({ limit: 100, sort: "-dateCreated" });
+
+  const [statusTab, setStatusTab] = React.useState<DiscountStatusTab>("all");
+  const [pageIndex, setPageIndex] = React.useState(0);
+
+  React.useEffect(() => {
+    setPageIndex(0);
+  }, [statusTab]);
+
+  const listParams = React.useMemo(() => {
+    const params: Record<string, unknown> = {
+      skip: pageIndex * DISCOUNTS_PAGE_SIZE,
+      limit: DISCOUNTS_PAGE_SIZE,
+      sort: "-dateCreated",
+      facets: "status",
+    };
+    if (statusTab !== "all") params.status = statusTab;
+    return params;
+  }, [pageIndex, statusTab]);
+
+  const { data: discountsList, isLoading, isError, refetch } = useDiscounts(listParams);
   const discounts = discountsList?.items ?? [];
+  const meta = discountsList?.meta;
+  const statusFacet = meta?.facets?.status ?? {};
+  const tabCounts: Record<DiscountStatusTab, number> = {
+    all: statusFacet.all ?? meta?.total ?? 0,
+    active: statusFacet.active ?? 0,
+    expired: statusFacet.expired ?? 0,
+    disabled: statusFacet.disabled ?? 0,
+  };
   const deleteDiscountMutation = useDeleteDiscount();
   const disableDiscountMutation = useDisableDiscount();
   const bulkDeleteDiscounts = useBulkDiscountAction("delete");
@@ -347,6 +389,27 @@ export function DiscountsPageClient() {
         }
       />
 
+      <Tabs
+        value={statusTab}
+        onValueChange={(v) => setStatusTab(v as DiscountStatusTab)}
+      >
+        <TabsList className="flex w-full flex-wrap gap-1 h-auto md:w-auto">
+          {DISCOUNT_STATUS_TABS.map((tab) => (
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className="min-h-[44px]"
+              title={tab.description}
+            >
+              {tab.label}
+              <span className="ml-2 rounded-full bg-muted px-2 text-xs text-muted-foreground">
+                {tabCounts[tab.value].toLocaleString()}
+              </span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
       {isError ? (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
           <p className="text-sm text-destructive">
@@ -370,6 +433,12 @@ export function DiscountsPageClient() {
           getRowId={(discount) => discount.id}
           itemNoun="discount"
           bulkActions={bulkActions}
+          serverPagination={{
+            pageIndex,
+            pageSize: DISCOUNTS_PAGE_SIZE,
+            totalCount: meta?.total ?? null,
+            onPageChange: setPageIndex,
+          }}
           mobileCard={(discount) => (
             <div className="rounded-lg border p-4 space-y-3">
               <div className="flex items-start justify-between gap-2">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Plus,
   Edit2,
@@ -28,6 +28,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { formatDateTime } from "@/lib/utils/format-date";
 import { useDataSubjectRequests } from "@/features/dsr/hooks/use-dsr";
@@ -51,13 +52,50 @@ function statusVariant(status: DSRStatus) {
   }
 }
 
+const DSR_PAGE_SIZE = 25;
+type DSRStatusTab = "all" | "pending" | "in_progress" | "completed" | "rejected";
+const DSR_STATUS_TABS: { value: DSRStatusTab; label: string; description: string }[] = [
+  { value: "all", label: "All", description: "Show every data subject request regardless of status" },
+  { value: "pending", label: "Pending", description: "Requests waiting to be picked up by the DPO" },
+  { value: "in_progress", label: "In progress", description: "Requests currently being processed by the DPO team" },
+  { value: "completed", label: "Completed", description: "Requests that have been fulfilled and closed out" },
+  { value: "rejected", label: "Rejected", description: "Requests that were rejected with a documented reason" },
+];
+
 export default function DPOPage() {
   const { hasCapability } = useCapabilities();
   const canCreate = hasCapability(CAPABILITIES.DSR_CREATE);
   const { loadingHref } = useNavigationLoading();
 
-  const { data, isLoading } = useDataSubjectRequests({ limit: 100, sort: "-dateCreated" });
+  const [statusTab, setStatusTab] = useState<DSRStatusTab>("all");
+  const [pageIndex, setPageIndex] = useState(0);
+
+  useEffect(() => {
+    setPageIndex(0);
+  }, [statusTab]);
+
+  const listFilters = useMemo(() => {
+    const params: Record<string, unknown> = {
+      skip: pageIndex * DSR_PAGE_SIZE,
+      limit: DSR_PAGE_SIZE,
+      sort: "-dateCreated",
+      facets: "status",
+    };
+    if (statusTab !== "all") params.status = statusTab;
+    return params;
+  }, [pageIndex, statusTab]);
+
+  const { data, isLoading } = useDataSubjectRequests(listFilters);
   const requests = data?.items ?? [];
+  const meta = data?.meta;
+  const statusFacet = meta?.facets?.status ?? {};
+  const tabCounts: Record<DSRStatusTab, number> = {
+    all: statusFacet.all ?? meta?.total ?? 0,
+    pending: statusFacet.pending ?? 0,
+    in_progress: statusFacet.in_progress ?? 0,
+    completed: statusFacet.completed ?? 0,
+    rejected: statusFacet.rejected ?? 0,
+  };
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [dsrToDelete, setDSRToDelete] = useState<DataSubjectRequest | undefined>();
@@ -211,12 +249,38 @@ export default function DPOPage() {
 
       <GeofencingComplianceCard />
 
+      <Tabs
+        value={statusTab}
+        onValueChange={(v) => setStatusTab(v as DSRStatusTab)}
+      >
+        <TabsList className="flex w-full flex-wrap gap-1 h-auto md:w-auto">
+          {DSR_STATUS_TABS.map((tab) => (
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className="min-h-[44px]"
+              title={tab.description}
+            >
+              {tab.label}
+              <span className="ml-2 rounded-full bg-muted px-2 text-xs text-muted-foreground">
+                {tabCounts[tab.value].toLocaleString()}
+              </span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
       <DataTable
         columns={columns}
         data={requests}
         isLoading={isLoading}
         pagination={true}
-        pageSize={10}
+        serverPagination={{
+          pageIndex,
+          pageSize: DSR_PAGE_SIZE,
+          totalCount: meta?.total ?? null,
+          onPageChange: setPageIndex,
+        }}
         emptyTitle="No data subject requests"
         emptyDescription="Requests from data subjects will appear here."
         mobileCard={mobileCard}

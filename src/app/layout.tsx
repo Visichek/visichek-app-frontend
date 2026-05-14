@@ -61,26 +61,35 @@ export const viewport: Viewport = {
 // Last-resort defense against `Cannot read properties of null
 // (reading 'removeChild')` from the React 19 DOM reconciler.
 //
-// The real, app-level fix for in-app navigation is overlay-safe routing:
-// dropdowns/dialogs/sheets/popovers must close before the page tree
-// swaps — see `DropdownMenuNavItem` (components/recipes) and
-// `navigateFromOverlay()` on the navigation-loading context. Routing
-// during the same commit as a Radix portal teardown was the original
-// repro path and is the bug class this guard *shouldn't* be papering
-// over for our own code.
+// The actual crash site is react-dom's `commitDeletionEffectsOnFiber`
+// case 26 (HoistableHostInstance — <link>/<style>/<meta>/<title>/<script>
+// that React hoisted to <head>). The compiled line is:
 //
-// What this guard exists for is the orthogonal failure mode: browser
-// extensions (Google Translate, Grammarly, Honey, etc.) wrap text
-// nodes mid-render; when React tries to unmount one of those wrapped
-// nodes the reconciler reads a null `parentNode` and the renderer
-// dies — every subsequent state update fails silently and navigation
-// freezes until a hard refresh. Patching `removeChild` / `insertBefore`
-// to no-op on a parent mismatch lets React continue cleanly.
+//   finishedRoot.parentNode.removeChild(finishedRoot)
 //
-// Do NOT lean on this as the primary fix for new portal-driven
-// navigation crashes; route those through the overlay-safe helpers
-// instead.
-const DOM_RECONCILER_GUARD = `(function(){if(typeof Node==="undefined"||!Node.prototype)return;var r=Node.prototype.removeChild;Node.prototype.removeChild=function(c){if(c&&c.parentNode!==this){if(c.parentNode){return c.parentNode.removeChild(c)}return c}return r.apply(this,arguments)};var i=Node.prototype.insertBefore;Node.prototype.insertBefore=function(n,ref){if(ref&&ref.parentNode!==this){return this.appendChild(n)}return i.apply(this,arguments)}})();`;
+// When a hoisted resource has been detached from <head> by something
+// outside React's view — Turbopack HMR swapping fonts/CSS, a browser
+// extension reordering head nodes, a service-worker update, or React's
+// own hoisting bookkeeping racing the commit — `parentNode` is null and
+// the property access on null throws before any patched removeChild can
+// run. Case 26 has no try/catch around the call in React 19, so the
+// commit phase explodes and every subsequent render fails.
+//
+// We can't intercept `null.removeChild` from JS, so we patch the
+// `parentNode` getter on HTMLElement instead: for orphaned hoistable
+// resource elements (link/style/meta/title/script), return a ghost
+// parent whose removeChild is a no-op. React's call then succeeds
+// silently and the commit continues. For everything else parentNode
+// behaves exactly as before — code that does
+// `if (node.parentNode) …` keeps working.
+//
+// We also keep the original mismatched-parent fallback for the
+// browser-extension class of bug (Grammarly etc. wrapping text nodes
+// in <body>), and the same for insertBefore.
+//
+// Do NOT lean on this as the primary fix for portal-driven navigation
+// crashes — route those through the overlay-safe helpers instead.
+const DOM_RECONCILER_GUARD = `(function(){if(typeof Node==="undefined"||!Node.prototype)return;var HOISTABLE=/^(LINK|STYLE|META|TITLE|SCRIPT)$/;var GHOST={removeChild:function(c){return c},insertBefore:function(n){return n},appendChild:function(n){return n},nodeType:1};var pnDesc=Object.getOwnPropertyDescriptor(Node.prototype,"parentNode");if(pnDesc&&typeof pnDesc.get==="function"){var origGet=pnDesc.get;Object.defineProperty(Node.prototype,"parentNode",{configurable:true,enumerable:pnDesc.enumerable,get:function(){var p=origGet.call(this);if(p===null&&this.nodeType===1&&this.tagName&&HOISTABLE.test(this.tagName))return GHOST;return p},set:pnDesc.set})}var r=Node.prototype.removeChild;Node.prototype.removeChild=function(c){if(c&&c.parentNode!==this){if(c.parentNode&&c.parentNode!==GHOST){return c.parentNode.removeChild(c)}return c}return r.apply(this,arguments)};var i=Node.prototype.insertBefore;Node.prototype.insertBefore=function(n,ref){if(ref&&ref.parentNode!==this){return this.appendChild(n)}return i.apply(this,arguments)}})();`;
 
 export default function RootLayout({
   children,

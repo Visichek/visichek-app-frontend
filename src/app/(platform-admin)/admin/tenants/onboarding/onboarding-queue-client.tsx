@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   Eye,
@@ -147,12 +147,29 @@ export function OnboardingQueueClient() {
   const [archiveTarget, setArchiveTarget] =
     useState<OnboardingSubmission | null>(null);
 
+  const ONBOARDING_PAGE_SIZE = 25;
+  const [pageIndex, setPageIndex] = useState(0);
+
+  useEffect(() => {
+    setPageIndex(0);
+  }, [statusFilter]);
+
   const params =
     statusFilter === "all"
-      ? { limit: 100, sort: "-submittedAt" }
-      : { status: statusFilter, limit: 100, sort: "-submittedAt" };
+      ? {
+          skip: pageIndex * ONBOARDING_PAGE_SIZE,
+          limit: ONBOARDING_PAGE_SIZE,
+          sort: "-submittedAt",
+        }
+      : {
+          status: statusFilter,
+          skip: pageIndex * ONBOARDING_PAGE_SIZE,
+          limit: ONBOARDING_PAGE_SIZE,
+          sort: "-submittedAt",
+        };
   const { data, isLoading } = useOnboardingSubmissions(params);
   const submissions = data?.items ?? [];
+  const meta = data?.meta;
 
   const archive = useArchiveOnboarding();
   const bulkArchive = useBulkOnboardingAction("archive");
@@ -405,21 +422,18 @@ export function OnboardingQueueClient() {
       >
         <TabsList className="flex w-full flex-wrap gap-1 h-auto md:w-auto">
           {STATUS_TABS.map((tab) => (
-            <Tooltip key={tab.value}>
-              <TooltipTrigger asChild>
-                <TabsTrigger
-                  value={tab.value}
-                  className="min-h-[44px]"
-                >
-                  {tab.label}
-                </TabsTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                {tab.value === "all"
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className="min-h-[44px]"
+              title={
+                tab.value === "all"
                   ? "Show submissions in every status"
-                  : `Show submissions whose status is "${tab.label.toLowerCase()}"`}
-              </TooltipContent>
-            </Tooltip>
+                  : `Show submissions whose status is "${tab.label.toLowerCase()}"`
+              }
+            >
+              {tab.label}
+            </TabsTrigger>
           ))}
         </TabsList>
       </Tabs>
@@ -429,7 +443,12 @@ export function OnboardingQueueClient() {
         data={submissions}
         isLoading={isLoading}
         pagination
-        pageSize={20}
+        serverPagination={{
+          pageIndex,
+          pageSize: ONBOARDING_PAGE_SIZE,
+          totalCount: meta?.total ?? null,
+          onPageChange: setPageIndex,
+        }}
         searchKey="email"
         searchPlaceholder="Search by email…"
         emptyTitle={

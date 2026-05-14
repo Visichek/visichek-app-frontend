@@ -43,6 +43,22 @@ export type DataTableBulkAction<TData> = Omit<BulkAction, "onClick"> & {
   onClick: (selectedIds: string[], selectedRows: TData[]) => void;
 };
 
+/**
+ * Server-driven pagination state. When this prop is provided the table
+ * disables its own pagination row-model and instead drives prev/next from
+ * the caller. `totalCount` is the absolute total from the backend list
+ * envelope (`meta.total`), not the current page length — that's the whole
+ * point of switching: a `?limit=50` query returns at most 50 items but the
+ * user must still be able to walk past row 50 and the count line has to
+ * reflect the true total.
+ */
+export interface ServerPagination {
+  pageIndex: number; // 0-based
+  pageSize: number;
+  totalCount: number | null | undefined;
+  onPageChange: (pageIndex: number) => void;
+}
+
 export interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
@@ -54,6 +70,18 @@ export interface DataTableProps<TData, TValue> {
   // Pagination
   pagination?: boolean;
   pageSize?: number;
+  /**
+   * Server-driven pagination. When set, the table ignores its internal
+   * page model and renders the supplied page directly. The count line
+   * displays `totalCount` rather than the local row length.
+   */
+  serverPagination?: ServerPagination;
+  /**
+   * Display-only override for the results count when the caller has a
+   * backend total but isn't (yet) wiring server pagination. Ignored when
+   * `serverPagination` is set (`serverPagination.totalCount` wins).
+   */
+  totalCount?: number | null;
 
   // Mobile rendering
   mobileCard?: (row: TData) => React.ReactNode;
@@ -80,6 +108,8 @@ export function DataTable<TData, TValue>({
   searchPlaceholder = "Search...",
   pagination = true,
   pageSize = 10,
+  serverPagination,
+  totalCount,
   mobileCard,
   emptyTitle = "No results",
   emptyDescription = "Try adjusting your filters or search terms.",
@@ -90,6 +120,8 @@ export function DataTable<TData, TValue>({
   bulkActions,
   itemNoun,
 }: DataTableProps<TData, TValue>) {
+  const isServerPaginated = !!serverPagination;
+  const effectivePageSize = isServerPaginated ? serverPagination.pageSize : pageSize;
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [columnFilters, setColumnFilters] = React.useState<Array<{ id: string; value: unknown }>>([]);
@@ -122,15 +154,20 @@ export function DataTable<TData, TValue>({
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: pagination ? getPaginationRowModel() : undefined,
+    // When the caller drives pagination from the server, skip the
+    // internal page-row-model entirely — `data` already represents the
+    // single visible page and we render it as-is.
+    getPaginationRowModel:
+      pagination && !isServerPaginated ? getPaginationRowModel() : undefined,
   });
 
-  // Set initial page size
+  // Set initial page size for the internal model; only relevant in
+  // client-paginated mode.
   React.useEffect(() => {
-    if (pagination) {
+    if (pagination && !isServerPaginated) {
       table.setPageSize(pageSize);
     }
-  }, [table, pagination, pageSize]);
+  }, [table, pagination, pageSize, isServerPaginated]);
 
   // Drop selection ids that no longer correspond to visible rows so the
   // selection stays consistent with what the user can see (matches the
@@ -181,8 +218,36 @@ export function DataTable<TData, TValue>({
 
   // Show loading skeleton
   if (isLoading) {
-    return <TableSkeleton rows={pageSize ?? 5} columns={columns.length + (selectable ? 1 : 0)} />;
+    return (
+      <TableSkeleton
+        rows={effectivePageSize ?? 5}
+        columns={columns.length + (selectable ? 1 : 0)}
+      />
+    );
   }
+
+  // Server-driven pagination derivations. `serverTotal` is the true backend
+  // total; `serverPageCount` is how many pages we have to walk through.
+  const serverTotal = serverPagination?.totalCount ?? null;
+  const serverPageCount =
+    serverPagination && serverTotal != null && serverPagination.pageSize > 0
+      ? Math.max(1, Math.ceil(serverTotal / serverPagination.pageSize))
+      : null;
+  const serverCanPrev = serverPagination ? serverPagination.pageIndex > 0 : false;
+  const serverCanNext =
+    serverPagination && serverPageCount != null
+      ? serverPagination.pageIndex < serverPageCount - 1
+      : // If we don't know the total, allow next as long as the current
+        // page is full — best-effort hint that there might be more.
+        serverPagination
+        ? data.length === serverPagination.pageSize
+        : false;
+  const serverPageStart = serverPagination
+    ? serverPagination.pageIndex * serverPagination.pageSize + (data.length === 0 ? 0 : 1)
+    : 0;
+  const serverPageEnd = serverPagination
+    ? serverPagination.pageIndex * serverPagination.pageSize + data.length
+    : 0;
 
   // Show empty state
   if (table.getRowModel().rows.length === 0) {
@@ -271,22 +336,41 @@ export function DataTable<TData, TValue>({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}
+                onClick={() =>
+                  isServerPaginated
+                    ? serverPagination!.onPageChange(
+                        Math.max(0, serverPagination!.pageIndex - 1),
+                      )
+                    : table.previousPage()
+                }
+                disabled={
+                  isServerPaginated ? !serverCanPrev : !table.getCanPreviousPage()
+                }
                 className="h-10 w-10 p-0"
                 aria-label="Previous page"
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="text-sm text-muted-foreground">
-                Page {table.getState().pagination.pageIndex + 1} of{" "}
-                {table.getPageCount()}
+                {isServerPaginated
+                  ? `Page ${serverPagination!.pageIndex + 1}${
+                      serverPageCount != null ? ` of ${serverPageCount}` : ""
+                    }`
+                  : `Page ${table.getState().pagination.pageIndex + 1} of ${table.getPageCount()}`}
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}
+                onClick={() =>
+                  isServerPaginated
+                    ? serverPagination!.onPageChange(
+                        serverPagination!.pageIndex + 1,
+                      )
+                    : table.nextPage()
+                }
+                disabled={
+                  isServerPaginated ? !serverCanNext : !table.getCanNextPage()
+                }
                 className="h-10 w-10 p-0"
                 aria-label="Next page"
               >
@@ -433,16 +517,36 @@ export function DataTable<TData, TValue>({
         {pagination && (
           <div className="flex flex-col items-center justify-between gap-3 md:flex-row">
             <div className="text-sm text-muted-foreground">
-              {table.getFilteredRowModel().rows.length} result
-              {table.getFilteredRowModel().rows.length !== 1 ? "s" : ""}
+              {(() => {
+                if (isServerPaginated) {
+                  if (serverTotal != null) {
+                    if (serverTotal === 0) return "0 results";
+                    return `Showing ${serverPageStart}–${serverPageEnd} of ${serverTotal.toLocaleString()} result${serverTotal === 1 ? "" : "s"}`;
+                  }
+                  return `Showing ${serverPageStart}–${serverPageEnd}`;
+                }
+                const localTotal =
+                  typeof totalCount === "number"
+                    ? totalCount
+                    : table.getFilteredRowModel().rows.length;
+                return `${localTotal.toLocaleString()} result${localTotal !== 1 ? "s" : ""}`;
+              })()}
             </div>
 
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}
+                onClick={() =>
+                  isServerPaginated
+                    ? serverPagination!.onPageChange(
+                        Math.max(0, serverPagination!.pageIndex - 1),
+                      )
+                    : table.previousPage()
+                }
+                disabled={
+                  isServerPaginated ? !serverCanPrev : !table.getCanPreviousPage()
+                }
                 className="h-9 gap-2"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -450,15 +554,26 @@ export function DataTable<TData, TValue>({
               </Button>
 
               <div className="text-sm text-muted-foreground">
-                Page {table.getState().pagination.pageIndex + 1} of{" "}
-                {table.getPageCount()}
+                {isServerPaginated
+                  ? `Page ${serverPagination!.pageIndex + 1}${
+                      serverPageCount != null ? ` of ${serverPageCount}` : ""
+                    }`
+                  : `Page ${table.getState().pagination.pageIndex + 1} of ${table.getPageCount()}`}
               </div>
 
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}
+                onClick={() =>
+                  isServerPaginated
+                    ? serverPagination!.onPageChange(
+                        serverPagination!.pageIndex + 1,
+                      )
+                    : table.nextPage()
+                }
+                disabled={
+                  isServerPaginated ? !serverCanNext : !table.getCanNextPage()
+                }
                 className="h-9 gap-2"
               >
                 <span className="hidden sm:inline">Next</span>

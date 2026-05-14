@@ -57,9 +57,22 @@ export function useNavLoading(
 
   useEffect(() => {
     ensureNavigationCommitEvents();
-    const clearLoading = () => setLocalLoadingHref(null);
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    // The commit event can fire synchronously from inside Next.js's router
+    // effects (which call history.replaceState during useInsertionEffect /
+    // commit). setState in that phase trips React 19's
+    // "useInsertionEffect must not schedule updates" guard, so defer to a
+    // fresh macrotask. See NavigationLoadingProvider for the same pattern.
+    const clearLoading = () => {
+      if (timer !== null) return;
+      timer = setTimeout(() => {
+        timer = null;
+        setLocalLoadingHref(null);
+      }, 0);
+    };
     window.addEventListener(NAVIGATION_COMMIT_EVENT, clearLoading);
     return () => {
+      if (timer !== null) clearTimeout(timer);
       window.removeEventListener(NAVIGATION_COMMIT_EVENT, clearLoading);
     };
   }, []);

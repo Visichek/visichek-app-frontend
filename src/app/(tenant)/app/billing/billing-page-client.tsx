@@ -103,17 +103,24 @@ export function BillingPageClient() {
     refetch: refetchUsage,
   } = useMyUsage();
 
+  const INVOICES_PAGE_SIZE = 25;
+  const [invoicesPageIndex, setInvoicesPageIndex] = useState(0);
+
   const {
     data: invoicesResponse,
     isLoading: invoicesLoading,
     refetch: refetchInvoices,
-  } = useTenantInvoices(tenantId || "");
+  } = useTenantInvoices(tenantId || "", {
+    skip: invoicesPageIndex * INVOICES_PAGE_SIZE,
+    limit: INVOICES_PAGE_SIZE,
+  });
 
   const { data: activeSubscription } = useActiveSubscription(
     canManageBilling ? tenantId || "" : ""
   );
 
   const invoices = useMemo(() => invoicesResponse?.items ?? [], [invoicesResponse]);
+  const invoicesMeta = invoicesResponse?.meta;
 
   const columns = useMemo<ColumnDef<Invoice>[]>(
     () => [
@@ -493,7 +500,12 @@ export function BillingPageClient() {
               data={invoices}
               isLoading={invoicesLoading}
               pagination={true}
-              pageSize={10}
+              serverPagination={{
+                pageIndex: invoicesPageIndex,
+                pageSize: INVOICES_PAGE_SIZE,
+                totalCount: invoicesMeta?.total ?? null,
+                onPageChange: setInvoicesPageIndex,
+              }}
               emptyTitle="No invoices"
               emptyDescription="You don't have any invoices yet."
             />
