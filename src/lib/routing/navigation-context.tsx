@@ -48,6 +48,19 @@ export interface NavigationLoadingContextValue {
   replace: (href: string) => void;
   /** Mark an href as loading for <Link> elements that perform their own push. */
   handleNavClick: (href: string) => void;
+  /**
+   * Overlay-safe navigation. Marks `href` as loading immediately, then
+   * defers `router.push` until the next two animation frames so any open
+   * Radix portal (DropdownMenu, Dialog, Sheet, Popover, ContextMenu,
+   * CommandDialog) has finished its close + unmount commit before the
+   * App Router swaps the page tree.
+   *
+   * Use this for navigation triggered from inside floating UI. Routing
+   * during the same commit as a portal teardown can crash React with
+   * "Cannot read properties of null (reading 'removeChild')" and freeze
+   * the page until refresh — see the root layout DOM_RECONCILER_GUARD.
+   */
+  navigateFromOverlay: (href: string) => void;
 }
 
 export const NavigationLoadingContext =
@@ -139,6 +152,27 @@ export function NavigationLoadingProvider({
     [pathname, router],
   );
 
+  const navigateFromOverlay = useCallback(
+    (href: string) => {
+      if (typeof window === "undefined") {
+        router.push(href);
+        return;
+      }
+      if (isCurrentLocation(pathname, href)) return;
+
+      setLoadingHref(href);
+      // Two rAFs: the first lets the overlay's close handler run and React
+      // flush the unmount; the second guarantees the browser has painted
+      // that commit before we trigger the page-tree swap.
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          router.push(href);
+        });
+      });
+    },
+    [pathname, router],
+  );
+
   return (
     <NavigationLoadingContext.Provider
       value={{
@@ -147,6 +181,7 @@ export function NavigationLoadingProvider({
         navigate,
         replace,
         handleNavClick,
+        navigateFromOverlay,
       }}
     >
       {children}

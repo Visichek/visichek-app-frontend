@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
+import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -186,7 +187,6 @@ interface TenantActionsProps {
 }
 
 function TenantActions({ tenant, onSubscribe, onOffboard }: TenantActionsProps) {
-  const { loadingHref, handleNavClick, navigate } = useNavigationLoading();
   const detailHref = tenantDetailHref(tenant.id);
 
   return (
@@ -203,40 +203,26 @@ function TenantActions({ tenant, onSubscribe, onOffboard }: TenantActionsProps) 
         <TooltipContent side="left">Open actions for {tenant.companyName}</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem asChild>
-          <Link
-            href={detailHref}
-            onClick={() => handleNavClick(detailHref)}
-          >
-            {loadingHref === detailHref ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
-            )}
-            View Details
-          </Link>
-        </DropdownMenuItem>
+        <DropdownMenuNavItem
+          href={detailHref}
+          label="View Details"
+          icon={<Eye className="h-4 w-4" aria-hidden="true" />}
+        />
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() =>
-            navigate(`/admin/subscriptions?tenantId=${tenant.id}`)
-          }
-        >
-          <ListChecks className="mr-2 h-4 w-4" />
-          View Subscriptions
-        </DropdownMenuItem>
+        <DropdownMenuNavItem
+          href={`/admin/subscriptions?tenantId=${tenant.id}`}
+          label="View Subscriptions"
+          icon={<ListChecks className="h-4 w-4" aria-hidden="true" />}
+        />
         <DropdownMenuItem onClick={() => onSubscribe(tenant)}>
           <CreditCard className="mr-2 h-4 w-4" />
           Subscribe to Plan
         </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() =>
-            navigate(`/admin/subscriptions?tenantId=${tenant.id}&tab=usage`)
-          }
-        >
-          <BarChart2 className="mr-2 h-4 w-4" />
-          View Usage
-        </DropdownMenuItem>
+        <DropdownMenuNavItem
+          href={`/admin/subscriptions?tenantId=${tenant.id}&tab=usage`}
+          label="View Usage"
+          icon={<BarChart2 className="h-4 w-4" aria-hidden="true" />}
+        />
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="text-destructive focus:text-destructive"

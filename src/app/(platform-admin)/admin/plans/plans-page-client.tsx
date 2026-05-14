@@ -16,6 +16,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
+import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -365,19 +366,11 @@ export function PlansPageClient() {
             <TooltipContent>View actions for this plan</TooltipContent>
           </Tooltip>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem asChild>
-              <Link
-                href={editPlanHref(row.original.id)}
-                onClick={() => handleNavClick(editPlanHref(row.original.id))}
-              >
-                {loadingHref === editPlanHref(row.original.id) ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Edit2 className="mr-2 h-4 w-4" />
-                )}
-                Edit
-              </Link>
-            </DropdownMenuItem>
+            <DropdownMenuNavItem
+              href={editPlanHref(row.original.id)}
+              label="Edit"
+              icon={<Edit2 className="h-4 w-4" aria-hidden="true" />}
+            />
             {row.original.status !== "active" && (
               <DropdownMenuItem onClick={() => handleActivateClick(row.original)}>
                 Activate
@@ -436,19 +429,11 @@ export function PlansPageClient() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem asChild>
-            <Link
-              href={editPlanHref(plan.id)}
-              onClick={() => handleNavClick(editPlanHref(plan.id))}
-            >
-              {loadingHref === editPlanHref(plan.id) ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Edit2 className="mr-2 h-4 w-4" />
-              )}
-              Edit
-            </Link>
-          </DropdownMenuItem>
+          <DropdownMenuNavItem
+            href={editPlanHref(plan.id)}
+            label="Edit"
+            icon={<Edit2 className="h-4 w-4" aria-hidden="true" />}
+          />
           {plan.status !== "active" && (
             <DropdownMenuItem onClick={() => handleActivateClick(plan)}>
               Activate

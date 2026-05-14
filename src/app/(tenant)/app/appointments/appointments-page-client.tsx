@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
+import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -163,8 +164,6 @@ export function AppointmentsPageClient() {
         <RowActions
           appointment={row.original}
           onDelete={handleDeleteClick}
-          loadingHref={loadingHref}
-          handleNavClick={handleNavClick}
         />
       ),
     },
@@ -330,16 +329,11 @@ export function AppointmentsPageClient() {
 function RowActions({
   appointment,
   onDelete,
-  loadingHref,
-  handleNavClick,
 }: {
   appointment: Appointment;
   onDelete: (id: string) => void;
-  loadingHref: string | null;
-  handleNavClick: (href: string) => void;
 }) {
   const editHref = `/app/appointments/${appointment.id}/edit`;
-  const isLoadingEdit = loadingHref === editHref;
   return (
     <DropdownMenu>
       <Tooltip>
@@ -356,20 +350,11 @@ function RowActions({
         </TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem asChild>
-          <Link
-            href={editHref}
-            onClick={() => handleNavClick(editHref)}
-            className="flex items-center"
-          >
-            {isLoadingEdit ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Edit2 className="mr-2 h-4 w-4" />
-            )}
-            Edit
-          </Link>
-        </DropdownMenuItem>
+        <DropdownMenuNavItem
+          href={editHref}
+          label="Edit"
+          icon={<Edit2 className="h-4 w-4" aria-hidden="true" />}
+        />
         <DropdownMenuItem
           onClick={() => onDelete(appointment.id)}
           className="text-destructive"

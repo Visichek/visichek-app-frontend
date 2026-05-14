@@ -99,6 +99,26 @@ export function useNavLoading(
     [pathname, router],
   );
 
+  // Mirrors NavigationLoadingProvider.navigateFromOverlay for local scope.
+  // See that function for why the double rAF is required.
+  const localNavigateFromOverlay = useCallback(
+    (href: string) => {
+      if (typeof window === "undefined") {
+        router.push(href);
+        return;
+      }
+      if (isCurrentLocation(pathname, href)) return;
+
+      setLocalLoadingHref(href);
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          router.push(href);
+        });
+      });
+    },
+    [pathname, router],
+  );
+
   if (scope === "global") {
     if (!ctx) {
       throw new Error(
@@ -116,6 +136,7 @@ export function useNavLoading(
     navigate: localNavigate,
     replace: localReplace,
     handleNavClick: localHandleNavClick,
+    navigateFromOverlay: localNavigateFromOverlay,
   };
 }
 

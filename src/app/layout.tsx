@@ -58,13 +58,28 @@ export const viewport: Viewport = {
   ],
 };
 
-// Defensive guard against browser extensions (Google Translate, Grammarly,
-// Honey, etc.) that wrap text nodes and break React's DOM bookkeeping. When
-// React's reconciler tries to unmount one of those nodes it crashes with
-// `Cannot read properties of null (reading 'removeChild')`, which leaves the
-// renderer dead — every subsequent state update fails silently and navigation
-// freezes until a hard refresh. Patching `removeChild` / `insertBefore` to
-// no-op on a parent mismatch lets React continue cleanly.
+// Last-resort defense against `Cannot read properties of null
+// (reading 'removeChild')` from the React 19 DOM reconciler.
+//
+// The real, app-level fix for in-app navigation is overlay-safe routing:
+// dropdowns/dialogs/sheets/popovers must close before the page tree
+// swaps — see `DropdownMenuNavItem` (components/recipes) and
+// `navigateFromOverlay()` on the navigation-loading context. Routing
+// during the same commit as a Radix portal teardown was the original
+// repro path and is the bug class this guard *shouldn't* be papering
+// over for our own code.
+//
+// What this guard exists for is the orthogonal failure mode: browser
+// extensions (Google Translate, Grammarly, Honey, etc.) wrap text
+// nodes mid-render; when React tries to unmount one of those wrapped
+// nodes the reconciler reads a null `parentNode` and the renderer
+// dies — every subsequent state update fails silently and navigation
+// freezes until a hard refresh. Patching `removeChild` / `insertBefore`
+// to no-op on a parent mismatch lets React continue cleanly.
+//
+// Do NOT lean on this as the primary fix for new portal-driven
+// navigation crashes; route those through the overlay-safe helpers
+// instead.
 const DOM_RECONCILER_GUARD = `(function(){if(typeof Node==="undefined"||!Node.prototype)return;var r=Node.prototype.removeChild;Node.prototype.removeChild=function(c){if(c&&c.parentNode!==this){if(c.parentNode){return c.parentNode.removeChild(c)}return c}return r.apply(this,arguments)};var i=Node.prototype.insertBefore;Node.prototype.insertBefore=function(n,ref){if(ref&&ref.parentNode!==this){return this.appendChild(n)}return i.apply(this,arguments)}})();`;
 
 export default function RootLayout({

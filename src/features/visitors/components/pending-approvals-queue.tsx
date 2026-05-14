@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 
 import { DataTable } from "@/components/recipes/data-table";
+import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -438,23 +439,11 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
                 </TooltipContent>
               </Tooltip>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem asChild>
-                  <Link
-                    href={viewHref}
-                    onClick={() => handleNavClick(viewHref)}
-                    className="flex items-center"
-                  >
-                    {loadingHref === viewHref ? (
-                      <Loader2
-                        className="mr-2 h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
-                    )}
-                    View details
-                  </Link>
-                </DropdownMenuItem>
+                <DropdownMenuNavItem
+                  href={viewHref}
+                  label="View details"
+                  icon={<Eye className="h-4 w-4" aria-hidden="true" />}
+                />
                 <DropdownMenuSeparator />
                 {isAwaitingVerification ? (
                   <>
@@ -515,46 +504,17 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
                   </>
                 ) : (
                   <>
-                    <DropdownMenuItem asChild>
-                      <Link
-                        href={approveHref}
-                        onClick={() => handleNavClick(approveHref)}
-                        className="flex items-center"
-                      >
-                        {loadingHref === approveHref ? (
-                          <Loader2
-                            className="mr-2 h-4 w-4 animate-spin"
-                            aria-hidden="true"
-                          />
-                        ) : (
-                          <CheckCircle2
-                            className="mr-2 h-4 w-4"
-                            aria-hidden="true"
-                          />
-                        )}
-                        Approve
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link
-                        href={rejectHref}
-                        onClick={() => handleNavClick(rejectHref)}
-                        className="flex items-center text-destructive"
-                      >
-                        {loadingHref === rejectHref ? (
-                          <Loader2
-                            className="mr-2 h-4 w-4 animate-spin"
-                            aria-hidden="true"
-                          />
-                        ) : (
-                          <XCircle
-                            className="mr-2 h-4 w-4"
-                            aria-hidden="true"
-                          />
-                        )}
-                        Reject
-                      </Link>
-                    </DropdownMenuItem>
+                    <DropdownMenuNavItem
+                      href={approveHref}
+                      label="Approve"
+                      icon={<CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
+                    />
+                    <DropdownMenuNavItem
+                      href={rejectHref}
+                      label="Reject"
+                      destructive
+                      icon={<XCircle className="h-4 w-4" aria-hidden="true" />}
+                    />
                   </>
                 )}
               </DropdownMenuContent>

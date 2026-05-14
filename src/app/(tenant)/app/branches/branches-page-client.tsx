@@ -13,6 +13,7 @@ import {
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
+import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -242,8 +243,6 @@ export function BranchesPageClient() {
           locked={isBranchLocked(row.original.id)}
           onDelete={handleDeleteClick}
           onDeactivate={handleDeactivateClick}
-          loadingHref={loadingHref}
-          handleNavClick={handleNavClick}
         />
       ),
       enableHiding: false,
@@ -280,8 +279,6 @@ export function BranchesPageClient() {
           locked={locked}
           onDelete={handleDeleteClick}
           onDeactivate={handleDeactivateClick}
-          loadingHref={loadingHref}
-          handleNavClick={handleNavClick}
         />
       </div>
     );
@@ -413,18 +410,13 @@ function RowActions({
   locked = false,
   onDelete,
   onDeactivate,
-  loadingHref,
-  handleNavClick,
 }: {
   branch: Branch;
   locked?: boolean;
   onDelete: (b: Branch) => void;
   onDeactivate: (b: Branch) => void;
-  loadingHref: string | null;
-  handleNavClick: (href: string) => void;
 }) {
   const editHref = `/app/branches/${branch.id}/edit`;
-  const isLoadingEdit = loadingHref === editHref;
   return (
     <DropdownMenu>
       <Tooltip>
@@ -444,20 +436,11 @@ function RowActions({
       </Tooltip>
       <DropdownMenuContent align="end">
         {!locked && (
-          <DropdownMenuItem asChild>
-            <Link
-              href={editHref}
-              onClick={() => handleNavClick(editHref)}
-              className="flex items-center"
-            >
-              {isLoadingEdit ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <Edit2 className="mr-2 h-4 w-4" />
-              )}
-              Edit
-            </Link>
-          </DropdownMenuItem>
+          <DropdownMenuNavItem
+            href={editHref}
+            label="Edit"
+            icon={<Edit2 className="h-4 w-4" aria-hidden="true" />}
+          />
         )}
         {!locked && branch.isActive !== false && (
           <DropdownMenuItem onClick={() => onDeactivate(branch)}>

@@ -14,6 +14,7 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
+import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { summarizeBulkResult } from "@/lib/api/bulk";
 import { Button } from "@/components/ui/button";
@@ -273,8 +274,6 @@ export default function IncidentsPage() {
           incident={row.original}
           onMarkNotified={handleMarkAsNotified}
           pendingNotificationId={pendingNotificationId}
-          loadingHref={loadingHref}
-          handleNavClick={handleNavClick}
         />
       ),
     },
@@ -413,17 +412,12 @@ function RowActions({
   incident,
   onMarkNotified,
   pendingNotificationId,
-  loadingHref,
-  handleNavClick,
 }: {
   incident: Incident;
   onMarkNotified: (i: Incident) => void;
   pendingNotificationId: string | null;
-  loadingHref: string | null;
-  handleNavClick: (href: string) => void;
 }) {
   const editHref = `/app/incidents/${incident.id}/edit`;
-  const isLoadingEdit = loadingHref === editHref;
   return (
     <DropdownMenu>
       <Tooltip>
@@ -440,20 +434,11 @@ function RowActions({
         </TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem asChild>
-          <Link
-            href={editHref}
-            onClick={() => handleNavClick(editHref)}
-            className="flex items-center"
-          >
-            {isLoadingEdit ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Edit2 className="mr-2 h-4 w-4" />
-            )}
-            View / Edit
-          </Link>
-        </DropdownMenuItem>
+        <DropdownMenuNavItem
+          href={editHref}
+          label="View / Edit"
+          icon={<Edit2 className="h-4 w-4" aria-hidden="true" />}
+        />
         {!incident.ndpcNotified && (
           <DropdownMenuItem
             onClick={() => onMarkNotified(incident)}
