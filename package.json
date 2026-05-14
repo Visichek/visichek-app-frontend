@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "build:webpack": "next build",
-    "analyze": "cross-env ANALYZE=true next build --turbopack",
+    "analyze": "cross-env ANALYZE=true next build",
+    "analyze:turbo": "next experimental-analyze",
     "start": "next start",
     "lint": "next lint",
     "pwa:icons": "node scripts/generate-pwa-icons.mjs"
