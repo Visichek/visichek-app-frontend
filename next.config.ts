@@ -12,17 +12,19 @@ const nextConfig: NextConfig = {
     // dramatically smaller than the PNGs tenants upload.
     formats: ["image/avif", "image/webp"],
     remotePatterns: [
+      // Allow any path on the API host — covers /v1/documents, /blog-uploads,
+      // and any future bucket paths without needing a config change.
       {
         protocol: "https",
         hostname: "api.visichek.app",
-        pathname: "/v1/documents/**",
+        pathname: "/**",
       },
       // Local dev sometimes proxies through the frontend origin via
       // `next.config rewrites`. Allow that path so logos render in dev too.
       {
         protocol: "http",
         hostname: "localhost",
-        pathname: "/api/v1/documents/**",
+        pathname: "/api/**",
       },
     ],
   },
