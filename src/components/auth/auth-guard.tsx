@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/hooks/use-session";
+import { useAppSelector } from "@/lib/store/hooks";
+import { selectIsBootstrapping } from "@/lib/store/session-slice";
 import { isLogoutTransitionActive } from "@/lib/auth/auth-transition";
 import type { SessionType } from "@/types/auth";
 
@@ -28,9 +30,15 @@ interface AuthGuardProps {
 export function AuthGuard({ shell, children }: AuthGuardProps) {
   const router = useRouter();
   const { isAuthenticated, sessionType } = useSession();
+  const isBootstrapping = useAppSelector(selectIsBootstrapping);
   const isLoggingOut = isLogoutTransitionActive();
 
-  const redirectPath = resolveRedirect(shell, isAuthenticated, sessionType);
+  // While bootstrap is unresolved, session state is unknown. Render nothing
+  // (BootstrapGate is already showing a spinner) so we never flash protected
+  // shell UI for the wrong identity in the window before bootstrap settles.
+  const redirectPath = isBootstrapping
+    ? null
+    : resolveRedirect(shell, isAuthenticated, sessionType);
 
   useEffect(() => {
     if (!isLoggingOut && redirectPath) {
@@ -38,7 +46,7 @@ export function AuthGuard({ shell, children }: AuthGuardProps) {
     }
   }, [isLoggingOut, redirectPath, router]);
 
-  if (isLoggingOut || redirectPath) return null;
+  if (isBootstrapping || isLoggingOut || redirectPath) return null;
 
   return <>{children}</>;
 }

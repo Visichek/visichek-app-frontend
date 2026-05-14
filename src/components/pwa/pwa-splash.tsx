@@ -83,18 +83,8 @@ export function PwaSplash() {
       aria-live="polite"
       aria-label="Loading VisiChek"
     >
-      {/* Soft ambient glow to match the app's branded surfaces */}
-      <div
-        className="absolute top-[-15%] right-[-10%] w-[55%] h-[55%] bg-[#00D287]/10 rounded-full blur-[140px] pointer-events-none"
-        aria-hidden="true"
-      />
-      <div
-        className="absolute bottom-[-15%] left-[-10%] w-[55%] h-[55%] bg-emerald-100/50 rounded-full blur-[140px] pointer-events-none"
-        aria-hidden="true"
-      />
-
       <div className="flex flex-col items-center gap-6 relative z-10 px-6">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#00D287]/10 text-[#00D287] shadow-[0_12px_40px_-12px_rgba(0,210,135,0.35)]">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#00D287]/10 text-[#00D287]">
           <ShieldCheck size={32} aria-hidden="true" />
         </div>
         <div className="flex flex-col items-center gap-1">

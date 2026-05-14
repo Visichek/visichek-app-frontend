@@ -137,9 +137,7 @@ export function VisichekSplash() {
       >
         <div
           className="visichek-progress-bar h-full w-1/4"
-          style={{
-            background: `linear-gradient(to right, transparent, ${BRAND_GREEN}, transparent)`,
-          }}
+          style={{ backgroundColor: BRAND_GREEN }}
         />
       </div>
 

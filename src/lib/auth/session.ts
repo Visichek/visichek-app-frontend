@@ -84,6 +84,14 @@ export function clearSession(): void {
   // those failures race the logout flow and bounce through dashboard/login.
   if (isLogoutTransitionActive()) return;
 
+  // If bootstrap is still in flight (e.g., a /me probe just 401'd and the
+  // refresh failed), do NOT fire a hard navigation here. BootstrapGate is
+  // still showing the spinner, and once bootstrap settles, AuthGuard will
+  // soft-redirect via router.replace. A window.location.href mid-bootstrap
+  // causes a full reload that re-runs the same failing flow on the new
+  // page — the source of the "login/logout loop" on unauthorized access.
+  if (store.getState().session.isBootstrapping) return;
+
   const currentPath = window.location.pathname;
 
   // If the user is already on a login page (or any public path that

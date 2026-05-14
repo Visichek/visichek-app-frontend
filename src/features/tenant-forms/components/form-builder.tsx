@@ -97,7 +97,11 @@ const TARGET_TABS: FormTargetType[] = [
   "visit_session",
 ];
 
-const AUTOSAVE_DEBOUNCE_MS = 3000;
+// Debounced autosave waits this long after the last change before sending
+// a PATCH. Since the backend now writes to draft_* (no version bump per
+// save), we can be more responsive than the old per-save-publishes flow
+// would have allowed.
+const AUTOSAVE_DEBOUNCE_MS = 1200;
 
 type SaveStatus =
   | { kind: "idle" }
@@ -128,10 +132,27 @@ function emptyDraft(targetType: FormTargetType): DraftState {
 }
 
 function formToDraft(form: TenantForm): DraftState {
+  // The backend writes autosave PATCHes to `draft_*` columns and only
+  // promotes them into the published columns on /publish. So whenever a
+  // draft exists, it IS the working copy — read from it, not from the
+  // (potentially empty) published fields.
+  const draftFields = form.draftFields ?? null;
+  const hasDraft =
+    draftFields !== null ||
+    form.draftName != null ||
+    form.draftDescription != null;
+
+  const sourceFields = hasDraft && draftFields ? draftFields : form.fields;
+  const sourceName = hasDraft && form.draftName != null ? form.draftName : form.name;
+  const sourceDescription =
+    hasDraft && form.draftDescription !== undefined
+      ? form.draftDescription
+      : form.description;
+
   return {
-    name: form.name,
-    description: form.description ?? "",
-    fields: restamp(ordered(form.fields)),
+    name: sourceName,
+    description: sourceDescription ?? "",
+    fields: restamp(ordered(sourceFields ?? [])),
     focusedFieldId: null,
   };
 }
@@ -320,12 +341,36 @@ export function FormBuilder({
   // Hydrate from the active form for the current target. Reset the saved
   // signature here so the first autosave isn't a no-op when the user starts
   // editing what we just loaded.
+  //
+  // Two subtleties:
+  //   1. `formToDraft` reads `draftFields` when present — the backend writes
+  //      autosave PATCHes there and leaves the published `fields` empty
+  //      until /publish, so hydrating from `fields` would erase the
+  //      working copy.
+  //   2. After the FIRST autosave the form transitions from "none" to a
+  //      real id, which trips the key check below. The user is usually
+  //      still typing at that point; re-hydrating from the response would
+  //      clobber every keystroke entered between the save going out and
+  //      the refetch landing. We compare the incoming draft signature
+  //      against `lastSavedSignatureRef` and skip the re-hydration when
+  //      they match — the local state is already correct, just bump the
+  //      key tracker.
   useEffect(() => {
     if (activeFormQuery.isLoading) return;
     const key = activeForm
       ? `${target}:${activeForm.formId}:${activeForm.version}`
       : `${target}:none`;
     if (hydratedKey === key) return;
+
+    if (activeForm && lastSavedSignatureRef.current) {
+      const incoming = formToDraft(activeForm);
+      const incomingSignature = payloadSignature(payloadFromDraft(incoming));
+      if (incomingSignature === lastSavedSignatureRef.current) {
+        setHydratedKey(key);
+        return;
+      }
+    }
+
     const next = activeForm ? formToDraft(activeForm) : emptyDraft(target);
     dispatchDraft({ type: "hydrate", draft: next });
     lastSavedSignatureRef.current = payloadSignature(payloadFromDraft(next));

@@ -69,6 +69,20 @@ export async function bootstrapSession(): Promise<boolean> {
     return false;
   }
 
+  // No auth hint = no session expected. The hint is written on every
+  // successful login and cleared on every logout via the Redux subscription
+  // in `lib/store/index.ts`, so its absence is a reliable client-side
+  // signal that we are logged out. Skipping the /me probe here avoids
+  // firing a guaranteed-to-fail /auth/refresh (3 attempts × 5s timeout =
+  // up to 15s of needless network) for users who simply don't have cookies
+  // — that was the source of the "app tries to refresh even without
+  // cookies" loop on protected routes.
+  if (!readAuthHint()) {
+    store.dispatch(clearSessionState());
+    store.dispatch(markBootstrapDone());
+    return false;
+  }
+
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<boolean>((resolve) => {
     timer = setTimeout(() => resolve(false), BOOTSTRAP_HARD_TIMEOUT_MS);

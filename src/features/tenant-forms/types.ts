@@ -10,7 +10,7 @@ import type { LawfulBasis } from "@/types/enums";
 
 export type FormTargetType = "appointment" | "checkin" | "visit_session";
 
-export type FormStatus = "active" | "archived" | "superseded";
+export type FormStatus = "active" | "archived" | "superseded" | "draft";
 
 export type FormFieldType =
   | "text"
@@ -137,11 +137,35 @@ export interface TenantForm {
   formId: string;
   tenantId: string;
   targetType: FormTargetType;
+  /**
+   * PUBLISHED name. Empty until the first publish — read `draftName` for
+   * the working copy.
+   */
   name: string;
+  /**
+   * PUBLISHED description. May be null until the first publish — read
+   * `draftDescription` for the working copy.
+   */
   description?: string | null;
   status: FormStatus;
   version: number;
+  /**
+   * PUBLISHED field set. Empty until the first publish, since PATCH writes
+   * to `draftFields` per the backend spec. Always prefer `draftFields`
+   * when present — that's the working copy the user has been editing.
+   */
   fields: FormFieldDefinition[];
+
+  // ── Draft (working copy) — populated whenever the user has edits that
+  // haven't been published yet. All four go null after a successful publish.
+  draftName?: string | null;
+  draftDescription?: string | null;
+  draftFields?: FormFieldDefinition[] | null;
+  draftUpdatedAt?: number | null;
+  draftUpdatedBy?: string | null;
+  /** True when any of the draft_* columns differ from the published row. */
+  hasUnpublishedChanges?: boolean;
+
   dateCreated: number;
   lastUpdated: number;
   createdByUserId: string;
