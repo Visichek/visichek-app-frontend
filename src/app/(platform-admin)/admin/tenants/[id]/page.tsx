@@ -1,16 +1,15 @@
 "use client";
 
 import { use } from "react";
-import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { NavButton } from "@/components/recipes/nav-button";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ErrorState } from "@/components/feedback/error-state";
-import { useNavigationLoading } from "@/lib/routing/navigation-context";
+import { useNavLoading } from "@/hooks/use-nav-loading";
 import { useTenant } from "@/features/auth/hooks/use-admin-dashboard";
 import { TenantDetailView } from "@/features/auth/components/tenant-detail-view";
 
@@ -22,7 +21,7 @@ export default function TenantDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavLoading();
   const { data, isLoading, isError, refetch } = useTenant(id);
 
   if (isError || (!isLoading && !data)) {

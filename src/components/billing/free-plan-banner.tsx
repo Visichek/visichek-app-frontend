@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { useMyUsage } from "@/features/usage/hooks/use-usage";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import {
@@ -34,19 +34,25 @@ export function FreePlanBanner({ pathname }: { pathname: string }) {
     <div
       role="region"
       aria-label="Free plan notice"
-      className="border-b border-primary/20 bg-gradient-to-r from-primary/[0.06] via-primary/[0.04] to-transparent"
+      className="border-b border-amber-400/40 bg-gradient-to-r from-amber-100/80 via-amber-50/70 to-amber-100/40 dark:border-amber-500/30 dark:from-amber-500/15 dark:via-amber-500/10 dark:to-amber-500/5"
     >
       <div className="flex flex-col gap-2 px-4 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between lg:px-6">
         <div className="flex items-start gap-3 sm:items-center">
           <span
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-200/70 ring-1 ring-amber-500/40 dark:bg-amber-500/20 dark:ring-amber-400/40"
             aria-hidden="true"
           >
-            <Sparkles className="h-3.5 w-3.5" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/visichek_logo.svg"
+              alt=""
+              aria-hidden="true"
+              className="h-4 w-4"
+            />
           </span>
-          <p className="text-foreground/90">
-            <span className="font-medium">You&apos;re on the Free plan.</span>{" "}
-            <span className="text-muted-foreground">
+          <p className="text-amber-950 dark:text-amber-100">
+            <span className="font-semibold">You&apos;re on the Free plan.</span>{" "}
+            <span className="text-amber-900/80 dark:text-amber-100/80">
               Upgrade to unlock appointments, multi-location, branding and
               higher monthly limits.
             </span>
@@ -70,7 +76,7 @@ export function FreePlanBanner({ pathname }: { pathname: string }) {
                 event.preventDefault();
                 navigateFromOverlay(UPGRADE_HREF);
               }}
-              className="inline-flex min-h-[36px] shrink-0 items-center justify-center gap-1.5 self-start rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 sm:self-auto"
+              className="inline-flex min-h-[36px] shrink-0 items-center justify-center gap-1.5 self-start rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-amber-700 sm:self-auto"
             >
               {isNavigating ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />

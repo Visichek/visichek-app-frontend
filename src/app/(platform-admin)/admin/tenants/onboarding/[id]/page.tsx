@@ -1,9 +1,8 @@
 "use client";
 
 import { use } from "react";
-import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { NavButton } from "@/components/recipes/nav-button";
 import {
   Tooltip,
   TooltipContent,
@@ -22,7 +21,7 @@ export default function OnboardingSubmissionPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const { loadingHref, handleNavClick } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
   const { data, isLoading, isError, refetch } = useOnboardingSubmission(id);
 
   if (isError || (!isLoading && !data)) {

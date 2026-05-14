@@ -36,10 +36,7 @@ import {
   resolveCheckoutUrl,
 } from "@/features/checkout/hooks/use-checkout";
 import { useDiscountPreview } from "@/features/discounts/hooks/use-discounts";
-import {
-  useClaimTrial,
-  useTrialPreview,
-} from "@/features/trials/hooks/use-trials";
+import { useClaimTrial } from "@/features/trials/hooks/use-trials";
 import type {
   DiscountPreview,
   Plan,
@@ -47,8 +44,6 @@ import type {
 } from "@/types/billing";
 import type { BillingCycle, PlanTier } from "@/types/enums";
 import { ApiError } from "@/types/api";
-
-const TRIAL_CODE_PREFIX = "TRIAL-";
 
 type AppliedCode =
   | { kind: "discount"; preview: DiscountPreview }
@@ -128,28 +123,39 @@ export function ChangePlanForm({
   // tenants who need more bump it before paying. Free/Starter ignore this.
   const [locationCount, setLocationCount] = useState<number>(1);
 
-  // Discount or trial code state. Collapsed by default — most users won't
-  // have a code. The single input auto-detects "TRIAL-" prefix and routes
-  // to the trial preview endpoint instead of the discount preview.
+  // Discount code state. Collapsed by default — most users won't have a
+  // code. Trials are not entered here; they are auto-claimed below when
+  // the selected plan offers one and the tenant is eligible.
   const [codeOpen, setCodeOpen] = useState(false);
   const [codeInput, setCodeInput] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
   const [appliedCode, setAppliedCode] = useState<AppliedCode | null>(null);
+  // Tracks the plan id whose auto-claimed trial the user explicitly
+  // dismissed. Prevents the auto-claim effect from re-applying it after
+  // every render until the user picks a different plan.
+  const [autoTrialDismissedForPlan, setAutoTrialDismissedForPlan] = useState<
+    string | null
+  >(null);
 
   const plansQuery = usePlans({ status: "active" });
   const createSession = useCreateCheckoutSession();
   const discountPreview = useDiscountPreview();
-  const trialPreview = useTrialPreview();
   const claimTrial = useClaimTrial();
 
-  // The server-computed preview is bound to the exact (code, plan,
-  // billing_cycle) tuple. If any of those change, drop the stale preview so
-  // the summary doesn't lie. The location count only affects the multiplier
-  // we apply on top of the preview, so it doesn't invalidate by itself.
+  // Drop any stale applied code when the plan changes — discount previews
+  // are bound to (code, plan, billing_cycle), and a trial from another
+  // plan is meaningless here.
   useEffect(() => {
     setAppliedCode(null);
     setCodeError(null);
-  }, [selectedPlanId, billingCycle]);
+  }, [selectedPlanId]);
+
+  // Discount previews are bound to billing cycle, so drop one if the
+  // cycle changes. Trials don't care about cycle — leave them in place.
+  useEffect(() => {
+    setAppliedCode((prev) => (prev?.kind === "discount" ? null : prev));
+    setCodeError(null);
+  }, [billingCycle]);
 
   const plans = useMemo(
     () =>
@@ -173,6 +179,44 @@ export function ChangePlanForm({
     currentPlanTier,
     selectedPlan?.tier as PlanTier | undefined,
   );
+
+  // Auto-claim a trial the moment a trial-eligible plan is selected.
+  // /trials/claim is idempotent for the same (tenant, plan), so this is
+  // safe to call once per selection. Eligibility failures
+  // (TRIAL_ALREADY_USED, TRIAL_NOT_SUPPORTED, etc.) are swallowed —
+  // the user simply proceeds with the paid flow.
+  useEffect(() => {
+    if (!selectedPlan) return;
+    if ((selectedPlan.trialDays ?? 0) <= 0) return;
+    if (isEnterprise || isDowngradeSelected) return;
+    if (autoTrialDismissedForPlan === selectedPlan.id) return;
+    if (appliedCode !== null) return;
+
+    let cancelled = false;
+    const planId = selectedPlan.id;
+
+    claimTrial
+      .mutateAsync({ planId })
+      .then((trial) => {
+        if (cancelled) return;
+        setAppliedCode({ kind: "trial", trial });
+      })
+      .catch(() => {
+        // Eligibility failure — silently fall back to the paid flow.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // claimTrial.mutateAsync is stable across renders in @tanstack/react-query.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selectedPlan,
+    isEnterprise,
+    isDowngradeSelected,
+    autoTrialDismissedForPlan,
+    appliedCode,
+  ]);
 
   function basePriceForCycle(plan: Plan): number {
     return billingCycle === "yearly"
@@ -210,66 +254,45 @@ export function ChangePlanForm({
     return appliedCode.preview.discountAmount * multiplier;
   }
 
-  // Drop a stale applied code whenever the user changes plan, billing cycle,
-  // or location count — the server-computed `final_price` is bound to the
-  // exact preview parameters, so silently keeping a stale preview would
-  // misstate the summary.
-  function resetAppliedCode() {
+  // Drop the applied discount and clear the code field.
+  function resetAppliedDiscount() {
     setAppliedCode(null);
     setCodeInput("");
     setCodeError(null);
   }
 
-  async function handleApplyCode() {
+  // Drop the auto-applied trial and remember the dismissal so the
+  // auto-claim effect doesn't reinstate it on the next render.
+  function dismissAutoTrial() {
+    if (selectedPlan) {
+      setAutoTrialDismissedForPlan(selectedPlan.id);
+    }
+    setAppliedCode(null);
+  }
+
+  async function handleApplyDiscountCode() {
     const code = codeInput.trim();
     if (!code) {
-      setCodeError("Enter a discount or trial code.");
+      setCodeError("Enter a discount code.");
       return;
     }
     if (!selectedPlan) {
-      setCodeError("Pick a plan first — codes are validated against the plan.");
+      setCodeError("Pick a plan first — discount codes are validated against the plan.");
       return;
     }
     setCodeError(null);
 
-    const isTrial = code.toUpperCase().startsWith(TRIAL_CODE_PREFIX);
-
     try {
-      if (isTrial) {
-        const trial = await trialPreview.mutateAsync({
-          code,
-          planId: selectedPlan.id,
-        });
-        setAppliedCode({ kind: "trial", trial });
-        setCodeInput("");
-        toast.success(
-          `${trial.trialDays}-day free trial of ${trial.planDisplayName || trial.planName} applied.`,
-        );
-      } else {
-        const preview = await discountPreview.mutateAsync({
-          code,
-          planId: selectedPlan.id,
-          billingCycle,
-        });
-        setAppliedCode({ kind: "discount", preview });
-        setCodeInput("");
-        toast.success(`${preview.discount.name} applied.`);
-      }
+      const preview = await discountPreview.mutateAsync({
+        code,
+        planId: selectedPlan.id,
+        billingCycle,
+      });
+      setAppliedCode({ kind: "discount", preview });
+      setCodeInput("");
+      toast.success(`${preview.discount.name} applied.`);
     } catch (err) {
       setCodeError(messageForError(err));
-    }
-  }
-
-  async function handleStartTrial() {
-    if (!selectedPlan) return;
-    try {
-      const trial = await claimTrial.mutateAsync({ planId: selectedPlan.id });
-      setAppliedCode({ kind: "trial", trial });
-      // Then immediately proceed to checkout — the user clicked "Start
-      // trial" expecting a single-step flow.
-      await runCheckout({ trialCode: trial.code });
-    } catch (err) {
-      toast.error(messageForError(err));
     }
   }
 
@@ -316,17 +339,7 @@ export function ChangePlanForm({
     await runCheckout({});
   }
 
-  const codePending =
-    discountPreview.isPending ||
-    trialPreview.isPending ||
-    claimTrial.isPending;
-
-  const showStartTrial =
-    !!selectedPlan &&
-    !isEnterprise &&
-    !isDowngradeSelected &&
-    (selectedPlan.trialDays ?? 0) > 0 &&
-    !appliedCode;
+  const codePending = discountPreview.isPending;
 
   const isNavigatingBack = loadingHref === LIST_HREF;
 
@@ -677,18 +690,27 @@ export function ChangePlanForm({
           </div>
         )}
 
-        {/* Discount or trial code */}
-        {selectedPlan && !isEnterprise && !isDowngradeSelected && (
-          <div className="rounded-lg border bg-card p-4">
-            {appliedCode?.kind === "trial" ? (
+        {/* Auto-applied trial banner (no input — trials are claimed
+            automatically when a trial-eligible plan is selected) */}
+        {selectedPlan &&
+          !isEnterprise &&
+          !isDowngradeSelected &&
+          appliedCode?.kind === "trial" && (
+            <div className="rounded-lg border bg-card p-4">
               <AppliedTrialCard
                 trial={appliedCode.trial}
-                onRemove={resetAppliedCode}
+                onRemove={dismissAutoTrial}
               />
-            ) : appliedCode?.kind === "discount" ? (
+            </div>
+          )}
+
+        {/* Discount code (optional, collapsed by default) */}
+        {selectedPlan && !isEnterprise && !isDowngradeSelected && (
+          <div className="rounded-lg border bg-card p-4">
+            {appliedCode?.kind === "discount" ? (
               <AppliedDiscountCard
                 preview={appliedCode.preview}
-                onRemove={resetAppliedCode}
+                onRemove={resetAppliedDiscount}
               />
             ) : codeOpen ? (
               <div className="space-y-2">
@@ -696,7 +718,7 @@ export function ChangePlanForm({
                   htmlFor="checkout-code"
                   className="text-xs font-medium text-muted-foreground"
                 >
-                  Discount or trial code
+                  Discount code
                 </label>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <Input
@@ -709,10 +731,10 @@ export function ChangePlanForm({
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
                         event.preventDefault();
-                        void handleApplyCode();
+                        void handleApplyDiscountCode();
                       }
                     }}
-                    placeholder="e.g. LAUNCH20 or TRIAL-…"
+                    placeholder="e.g. LAUNCH20"
                     autoComplete="off"
                     spellCheck={false}
                     className="min-h-[44px] flex-1 font-mono text-sm uppercase tracking-wider"
@@ -721,7 +743,7 @@ export function ChangePlanForm({
                     <TooltipTrigger asChild>
                       <Button
                         type="button"
-                        onClick={handleApplyCode}
+                        onClick={handleApplyDiscountCode}
                         disabled={!codeInput.trim() || codePending}
                         className="min-h-[44px] sm:w-auto"
                       >
@@ -739,7 +761,7 @@ export function ChangePlanForm({
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top">
-                      Validate this code and apply it to the selected plan
+                      Validate this discount code and apply it to the selected plan
                     </TooltipContent>
                   </Tooltip>
                 </div>
@@ -753,9 +775,8 @@ export function ChangePlanForm({
                   </p>
                 )}
                 <p className="text-[11px] text-muted-foreground">
-                  Trial codes start with <span className="font-mono">TRIAL-</span>.
-                  Codes are only consumed when payment completes — you can
-                  always remove one before checking out.
+                  Discount codes are only consumed when payment completes — you
+                  can remove one before checking out.
                 </p>
               </div>
             ) : (
@@ -767,11 +788,11 @@ export function ChangePlanForm({
                     className="flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
                   >
                     <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                    Have a discount or trial code?
+                    Have a discount code?
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="top">
-                  Expand the code field — totally optional
+                  Expand the discount code field — totally optional
                 </TooltipContent>
               </Tooltip>
             )}
@@ -882,42 +903,6 @@ export function ChangePlanForm({
               Return to billing without starting a checkout
             </TooltipContent>
           </Tooltip>
-
-          {showStartTrial && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleStartTrial}
-                  disabled={claimTrial.isPending || createSession.isPending}
-                  className="min-h-[44px] w-full border-primary/40 text-primary hover:bg-primary/5 sm:w-auto"
-                >
-                  {claimTrial.isPending ? (
-                    <>
-                      <Loader2
-                        className="mr-2 h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                      Starting trial…
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles
-                        className="mr-2 h-4 w-4"
-                        aria-hidden="true"
-                      />
-                      Start {selectedPlan?.trialDays}-day free trial
-                    </>
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                Start a free trial of this plan — no charge today, cancel any
-                time before it ends to avoid being billed.
-              </TooltipContent>
-            </Tooltip>
-          )}
 
           {!isEnterprise && !isDowngradeSelected && (
             <Tooltip>
