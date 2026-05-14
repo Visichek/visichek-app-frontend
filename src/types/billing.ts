@@ -65,7 +65,7 @@ export interface TenantCapLimit {
 }
 
 export interface Plan {
- 
+
   id: string;
   name: string;
   displayName?: string;
@@ -87,6 +87,13 @@ export interface Plan {
   customBranding?: boolean;
   apiAccess?: boolean;
   sortOrder?: number;
+  /**
+   * Number of trial days offered when a tenant claims this plan via
+   * POST /v1/trials/claim. `0` means the plan does not offer a trial.
+   * Snapshotted into the trial code at claim time so admin edits do not
+   * retroactively change in-flight trials.
+   */
+  trialDays?: number;
   dateCreated: number;
   lastUpdated: number;
 }
@@ -270,6 +277,8 @@ export interface CheckoutSession {
   failureReason: string | null;
   metadata: Record<string, unknown> | null;
   trialDays: number;
+  /** Echoed back when the session was created with a trial code. */
+  trialCode?: string | null;
   dateCreated: number;
   lastUpdated: number;
 }
@@ -280,7 +289,51 @@ export interface CreateCheckoutSessionRequest {
   discountIds?: string[];
   preferredProvider?: CheckoutProvider;
   trialDays?: number;
+  /**
+   * Trial code obtained from POST /v1/trials/claim. Mutually exclusive with
+   * `discountIds` — passing both is a 422. When set, the server forces the
+   * checkout amount to 0 and provisions a TRIALING subscription on
+   * completion.
+   */
+  trialCode?: string;
   metadata?: Record<string, unknown>;
+}
+
+// ── Trial codes ──────────────────────────────────────────────────────
+export type TrialCodeStatus = "pending" | "used" | "cancelled";
+
+export interface TrialClaimResponse {
+  code: string;
+  planId: string;
+  planName: string;
+  planDisplayName: string;
+  trialDays: number;
+  /** Unix seconds — preview of when the trial would end if redeemed now. */
+  trialEndsAtPreview: number;
+  basePriceMonthly: number;
+  basePriceYearly: number;
+  currency: string;
+  status: TrialCodeStatus;
+}
+
+// ── Discount preview (tenant-facing) ─────────────────────────────────
+export interface DiscountPreview {
+  discount: Discount;
+  plan: {
+    id: string;
+    name: string;
+    displayName: string;
+    tier: PlanTier;
+    currency: string;
+    basePriceMonthly: number;
+    basePriceYearly: number;
+    trialDays: number;
+  };
+  billingCycle: BillingCycle;
+  basePrice: number;
+  discountAmount: number;
+  finalPrice: number;
+  currency: string;
 }
 
 // ── Payments ──────────────────────────────────────────────────────────

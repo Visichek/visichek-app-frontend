@@ -1,16 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowDown,
   ArrowLeft,
   Check,
+  ChevronRight,
   Loader2,
   Mail,
   Minus,
   Plus,
+  Sparkles,
+  Tag,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -31,9 +35,24 @@ import {
   useCreateCheckoutSession,
   resolveCheckoutUrl,
 } from "@/features/checkout/hooks/use-checkout";
-import type { Plan } from "@/types/billing";
+import { useDiscountPreview } from "@/features/discounts/hooks/use-discounts";
+import {
+  useClaimTrial,
+  useTrialPreview,
+} from "@/features/trials/hooks/use-trials";
+import type {
+  DiscountPreview,
+  Plan,
+  TrialClaimResponse,
+} from "@/types/billing";
 import type { BillingCycle, PlanTier } from "@/types/enums";
 import { ApiError } from "@/types/api";
+
+const TRIAL_CODE_PREFIX = "TRIAL-";
+
+type AppliedCode =
+  | { kind: "discount"; preview: DiscountPreview }
+  | { kind: "trial"; trial: TrialClaimResponse };
 
 const LIST_HREF = "/app/billing";
 const SALES_EMAIL = "sales@visichek.app";
@@ -76,6 +95,14 @@ function messageForError(error: unknown): string {
       return "That plan no longer exists.";
     case "VALIDATION_FAILED":
       return "That plan is not currently available.";
+    case "TRIAL_NOT_SUPPORTED":
+      return "This plan doesn't offer a free trial.";
+    case "TRIAL_INVALID":
+      return "That trial code is no longer valid.";
+    case "TRIAL_ALREADY_USED":
+      return "You've already used your free trial on this account.";
+    case "DISCOUNT_INVALID":
+      return "That discount code can't be used right now (expired, exhausted, or not valid for this plan).";
     default:
       return error.message;
   }
@@ -101,8 +128,28 @@ export function ChangePlanForm({
   // tenants who need more bump it before paying. Free/Starter ignore this.
   const [locationCount, setLocationCount] = useState<number>(1);
 
+  // Discount or trial code state. Collapsed by default — most users won't
+  // have a code. The single input auto-detects "TRIAL-" prefix and routes
+  // to the trial preview endpoint instead of the discount preview.
+  const [codeOpen, setCodeOpen] = useState(false);
+  const [codeInput, setCodeInput] = useState("");
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [appliedCode, setAppliedCode] = useState<AppliedCode | null>(null);
+
   const plansQuery = usePlans({ status: "active" });
   const createSession = useCreateCheckoutSession();
+  const discountPreview = useDiscountPreview();
+  const trialPreview = useTrialPreview();
+  const claimTrial = useClaimTrial();
+
+  // The server-computed preview is bound to the exact (code, plan,
+  // billing_cycle) tuple. If any of those change, drop the stale preview so
+  // the summary doesn't lie. The location count only affects the multiplier
+  // we apply on top of the preview, so it doesn't invalidate by itself.
+  useEffect(() => {
+    setAppliedCode(null);
+    setCodeError(null);
+  }, [selectedPlanId, billingCycle]);
 
   const plans = useMemo(
     () =>
@@ -138,12 +185,107 @@ export function ChangePlanForm({
     return plan.tier === "premium" ? base * Math.max(1, locationCount) : base;
   }
 
-  async function handleSubscribe() {
-    if (!selectedPlan || isEnterprise || isDowngradeSelected) return;
+  // For the summary, prefer the server-computed price from a discount
+  // preview when one is applied (it's authoritative). Trial codes flatten
+  // the total to 0 today.
+  function totalDueToday(): number {
+    if (!selectedPlan) return 0;
+    if (appliedCode?.kind === "trial") return 0;
+    if (appliedCode?.kind === "discount") {
+      // The preview is computed against a single-location base. Premium
+      // plans are billed per-location, so scale up if needed. This is a
+      // preview only — the server re-runs the full breakdown at checkout.
+      const preview = appliedCode.preview;
+      const multiplier =
+        selectedPlan.tier === "premium" ? Math.max(1, locationCount) : 1;
+      return preview.finalPrice * multiplier;
+    }
+    return quotedTotalForCycle(selectedPlan);
+  }
+
+  function previewDiscountSavings(): number {
+    if (appliedCode?.kind !== "discount" || !selectedPlan) return 0;
+    const multiplier =
+      selectedPlan.tier === "premium" ? Math.max(1, locationCount) : 1;
+    return appliedCode.preview.discountAmount * multiplier;
+  }
+
+  // Drop a stale applied code whenever the user changes plan, billing cycle,
+  // or location count — the server-computed `final_price` is bound to the
+  // exact preview parameters, so silently keeping a stale preview would
+  // misstate the summary.
+  function resetAppliedCode() {
+    setAppliedCode(null);
+    setCodeInput("");
+    setCodeError(null);
+  }
+
+  async function handleApplyCode() {
+    const code = codeInput.trim();
+    if (!code) {
+      setCodeError("Enter a discount or trial code.");
+      return;
+    }
+    if (!selectedPlan) {
+      setCodeError("Pick a plan first — codes are validated against the plan.");
+      return;
+    }
+    setCodeError(null);
+
+    const isTrial = code.toUpperCase().startsWith(TRIAL_CODE_PREFIX);
+
+    try {
+      if (isTrial) {
+        const trial = await trialPreview.mutateAsync({
+          code,
+          planId: selectedPlan.id,
+        });
+        setAppliedCode({ kind: "trial", trial });
+        setCodeInput("");
+        toast.success(
+          `${trial.trialDays}-day free trial of ${trial.planDisplayName || trial.planName} applied.`,
+        );
+      } else {
+        const preview = await discountPreview.mutateAsync({
+          code,
+          planId: selectedPlan.id,
+          billingCycle,
+        });
+        setAppliedCode({ kind: "discount", preview });
+        setCodeInput("");
+        toast.success(`${preview.discount.name} applied.`);
+      }
+    } catch (err) {
+      setCodeError(messageForError(err));
+    }
+  }
+
+  async function handleStartTrial() {
+    if (!selectedPlan) return;
+    try {
+      const trial = await claimTrial.mutateAsync({ planId: selectedPlan.id });
+      setAppliedCode({ kind: "trial", trial });
+      // Then immediately proceed to checkout — the user clicked "Start
+      // trial" expecting a single-step flow.
+      await runCheckout({ trialCode: trial.code });
+    } catch (err) {
+      toast.error(messageForError(err));
+    }
+  }
+
+  async function runCheckout(opts: {
+    trialCode?: string;
+    discountIds?: string[];
+  }) {
+    if (!selectedPlan) return;
     try {
       const session = await createSession.mutateAsync({
         planId: selectedPlan.id,
         billingCycle,
+        ...(opts.trialCode ? { trialCode: opts.trialCode } : {}),
+        ...(opts.discountIds && opts.discountIds.length > 0
+          ? { discountIds: opts.discountIds }
+          : {}),
         ...(isPremium
           ? { metadata: { location_count: Math.max(1, locationCount) } }
           : {}),
@@ -152,7 +294,7 @@ export function ChangePlanForm({
         window.open(
           resolveCheckoutUrl(session.checkoutUrl),
           "_blank",
-          "noopener,noreferrer"
+          "noopener,noreferrer",
         );
       }
       router.push(`/app/billing/checkout/${session.id}`);
@@ -160,6 +302,31 @@ export function ChangePlanForm({
       toast.error(messageForError(err));
     }
   }
+
+  async function handleSubscribe() {
+    if (!selectedPlan || isEnterprise || isDowngradeSelected) return;
+    if (appliedCode?.kind === "trial") {
+      await runCheckout({ trialCode: appliedCode.trial.code });
+      return;
+    }
+    if (appliedCode?.kind === "discount") {
+      await runCheckout({ discountIds: [appliedCode.preview.discount.id] });
+      return;
+    }
+    await runCheckout({});
+  }
+
+  const codePending =
+    discountPreview.isPending ||
+    trialPreview.isPending ||
+    claimTrial.isPending;
+
+  const showStartTrial =
+    !!selectedPlan &&
+    !isEnterprise &&
+    !isDowngradeSelected &&
+    (selectedPlan.trialDays ?? 0) > 0 &&
+    !appliedCode;
 
   const isNavigatingBack = loadingHref === LIST_HREF;
 
@@ -293,6 +460,14 @@ export function ChangePlanForm({
                             </Badge>
                             {isCurrent && (
                               <Badge variant="secondary">Current plan</Badge>
+                            )}
+                            {(plan.trialDays ?? 0) > 0 && !isCurrent && (
+                              <Badge
+                                variant="outline"
+                                className="border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                              >
+                                {plan.trialDays}-day free trial
+                              </Badge>
                             )}
                           </div>
                           {plan.description && (
@@ -512,34 +687,190 @@ export function ChangePlanForm({
           </div>
         )}
 
+        {/* Discount or trial code */}
+        {selectedPlan && !isEnterprise && !isDowngradeSelected && (
+          <div className="rounded-lg border bg-card p-4">
+            {appliedCode?.kind === "trial" ? (
+              <AppliedTrialCard
+                trial={appliedCode.trial}
+                onRemove={resetAppliedCode}
+              />
+            ) : appliedCode?.kind === "discount" ? (
+              <AppliedDiscountCard
+                preview={appliedCode.preview}
+                onRemove={resetAppliedCode}
+              />
+            ) : codeOpen ? (
+              <div className="space-y-2">
+                <label
+                  htmlFor="checkout-code"
+                  className="text-xs font-medium text-muted-foreground"
+                >
+                  Discount or trial code
+                </label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    id="checkout-code"
+                    value={codeInput}
+                    onChange={(event) => {
+                      setCodeInput(event.target.value);
+                      if (codeError) setCodeError(null);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void handleApplyCode();
+                      }
+                    }}
+                    placeholder="e.g. LAUNCH20 or TRIAL-…"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="min-h-[44px] flex-1 font-mono text-sm uppercase tracking-wider"
+                  />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        onClick={handleApplyCode}
+                        disabled={!codeInput.trim() || codePending}
+                        className="min-h-[44px] sm:w-auto"
+                      >
+                        {codePending ? (
+                          <>
+                            <Loader2
+                              className="mr-2 h-4 w-4 animate-spin"
+                              aria-hidden="true"
+                            />
+                            Checking…
+                          </>
+                        ) : (
+                          "Apply"
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      Validate this code and apply it to the selected plan
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                {codeError && (
+                  <p
+                    className="text-xs text-destructive"
+                    role="alert"
+                    aria-live="polite"
+                  >
+                    {codeError}
+                  </p>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Trial codes start with <span className="font-mono">TRIAL-</span>.
+                  Codes are only consumed when payment completes — you can
+                  always remove one before checking out.
+                </p>
+              </div>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => setCodeOpen(true)}
+                    className="flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                  >
+                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                    Have a discount or trial code?
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  Expand the code field — totally optional
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        )}
+
         {/* Summary */}
         {selectedPlan && !isEnterprise && !isDowngradeSelected && (
           <div className="rounded-lg border bg-muted/40 p-4 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">
-                {isPremium
-                  ? `Total today (${locationCount} location${locationCount === 1 ? "" : "s"})`
-                  : "Total today"}
-              </span>
-              <span className="text-base font-semibold tabular-nums">
-                {formatCurrency(
-                  quotedTotalForCycle(selectedPlan) * 100,
-                  selectedPlan.currency
+            {appliedCode?.kind === "trial" ? (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">
+                    {appliedCode.trial.trialDays}-day free trial
+                  </span>
+                  <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                    Free
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-t pt-2">
+                  <span className="font-medium">Due today</span>
+                  <span className="text-base font-semibold tabular-nums">
+                    {formatCurrency(0, selectedPlan.currency)}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  After your trial ends, your saved payment method will be
+                  charged{" "}
+                  {formatCurrency(
+                    quotedTotalForCycle(selectedPlan) * 100,
+                    selectedPlan.currency,
+                  )}{" "}
+                  per {billingCycle === "yearly" ? "year" : "month"}. Cancel
+                  any time from the billing page.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">
+                    {isPremium
+                      ? `Subtotal (${locationCount} location${locationCount === 1 ? "" : "s"})`
+                      : "Subtotal"}
+                  </span>
+                  <span className="tabular-nums">
+                    {formatCurrency(
+                      quotedTotalForCycle(selectedPlan) * 100,
+                      selectedPlan.currency,
+                    )}
+                  </span>
+                </div>
+                {appliedCode?.kind === "discount" && (
+                  <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400">
+                    <span>
+                      Discount ({appliedCode.preview.discount.code})
+                    </span>
+                    <span className="tabular-nums">
+                      −
+                      {formatCurrency(
+                        previewDiscountSavings() * 100,
+                        selectedPlan.currency,
+                      )}
+                    </span>
+                  </div>
                 )}
-              </span>
-            </div>
+                <div className="flex items-center justify-between border-t pt-2">
+                  <span className="font-medium">Total today</span>
+                  <span className="text-base font-semibold tabular-nums">
+                    {formatCurrency(
+                      Math.max(0, totalDueToday()) * 100,
+                      selectedPlan.currency,
+                    )}
+                  </span>
+                </div>
+              </div>
+            )}
             {isPremium && (
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-2 text-xs text-muted-foreground">
                 {formatCurrency(
                   basePriceForCycle(selectedPlan) * 100,
-                  selectedPlan.currency
+                  selectedPlan.currency,
                 )}{" "}
                 per location, billed {billingCycle}.
               </p>
             )}
             <p className="mt-1 text-xs text-muted-foreground">
               You&apos;ll be redirected to a secure checkout page to complete
-              payment.
+              payment. The final total — including any taxes — is calculated
+              by our payment processor.
             </p>
           </div>
         )}
@@ -568,6 +899,42 @@ export function ChangePlanForm({
             </TooltipContent>
           </Tooltip>
 
+          {showStartTrial && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleStartTrial}
+                  disabled={claimTrial.isPending || createSession.isPending}
+                  className="min-h-[44px] w-full border-primary/40 text-primary hover:bg-primary/5 sm:w-auto"
+                >
+                  {claimTrial.isPending ? (
+                    <>
+                      <Loader2
+                        className="mr-2 h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                      Starting trial…
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles
+                        className="mr-2 h-4 w-4"
+                        aria-hidden="true"
+                      />
+                      Start {selectedPlan?.trialDays}-day free trial
+                    </>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                Start a free trial of this plan — no charge today, cancel any
+                time before it ends to avoid being billed.
+              </TooltipContent>
+            </Tooltip>
+          )}
+
           {!isEnterprise && !isDowngradeSelected && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -585,6 +952,8 @@ export function ChangePlanForm({
                       />
                       Starting checkout…
                     </>
+                  ) : appliedCode?.kind === "trial" ? (
+                    "Start trial checkout"
                   ) : (
                     "Continue to checkout"
                   )}
@@ -598,6 +967,105 @@ export function ChangePlanForm({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function AppliedDiscountCard({
+  preview,
+  onRemove,
+}: {
+  preview: DiscountPreview;
+  onRemove: () => void;
+}) {
+  const { discount } = preview;
+  const offDescriptor =
+    discount.discountType === "percentage"
+      ? `${discount.value}% off`
+      : `${formatCurrency(discount.value * 100, preview.currency)} off`;
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <Tag className="h-3.5 w-3.5" aria-hidden="true" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">
+          {discount.name}{" "}
+          <span className="font-mono text-xs text-muted-foreground">
+            ({discount.code})
+          </span>
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {offDescriptor} — final price{" "}
+          <span className="font-medium text-foreground tabular-nums">
+            {formatCurrency(preview.finalPrice * 100, preview.currency)}
+          </span>{" "}
+          per {preview.billingCycle === "yearly" ? "year" : "month"}
+        </p>
+      </div>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onRemove}
+            aria-label="Remove discount"
+            className="h-9 w-9 text-muted-foreground"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="left">
+          Remove this discount and pay the full plan price
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
+
+function AppliedTrialCard({
+  trial,
+  onRemove,
+}: {
+  trial: TrialClaimResponse;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+        <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">
+          {trial.trialDays}-day free trial of{" "}
+          {trial.planDisplayName || trial.planName}{" "}
+          <span className="font-mono text-xs text-muted-foreground">
+            ({trial.code})
+          </span>
+        </p>
+        <p className="text-xs text-muted-foreground">
+          No charge today. Your trial is only redeemed once payment details
+          are confirmed at checkout.
+        </p>
+      </div>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onRemove}
+            aria-label="Remove trial"
+            className="h-9 w-9 text-muted-foreground"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="left">
+          Drop this trial and continue without one
+        </TooltipContent>
+      </Tooltip>
     </div>
   );
 }

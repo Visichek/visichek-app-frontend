@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api/request";
 import { apiGetList } from "@/lib/api/list";
 import { bulkAction } from "@/lib/api/bulk";
-import type { Discount } from "@/types/billing";
+import type { Discount, DiscountPreview } from "@/types/billing";
+import type { BillingCycle } from "@/types/enums";
 import type { ListResponse, BulkJobResult } from "@/types/list";
 
 /**
@@ -100,11 +101,40 @@ interface ValidateDiscountResponse {
 }
 
 /**
- * Validate a discount code
+ * Validate a discount code via the legacy admin-only endpoint. The tenant
+ * checkout flow should call {@link useDiscountPreview} instead — it is
+ * tenant-scoped and returns the full price breakdown.
  */
 export function useValidateDiscount() {
   return useMutation<ValidateDiscountResponse, Error, ValidateDiscountRequest>({
     mutationFn: (data) => apiPost<ValidateDiscountResponse>("/discounts/validate", data),
+  });
+}
+
+interface DiscountPreviewParams {
+  code: string;
+  planId: string;
+  billingCycle?: BillingCycle;
+}
+
+/**
+ * Tenant-facing preview of a discount applied to a plan.
+ *
+ * `GET /v1/discounts/preview` — does NOT consume the code. Returns the full
+ * breakdown (plan, base_price, discount_amount, final_price) so the UI can
+ * render the post-discount total before the user commits to checkout.
+ *
+ * The tenant_id is inferred from the JWT, so a tenant can never probe codes
+ * pinned to another tenant.
+ */
+export function useDiscountPreview() {
+  return useMutation<DiscountPreview, Error, DiscountPreviewParams>({
+    mutationFn: ({ code, planId, billingCycle }) =>
+      apiGet<DiscountPreview>("/discounts/preview", {
+        code,
+        plan_id: planId,
+        ...(billingCycle ? { billing_cycle: billingCycle } : {}),
+      }),
   });
 }
 

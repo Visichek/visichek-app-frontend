@@ -2,7 +2,9 @@
 
 import { useState, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
+import { FreePlanBanner } from "@/components/billing/free-plan-banner";
 import {
   LayoutDashboard,
   Users,
@@ -157,6 +159,7 @@ export function TenantShell({ children }: { children: React.ReactNode }) {
   const { currentRole, systemUserProfile } = useSession();
   const { logout } = useAuth();
   const { navigate } = useNavigationLoading();
+  const pathname = usePathname() ?? "";
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -260,6 +263,7 @@ export function TenantShell({ children }: { children: React.ReactNode }) {
             onMenuClick={() => setMobileNavOpen(true)}
             onSearchClick={() => setCommandOpen(true)}
           />
+          <FreePlanBanner pathname={pathname} />
           <main id="main-content" className="p-4 lg:p-6">
             {children}
           </main>
