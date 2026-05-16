@@ -186,8 +186,7 @@ export function UpgradeFeatureModal({
   const planLabel =
     limitations?.plan?.displayName ?? limitations?.plan?.name ?? "your current plan";
 
-  const copy =
-    (featureKey && FEATURE_COPY[featureKey]) ?? GENERIC_COPY;
+  const copy = (featureKey ? FEATURE_COPY[featureKey] : undefined) ?? GENERIC_COPY;
   const headline = title ?? copy.title;
   const body = description ?? copy.blurb;
   const isNavigating = loadingHref === UPGRADE_HREF;

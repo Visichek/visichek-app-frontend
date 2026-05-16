@@ -81,6 +81,7 @@ const COMPLIANCE_TAB: TabConfig = {
  * session's `currentRole`.
  */
 function canSeeCompliance(role: TenantDashboardStats["roleView"]): boolean {
+  if (role === "admin") return false;
   return (
     roleHasCapability(role, CAPABILITIES.DSR_VIEW) ||
     roleHasCapability(role, CAPABILITIES.AUDIT_VIEW)
