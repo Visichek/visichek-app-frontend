@@ -48,6 +48,14 @@ export interface CapabilitiesView {
   /** Lookup helpers for greying out branch / department rows. */
   isBranchLocked: (branchId: string) => boolean;
   isDepartmentLocked: (departmentId: string) => boolean;
+  /**
+   * True when an endpoint prefix appears in `deniedEndpoints`. Used to
+   * lock nav rows whose target API surface is plan-gated but does not
+   * have a stable `deniedFeatures` key (e.g. `/v1/incidents`,
+   * `/v1/audit-logs`, `/v1/compliance/*`). Matches a denial whose
+   * `pattern` starts with the supplied prefix.
+   */
+  isEndpointDenied: (apiPrefix: string) => boolean;
   /** Convenience: cap-and-usage helpers. `null` cap = unlimited. */
   capFor: (
     field: keyof Limitations["caps"],
@@ -76,12 +84,17 @@ export function useCapability(): CapabilitiesView {
       limitations?.lockedEntities?.departments ?? [],
     );
 
+    const deniedEndpointPatterns: string[] =
+      limitations?.deniedEndpoints?.map((e) => e.pattern) ?? [];
+
     return {
       limitations,
       can: (key) => !deniedSet.has(key),
       denied: (key) => deniedSet.has(key),
       isBranchLocked: (id) => branchLocked.has(id),
       isDepartmentLocked: (id) => deptLocked.has(id),
+      isEndpointDenied: (apiPrefix) =>
+        deniedEndpointPatterns.some((p) => p.startsWith(apiPrefix)),
       capFor: (field) => limitations?.caps?.[field],
       isFreeFallback: limitations?.plan?.isFreeFallback === true,
       isLoading,

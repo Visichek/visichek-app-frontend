@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils/cn";
 import {
   Loader2,
+  Lock,
   Settings,
   LogOut,
   HelpCircle,
@@ -24,6 +25,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useAppSelector } from "@/lib/store/hooks";
 import { selectBranding } from "@/lib/store/branding-slice";
 import { AppLink } from "@/components/navigation/app-link";
+import { useUpgradePrompt } from "@/features/limitations/components/upgrade-prompt-provider";
 import type { NavItem, SidebarNotificationBucket } from "./app-sidebar";
 
 function resolveBadge(
@@ -72,6 +74,7 @@ export function MobileNavSheet({
   const { adminProfile, systemUserProfile, isAdmin, currentRole } =
     useSession();
   const { logout } = useAuth();
+  const { promptUpgrade } = useUpgradePrompt();
   const branding = useAppSelector(selectBranding);
   const workspaceName = isAdmin
     ? "VisiChek Admin"
@@ -142,6 +145,55 @@ export function MobileNavSheet({
     const isLoading = loadingHref === item.href;
     const Icon = item.icon;
     const badge = resolveBadge(item, notificationCounts);
+
+    if (item.locked) {
+      return (
+        <li key={item.href ?? item.label}>
+          <button
+            type="button"
+            onClick={() => {
+              onOpenChange(false);
+              promptUpgrade({
+                featureKey: item.lockedFeatureKey ?? null,
+                title: item.label,
+              });
+            }}
+            aria-label={`${item.label} (locked — upgrade to unlock)`}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-medium transition-colors min-h-[44px]",
+              nested && "pl-10 text-[13px]",
+              "text-foreground/50 hover:bg-accent hover:text-foreground/70",
+            )}
+          >
+            <span className="relative inline-flex shrink-0">
+              <Icon
+                className={cn(
+                  "shrink-0 text-foreground/30",
+                  nested ? "h-4 w-4" : "h-[18px] w-[18px]",
+                )}
+                aria-hidden="true"
+              />
+              <Lock
+                className="absolute -right-1 -top-1 h-3 w-3 text-amber-600 dark:text-amber-400 animate-padlock-shake-loop"
+                aria-hidden="true"
+              />
+            </span>
+            <div className="flex-1 min-w-0">
+              <span>{item.label}</span>
+              {!nested && item.description && (
+                <p className="text-xs text-muted-foreground/80 mt-0.5 line-clamp-1">
+                  {item.description}
+                </p>
+              )}
+            </div>
+            <span className="ml-2 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+              Pro
+            </span>
+          </button>
+        </li>
+      );
+    }
+
     return (
       <li key={item.href ?? item.label}>
         <AppLink

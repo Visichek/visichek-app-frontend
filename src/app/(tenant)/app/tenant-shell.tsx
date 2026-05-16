@@ -46,6 +46,7 @@ import { cn } from "@/lib/utils/cn";
 import { useThemeSync } from "@/hooks/use-theme-sync";
 import { requestUserLocation } from "@/lib/geolocation/user-location";
 import { useCapability } from "@/features/limitations/hooks/use-limitations";
+import { UpgradePromptProvider } from "@/features/limitations/components/upgrade-prompt-provider";
 import { useNotificationBuckets } from "@/features/notifications/hooks";
 import type { PlanFeatureKey } from "@/types/billing";
 
@@ -62,11 +63,20 @@ const GEOFENCE_APPROVER_ROLES = new Set([
 ]);
 
 /**
- * Map a nav item to a plan feature key. When the key is in
- * `Limitations.deniedFeatures` we hide the entry — the backend will
- * 403 every request anyway, so showing it would be a dead link.
+ * Map a nav item to a plan feature key OR an API prefix.
+ * - `feature` matches against `Limitations.deniedFeatures` (stable short keys)
+ * - `apiPrefix` matches against `Limitations.deniedEndpoints` (URL patterns)
+ *   and is used for areas with no stable feature key (incidents, audit, dpo,
+ *   compliance — entirely blocked on Free per the backend manifest)
+ * When either match denies the item we render it as locked rather than
+ * hiding it, so the tenant can see what the paid tiers unlock.
  */
-type GatedNavItem = NavItem & { feature?: PlanFeatureKey };
+type GatedNavItem = NavItem & {
+  feature?: PlanFeatureKey;
+  apiPrefix?: string;
+  /** Fallback key passed to the upgrade modal when only `apiPrefix` matches. */
+  lockKey?: PlanFeatureKey | string;
+};
 
 type GatedNavGroup = NavItem & { children: GatedNavItem[] };
 
@@ -136,18 +146,24 @@ const ALL_TENANT_NAV_ITEMS: (GatedNavItem | GatedNavGroup)[] = [
         icon: ShieldAlert,
         description: "Report and track security incidents, manage NDPC notification deadlines",
         notificationBucket: "incidents",
+        apiPrefix: "/v1/incidents",
+        lockKey: "incidents",
       },
       {
         label: "Audit Log",
         href: "/app/audit",
         icon: ScrollText,
         description: "View a read-only trail of all system actions for compliance and accountability",
+        apiPrefix: "/v1/audit-logs",
+        lockKey: "audit",
       },
       {
         label: "Data Protection",
         href: "/app/dpo",
         icon: Shield,
         description: "Handle data subject requests, manage retention policies, and track compliance",
+        apiPrefix: "/v1/dsr",
+        lockKey: "dpo",
       },
     ],
   },
@@ -246,7 +262,7 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
   const workspaceName = branding?.companyName ?? "VisiChek";
   const workspaceLogo = branding?.logoUrl;
 
-  const { can, isLoading: limitationsLoading } = useCapability();
+  const { can, isEndpointDenied, isLoading: limitationsLoading } = useCapability();
   // Issue 2: tenant-side notification badges. Reuses the same
   // bucket-classification path the admin shell uses so the topbar bell,
   // sidebar badges, and any page-level alerts stay in sync.
@@ -256,36 +272,50 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
     if (!currentRole) return [];
     const allowedRoutes = ROLE_ROUTES[currentRole] ?? [];
 
-    function leafVisible(leaf: GatedNavItem): boolean {
+    function roleAllowsLeaf(leaf: GatedNavItem): boolean {
       if (!leaf.href) return false;
-      const allowedByRole = allowedRoutes.some((route) =>
-        leaf.href!.startsWith(route),
-      );
-      if (!allowedByRole) return false;
-      // While limitations are loading, render every role-allowed item so
-      // the sidebar doesn't flash a missing entry. Once the manifest
-      // arrives, hide anything the backend would 403 anyway.
-      if (leaf.feature && !limitationsLoading && !can(leaf.feature)) {
-        return false;
-      }
-      return true;
+      return allowedRoutes.some((route) => leaf.href!.startsWith(route));
+    }
+
+    // Plan-denied items are kept visible but rendered as locked rows so
+    // the tenant can see what the paid tiers unlock. The sidebar primitive
+    // intercepts the click and opens the upgrade modal instead of
+    // navigating. Role-denied items are still filtered out — those are not
+    // upgrade prompts, they're role-scoped.
+    function toNavItem(leaf: GatedNavItem): NavItem | null {
+      if (!roleAllowsLeaf(leaf)) return null;
+      if (limitationsLoading) return leaf;
+
+      const featureDenied = !!leaf.feature && !can(leaf.feature);
+      const endpointDenied =
+        !!leaf.apiPrefix && isEndpointDenied(leaf.apiPrefix);
+
+      if (!featureDenied && !endpointDenied) return leaf;
+      return {
+        ...leaf,
+        locked: true,
+        lockedFeatureKey: leaf.feature ?? leaf.lockKey,
+      };
     }
 
     const visible: NavItem[] = [];
     for (const item of ALL_TENANT_NAV_ITEMS) {
       if (item.children) {
-        const kids = (item.children as GatedNavItem[]).filter(leafVisible);
+        const kids = (item.children as GatedNavItem[])
+          .map(toNavItem)
+          .filter((x): x is NavItem => x !== null);
         if (kids.length === 0) continue;
         visible.push({ ...item, children: kids });
-      } else if (leafVisible(item as GatedNavItem)) {
-        visible.push(item);
+      } else {
+        const next = toNavItem(item as GatedNavItem);
+        if (next) visible.push(next);
       }
     }
     return visible;
-  }, [currentRole, can, limitationsLoading]);
+  }, [currentRole, can, isEndpointDenied, limitationsLoading]);
 
   return (
-    <>
+    <UpgradePromptProvider>
       <div className="min-h-screen bg-background">
         <AppSidebar
           items={visibleNavItems}
@@ -334,6 +364,6 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
           <CommandLauncher externalOpen={commandOpen} onExternalOpenChange={setCommandOpen} />
         )}
       </div>
-    </>
+    </UpgradePromptProvider>
   );
 }

@@ -17,13 +17,19 @@ import { AdvancedTab } from "./_sections/advanced-tab";
 import { BrandingTab } from "./_sections/branding-tab";
 import { useCapabilities } from "@/hooks/use-capabilities";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
+import { useCapability } from "@/features/limitations/hooks/use-limitations";
 
 export default function TenantSettingsPage() {
   const { data: manifest, isLoading: manifestLoading } = useSettingsManifest();
   const visibleSections = useVisibleSections(manifest);
   const { hasCapability } = useCapabilities();
+  const { can, isLoading: limitationsLoading } = useCapability();
   const canViewBranding =
     hasCapability(CAPABILITIES.BRANDING_VIEW) || hasCapability(CAPABILITIES.BRANDING_EDIT);
+  // Branding is denied on the Free plan but the role still grants the
+  // capability. Show the tab as locked so the tenant knows it exists, and
+  // let the settings layout open the upgrade modal on click.
+  const brandingLockedByPlan = !limitationsLoading && !can("branding");
 
   if (manifestLoading) {
     return (
@@ -75,6 +81,8 @@ export default function TenantSettingsPage() {
       label: "Branding",
       description: "Colors, logo, and visitor badge appearance for your tenant",
       content: <BrandingTab />,
+      locked: brandingLockedByPlan,
+      lockedFeatureKey: "branding",
     });
   }
 
