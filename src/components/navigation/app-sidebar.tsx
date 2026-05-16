@@ -30,6 +30,28 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
+import { AppLink } from "@/components/navigation/app-link";
+
+/**
+ * Notification buckets the sidebar can render a badge for.
+ *
+ * Each bucket is a logical destination for unread notifications. The
+ * backend `/v1/notifications/summary` endpoint (Issue 2) returns counts
+ * keyed by these bucket names; the sidebar reads them via
+ * `NavItem.notificationBucket` to surface a badge next to the matching
+ * row and a pulsing dot when the rail is collapsed.
+ */
+export type SidebarNotificationBucket =
+  | "visitors"
+  | "appointments"
+  | "onboarding_queue"
+  | "support_cases"
+  | "jobs"
+  | "incidents"
+  | "content"
+  | "billing"
+  | "plans"
+  | "pricing";
 
 export interface NavItem {
   label: string;
@@ -40,6 +62,62 @@ export interface NavItem {
   description?: string;
   /** When present, this item is a group header that expands to reveal these sub-items */
   children?: NavItem[];
+  /**
+   * Notification bucket whose unread count drives this item's badge. The
+   * shell supplies a `notificationCounts` map keyed by bucket; the
+   * sidebar renders `count` as a badge on the row and as a pulsing red
+   * dot on the parent group icon when collapsed.
+   */
+  notificationBucket?: SidebarNotificationBucket;
+  /**
+   * Hard-coded badge count. Used when the destination isn't fed by the
+   * notification summary (e.g. a "Pending approvals" count derived from
+   * a list query). Optional — prefer `notificationBucket` when possible.
+   */
+  badgeCount?: number;
+  /**
+   * Force a pulsing-dot indicator on this row even when no numeric count
+   * is available. Useful for "something needs attention" cues like a
+   * stale pricing publish.
+   */
+  attentionPulse?: boolean;
+}
+
+/**
+ * Resolves the badge count for a given NavItem from the supplied counts
+ * map plus any hard-coded `badgeCount`. Returns 0 when no badge should
+ * render.
+ */
+function resolveBadgeCount(
+  item: NavItem,
+  counts: Partial<Record<SidebarNotificationBucket, number>> | undefined,
+): number {
+  if (typeof item.badgeCount === "number" && item.badgeCount > 0) {
+    return item.badgeCount;
+  }
+  if (item.notificationBucket && counts) {
+    const c = counts[item.notificationBucket] ?? 0;
+    return c > 0 ? c : 0;
+  }
+  return 0;
+}
+
+/**
+ * True when this item (or any descendant) should pulse/badge. Used to
+ * decide whether a collapsed group icon shows the red dot.
+ */
+function itemHasAttention(
+  item: NavItem,
+  counts: Partial<Record<SidebarNotificationBucket, number>> | undefined,
+): boolean {
+  if (item.attentionPulse) return true;
+  if (resolveBadgeCount(item, counts) > 0) return true;
+  if (item.children?.some((c) => itemHasAttention(c, counts))) return true;
+  return false;
+}
+
+function formatBadge(count: number): string {
+  return count > 99 ? "99+" : String(count);
 }
 
 function isGroup(item: NavItem): item is NavItem & { children: NavItem[] } {
@@ -63,6 +141,13 @@ interface UserInfo {
 
 interface AppSidebarProps {
   items: NavItem[];
+  /**
+   * Unread notification counts keyed by bucket. When set, items that
+   * declare a `notificationBucket` render a numeric badge (or a pulsing
+   * red dot on the parent group icon when the rail is collapsed). Pass
+   * `undefined` to disable the badge layer entirely.
+   */
+  notificationCounts?: Partial<Record<SidebarNotificationBucket, number>>;
   /**
    * Custom header content. When omitted (or when `brandName` / `logoUrl`
    * are provided) the sidebar renders its own branded header: the tenant
@@ -103,6 +188,7 @@ const DEFAULT_BRAND_NAME = "VisiChek";
 
 export function AppSidebar({
   items,
+  notificationCounts,
   header,
   logoUrl,
   brandName,
@@ -333,6 +419,7 @@ export function AppSidebar({
                   collapsed={collapsed}
                   open={openGroups.has(item.label)}
                   onToggle={() => toggleGroup(item.label)}
+                  notificationCounts={notificationCounts}
                 />
               );
             }
@@ -344,6 +431,7 @@ export function AppSidebar({
                 loadingHref={loadingHref}
                 handleNavClick={handleNavClick}
                 collapsed={collapsed}
+                notificationCounts={notificationCounts}
               />
             );
           })}
@@ -487,6 +575,7 @@ interface SidebarLeafProps {
   collapsed: boolean;
   /** Render indented under a group header */
   nested?: boolean;
+  notificationCounts?: Partial<Record<SidebarNotificationBucket, number>>;
 }
 
 function SidebarLeaf({
@@ -496,29 +585,33 @@ function SidebarLeaf({
   handleNavClick,
   collapsed,
   nested = false,
+  notificationCounts,
 }: SidebarLeafProps) {
   const href = item.href ?? "#";
   const isActive = item.href ? pathname.startsWith(item.href) : false;
   const isLoading = loadingHref === item.href;
   const Icon = item.icon;
+  const badge = resolveBadgeCount(item, notificationCounts);
+  const showPulse = badge === 0 && item.attentionPulse === true;
 
   return (
     <li>
       <Tooltip>
         <TooltipTrigger asChild>
-          {/* Plain <a> = full-page navigation. App Router
-              client transitions kept getting stuck mid-flight on
-              tenant pages (URL updated, new tree never committed)
-              and the periodic "stuck nav" recovery was removed.
-              A full GET is bulletproof and matches the user's
-              explicit "regular HTML method" preference. */}
-          <a
+          {/* SPA navigation via AppLink (Issue 8). AppLink renders a real
+              <a href> so middle-click / ⌘-click / right-click "open in new
+              tab" still work, but plain left-clicks go through
+              router.push so the React tree (layouts, providers, React
+              Query cache, /me bootstrap) survives between pages. The
+              previous full-document GET threw all of that away on every
+              sidebar click. */}
+          <AppLink
             href={href}
-            onClick={() => item.href && handleNavClick(item.href)}
+            onBeforeNavigate={() => item.href && handleNavClick(item.href)}
             className={cn(
               "group flex items-center rounded-lg text-sm font-medium transition-colors",
               collapsed
-                ? "justify-center p-2 min-h-[40px]"
+                ? "justify-center p-2 min-h-[40px] relative"
                 : "gap-3 px-3 py-2 min-h-[40px]",
               !collapsed && nested && "pl-9 text-[13px]",
               isActive
@@ -527,25 +620,60 @@ function SidebarLeaf({
             )}
             aria-current={isActive ? "page" : undefined}
           >
-            {isLoading ? (
-              <Loader2
-                className="h-[18px] w-[18px] shrink-0 animate-spin text-sidebar-foreground"
-                aria-hidden="true"
-              />
-            ) : (
-              <Icon
-                className={cn(
-                  "shrink-0 transition-colors",
-                  nested && !collapsed ? "h-4 w-4" : "h-[18px] w-[18px]",
-                  isActive
-                    ? "text-sidebar-foreground"
-                    : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80",
+            <span className="relative inline-flex shrink-0">
+              {isLoading ? (
+                <Loader2
+                  className="h-[18px] w-[18px] shrink-0 animate-spin text-sidebar-foreground"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Icon
+                  className={cn(
+                    "shrink-0 transition-colors",
+                    nested && !collapsed ? "h-4 w-4" : "h-[18px] w-[18px]",
+                    isActive
+                      ? "text-sidebar-foreground"
+                      : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80",
+                  )}
+                  aria-hidden="true"
+                />
+              )}
+              {/* Collapsed-rail pulse / badge — only on icon-level rows. */}
+              {collapsed && badge > 0 && (
+                <span
+                  className="absolute -top-1 -right-1 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground ring-2 ring-sidebar"
+                  aria-label={`${badge} unread`}
+                >
+                  {formatBadge(badge)}
+                </span>
+              )}
+              {collapsed && showPulse && (
+                <span
+                  className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-sidebar animate-pulse"
+                  aria-label="Needs attention"
+                />
+              )}
+            </span>
+            {!collapsed && (
+              <>
+                <span className="flex-1">{item.label}</span>
+                {badge > 0 && (
+                  <span
+                    className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground"
+                    aria-label={`${badge} unread`}
+                  >
+                    {formatBadge(badge)}
+                  </span>
                 )}
-                aria-hidden="true"
-              />
+                {badge === 0 && showPulse && (
+                  <span
+                    className="ml-auto h-2 w-2 rounded-full bg-destructive animate-pulse"
+                    aria-label="Needs attention"
+                  />
+                )}
+              </>
             )}
-            {!collapsed && item.label}
-          </a>
+          </AppLink>
         </TooltipTrigger>
         <TooltipContent side="right" className="max-w-[220px]">
           {collapsed ? (
@@ -554,6 +682,11 @@ function SidebarLeaf({
               {item.description && (
                 <div className="mt-0.5 text-xs opacity-80">
                   {item.description}
+                </div>
+              )}
+              {badge > 0 && (
+                <div className="mt-1 text-xs font-medium text-destructive">
+                  {badge} unread
                 </div>
               )}
             </div>
@@ -575,6 +708,7 @@ interface SidebarGroupProps {
   collapsed: boolean;
   open: boolean;
   onToggle: () => void;
+  notificationCounts?: Partial<Record<SidebarNotificationBucket, number>>;
 }
 
 function SidebarGroup({
@@ -585,13 +719,21 @@ function SidebarGroup({
   collapsed,
   open,
   onToggle,
+  notificationCounts,
 }: SidebarGroupProps) {
   const Icon = item.icon;
   const containsActive = groupContainsPath(item, pathname);
 
+  // Sum child badges + add the group's own (if it declares a bucket).
+  const groupBadgeTotal = item.children.reduce(
+    (sum, c) => sum + resolveBadgeCount(c, notificationCounts),
+    resolveBadgeCount(item, notificationCounts),
+  );
+  const groupHasAttention = itemHasAttention(item, notificationCounts);
+
   // ── Collapsed rail: render the group icon and reveal children in a
-  // dropdown to the right on click. The dropdown items are real <a> tags
-  // so navigation matches the leaf behavior above.
+  // dropdown to the right on click. The dropdown items now route via
+  // AppLink (Issue 8) so opening a child does not trigger a full GET.
   if (collapsed) {
     return (
       <li>
@@ -601,7 +743,7 @@ function SidebarGroup({
               <DropdownMenuTrigger asChild>
                 <button
                   className={cn(
-                    "group flex w-full items-center justify-center rounded-lg p-2 min-h-[40px] text-sm font-medium transition-colors",
+                    "group relative flex w-full items-center justify-center rounded-lg p-2 min-h-[40px] text-sm font-medium transition-colors",
                     containsActive
                       ? "bg-sidebar-accent text-sidebar-foreground"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
@@ -617,6 +759,20 @@ function SidebarGroup({
                     )}
                     aria-hidden="true"
                   />
+                  {/* Issue 2: pulsing red dot when any child has unread work.
+                      A numeric badge would be misleading because the user
+                      can't see which child it belongs to until they
+                      expand — the rail is icon-only here. */}
+                  {groupHasAttention && (
+                    <span
+                      className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-sidebar animate-pulse"
+                      aria-label={
+                        groupBadgeTotal > 0
+                          ? `${groupBadgeTotal} unread in ${item.label}`
+                          : `${item.label} needs attention`
+                      }
+                    />
+                  )}
                 </button>
               </DropdownMenuTrigger>
             </TooltipTrigger>
@@ -626,6 +782,11 @@ function SidebarGroup({
                 {item.description && (
                   <div className="mt-0.5 text-xs opacity-80">
                     {item.description}
+                  </div>
+                )}
+                {groupBadgeTotal > 0 && (
+                  <div className="mt-1 text-xs font-medium text-destructive">
+                    {groupBadgeTotal} unread
                   </div>
                 )}
               </div>
@@ -647,6 +808,7 @@ function SidebarGroup({
                 : false;
               const ChildIcon = child.icon;
               const childLoading = loadingHref === child.href;
+              const childBadge = resolveBadgeCount(child, notificationCounts);
               return (
                 <DropdownMenuItem
                   key={child.href ?? child.label}
@@ -656,17 +818,28 @@ function SidebarGroup({
                     childActive && "bg-accent",
                   )}
                 >
-                  <a
+                  <AppLink
                     href={child.href ?? "#"}
-                    onClick={() => child.href && handleNavClick(child.href)}
+                    fromOverlay
+                    onBeforeNavigate={() =>
+                      child.href && handleNavClick(child.href)
+                    }
                   >
                     {childLoading ? (
                       <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
                     ) : (
                       <ChildIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
                     )}
-                    <span>{child.label}</span>
-                  </a>
+                    <span className="flex-1">{child.label}</span>
+                    {childBadge > 0 && (
+                      <span
+                        className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground"
+                        aria-label={`${childBadge} unread`}
+                      >
+                        {formatBadge(childBadge)}
+                      </span>
+                    )}
+                  </AppLink>
                 </DropdownMenuItem>
               );
             })}
@@ -676,7 +849,9 @@ function SidebarGroup({
     );
   }
 
-  // ── Expanded rail: accordion-style header + indented children.
+  // ── Expanded rail: accordion-style header + indented children. The
+  // header itself doesn't navigate (it's a toggle) so it stays a button;
+  // the children inside use AppLink via SidebarLeaf.
   return (
     <li>
       <Tooltip>
@@ -702,6 +877,14 @@ function SidebarGroup({
               aria-hidden="true"
             />
             <span className="flex-1 text-left">{item.label}</span>
+            {groupBadgeTotal > 0 && !open && (
+              <span
+                className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground"
+                aria-label={`${groupBadgeTotal} unread in ${item.label}`}
+              >
+                {formatBadge(groupBadgeTotal)}
+              </span>
+            )}
             <ChevronDown
               className={cn(
                 "h-4 w-4 shrink-0 text-sidebar-foreground/40 transition-transform",
@@ -726,6 +909,7 @@ function SidebarGroup({
               handleNavClick={handleNavClick}
               collapsed={collapsed}
               nested
+              notificationCounts={notificationCounts}
             />
           ))}
         </ul>

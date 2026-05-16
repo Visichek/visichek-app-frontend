@@ -27,6 +27,8 @@ import { MobileNavSheet } from "@/components/navigation/mobile-nav-sheet";
 import { Topbar } from "@/components/navigation/topbar";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useSession } from "@/hooks/use-session";
+import { useNotificationBuckets } from "@/features/notifications/hooks";
+import { filterAdminNavByPreset } from "@/lib/permissions/admin-access";
 
 const CommandLauncher = dynamic(
   () =>
@@ -64,6 +66,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
         href: "/admin/tenants/onboarding",
         icon: Inbox,
         description: "Review self-service signups from the marketing site — accept to provision a tenant, partial-accept to flag missing fields, or reject with notes",
+        notificationBucket: "onboarding_queue",
       },
       {
         label: "Marketing opt-ins",
@@ -101,7 +104,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
   {
     label: "Content",
     icon: FileText,
-    description: "Marketing-site articles and the shared media library that powers them",
+    description: "Marketing-site articles, media library, and pricing display",
     children: [
       {
         label: "Blog",
@@ -115,6 +118,18 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
         icon: Images,
         description: "Manage the shared image and video library that powers blog articles and marketing pages",
       },
+      // Issue 10: Pricing-content page — synchronizes the public
+      // marketing pricing display to backend plan data. Lives under
+      // Content because the audience is content / marketing ops, not
+      // billing. Backend plans remain the source of truth; this view
+      // is the editorial layer (display name, feature highlights,
+      // ordering, CTAs).
+      {
+        label: "Pricing",
+        href: "/admin/content/pricing",
+        icon: Tags,
+        description: "Manage the public pricing page: display names, marketing copy, feature highlights, CTAs, and ordering, synced to backend plans.",
+      },
     ],
   },
   {
@@ -127,6 +142,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
         href: "/admin/support-cases",
         icon: LifeBuoy,
         description: "Review tenant support tickets, reply, post internal notes, and move cases through the workflow",
+        notificationBucket: "support_cases",
       },
       {
         label: "SLA Watch",
@@ -139,6 +155,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
         href: "/admin/jobs",
         icon: Activity,
         description: "Review the background writes you've triggered — pending, succeeded, or failed — and open any failure to debug it",
+        notificationBucket: "jobs",
       },
     ],
   },
@@ -169,6 +186,20 @@ function AdminShellInner({ children }: { children: React.ReactNode }) {
   const { adminProfile } = useSession();
   const { logout } = useAuth();
   const { navigateFromOverlay } = useNavigationLoading();
+  // Issue 2: feed unread notification counts into the sidebar so each
+  // bucket (support cases, onboarding queue, jobs, ...) shows a badge
+  // on its row and a pulsing dot on the parent group icon when the
+  // rail is collapsed.
+  const notificationCounts = useNotificationBuckets("admin");
+
+  // Issue 10: filter the static nav array by the admin's access
+  // preset before handing it to the sidebar. The backend permission
+  // dependency is authoritative for writes; this filter just keeps
+  // the sidebar honest about what the user can usefully reach.
+  const visibleNavItems = filterAdminNavByPreset(
+    ADMIN_NAV_ITEMS,
+    adminProfile?.accessPreset,
+  );
 
   useThemeSync();
 
@@ -197,7 +228,8 @@ function AdminShellInner({ children }: { children: React.ReactNode }) {
     <>
       <div className="min-h-screen bg-background">
         <AppSidebar
-          items={ADMIN_NAV_ITEMS}
+          items={visibleNavItems}
+          notificationCounts={notificationCounts}
           brandName="VisiChek Admin"
           userInfo={{
             name: adminProfile?.fullName ?? "Admin",
@@ -215,7 +247,8 @@ function AdminShellInner({ children }: { children: React.ReactNode }) {
         <MobileNavSheet
           open={mobileNavOpen}
           onOpenChange={setMobileNavOpen}
-          items={ADMIN_NAV_ITEMS}
+          items={visibleNavItems}
+          notificationCounts={notificationCounts}
         />
 
         <div

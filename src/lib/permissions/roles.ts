@@ -21,6 +21,10 @@ export const ROLE_CAPABILITIES: Record<SystemUserRole, Capability[]> = {
     C.CHECKIN_APPROVE,
     C.CHECKIN_CONFIG_VIEW,
     C.CHECKIN_CONFIG_EDIT,
+    // Issue 3: department admins can configure tenant forms used for
+    // kiosk check-in and appointment creation. Receptionist and
+    // narrower roles intentionally do NOT get this capability.
+    C.TENANT_FORM_CONFIGURE,
     C.APPOINTMENT_CREATE,
     C.APPOINTMENT_VIEW,
     C.APPOINTMENT_EDIT,

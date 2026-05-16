@@ -11,6 +11,7 @@ export {
   useKycInitiate,
   useKycSkip,
   useKycStatus,
+  useVerifyRegistrationToken,
 } from "./use-public-checkin";
 
 // Receptionist hooks — tenant-authenticated

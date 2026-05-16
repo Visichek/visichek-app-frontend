@@ -25,7 +25,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -67,6 +67,7 @@ import {
   useKycInitiate,
   useKycSkip,
   useKycStatus,
+  useVerifyRegistrationToken,
   RequiredFieldsForm,
   KycWidget,
   KycStatusScreen,
@@ -180,6 +181,20 @@ type KycPhase =
 export default function KioskCheckinPage() {
   const params = useParams();
   const tenantId = params.tenantId as string;
+  // Issue 5: department QR tokens. The QR page mints
+  //   /register/{tenantId}?token=<signed_jwt>
+  // and the backend can verify the token's tenant/department/branch
+  // scope before the form is shown. When verification fails we still
+  // render the kiosk in generic mode — the visitor can finish, just
+  // without the locked department context.
+  const searchParams = useSearchParams();
+  const registrationToken = searchParams?.get("token") ?? null;
+  const tokenVerifyQ = useVerifyRegistrationToken(registrationToken);
+  const tokenScope = tokenVerifyQ.data?.valid ? tokenVerifyQ.data : null;
+  const tokenInvalid =
+    !!registrationToken &&
+    !tokenVerifyQ.isLoading &&
+    tokenVerifyQ.data?.valid === false;
 
   const configQ = useActiveCheckinConfigForTenant(tenantId);
   const enumsQ = useCheckinEnumsForTenant(tenantId);
@@ -347,6 +362,13 @@ export default function KioskCheckinPage() {
       visitorLat: location?.lat,
       visitorLng: location?.lng,
       visitorLocationAccuracyM: location?.accuracyM ?? undefined,
+      // Issue 5: when a department QR was scanned, forward the signed
+      // token so the backend can pin the visit to the right
+      // tenant/department/branch and write the token id into the
+      // audit record. Only attach valid tokens — passing an expired
+      // token would just produce a SCOPE_MISMATCH on submit.
+      registrationToken:
+        registrationToken && tokenScope?.valid ? registrationToken : undefined,
     };
   }
 
@@ -536,6 +558,54 @@ export default function KioskCheckinPage() {
 
   return (
     <KioskShell config={config}>
+      {/* Issue 5: scoped QR banner — confirms which department's QR
+          the visitor scanned so they can tell they're in the right
+          flow. Renders only when the backend confirmed the token. */}
+      {tokenScope && (
+        <div
+          role="status"
+          className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs flex items-start gap-2"
+        >
+          <Building2
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary"
+            aria-hidden="true"
+          />
+          <div className="min-w-0">
+            <p className="font-medium">
+              Department-scoped registration
+            </p>
+            <p className="text-muted-foreground">
+              You scanned a registration QR for{" "}
+              <span className="font-medium">
+                {tokenScope.companyName ?? config.tenantName}
+              </span>
+              . Your visit will be routed to the configured department
+              automatically.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {tokenInvalid && (
+        <div
+          role="status"
+          className="rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs flex items-start gap-2"
+        >
+          <AlertTriangle
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600"
+            aria-hidden="true"
+          />
+          <div className="min-w-0">
+            <p className="font-medium">QR token expired or invalid</p>
+            <p className="text-muted-foreground">
+              We couldn&apos;t verify the QR you scanned, so you&apos;ll
+              register without a pre-selected department. Ask the front
+              desk for a fresh QR if you need one.
+            </p>
+          </div>
+        </div>
+      )}
+
       <StepIndicator
         steps={visibleSteps}
         currentStep={step}

@@ -54,7 +54,14 @@ interface CommandLauncherProps {
 }
 
 export function CommandLauncher({ externalOpen, onExternalOpenChange }: CommandLauncherProps = {}) {
-  const { navigate } = useNavigationLoading();
+  // Issue 8: the command palette opens inside a Radix Dialog portal,
+  // so the navigation triggered by a selection needs to land AFTER
+  // the dialog has finished tearing down. `navigateFromOverlay`
+  // schedules `router.push` behind two rAFs to give the portal time
+  // to commit its close — without it we previously hit the
+  // `removeChild on null` reconciler crash described in
+  // navigation-context.tsx.
+  const { navigateFromOverlay } = useNavigationLoading();
   const { isAuthenticated, isAdmin, currentRole } = useSession();
   const { hasCapability, canAccess } = useCapabilities();
 
@@ -401,11 +408,13 @@ export function CommandLauncher({ externalOpen, onExternalOpenChange }: CommandL
           e.preventDefault();
           const item = allFilteredItems[selectedIndex];
           if (item) {
+            // Close the dialog first so the Radix portal can tear
+            // down before navigateFromOverlay's deferred push runs.
+            setOpen(false);
             if (item.href) {
-              navigate(item.href);
+              navigateFromOverlay(item.href);
             }
             item.action?.();
-            setOpen(false);
           }
           break;
         case "Escape":
@@ -414,7 +423,7 @@ export function CommandLauncher({ externalOpen, onExternalOpenChange }: CommandL
           break;
       }
     },
-    [allFilteredItems, selectedIndex, navigate]
+    [allFilteredItems, selectedIndex, navigateFromOverlay]
   );
 
   // Auto-scroll selected item into view
@@ -444,13 +453,15 @@ export function CommandLauncher({ externalOpen, onExternalOpenChange }: CommandL
 
   const handleSelect = useCallback(
     (item: CommandItemType) => {
+      // Close the dialog first so navigateFromOverlay's deferred
+      // router.push fires after the Radix portal has unmounted.
+      setOpen(false);
       if (item.href) {
-        navigate(item.href);
+        navigateFromOverlay(item.href);
       }
       item.action?.();
-      setOpen(false);
     },
-    [navigate]
+    [navigateFromOverlay]
   );
 
   return (

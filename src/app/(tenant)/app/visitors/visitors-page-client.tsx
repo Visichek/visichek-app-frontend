@@ -1,27 +1,42 @@
 "use client";
 
-import { useMemo } from "react";
-import { QrCode, Loader2, UserMinus, Settings2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  QrCode,
+  Loader2,
+  UserMinus,
+  Settings2,
+  GraduationCap,
+} from "lucide-react";
 
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
 import { PageHeader } from "@/components/recipes/page-header";
 import { NavButton } from "@/components/recipes/nav-button";
+import { AppLink } from "@/components/navigation/app-link";
 import {
   usePendingApprovals,
   useTenantCheckins,
 } from "@/features/checkins/hooks";
 import { useAwaitingCheckout } from "@/features/visitors/hooks/use-visitors";
 import { useSession } from "@/hooks/use-session";
+import { useCapabilities } from "@/hooks/use-capabilities";
+import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import type { CheckinOut, CheckinState } from "@/types/checkin";
 import type { AwaitingCheckoutItem } from "@/types/visitor";
 import { GroupedVisitorsList } from "@/features/visitors/components/grouped-visitors-list";
 import { PendingApprovalsQueue } from "@/features/visitors/components/pending-approvals-queue";
+import {
+  TutorialRunner,
+  useTutorialProgress,
+  type TutorialStep,
+} from "@/features/tutorials";
 
 type VisitorsTabState = Extract<
   CheckinState,
@@ -78,10 +93,18 @@ interface VisitorsPageClientProps {
 }
 
 export function VisitorsPageClient({ activeState }: VisitorsPageClientProps) {
-  const { tenantId, currentRole } = useSession();
+  const { tenantId } = useSession();
+  const { hasCapability } = useCapabilities();
   const { loadingHref, handleNavClick } = useNavigationLoading();
-  const canConfigureForm = currentRole === "super_admin";
+  // Issue 3: capability-gated rather than role-string-gated so
+  // dept_admin sees the entry point too.
+  const canConfigureForm = hasCapability(CAPABILITIES.TENANT_FORM_CONFIGURE);
   const formBuilderHref = "/app/visitors/form-builder";
+
+  // Issue 7: visitor workflow tutorial. The runner is mounted but
+  // hidden by default; only opens on an explicit click below.
+  const tutorial = useTutorialProgress("visitor_workflow", 1);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
 
   // The Pending tab is backed by the unified `/pending-approvals` queue,
   // which merges kiosk check-ins AND scheduled appointments. The other
@@ -136,6 +159,66 @@ export function VisitorsPageClient({ activeState }: VisitorsPageClientProps) {
 
   const activeTab = TABS.find((t) => t.id === activeState) ?? TABS[0];
 
+  // Issue 7: visitor workflow tutorial steps. Each step targets a
+  // stable `data-tutorial-anchor` attribute the surrounding markup
+  // applies. Anchors live on the tabs, the check-out button, and the
+  // registration-QR button below so the spotlight cutout sits on
+  // visible UI.
+  const tutorialSteps: TutorialStep[] = useMemo(
+    () => [
+      {
+        id: "pending-tab",
+        anchor: "visitor-pending-tab",
+        title: "Start with Pending",
+        body: (
+          <p>
+            New kiosk submissions land in <strong>Pending</strong>. Approve to
+            let the visitor in, deny to send them away with a reason. The badge
+            on the tab tells you how many visitors are waiting.
+          </p>
+        ),
+      },
+      {
+        id: "checkout-button",
+        anchor: "visitor-checkout-button",
+        title: "Checking visitors out",
+        body: (
+          <p>
+            When a visitor finishes their visit, hit <strong>Check out
+            visitor</strong>. You can scan their badge QR or pick them from the
+            active list — both options lead to the same checkout confirmation.
+          </p>
+        ),
+      },
+      {
+        id: "registration-qr",
+        anchor: "visitor-registration-qr",
+        title: "Self-service kiosk QR",
+        body: (
+          <p>
+            <strong>Registration QR</strong> mints a department-scoped code
+            visitors can scan with their phone. Anyone who scans is dropped
+            into the right department automatically — no manual data entry at
+            the front desk.
+          </p>
+        ),
+      },
+      {
+        id: "approved-tab",
+        anchor: "visitor-approved-tab",
+        title: "Approved visitors",
+        body: (
+          <p>
+            Once you approve someone they move to <strong>Approved</strong>.
+            Visitors with a printable badge show a QR you can reuse for badge
+            re-print or quick check-out.
+          </p>
+        ),
+      },
+    ],
+    [],
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -176,6 +259,7 @@ export function VisitorsPageClient({ activeState }: VisitorsPageClientProps) {
                   href="/app/visitors/checkout"
                   variant="outline"
                   className="flex-1 sm:flex-none min-h-[44px]"
+                  data-tutorial-anchor="visitor-checkout-button"
                 >
                   {loadingHref === "/app/visitors/checkout" ? (
                     <Loader2
@@ -202,6 +286,7 @@ export function VisitorsPageClient({ activeState }: VisitorsPageClientProps) {
                   href="/app/visitors/qr"
                   variant="outline"
                   className="flex-1 sm:flex-none min-h-[44px]"
+                  data-tutorial-anchor="visitor-registration-qr"
                 >
                   {loadingHref === "/app/visitors/qr" ? (
                     <Loader2
@@ -222,8 +307,46 @@ export function VisitorsPageClient({ activeState }: VisitorsPageClientProps) {
                 phone
               </TooltipContent>
             </Tooltip>
+
+            {/* Issue 7: tutorial entry point. Never auto-launches — only
+                appears here as a button. Copy switches between Start /
+                Resume / Restart based on persisted progress. */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setTutorialOpen(true)}
+                  className="flex-1 sm:flex-none min-h-[44px]"
+                  disabled={tutorial.isLoading}
+                >
+                  <GraduationCap
+                    className="mr-2 h-4 w-4"
+                    aria-hidden="true"
+                  />
+                  {tutorial.status === "completed"
+                    ? "Restart tutorial"
+                    : tutorial.status === "in_progress"
+                      ? "Resume tutorial"
+                      : "Start tutorial"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Take a quick tour of the visitor workflow — approvals, check
+                out, and the kiosk QR. Your progress is saved so you can pause
+                and come back.
+              </TooltipContent>
+            </Tooltip>
           </div>
         }
+      />
+
+      <TutorialRunner
+        name="visitor_workflow"
+        version={1}
+        steps={tutorialSteps}
+        open={tutorialOpen}
+        onClose={() => setTutorialOpen(false)}
       />
 
       <div
@@ -238,18 +361,18 @@ export function VisitorsPageClient({ activeState }: VisitorsPageClientProps) {
           return (
             <Tooltip key={tab.id}>
               <TooltipTrigger asChild>
-                {/* Plain <a> — see app-sidebar for the rationale.
-                    Combining a Radix Tooltip portal with a Next.js
-                    client transition triggered by the same click was
-                    racing the React 19 reconciler during the page-tree
-                    swap and surfacing as `removeChild on null` deep in
-                    react-dom's commit phase. A full-page navigation
-                    sidesteps the portal cleanup entirely. */}
-                <a
+                <AppLink
                   href={tab.href}
                   role="tab"
                   aria-selected={isActive}
-                  onClick={() => handleNavClick(tab.href)}
+                  onBeforeNavigate={() => handleNavClick(tab.href)}
+                  data-tutorial-anchor={
+                    tab.id === "pending_approval"
+                      ? "visitor-pending-tab"
+                      : tab.id === "approved"
+                        ? "visitor-approved-tab"
+                        : undefined
+                  }
                   className={cn(
                     "pb-2 px-1 text-sm font-medium border-b-2 transition-colors relative whitespace-nowrap inline-flex items-center gap-1.5 min-h-[44px]",
                     isActive
@@ -279,7 +402,7 @@ export function VisitorsPageClient({ activeState }: VisitorsPageClientProps) {
                       {count}
                     </span>
                   )}
-                </a>
+                </AppLink>
               </TooltipTrigger>
               <TooltipContent side="bottom">{tab.tooltip}</TooltipContent>
             </Tooltip>

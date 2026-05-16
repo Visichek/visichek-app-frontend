@@ -191,8 +191,49 @@ export function useSubmitCheckin(args: {
         );
       }
 
+      // Issue 5: signed QR registration token. The backend verifies
+      // scope and overrides any conflicting browser-supplied
+      // department/branch values; we still pass it explicitly so the
+      // audit record can record which token was used.
+      if (request.registrationToken) {
+        form.append("registration_token", request.registrationToken);
+      }
+
       return apiPost<CheckinOut>(path, form);
     },
+  });
+}
+
+/**
+ * Verify a signed QR registration token before showing the kiosk form.
+ *
+ * Returns the resolved tenant / department / branch context so the
+ * kiosk can prefill and lock those fields. On invalid or expired
+ * tokens the backend returns `{ valid: false }`; the kiosk shows a
+ * recoverable error and falls back to the generic tenant flow.
+ */
+export function useVerifyRegistrationToken(token: string | null | undefined) {
+  return useQuery({
+    queryKey: ["public", "verify-registration-token", token ?? ""],
+    queryFn: async () => {
+      if (!token) return null;
+      try {
+        return await apiGet<import("@/types/public").PublicTokenVerifyResponse>(
+          "/public/verify-registration-token",
+          { token },
+        );
+      } catch (err) {
+        // Treat verification failures as "invalid token" so the UI
+        // surfaces a recoverable banner instead of a hard error.
+        if (err instanceof ApiError) {
+          return { valid: false } as import("@/types/public").PublicTokenVerifyResponse;
+        }
+        throw err;
+      }
+    },
+    enabled: !!token,
+    staleTime: 60 * 1000,
+    retry: 0,
   });
 }
 

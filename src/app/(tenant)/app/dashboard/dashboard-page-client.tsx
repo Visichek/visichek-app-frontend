@@ -20,6 +20,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { QuickActions } from "@/components/tenant/quick-actions";
+import { hasCapability as roleHasCapability } from "@/lib/permissions/roles";
+import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import { ComplianceTab } from "@/features/dashboard/components/tenant/compliance-tab";
 import { OperationsTab } from "@/features/dashboard/components/tenant/operations-tab";
 import { OverviewTab } from "@/features/dashboard/components/tenant/overview-tab";
@@ -64,8 +66,25 @@ const COMPLIANCE_TAB: TabConfig = {
   description: "DSRs, incidents, audit activity, and privacy posture",
 };
 
+/**
+ * Tenant dashboard's Compliance tab visibility (Issue 17 sweep).
+ *
+ * Previously a hard list of `super_admin | dpo | auditor`. Replaced
+ * with a capability check so the role list stays consistent with the
+ * rest of the app's permission map. Anyone who can view DSRs or the
+ * audit trail belongs on the compliance tab; if a future role gets
+ * either capability they'll automatically show the tab without
+ * editing this file.
+ *
+ * Uses the role-keyed helper from `lib/permissions/roles.ts` because
+ * the input here is the server-reported `roleView`, not the live
+ * session's `currentRole`.
+ */
 function canSeeCompliance(role: TenantDashboardStats["roleView"]): boolean {
-  return role === "super_admin" || role === "dpo" || role === "auditor";
+  return (
+    roleHasCapability(role, CAPABILITIES.DSR_VIEW) ||
+    roleHasCapability(role, CAPABILITIES.AUDIT_VIEW)
+  );
 }
 
 export function DashboardPageClient() {

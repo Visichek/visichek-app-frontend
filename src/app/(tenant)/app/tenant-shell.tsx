@@ -46,6 +46,7 @@ import { cn } from "@/lib/utils/cn";
 import { useThemeSync } from "@/hooks/use-theme-sync";
 import { requestUserLocation } from "@/lib/geolocation/user-location";
 import { useCapability } from "@/features/limitations/hooks/use-limitations";
+import { useNotificationBuckets } from "@/features/notifications/hooks";
 import type { PlanFeatureKey } from "@/types/billing";
 
 // Roles that act as geofencing approvers in approver-proximity mode. When
@@ -86,6 +87,7 @@ const ALL_TENANT_NAV_ITEMS: (GatedNavItem | GatedNavGroup)[] = [
         href: "/app/visitors/pending",
         icon: Users,
         description: "Check in and check out visitors, view active sessions, and manage visitor profiles",
+        notificationBucket: "visitors",
       },
       {
         label: "Appointments",
@@ -93,6 +95,7 @@ const ALL_TENANT_NAV_ITEMS: (GatedNavItem | GatedNavGroup)[] = [
         icon: CalendarDays,
         description: "Schedule, view, and manage visitor appointments with hosts in your organization",
         feature: "appointments",
+        notificationBucket: "appointments",
       },
     ],
   },
@@ -132,6 +135,7 @@ const ALL_TENANT_NAV_ITEMS: (GatedNavItem | GatedNavGroup)[] = [
         href: "/app/incidents",
         icon: ShieldAlert,
         description: "Report and track security incidents, manage NDPC notification deadlines",
+        notificationBucket: "incidents",
       },
       {
         label: "Audit Log",
@@ -163,12 +167,14 @@ const ALL_TENANT_NAV_ITEMS: (GatedNavItem | GatedNavGroup)[] = [
         href: "/app/support-cases",
         icon: LifeBuoy,
         description: "Open support tickets, reply to the VisiChek team, and track resolution of issues",
+        notificationBucket: "support_cases",
       },
       {
         label: "Recent Activity",
         href: "/app/jobs",
         icon: Activity,
         description: "Review the background writes you've triggered — pending, succeeded, or failed — and open any failure to debug it",
+        notificationBucket: "jobs",
       },
     ],
   },
@@ -241,6 +247,10 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
   const workspaceLogo = branding?.logoUrl;
 
   const { can, isLoading: limitationsLoading } = useCapability();
+  // Issue 2: tenant-side notification badges. Reuses the same
+  // bucket-classification path the admin shell uses so the topbar bell,
+  // sidebar badges, and any page-level alerts stay in sync.
+  const notificationCounts = useNotificationBuckets("tenant");
 
   const visibleNavItems = useMemo<NavItem[]>(() => {
     if (!currentRole) return [];
@@ -279,6 +289,7 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen bg-background">
         <AppSidebar
           items={visibleNavItems}
+          notificationCounts={notificationCounts}
           logoUrl={workspaceLogo}
           brandName={workspaceName}
           userInfo={{
@@ -300,6 +311,7 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
           open={mobileNavOpen}
           onOpenChange={setMobileNavOpen}
           items={visibleNavItems}
+          notificationCounts={notificationCounts}
         />
 
         <div

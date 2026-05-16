@@ -21,6 +21,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { QuickActions } from "@/components/platform-admin/quick-actions";
+import { AttentionPanel } from "@/features/dashboard/components/admin/attention-panel";
 import { AdminActivityTab } from "@/features/dashboard/components/admin/tabs/admin-activity-tab";
 import { AdminBillingTab } from "@/features/dashboard/components/admin/tabs/admin-billing-tab";
 import { AdminOverviewTab } from "@/features/dashboard/components/admin/tabs/admin-overview-tab";
@@ -100,6 +101,11 @@ export function AdminDashboardPageClient() {
         title="Platform Dashboard"
         description="Cross-tenant view of growth, revenue, and operational health"
       />
+
+      {/* Issue 1: surface the operational queue at the top of the page so
+          support cases, onboarding, NDPC deadlines, and content tasks
+          don't get buried under analytics. */}
+      <AttentionPanel stats={stats} />
 
       <QuickActions />
 

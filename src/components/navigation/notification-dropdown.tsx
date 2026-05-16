@@ -35,6 +35,7 @@ import {
 } from "@/features/notifications/hooks";
 import { useSession } from "@/hooks/use-session";
 import type { NotificationType } from "@/types/notification";
+import { resolveNotificationRoute } from "@/lib/notifications/route-resolver";
 
 const TYPE_CONFIG: Record<
   NotificationType,
@@ -45,41 +46,6 @@ const TYPE_CONFIG: Record<
   error: { icon: AlertCircle, className: "text-destructive" },
   success: { icon: CheckCircle2, className: "text-emerald-500" },
 };
-
-function normalizeNotificationTarget(
-  link: string,
-  isAdmin: boolean,
-): string | null {
-  const base =
-    typeof window === "undefined"
-      ? "https://client.visichek.app"
-      : window.location.origin;
-
-  try {
-    const url = new URL(link, base);
-    if (typeof window !== "undefined" && url.origin !== window.location.origin) {
-      return null;
-    }
-
-    // Backend emits "/app/checkins/{id}" for visitor approval events, but
-    // the tenant-facing detail route is "/app/visitors/{id}".
-    let pathname = url.pathname.replace(
-      /^\/app\/checkins\//,
-      "/app/visitors/",
-    );
-
-    // Notifications are emitted by the backend with tenant-shell paths. When
-    // a platform admin opens one, swap /app/* for the admin shell so the
-    // sidebar and role guards match up.
-    if (isAdmin && pathname.startsWith("/app/")) {
-      pathname = pathname.replace(/^\/app\//, "/admin/");
-    }
-
-    return `${pathname}${url.search}${url.hash}`;
-  } catch {
-    return null;
-  }
-}
 
 function formatRelativeTime(unixSeconds: number): string {
   const now = Date.now() / 1000;
@@ -192,7 +158,10 @@ export function NotificationDropdown() {
       markAsRead.mutate(id);
     }
     if (link) {
-      const target = normalizeNotificationTarget(link, isAdmin);
+      const target = resolveNotificationRoute(
+        link,
+        isAdmin ? "admin" : "tenant",
+      );
       if (!target) return;
 
       setOpeningNotificationId(id);

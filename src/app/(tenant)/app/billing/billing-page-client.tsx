@@ -27,6 +27,8 @@ import { DataTable } from "@/components/recipes/data-table";
 import { PageSkeleton } from "@/components/feedback/page-skeleton";
 import { ErrorState } from "@/components/feedback/error-state";
 import { useSession } from "@/hooks/use-session";
+import { useCapabilities } from "@/hooks/use-capabilities";
+import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useMyUsage } from "@/features/usage/hooks/use-usage";
 import { useTenantInvoices } from "@/features/invoices/hooks/use-invoices";
@@ -90,9 +92,14 @@ function subscriptionStatusVariant(
 }
 
 export function BillingPageClient() {
-  const { tenantId, currentRole } = useSession();
+  const { tenantId } = useSession();
+  const { hasCapability } = useCapabilities();
   const { loadingHref, handleNavClick } = useNavigationLoading();
-  const canManageBilling = currentRole === "super_admin";
+  // Capability-driven gate (previously a hard `currentRole === "super_admin"`
+  // string check). `BILLING_MANAGE` is granted to super_admin only via
+  // `Object.values(C)` in roles.ts, so the behavior is identical today but
+  // we no longer need to update every site if the role list changes.
+  const canManageBilling = hasCapability(CAPABILITIES.BILLING_MANAGE);
   const [cancelOpen, setCancelOpen] = useState(false);
 
   const {

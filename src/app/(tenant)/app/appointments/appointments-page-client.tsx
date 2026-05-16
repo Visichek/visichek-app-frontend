@@ -37,7 +37,6 @@ import {
 } from "@/features/appointments/hooks/use-appointments";
 import { summarizeBulkResult } from "@/lib/api/bulk";
 import { useCapabilities } from "@/hooks/use-capabilities";
-import { useSession } from "@/hooks/use-session";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import { formatDateTime } from "@/lib/utils/format-date";
@@ -69,9 +68,12 @@ const APPOINTMENT_TABS: { value: AppointmentStatusTab; label: string; descriptio
 
 export function AppointmentsPageClient() {
   const { hasCapability } = useCapabilities();
-  const { currentRole } = useSession();
   const canCreate = hasCapability(CAPABILITIES.APPOINTMENT_CREATE);
-  const canConfigureForms = currentRole === "super_admin";
+  // Issue 3: replace the hard-coded role string with the capability so
+  // dept_admin sees the "Configure form" entry too, while receptionist
+  // and lower roles no longer do. Backend permission dependency is
+  // authoritative; this is the UI-visibility half.
+  const canConfigureForms = hasCapability(CAPABILITIES.TENANT_FORM_CONFIGURE);
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
   const [statusTab, setStatusTab] = useState<AppointmentStatusTab>("all");

@@ -18,7 +18,8 @@ import { ErrorState } from "@/components/feedback/error-state";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { PageHeader } from "@/components/recipes/page-header";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
-import { useSession } from "@/hooks/use-session";
+import { useCapabilities } from "@/hooks/use-capabilities";
+import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import {
   useCompleteOnboarding,
   usePendingOnboardingFields,
@@ -28,9 +29,14 @@ import type { OnboardingFieldValue } from "@/types/onboarding";
 const DASHBOARD_HREF = "/app/dashboard";
 
 export function CompleteOnboardingClient() {
-  const { currentRole } = useSession();
+  const { hasCapability } = useCapabilities();
   const { navigate } = useNavigationLoading();
-  const isSuperAdmin = currentRole === "super_admin";
+  // Onboarding finalize is a one-shot, tenant-wide write that
+  // touches branding, defaults, and the first admin's profile —
+  // gated to TENANT_CONFIG_EDIT (held by super_admin only today).
+  // Variable name preserved so the rest of the file's branching
+  // reads unchanged.
+  const isSuperAdmin = hasCapability(CAPABILITIES.TENANT_CONFIG_EDIT);
 
   const {
     data: pending,

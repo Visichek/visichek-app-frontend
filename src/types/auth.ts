@@ -19,11 +19,38 @@ export interface TokenPair {
 // ── Session Types ─────────────────────────────────────────────────────
 export type SessionType = "admin" | "system_user";
 
+/**
+ * Platform-admin access preset (Issue 10).
+ *
+ * The application admin role used to be all-or-nothing — every admin
+ * had every permission. Presets let the business delegate slices of
+ * the work (content, support, billing, or a combination) without
+ * handing out tenant/subscription control.
+ *
+ * The presets are enforced server-side by the matching backend
+ * permission dependency; this enum is the UI half that filters the
+ * admin sidebar, command launcher, route guards, and page action
+ * buttons. Until the backend ships, the field is optional and the
+ * frontend treats `undefined` as `all_controls` for backwards compat.
+ */
+export type AdminAccessPreset =
+  | "content_only"
+  | "support_only"
+  | "content_support"
+  | "billing_only"
+  | "all_controls";
+
 export interface AdminProfile {
   id: string;
   fullName: string;
   email: string;
   mfaEnabled?: boolean;
+  /**
+   * Access preset selected at invite time. Optional for backwards
+   * compatibility with admins provisioned before the preset feature
+   * shipped — those default to `all_controls` at the UI layer.
+   */
+  accessPreset?: AdminAccessPreset;
 }
 
 export interface SystemUserProfile {

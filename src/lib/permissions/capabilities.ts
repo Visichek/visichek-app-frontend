@@ -14,10 +14,31 @@ export const CAPABILITIES = {
   // Check-in approval (pending → approved/rejected)
   CHECKIN_APPROVE: "checkin:approve",
   CHECKIN_VIEW: "checkin:view",
+  /**
+   * Force-approve a check-in that's been stuck in the pending queue.
+   * Bypasses the normal approve path and skips host-approval gating —
+   * a safety valve granted only to tenant super_admins. Backend has
+   * a matching permission dependency.
+   */
+  CHECKIN_FORCE_APPROVE: "checkin:force_approve",
 
   // Check-in config management
   CHECKIN_CONFIG_VIEW: "checkin_config:view",
   CHECKIN_CONFIG_EDIT: "checkin_config:edit",
+
+  /**
+   * Configure / publish tenant forms (kiosk check-in form, appointment
+   * form, etc.). Issue 3 — gates the visitor & appointment form
+   * builders behind super_admin + dept_admin only. The receptionist
+   * and other tenant roles must not see the "Configure form" button
+   * or be allowed onto /app/settings/forms by direct URL.
+   *
+   * Backend enforcement (issue 3 backend task) replaces the
+   * super-admin-only auth dependency on tenant-form mutations with
+   * the matching server-side permission; this capability is just the
+   * frontend gate.
+   */
+  TENANT_FORM_CONFIGURE: "tenant_form:configure",
 
   // Appointments
   APPOINTMENT_CREATE: "appointment:create",

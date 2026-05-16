@@ -9,6 +9,8 @@ import {
 } from "@/components/ui/tooltip";
 import { ErrorState } from "@/components/feedback/error-state";
 import { useSession } from "@/hooks/use-session";
+import { useCapabilities } from "@/hooks/use-capabilities";
+import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useActiveSubscription } from "@/features/subscriptions/hooks/use-subscriptions";
 import { useMyUsage } from "@/features/usage/hooks/use-usage";
@@ -18,9 +20,13 @@ import type { PlanTier } from "@/types/enums";
 const LIST_HREF = "/app/billing";
 
 export default function ChangePlanPage() {
-  const { tenantId, currentRole } = useSession();
+  const { tenantId } = useSession();
+  const { hasCapability } = useCapabilities();
   const { loadingHref } = useNavigationLoading();
-  const canManageBilling = currentRole === "super_admin";
+  // Capability-gated (was `currentRole === "super_admin"`). Same set
+  // of users authorized today; future role changes flow through the
+  // capability map without touching this page.
+  const canManageBilling = hasCapability(CAPABILITIES.BILLING_MANAGE);
 
   const { data: activeSubscription } = useActiveSubscription(
     canManageBilling ? tenantId || "" : ""

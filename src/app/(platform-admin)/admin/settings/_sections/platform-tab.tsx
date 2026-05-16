@@ -9,6 +9,7 @@ import {
   usePlatformSettings,
   useUpdatePlatformSettings,
 } from "@/features/settings/hooks";
+import { EmailDiagnosticsCard } from "./email-diagnostics-card";
 
 export function PlatformTab() {
   const { data: manifest } = useSettingsManifest();
@@ -119,6 +120,14 @@ export function PlatformTab() {
           <SettingsSelect id="globalRateBurst" label="Burst limit" description="Maximum burst of requests allowed" value={String(platformSettingsData?.globalRateLimitBurst ?? 20)} onValueChange={(v) => updatePlatformSettings.mutate({ globalRateLimitBurst: parseInt(v, 10) })} options={[{ value: "10", label: "10" }, { value: "20", label: "20" }, { value: "50", label: "50" }, { value: "100", label: "100" }]} disabled={platformReadonly} isLoading={updatePlatformSettings.isPending} />
         </div>
       </section>
+
+      <Separator />
+
+      {/* Issue 6 follow-up: visible delivery diagnostics so admins
+          can verify the SMTP pipeline end-to-end without reading
+          logs. Read-mostly card — edits to credentials live in the
+          security section above. */}
+      <EmailDiagnosticsCard />
     </div>
   );
 }

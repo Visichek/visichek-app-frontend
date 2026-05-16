@@ -213,3 +213,29 @@ export function useUpdateNotificationPreferences() {
     },
   });
 }
+
+/**
+ * Send a test notification to the current user (Issue 6).
+ *
+ * Backend contract (to be implemented as part of the Issue 6 backend
+ * task): `POST /v1/notifications/test` enqueues an in-app + email
+ * notification using whatever preferences and template the user has
+ * configured. The response carries a `delivered` flag and an
+ * optional `skippedReason` (e.g., "email_disabled_in_preferences",
+ * "smtp_not_configured") so the UI can surface why nothing
+ * arrived.
+ *
+ * Until the backend ships the endpoint, this hook fires the request
+ * anyway — the caller's `onError` will display the 404 message, which
+ * is informative ("Backend test endpoint not deployed yet") rather
+ * than misleading.
+ */
+export function useSendTestNotification() {
+  return useMutation({
+    mutationFn: () =>
+      apiPost<{ delivered: boolean; skippedReason?: string; message?: string }>(
+        "/notifications/test",
+        {},
+      ),
+  });
+}

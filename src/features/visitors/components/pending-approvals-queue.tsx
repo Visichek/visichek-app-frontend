@@ -62,6 +62,8 @@ import {
   type AppointmentCheckInMissingField,
 } from "@/features/appointments/components/appointment-checkin-prompt-modal";
 import { useSession } from "@/hooks/use-session";
+import { useCapabilities } from "@/hooks/use-capabilities";
+import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import type { PendingApprovalItem } from "@/types/checkin";
 import type { AppointmentCheckInRequest } from "@/types/visitor";
 import { ApiError } from "@/types/api";
@@ -160,7 +162,23 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
   const { loadingHref, handleNavClick } = useNavigationLoading();
   const { data, isLoading } = usePendingApprovals(tenantId);
   const { systemUserProfile } = useSession();
-  const isSuperAdmin = systemUserProfile?.role === "super_admin";
+  const { hasCapability } = useCapabilities();
+  /**
+   * "Force approve a stuck check-in" is a safety valve, not a routine
+   * action — gated to the new `CHECKIN_FORCE_APPROVE` capability so
+   * the backend permission dependency and the UI hide together. Only
+   * super_admin holds this capability today (granted automatically
+   * via `Object.values(C)` in roles.ts).
+   *
+   * Kept the `isSuperAdmin` local name so the rest of the file's
+   * useMemo deps and conditional renders don't need rewriting; the
+   * variable now reads from the capability map rather than the
+   * role string.
+   */
+  const isSuperAdmin = hasCapability(CAPABILITIES.CHECKIN_FORCE_APPROVE);
+  // Suppress unused warning — kept for any future callers that need
+  // the raw profile (e.g., audit log attribution).
+  void systemUserProfile;
   const checkInFromAppointment = useCheckInFromAppointment();
   const forceApprove = useForceApprovePendingCheckin();
   const [busyAppointmentId, setBusyAppointmentId] = useState<string | null>(null);

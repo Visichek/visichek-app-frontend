@@ -23,7 +23,25 @@ import { useSession } from "@/hooks/use-session";
 import { useAuth } from "@/hooks/use-auth";
 import { useAppSelector } from "@/lib/store/hooks";
 import { selectBranding } from "@/lib/store/branding-slice";
-import type { NavItem } from "./app-sidebar";
+import { AppLink } from "@/components/navigation/app-link";
+import type { NavItem, SidebarNotificationBucket } from "./app-sidebar";
+
+function resolveBadge(
+  item: NavItem,
+  counts: Partial<Record<SidebarNotificationBucket, number>> | undefined,
+): number {
+  if (typeof item.badgeCount === "number" && item.badgeCount > 0)
+    return item.badgeCount;
+  if (item.notificationBucket && counts) {
+    const c = counts[item.notificationBucket] ?? 0;
+    return c > 0 ? c : 0;
+  }
+  return 0;
+}
+
+function formatMobileBadge(count: number): string {
+  return count > 99 ? "99+" : String(count);
+}
 
 function isGroup(item: NavItem): item is NavItem & { children: NavItem[] } {
   return Array.isArray(item.children) && item.children.length > 0;
@@ -40,12 +58,14 @@ interface MobileNavSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   items: NavItem[];
+  notificationCounts?: Partial<Record<SidebarNotificationBucket, number>>;
 }
 
 export function MobileNavSheet({
   open,
   onOpenChange,
   items,
+  notificationCounts,
 }: MobileNavSheetProps) {
   const pathname = usePathname();
   const { loadingHref, handleNavClick, navigate } = useNavigationLoading();
@@ -121,11 +141,12 @@ export function MobileNavSheet({
     const isActive = item.href ? pathname.startsWith(item.href) : false;
     const isLoading = loadingHref === item.href;
     const Icon = item.icon;
+    const badge = resolveBadge(item, notificationCounts);
     return (
       <li key={item.href ?? item.label}>
-        <a
+        <AppLink
           href={item.href ?? "#"}
-          onClick={() => {
+          onBeforeNavigate={() => {
             if (item.href) handleNavClick(item.href);
             onOpenChange(false);
           }}
@@ -164,7 +185,15 @@ export function MobileNavSheet({
               </p>
             )}
           </div>
-        </a>
+          {badge > 0 && (
+            <span
+              className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground"
+              aria-label={`${badge} unread`}
+            >
+              {formatMobileBadge(badge)}
+            </span>
+          )}
+        </AppLink>
       </li>
     );
   }
@@ -199,6 +228,10 @@ export function MobileNavSheet({
                 const open = openGroups.has(item.label);
                 const containsActive = groupContainsPath(item, pathname ?? "");
                 const GroupIcon = item.icon;
+                const groupBadgeTotal = item.children.reduce(
+                  (sum, c) => sum + resolveBadge(c, notificationCounts),
+                  resolveBadge(item, notificationCounts),
+                );
                 return (
                   <li key={`group:${item.label}`}>
                     <button
@@ -227,6 +260,14 @@ export function MobileNavSheet({
                           </p>
                         )}
                       </div>
+                      {groupBadgeTotal > 0 && !open && (
+                        <span
+                          className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground"
+                          aria-label={`${groupBadgeTotal} unread in ${item.label}`}
+                        >
+                          {formatMobileBadge(groupBadgeTotal)}
+                        </span>
+                      )}
                       <ChevronDown
                         className={cn(
                           "h-4 w-4 shrink-0 text-foreground/40 transition-transform",

@@ -250,6 +250,17 @@ export interface CheckinSubmitMultipartRequest {
   visitorLat?: number;
   visitorLng?: number;
   visitorLocationAccuracyM?: number;
+  /**
+   * Signed QR registration token from the department QR (Issue 5).
+   *
+   * When present, the backend verifies the token's `tenant_id`,
+   * `department_id`, and `branch_id` against the request scope and
+   * rejects any browser-supplied department/branch that conflicts. The
+   * audit record on the resulting check-in carries the token id so we
+   * can trace which QR shaped the visit. Sent as `registration_token`
+   * on the wire.
+   */
+  registrationToken?: string;
 }
 
 /** Legacy JSON submit payload (kept for backend parity; not used by the kiosk UI). */
