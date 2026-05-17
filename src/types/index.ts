@@ -5,6 +5,7 @@ export * from "./tenant";
 export * from "./visitor";
 export * from "./billing";
 export * from "./pricing-marketing";
+export * from "./faqs";
 export * from "./incident";
 export * from "./audit";
 export * from "./dpo";

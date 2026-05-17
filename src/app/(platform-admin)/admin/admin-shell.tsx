@@ -22,6 +22,7 @@ import {
   FileText,
   Headphones,
   ShieldCheck,
+  HelpCircle,
 } from "lucide-react";
 import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
 import { MobileNavSheet } from "@/components/navigation/mobile-nav-sheet";
@@ -130,6 +131,12 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
         href: "/admin/content/pricing",
         icon: Tags,
         description: "Manage the public pricing page: display names, marketing copy, feature highlights, CTAs, and ordering, synced to backend plans.",
+      },
+      {
+        label: "FAQs",
+        href: "/admin/content/faqs",
+        icon: HelpCircle,
+        description: "Manage the public FAQ page: questions, answers, section grouping, ordering, and footer copy.",
       },
     ],
   },

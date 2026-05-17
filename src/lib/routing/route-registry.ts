@@ -41,6 +41,7 @@ export const ADMIN_ROUTES: RouteEntry[] = [
   { prefix: "/admin/blogs", kind: "prefix-match" },
   { prefix: "/admin/media", kind: "prefix-match" },
   { prefix: "/admin/content/pricing", kind: "prefix-match" },
+  { prefix: "/admin/content/faqs", kind: "prefix-match" },
   { prefix: "/admin/support-cases", kind: "prefix-match" },
   { prefix: "/admin/jobs", kind: "prefix-match" },
   { prefix: "/admin/settings", kind: "prefix-match" },
