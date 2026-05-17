@@ -310,6 +310,12 @@ export default function SupportCasesPage() {
           mobileCard={mobileCard}
           emptyTitle="No cases match your filters"
           emptyDescription="Try removing a filter or clearing your search."
+          getRowId={(c) => c.id ?? c._id ?? ""}
+          getRowHref={(c) => {
+            const id = c.id ?? c._id ?? "";
+            return id ? `/app/support-cases/${id}` : undefined;
+          }}
+          rowClickAriaLabel={(c) => `View support case ${c.subject ?? "details"}`}
         />
       )}
     </div>

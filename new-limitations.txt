@@ -1,0 +1,291 @@
+NEW FREE-PLAN LIMITATIONS — BACKEND FIXES NEEDED
+==================================================
+
+Context
+-------
+The frontend gates plan-restricted UI by consulting `GET /v1/me/limitations`,
+specifically the `deniedEndpoints` array (URL patterns the tenant's plan
+disallows) and `deniedFeatures` (stable feature keys).
+
+`useCapability().isEndpointDenied(prefix)` returns true when ANY entry in
+`limitations.deniedEndpoints[].pattern` starts with the supplied prefix.
+
+If the backend does NOT advertise an endpoint as denied, the frontend can
+not know to gate it — the lock state, upgrade overlay, and replacement
+controls all stay dormant and the user sees the paid-tier UI on a free
+tenant.
+
+The items below are gates the frontend has been wired for but the backend
+plan manifest is missing. Please add them to the free-plan feature
+restriction config so the limitations payload reflects reality.
+
+
+1. Registration QR (visitor self-registration via signed token)
+---------------------------------------------------------------
+Frontend file: src/app/(tenant)/app/visitors/visitors-page-client.tsx
+Frontend check: isEndpointDenied("/v1/visitors/registration-qr")
+
+Endpoint to deny on Free plan:
+  POST /v1/visitors/registration-qr
+
+Expected `limitations.deniedEndpoints` entry for Free:
+  {
+    "pattern": "/v1/visitors/registration-qr",
+    "methods": ["POST"],
+    "description": "Mint a signed registration QR for visitor self-service"
+  }
+
+Direct-call behavior the backend should enforce on Free:
+  HTTP 403 with envelope `data.code = "SUBSCRIPTION_REQUIRED"` (or the
+  existing plan-gate code already used for other paid-only endpoints,
+  e.g. /v1/checkin-configs writes).
+
+Frontend behavior once the gate is live:
+  - The "Registration QR" button on the Visitors page is replaced with
+    "Register visitor", which opens `/register/{tenantId}` in a new tab
+    (the public kiosk flow — works on every plan, no token needed).
+  - The QR generator page route `/app/visitors/qr` itself is not yet
+    locked; if it should be unreachable on Free, the navigation source
+    will be hidden as above but consider a 403 from the page-level mint
+    call as a hard backstop. The current page already toasts the
+    backend error message, so a clear `SUBSCRIPTION_REQUIRED` envelope
+    will surface cleanly.
+
+
+How to verify after the backend change
+--------------------------------------
+1. Log in as a tenant whose plan tier is `free`.
+2. `GET /v1/me/limitations` — confirm `deniedEndpoints` contains the
+   `/v1/visitors/registration-qr` entry.
+3. Visit `/app/visitors` — the third action button should now read
+   "Register visitor" (UserPlus icon), not "Registration QR" (QrCode
+   icon). Clicking it opens the kiosk in a new tab.
+4. Upgrade the same tenant to any paid plan — the button reverts to
+   "Registration QR" linking to `/app/visitors/qr`.
+
+
+2. Public kiosk: Dojah ID verification (KYC)
+--------------------------------------------
+Frontend file: src/app/(public)/register/[tenantId]/page.tsx
+Frontend check: `kycAvailable = !!config?.idUploadEnabled` (line ~219)
+                derived from the public config response.
+
+The kiosk is unauthenticated — it has no access to `/v1/me/limitations`
+or any role-scoped data — so the only signal it can act on is what the
+public config endpoint chooses to return. The frontend is already wired
+to honor it: when `idUploadEnabled` is `false` on `PublicCheckinConfigOut`,
+the whole "Verify" step is removed (`STEPS_NO_KYC`), the "Verify with
+Dojah" button never renders, and the visitor goes straight from Identity
+→ Details.
+
+Today the kiosk shows "Verify with Dojah" for free-plan tenants because
+the backend is returning `idUploadEnabled: true` for them on:
+
+  GET /public/tenants/{tenantId}/active-checkin-config
+
+Expected behavior on Free plan:
+  The handler for the path above should force `id_upload_enabled` to
+  `false` in the response payload whenever the resolved tenant's
+  current plan does NOT grant KYC, regardless of what the tenant's
+  checkin-config row says. (Free tenants cannot self-serve a working
+  KYC flow anyway — `/v1/kyc/initiate` already returns plan-denied for
+  them per the kiosk's "silent degrade" comment.)
+
+Pseudocode for the response shape:
+  {
+    "checkin_config_id": "...",
+    "tenant_id": "...",
+    "tenant_name": "...",
+    "logo_url": "...",
+    "id_upload_enabled": tenant.plan.grants_kyc,   // <- force false on Free
+    "allow_returning_visitor_lookup": ...,
+    "required_fields": [...]
+  }
+
+The admin-facing `CheckinConfig` (full row) can keep its stored value
+unchanged — only the public projection needs the override. That way,
+the tenant doesn't lose their preference when they upgrade.
+
+Defense-in-depth that already exists in the frontend:
+  - If the visitor somehow lands on the Verify step (e.g. browser back
+    button after a plan downgrade mid-session) and picks "Verify with
+    Dojah", `POST /v1/kyc/initiate` returning a plan-denied error is
+    silently routed to `state: "pending_approval"` — the visitor lands
+    on the wait-for-receptionist screen with an info note. So this is
+    purely a UX/copy fix; the flow is already safe.
+
+How to verify after the backend change
+  1. Log in to a Free-plan tenant in another tab; copy the tenant id.
+  2. Open `/register/{tenantId}` in an incognito window (kiosk).
+  3. Fill Identity and click Continue — the next step should be
+     "Details", NOT "Verify your ID". The step indicator at the top
+     should show three steps (Identity → Details → Review), not four.
+  4. Upgrade the tenant to any paid plan that grants KYC. Refresh the
+     kiosk. The Verify step should now appear, with the "Verify with
+     Dojah" and "Skip for now" buttons.
+
+
+Reference: gates already working end-to-end
+-------------------------------------------
+For comparison, these patterns are already in the free-plan manifest and
+their frontend gates resolve correctly today:
+
+  /v1/checkin-configs     → form-builder lock overlay on Visitors page
+  /v1/incidents           → incidents nav + report-incident quick action
+  /v1/audit-logs          → audit nav
+  /v1/dsr                 → DPO nav
+
+The new `/v1/visitors/registration-qr` entry should follow the same
+shape and ship in the same manifest section as those.
+
+The KYC kiosk gate (#2 above) is a different kind of fix — it's not a
+`deniedEndpoints` entry; it's a per-tenant override applied at response
+shaping time for the public config endpoint. Treat it as a separate
+work item from #1.
+
+
+3. Settings sections gated on Free plan
+=======================================
+Added: 2026-05-17
+Status: SHIPPED end-to-end as of 2026-05-17 — backend lands the
+        deniedFeatures keys and the field-level strip in
+        `services/me_limitations_service.py` +
+        `services/tenant_settings_writer.py` (see the "LIMITATIONS
+        UPDATE — FIELD-LEVEL FREE-PLAN GATES" appendix below).
+        Frontend lands the dual gate in
+        `src/app/(tenant)/app/settings/_sections/advanced-tab.tsx`,
+        the matching upgrade-modal copy in
+        `upgrade-feature-modal.tsx`, and extends `PlanFeatureKey` with
+        the three new keys.
+Affects: Tenant settings → Advanced tab
+
+Three sections inside the Advanced settings tab need to be plan-gated
+on Free. The frontend has been wired (commit "free-plan gating for
+advanced settings sections"); the backend ships matching denials so
+the gate is enforced server-side too, not just hidden in the UI.
+
+Frontend behaviour (already shipped):
+
+  src/app/(tenant)/app/settings/_sections/advanced-tab.tsx
+    - "Email preferences" section  → hidden when isFreePlan OR
+                                      deniedFeatures includes "email_preferences"
+    - "Visitor policies" section   → hidden when isFreePlan OR
+                                      deniedFeatures includes "visitor_policies"
+    - "Geofencing" section         → wrapped in <LockedOverlay/> when
+                                      isFreePlan OR deniedFeatures includes
+                                      "geofencing". Shows the shaking-padlock
+                                      affordance pre-keyed to the "geofencing"
+                                      upgrade modal.
+
+  The `isFreePlan` derivation (`useCapability().isFreePlan`) is a
+  current-plan-tier check (`plan.tier === "free"` or `plan.name ===
+  "free"`) — independent of `isFreeFallback`, which only fires after a
+  cancel/dunning downgrade. The dual gate (`isFreePlan || denied(key)`)
+  means the section disappears the moment we ship the frontend even if
+  the backend deniedFeatures keys arrive in a later deploy.
+
+  Each of these three settings persists via the same endpoint:
+    PATCH /v1/tenants/{tenantId}/settings
+  We can't blanket-deny that endpoint — it's used by retention,
+  organisation, and other still-allowed sections too — so the backend
+  gate has to be at the field-level (see below).
+
+What the backend needs to do
+----------------------------
+
+(a) Add three stable feature keys to `Limitations.deniedFeatures`
+    on the Free plan manifest:
+
+      "email_preferences"   — gates the welcome / host-arrival /
+                              visitor-badge email toggles
+      "visitor_policies"    — gates the require-ID-scan / require-host-
+                              approval / require-consent / self-reg-QR /
+                              auto-checkout / badge-expiry block
+      "geofencing"          — gates the entire geofencing block
+                              (enable flag + radius + reference point)
+
+    Suggested PlanFeatureKey union additions in
+    `src/types/billing.ts`:
+      | "email_preferences"
+      | "visitor_policies"
+      | "geofencing"
+
+(b) On `PATCH /v1/tenants/{tenantId}/settings`, ignore (silently drop)
+    or explicitly reject the following fields when the resolved
+    tenant's plan denies the matching feature key. Field names below
+    are the wire (snake_case) names; the frontend uses the matching
+    camelCase aliases in `TenantSettings`.
+
+      Visitor policies fields:
+        require_id_scan, require_host_approval,
+        require_consent_before_check_in, allow_self_registration,
+        auto_checkout_after_hours, visitor_badge_expiry,
+        visitor_badge_expiry_hours, self_registration_fields
+
+      Geofencing fields:
+        geofencing_enabled, geofencing_radius_meters,
+        geofencing_reference_lat, geofencing_reference_lng
+
+      Email preferences fields:
+        send_welcome_email, send_host_notification_on_arrival,
+        send_visitor_badge_email
+
+    "Silent drop" preserves the user's prior stored value across plan
+    changes (same approach as #2 KYC kiosk gate: don't lose the user's
+    preference, just refuse to honour it on the wrong plan). The
+    response should otherwise be a normal 200 — the kiosk and policies
+    are still effectively governed by the saved values for users who
+    upgrade later.
+
+    Defense-in-depth: GET /v1/tenants/{tenantId} may keep returning
+    these fields as-is — the frontend just won't render the controls
+    on Free. That keeps the upgrade transition clean (toggle states are
+    preserved end-to-end).
+
+(c) The `deniedEndpoints` map does NOT need a new entry for this — the
+    gate is feature-key only because `/v1/tenants/{id}` is shared.
+
+
+Verifying after the backend change
+-----------------------------------
+
+1. Free-plan tenant: log in, open Settings → Advanced. Expect the
+   Visitor policies + Email preferences sections to be missing, and
+   the Geofencing section to render with the shaking-padlock overlay
+   (click → upgrade modal pre-keyed to "geofencing").
+
+2. As that Free-plan tenant, hit `PATCH /v1/tenants/{tid}` directly
+   with `{ requireIdScan: true }` (or any of the gated fields above).
+   Expect a 200 response, but `GET /v1/tenants/{tid}` afterwards should
+   show the field UNCHANGED — backend silently dropped it.
+
+3. Upgrade the tenant to any paid plan that includes these features.
+   Reload Settings → Advanced. Expect all three sections to render
+   normally, with their previously-stored values intact.
+
+
+Optional: per-device "Hide locked items" preference
+---------------------------------------------------
+
+To reduce visual noise for Free-plan tenants who don't want padlocks
+in their UI, the frontend now ships a per-device preference (no backend
+involvement required):
+
+  src/features/limitations/lib/hide-locked-storage.ts
+  src/features/limitations/hooks/use-hide-locked.ts
+  src/features/limitations/components/hide-locked-menu-item.tsx
+  src/features/limitations/components/hide-locked-expiry-toast.tsx
+
+When enabled, every <LockedOverlay/>, every <LockedBadge/>, and every
+locked nav row collapses out of the rendered tree. The preference is
+stored in `localStorage` only (key `visichek-hide-locked-v1`), auto-
+expires after 4 hours, and surfaces a one-time toast on the expiry-
+detecting page load so the upgrade affordance never goes missing
+forever.
+
+The toggle is exposed in the sidebar user dropdown for Free-plan
+tenants only (gated on `useCapability().isFreePlan`). Paid users have
+no locked UI to hide and never see the entry.
+
+Backend has no role in this preference — it's never persisted server-
+side and never crosses the API.

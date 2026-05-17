@@ -21,6 +21,13 @@ export {
   useConfirmCheckin,
   useForceApprovePendingCheckin,
   usePendingApprovals,
+  useBulkApproveCheckins,
+  useBulkRejectCheckins,
+  useBulkForceApprovePendingCheckins,
+  type BulkApprovePerIdResult,
+  type BulkApproveArgs,
+  type BulkRejectArgs,
+  type BulkForceApprovePendingArgs,
 } from "./use-checkins";
 
 // Admin config management hooks

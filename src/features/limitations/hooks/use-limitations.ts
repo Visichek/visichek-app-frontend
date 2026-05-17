@@ -62,6 +62,15 @@ export interface CapabilitiesView {
   ) => number | null | undefined;
   /** True when on the Free fallback plan post-cancel/dunning. */
   isFreeFallback: boolean;
+  /**
+   * True when the tenant's current plan is Free, however they got there
+   * (signup, downgrade, or dunning fallback). Used to gate UI that's
+   * always-hidden on Free regardless of `deniedFeatures` (e.g. settings
+   * sections the backend doesn't yet ship a feature key for). Matches
+   * `plan.tier === "free"` or, for legacy payloads that only set `name`,
+   * a case-insensitive `name === "free"`.
+   */
+  isFreePlan: boolean;
   /** True when the limitations payload hasn't loaded yet. */
   isLoading: boolean;
 }
@@ -87,6 +96,10 @@ export function useCapability(): CapabilitiesView {
     const deniedEndpointPatterns: string[] =
       limitations?.deniedEndpoints?.map((e) => e.pattern) ?? [];
 
+    const planTier = limitations?.plan?.tier?.toLowerCase() ?? null;
+    const planName = limitations?.plan?.name?.toLowerCase() ?? null;
+    const isFreePlan = planTier === "free" || planName === "free";
+
     return {
       limitations,
       can: (key) => !deniedSet.has(key),
@@ -97,6 +110,7 @@ export function useCapability(): CapabilitiesView {
         deniedEndpointPatterns.some((p) => p.startsWith(apiPrefix)),
       capFor: (field) => limitations?.caps?.[field],
       isFreeFallback: limitations?.plan?.isFreeFallback === true,
+      isFreePlan,
       isLoading,
     };
   }, [data, isLoading]);

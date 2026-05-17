@@ -664,6 +664,8 @@ export function TenantsPageClient() {
         getRowId={(tenant) => tenant.id}
         itemNoun="tenant"
         bulkActions={bulkActions}
+        getRowHref={(tenant) => tenantDetailHref(tenant.id)}
+        rowClickAriaLabel={(tenant) => `View details for ${tenant.companyName}`}
       />
 
       <ConfirmDialog

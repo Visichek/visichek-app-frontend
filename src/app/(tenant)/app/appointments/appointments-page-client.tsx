@@ -354,6 +354,10 @@ export function AppointmentsPageClient() {
         getRowId={(appt) => appt.id}
         itemNoun="appointment"
         bulkActions={bulkActions}
+        getRowHref={(appt) => `/app/appointments/${appt.id}/edit`}
+        rowClickAriaLabel={(appt) =>
+          `View details for appointment with ${appt.visitorNameSnapshot ?? "visitor"}`
+        }
       />
 
       <ConfirmDialog

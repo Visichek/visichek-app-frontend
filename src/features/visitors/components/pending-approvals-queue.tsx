@@ -33,11 +33,22 @@ import {
   XCircle,
 } from "lucide-react";
 
-import { DataTable } from "@/components/recipes/data-table";
+import {
+  DataTable,
+  type DataTableBulkAction,
+} from "@/components/recipes/data-table";
 import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
 import { NavButton } from "@/components/recipes/nav-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,14 +56,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils/cn";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { formatDateTime } from "@/lib/utils/format-date";
+import { summarizeBulkResult } from "@/lib/api/bulk";
 import {
+  useBulkApproveCheckins,
+  useBulkForceApprovePendingCheckins,
+  useBulkRejectCheckins,
   useForceApprovePendingCheckin,
   usePendingApprovals,
 } from "@/features/checkins/hooks";
@@ -181,6 +199,9 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
   void systemUserProfile;
   const checkInFromAppointment = useCheckInFromAppointment();
   const forceApprove = useForceApprovePendingCheckin();
+  const bulkApprove = useBulkApproveCheckins();
+  const bulkReject = useBulkRejectCheckins();
+  const bulkForceApprove = useBulkForceApprovePendingCheckins();
   const [busyAppointmentId, setBusyAppointmentId] = useState<string | null>(null);
   const [busyForceApproveId, setBusyForceApproveId] = useState<string | null>(
     null,
@@ -190,7 +211,91 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
     field: AppointmentCheckInMissingField;
   } | null>(null);
 
+  /**
+   * Pending bulk-action modal state. Buttons only appear when the
+   * selection is uniformly eligible for the action, so by the time we
+   * open this modal every id in `ids` is guaranteed to be a valid
+   * target — no `skipped` disclosure needed.
+   */
+  type BulkActionKind = "approve" | "reject" | "force_approve";
+  const [bulkModal, setBulkModal] = useState<
+    | {
+        kind: BulkActionKind;
+        ids: string[];
+        note: string;
+      }
+    | null
+  >(null);
+
+  /**
+   * Client-side filter pills that split the unified queue into the three
+   * disjoint subsets the receptionist actually wants to act on. The
+   * filter is applied to the rows passed to `<DataTable>`, so a
+   * select-all on any filter view produces a homogeneous selection that
+   * trivially passes the bulk-action eligibility check below.
+   *
+   *  - `all`          → unfiltered (default)
+   *  - `ready`        → walk-in check-ins ready for approve / reject
+   *  - `awaiting_id`  → walk-in check-ins still in KYC (force-approve target)
+   *  - `appointments` → scheduled appointments (single-item check-in only)
+   */
+  type BulkFilter = "all" | "ready" | "awaiting_id" | "appointments";
+  const [bulkFilter, setBulkFilter] = useState<BulkFilter>("all");
+
+  /** Tracked here so the bulk-action array can react to homogeneity. */
+  const [selectedRows, setSelectedRows] = useState<PendingApprovalItem[]>([]);
+
   const rows = data ?? [];
+
+  const filteredRows = useMemo(() => {
+    switch (bulkFilter) {
+      case "ready":
+        return rows.filter(
+          (r) => r.sourceType === "checkin" && r.state === "pending_approval",
+        );
+      case "awaiting_id":
+        return rows.filter(
+          (r) =>
+            r.sourceType === "checkin" && r.state === "pending_verification",
+        );
+      case "appointments":
+        return rows.filter((r) => r.sourceType === "appointment");
+      case "all":
+      default:
+        return rows;
+    }
+  }, [rows, bulkFilter]);
+
+  const counts = useMemo(
+    () => ({
+      all: rows.length,
+      ready: rows.filter(
+        (r) => r.sourceType === "checkin" && r.state === "pending_approval",
+      ).length,
+      awaiting_id: rows.filter(
+        (r) =>
+          r.sourceType === "checkin" && r.state === "pending_verification",
+      ).length,
+      appointments: rows.filter((r) => r.sourceType === "appointment").length,
+    }),
+    [rows],
+  );
+
+  /**
+   * Eligibility predicates. A bulk action button only renders when every
+   * selected row passes the matching predicate — partially-eligible
+   * selections never see the button at all, so the operator can never
+   * trigger an action that would no-op or partially fail.
+   */
+  const isApprovableRow = (r: PendingApprovalItem) =>
+    r.sourceType === "checkin" && r.state === "pending_approval";
+  const isForceApprovableRow = (r: PendingApprovalItem) =>
+    r.sourceType === "checkin" && r.state === "pending_verification";
+
+  const selectionAllApprovable =
+    selectedRows.length > 0 && selectedRows.every(isApprovableRow);
+  const selectionAllForceApprovable =
+    selectedRows.length > 0 && selectedRows.every(isForceApprovableRow);
 
   /**
    * Outcome of one attempt at `POST /v1/appointments/{id}/check-in`.
@@ -293,6 +398,115 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
       setBusyForceApproveId(null);
     }
   };
+
+  /**
+   * Open the bulk-action modal. The action buttons that call this are
+   * only rendered when the selection is uniformly eligible, so we can
+   * assume every selected row has a `checkinId` here.
+   */
+  const openBulkModal = (
+    kind: BulkActionKind,
+    selected: PendingApprovalItem[],
+  ) => {
+    const ids = selected
+      .map((row) => row.checkinId ?? row.id)
+      .filter((id): id is string => !!id);
+    if (ids.length === 0) return;
+    setBulkModal({ kind, ids, note: "" });
+  };
+
+  const closeBulkModal = () => setBulkModal(null);
+
+  const bulkPending =
+    bulkApprove.isPending || bulkReject.isPending || bulkForceApprove.isPending;
+
+  const handleBulkConfirm = async () => {
+    if (!bulkModal) return;
+    const { kind, ids, note } = bulkModal;
+    const trimmed = note.trim();
+    try {
+      const result =
+        kind === "approve"
+          ? await bulkApprove.mutateAsync({
+              ids,
+              notes: trimmed.length > 0 ? trimmed : undefined,
+            })
+          : kind === "reject"
+            ? await bulkReject.mutateAsync({
+                ids,
+                reason: trimmed.length > 0 ? trimmed : undefined,
+              })
+            : await bulkForceApprove.mutateAsync({ ids });
+      const verb =
+        kind === "approve"
+          ? "approved"
+          : kind === "reject"
+            ? "rejected"
+            : "moved to pending approval";
+      const { tone, message } = summarizeBulkResult(result, "check-in", verb);
+      toast[tone](message);
+      closeBulkModal();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Bulk action failed",
+      );
+    }
+  };
+
+  /**
+   * Bulk-action buttons rendered above the table when a selection is
+   * non-empty AND uniformly eligible for the action. Mixed selections
+   * (e.g. one walk-in + one appointment) hide every action so the
+   * operator can never trigger a partial / no-op bulk request — the
+   * filter pills above the table are the intended way to narrow the
+   * view down before selecting.
+   *
+   * Force-approve is additionally gated to super_admin (matches the
+   * single-item action and the backend capability).
+   */
+  const bulkActions: DataTableBulkAction<PendingApprovalItem>[] = useMemo(() => {
+    const actions: DataTableBulkAction<PendingApprovalItem>[] = [];
+    if (selectionAllApprovable) {
+      actions.push({
+        label: "Approve",
+        description:
+          "Approve every selected walk-in check-in and notify their hosts.",
+        icon: <CheckCircle2 className="h-4 w-4" aria-hidden="true" />,
+        onClick: (_ids, selected) => openBulkModal("approve", selected),
+        disabled: bulkPending,
+      });
+      actions.push({
+        label: "Reject",
+        description:
+          "Deny entry for every selected walk-in check-in, notify their hosts, and record the shared reason on each row.",
+        icon: <XCircle className="h-4 w-4" aria-hidden="true" />,
+        variant: "destructive",
+        onClick: (_ids, selected) => openBulkModal("reject", selected),
+        disabled: bulkPending,
+      });
+    }
+    if (isSuperAdmin && selectionAllForceApprovable) {
+      actions.push({
+        label: "Force-approve pending",
+        description:
+          "Unstick every selected check-in that's stuck in ID verification — moves them to the pending approval queue so reception can action them.",
+        icon: <Unlock className="h-4 w-4" aria-hidden="true" />,
+        variant: "outline",
+        onClick: (_ids, selected) => openBulkModal("force_approve", selected),
+        disabled: bulkPending,
+      });
+    }
+    return actions;
+    // openBulkModal closes over stable hook mutators; only the
+    // homogeneity flags, super-admin gate, and pending flag actually
+    // need to invalidate the array identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isSuperAdmin,
+    bulkPending,
+    selectionAllApprovable,
+    selectionAllForceApprovable,
+  ]);
 
   const columns: ColumnDef<PendingApprovalItem>[] = useMemo(
     () => [
@@ -835,11 +1049,105 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
     );
   };
 
+  const filterPills: Array<{
+    id: BulkFilter;
+    label: string;
+    tooltip: string;
+    count: number;
+    show: boolean;
+  }> = [
+    {
+      id: "all",
+      label: "All",
+      tooltip: "Show every row in the queue regardless of type or state",
+      count: counts.all,
+      show: true,
+    },
+    {
+      id: "ready",
+      label: "Walk-ins ready",
+      tooltip:
+        "Walk-in check-ins ready for approve or reject. Select all to action them in bulk.",
+      count: counts.ready,
+      show: true,
+    },
+    {
+      id: "awaiting_id",
+      label: "Awaiting ID",
+      tooltip:
+        "Walk-in check-ins still completing ID verification at the kiosk. Super admins can force these into the approval queue in bulk.",
+      count: counts.awaiting_id,
+      show: counts.awaiting_id > 0 || bulkFilter === "awaiting_id",
+    },
+    {
+      id: "appointments",
+      label: "Appointments",
+      tooltip:
+        "Scheduled appointments awaiting check-in. These must be checked in one at a time — bulk actions don't apply.",
+      count: counts.appointments,
+      show: counts.appointments > 0 || bulkFilter === "appointments",
+    },
+  ];
+
   return (
     <>
+      <div className="space-y-4">
+      <div
+        className="flex flex-wrap items-center gap-2"
+        role="group"
+        aria-label="Filter queue"
+      >
+        {filterPills
+          .filter((pill) => pill.show)
+          .map((pill) => {
+            const active = bulkFilter === pill.id;
+            return (
+              <Tooltip key={pill.id}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => setBulkFilter(pill.id)}
+                    aria-pressed={active}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors min-h-[36px]",
+                      active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted",
+                    )}
+                  >
+                    <span>{pill.label}</span>
+                    <span
+                      className={cn(
+                        "inline-flex items-center justify-center rounded-full text-[10px] font-semibold h-4 min-w-[16px] px-1",
+                        active
+                          ? "bg-primary-foreground/20 text-primary-foreground"
+                          : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {pill.count}
+                    </span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{pill.tooltip}</TooltipContent>
+              </Tooltip>
+            );
+          })}
+      </div>
+
+      {bulkFilter === "appointments" && counts.appointments > 0 && (
+        <p
+          className="rounded-md border border-border bg-muted/50 p-3 text-xs text-muted-foreground"
+          role="status"
+        >
+          Appointments must be checked in one at a time so the receptionist
+          can supply missing fields per visitor. Use the row-level{" "}
+          <strong>Check in</strong> button instead.
+        </p>
+      )}
+
       <DataTable
         columns={columns}
-        data={rows}
+        data={filteredRows}
         isLoading={isLoading}
         searchKey="visitorName"
         searchPlaceholder="Search by visitor name..."
@@ -848,7 +1156,21 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
         mobileCard={mobileCard}
         emptyTitle="No pending approvals"
         emptyDescription="Walk-in submissions and scheduled appointments appear here automatically."
+        selectable
+        getRowId={(row) => row.id}
+        itemNoun="check-in"
+        bulkActions={bulkActions}
+        onSelectionChange={(_ids, rows) => setSelectedRows(rows)}
+        getRowHref={(item) =>
+          item.sourceType === "checkin" ? checkinDetailHref(item.id) : undefined
+        }
+        rowClickAriaLabel={(item) =>
+          item.sourceType === "checkin"
+            ? `View check-in details for ${item.visitorName}`
+            : `Check in appointment for ${item.visitorName}`
+        }
       />
+      </div>
       <AppointmentCheckInPromptModal
         open={!!promptState}
         field={promptState?.field ?? "phone"}
@@ -857,6 +1179,133 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
         onCancel={handlePromptCancel}
         onSubmit={(value) => void handlePromptSubmit(value)}
       />
+      <BulkActionModal
+        state={bulkModal}
+        onClose={closeBulkModal}
+        onNoteChange={(value) =>
+          setBulkModal((prev) => (prev ? { ...prev, note: value } : prev))
+        }
+        onConfirm={() => void handleBulkConfirm()}
+        isSubmitting={bulkPending}
+      />
     </>
+  );
+}
+
+interface BulkActionModalState {
+  kind: "approve" | "reject" | "force_approve";
+  ids: string[];
+  note: string;
+}
+
+interface BulkActionModalProps {
+  state: BulkActionModalState | null;
+  onClose: () => void;
+  onNoteChange: (value: string) => void;
+  onConfirm: () => void;
+  isSubmitting: boolean;
+}
+
+/**
+ * Modal that confirms a bulk approve / reject / force-approve action on
+ * the pending approvals queue. Renders an optional `notes` textarea for
+ * approve and a `reason` textarea for reject (both capped at the backend
+ * limit of 500 chars); force-approve takes no extra input.
+ */
+function BulkActionModal({
+  state,
+  onClose,
+  onNoteChange,
+  onConfirm,
+  isSubmitting,
+}: BulkActionModalProps) {
+  const REASON_MAX = 500;
+  const open = !!state;
+  const kind = state?.kind ?? "approve";
+  const count = state?.ids.length ?? 0;
+  const note = state?.note ?? "";
+
+  const noun = count === 1 ? "check-in" : "check-ins";
+  const titleByKind: Record<BulkActionModalState["kind"], string> = {
+    approve: `Approve ${count} ${noun}`,
+    reject: `Reject ${count} ${noun}`,
+    force_approve: `Force-approve ${count} stuck ${noun}`,
+  };
+  const descByKind: Record<BulkActionModalState["kind"], string> = {
+    approve: `Approve the selected ${noun}, issue badges where the plan grants them, and notify each visitor's host.`,
+    reject: `Deny entry for the selected ${noun} and notify each visitor's host. The reason below is recorded on every row.`,
+    force_approve: `Move the selected ${noun} from "awaiting ID verification" into the pending approval queue so reception can action them.`,
+  };
+  const showNoteField = kind === "approve" || kind === "reject";
+  const noteLabel =
+    kind === "approve" ? "Notes (optional)" : "Reason (optional)";
+  const notePlaceholder =
+    kind === "approve"
+      ? "Add an internal note shown on the approval audit row"
+      : "e.g. Visitor was unable to confirm the host they were meeting";
+  const confirmLabel =
+    kind === "approve"
+      ? `Approve ${count}`
+      : kind === "reject"
+        ? `Reject ${count}`
+        : `Force-approve ${count}`;
+  const confirmVariant: "default" | "destructive" =
+    kind === "reject" ? "destructive" : "default";
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && !isSubmitting) onClose();
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{titleByKind[kind]}</DialogTitle>
+          <DialogDescription>{descByKind[kind]}</DialogDescription>
+        </DialogHeader>
+        {showNoteField && (
+          <div className="space-y-2">
+            <Label htmlFor="bulk-action-note">{noteLabel}</Label>
+            <Textarea
+              id="bulk-action-note"
+              value={note}
+              onChange={(event) =>
+                onNoteChange(event.target.value.slice(0, REASON_MAX))
+              }
+              placeholder={notePlaceholder}
+              rows={4}
+              disabled={isSubmitting}
+            />
+            <p className="text-xs text-muted-foreground text-right">
+              {note.length}/{REASON_MAX}
+            </p>
+          </div>
+        )}
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="min-h-[44px]"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant={confirmVariant}
+            onClick={onConfirm}
+            disabled={isSubmitting || count === 0}
+            className="min-h-[44px]"
+          >
+            {isSubmitting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : null}
+            {confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

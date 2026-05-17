@@ -248,6 +248,8 @@ export function DepartmentsPageClient() {
         getRowId={(dept) => dept.id}
         itemNoun="department"
         bulkActions={bulkActions}
+        getRowHref={(dept) => `/app/departments/${dept.id}/edit`}
+        rowClickAriaLabel={(dept) => `View details for department ${dept.name}`}
       />
 
       <ConfirmDialog

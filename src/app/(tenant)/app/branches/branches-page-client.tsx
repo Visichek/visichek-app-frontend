@@ -364,6 +364,8 @@ export function BranchesPageClient() {
         getRowId={(branch) => branch.id}
         itemNoun="branch"
         bulkActions={bulkActions}
+        getRowHref={(branch) => `/app/branches/${branch.id}/edit`}
+        rowClickAriaLabel={(branch) => `View details for branch ${branch.name}`}
       />
 
       <ConfirmDialog

@@ -24,6 +24,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { DataTable } from "@/components/recipes/data-table";
+import { DetailSheet } from "@/components/recipes/detail-sheet";
+import { RecordDetailList, type RecordDetailRow } from "@/components/recipes/record-detail-list";
 import { PageSkeleton } from "@/components/feedback/page-skeleton";
 import { ErrorState } from "@/components/feedback/error-state";
 import { useSession } from "@/hooks/use-session";
@@ -101,6 +103,7 @@ export function BillingPageClient() {
   // we no longer need to update every site if the role list changes.
   const canManageBilling = hasCapability(CAPABILITIES.BILLING_MANAGE);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [invoiceDetail, setInvoiceDetail] = useState<Invoice | null>(null);
 
   const {
     data: usage,
@@ -515,6 +518,11 @@ export function BillingPageClient() {
               }}
               emptyTitle="No invoices"
               emptyDescription="You don't have any invoices yet."
+              getRowId={(invoice) => invoice.id}
+              onRowClick={(invoice) => setInvoiceDetail(invoice)}
+              rowClickAriaLabel={(invoice) =>
+                `View details for invoice ${invoice.invoiceNumber || invoice.id}`
+              }
             />
           </CardContent>
         </Card>
@@ -531,6 +539,111 @@ export function BillingPageClient() {
           planLabel={usage?.planName}
         />
       )}
+
+      <DetailSheet
+        open={!!invoiceDetail}
+        onOpenChange={(open) => { if (!open) setInvoiceDetail(null); }}
+        title={
+          invoiceDetail
+            ? `Invoice ${invoiceDetail.invoiceNumber || invoiceDetail.id}`
+            : ""
+        }
+        description={
+          invoiceDetail?.issuedAt
+            ? `Issued ${formatDate(invoiceDetail.issuedAt)}`
+            : undefined
+        }
+        actions={
+          invoiceDetail?.pdfUrl ? (
+            <Button asChild>
+              <a
+                href={invoiceDetail.pdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
+                Open PDF
+              </a>
+            </Button>
+          ) : undefined
+        }
+      >
+        {invoiceDetail && (
+          <>
+            <RecordDetailList
+              rows={(
+                [
+                  {
+                    label: "Status",
+                    value: (
+                      <Badge variant={getInvoiceStatusVariant(invoiceDetail.status)}>
+                        {formatInvoiceStatus(invoiceDetail.status)}
+                      </Badge>
+                    ),
+                  },
+                  {
+                    label: "Amount",
+                    value: formatCurrency(invoiceDetail.totalMinor, invoiceDetail.currency),
+                  },
+                  {
+                    label: "Subtotal",
+                    value: formatCurrency(invoiceDetail.subtotalMinor, invoiceDetail.currency),
+                  },
+                  {
+                    label: "Discount",
+                    value: invoiceDetail.discountTotalMinor
+                      ? `−${formatCurrency(invoiceDetail.discountTotalMinor, invoiceDetail.currency)}`
+                      : null,
+                  },
+                  {
+                    label: "Tax",
+                    value: invoiceDetail.taxMinor
+                      ? formatCurrency(invoiceDetail.taxMinor, invoiceDetail.currency)
+                      : null,
+                  },
+                  {
+                    label: "Billing cycle",
+                    value: <span className="capitalize">{invoiceDetail.billingCycle}</span>,
+                  },
+                  {
+                    label: "Period",
+                    value: `${formatDate(invoiceDetail.periodStart)} – ${formatDate(invoiceDetail.periodEnd)}`,
+                  },
+                  {
+                    label: "Paid at",
+                    value: invoiceDetail.paidAt ? formatDate(invoiceDetail.paidAt) : null,
+                  },
+                  {
+                    label: "Provider",
+                    value: invoiceDetail.provider,
+                  },
+                ] as RecordDetailRow[]
+              ).filter((r) => r.value !== null && r.value !== undefined && r.value !== "")}
+            />
+
+            {invoiceDetail.lineItems.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Line items
+                </h3>
+                <ul className="divide-y rounded-lg border">
+                  {invoiceDetail.lineItems.map((item, idx) => (
+                    <li key={idx} className="flex items-center justify-between px-3 py-2 text-sm">
+                      <span className="min-w-0 truncate pr-2">{item.description}</span>
+                      <span className="whitespace-nowrap text-muted-foreground">
+                        {item.quantity} × {formatCurrency(item.unitPriceMinor, invoiceDetail.currency)}
+                        <span className="ml-2 text-foreground">
+                          {formatCurrency(item.totalMinor, invoiceDetail.currency)}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        )}
+      </DetailSheet>
     </TooltipProvider>
   );
 }

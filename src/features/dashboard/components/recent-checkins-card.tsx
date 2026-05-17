@@ -13,7 +13,11 @@ import type { RecentCheckIn } from "@/types/dashboard";
 import type { VisitStatus } from "@/types/enums";
 
 interface RecentCheckInsCardProps {
-  items: RecentCheckIn[];
+  /**
+   * Last-10 check-ins. Accepts `null`/`undefined` because the Free-plan
+   * dashboard payload nulls `recentCheckIns` by design.
+   */
+  items: RecentCheckIn[] | null | undefined;
 }
 
 /**
@@ -29,7 +33,7 @@ export function RecentCheckInsCard({ items }: RecentCheckInsCardProps) {
         <CardDescription>Latest visitor activity</CardDescription>
       </CardHeader>
       <CardContent>
-        {items.length === 0 ? (
+        {!items || items.length === 0 ? (
           <EmptyState
             title="No check-ins yet"
             description="Recent visitor activity will appear here."

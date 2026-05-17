@@ -8,17 +8,25 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { EmptyState } from "@/components/feedback/empty-state";
 import { ChartBodySkeleton } from "./chart-body-skeleton";
 
 interface HeatmapBarsProps {
   title: string;
   description?: string;
-  data: Array<{ label: string; value: number }>;
+  /**
+   * Bar buckets. Accepts `null`/`undefined` because the Free-plan dashboard
+   * payload nulls heatmap fields by design — the card falls through to
+   * the empty state in that case.
+   */
+  data: Array<{ label: string; value: number }> | null | undefined;
   height?: number;
   /** HSL color string. Defaults to chart blue. */
   color?: string;
   /** Tooltip suffix for the bar value (e.g. "visits"). */
   unit?: string;
+  /** Copy shown in the empty state when `data` is null/empty. */
+  emptyTitle?: string;
 }
 
 export type HeatmapBarsBodyProps = Required<
@@ -54,6 +62,7 @@ export function HeatmapBars({
   height = 200,
   color = DEFAULT_COLOR,
   unit,
+  emptyTitle = "No data yet",
 }: HeatmapBarsProps) {
   return (
     <Card>
@@ -62,7 +71,11 @@ export function HeatmapBars({
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent>
-        <HeatmapBarsBody data={data} height={height} color={color} unit={unit} />
+        {!data || data.length === 0 ? (
+          <EmptyState title={emptyTitle} />
+        ) : (
+          <HeatmapBarsBody data={data} height={height} color={color} unit={unit} />
+        )}
       </CardContent>
     </Card>
   );

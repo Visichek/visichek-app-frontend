@@ -139,6 +139,36 @@ const FEATURE_COPY: Record<
       "Sub-processor and consent registers",
     ],
   },
+  geofencing: {
+    title: "Geofencing",
+    blurb:
+      "Only accept check-ins from visitors who are physically on-site or close to an active approver.",
+    bullets: [
+      "Reject submissions from outside a configurable radius",
+      "Fall back to live approver location when no fixed point is set",
+      "Stop drive-by check-ins and remote spoofing",
+    ],
+  },
+  visitor_policies: {
+    title: "Visitor policies",
+    blurb:
+      "Configure how visitors check in — required ID scans, host approvals, consent gating, badge lifetime, and more.",
+    bullets: [
+      "Mandate ID scan, host approval, or NDPA consent on every check-in",
+      "Enable self-registration via QR for unstaffed kiosks",
+      "Auto check visitors out and control badge expiry",
+    ],
+  },
+  email_preferences: {
+    title: "Organisation email preferences",
+    blurb:
+      "Control what email VisiChek sends on behalf of your organisation — welcome, host-arrival, and visitor-badge mail.",
+    bullets: [
+      "Welcome email to new staff accounts",
+      "Host arrival notifications",
+      "Visitor badge sent to the visitor after check-in",
+    ],
+  },
 };
 
 // Generic copy for features that don't have a tailored entry (e.g. incidents,

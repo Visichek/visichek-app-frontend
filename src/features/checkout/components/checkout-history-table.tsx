@@ -234,6 +234,9 @@ export function CheckoutHistoryTable() {
               pageSize={10}
               emptyTitle="No checkouts yet"
               emptyDescription="When you start a subscription checkout it will show up here."
+              getRowId={(session) => session.id}
+              getRowHref={(session) => `/app/billing/checkout/${session.id}`}
+              rowClickAriaLabel={() => "View this checkout session"}
             />
           )}
         </CardContent>

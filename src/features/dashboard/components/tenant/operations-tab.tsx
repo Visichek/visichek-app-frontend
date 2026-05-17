@@ -32,9 +32,14 @@ function formatPeakHour(hour: number | null | undefined): string {
 }
 
 export function OperationsTab({ stats }: OperationsTabProps) {
-  const hasHourlyData = stats.hourlyDistribution.some((b) => b.value > 0);
-  const hasDayOfWeekData = stats.dayOfWeekDistribution.some((b) => b.value > 0);
-  const hasAppointmentMix = stats.appointmentStatusDistribution.length > 0;
+  // Free-plan responses null these fields out — treat null/undefined as
+  // "no data" rather than crashing on .some / .length.
+  const hasHourlyData =
+    stats.hourlyDistribution?.some((b) => b.value > 0) ?? false;
+  const hasDayOfWeekData =
+    stats.dayOfWeekDistribution?.some((b) => b.value > 0) ?? false;
+  const hasAppointmentMix =
+    (stats.appointmentStatusDistribution?.length ?? 0) > 0;
 
   return (
     <div className="space-y-6">

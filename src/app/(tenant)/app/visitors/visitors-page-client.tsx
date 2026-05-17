@@ -5,6 +5,7 @@ import {
   QrCode,
   Loader2,
   UserMinus,
+  UserPlus,
   Settings2,
   GraduationCap,
 } from "lucide-react";
@@ -37,6 +38,8 @@ import {
   useTutorialProgress,
   type TutorialStep,
 } from "@/features/tutorials";
+import { useCapability } from "@/features/limitations/hooks/use-limitations";
+import { LockedOverlay } from "@/features/limitations/components/locked-overlay";
 
 type VisitorsTabState = Extract<
   CheckinState,
@@ -100,6 +103,19 @@ export function VisitorsPageClient({ activeState }: VisitorsPageClientProps) {
   // dept_admin sees the entry point too.
   const canConfigureForm = hasCapability(CAPABILITIES.TENANT_FORM_CONFIGURE);
   const formBuilderHref = "/app/visitors/form-builder";
+  // Free plan blocks POST/PATCH/DELETE on /v1/checkin-configs — the form
+  // builder can't save changes there. Lock the entry point with the
+  // shared upgrade overlay so the user sees the gate before clicking
+  // through to a dead-end page.
+  const { isEndpointDenied, isLoading: limitationsLoading } = useCapability();
+  const isFormBuilderLocked =
+    !limitationsLoading && isEndpointDenied("/v1/checkin-configs");
+  // Free plan blocks POST /v1/visitors/registration-qr. Instead of locking the
+  // QR generator page behind an overlay, swap the action for a one-click
+  // "open the public kiosk in a new tab" — same self-service register flow,
+  // just without the signed-token convenience.
+  const isRegistrationQrLocked =
+    !limitationsLoading && isEndpointDenied("/v1/visitors/registration-qr");
 
   // Issue 7: visitor workflow tutorial. The runner is mounted but
   // hidden by default; only opens on an explicit click below.
@@ -227,31 +243,39 @@ export function VisitorsPageClient({ activeState }: VisitorsPageClientProps) {
         actions={
           <div className="flex flex-col gap-2 sm:flex-row">
             {canConfigureForm && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <NavButton
-                    href={formBuilderHref}
-                    className="flex-1 sm:flex-none min-h-[44px]"
-                  >
-                    {loadingHref === formBuilderHref ? (
-                      <Loader2
-                        className="mr-2 h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <Settings2
-                        className="mr-2 h-4 w-4"
-                        aria-hidden="true"
-                      />
-                    )}
-                    Configure form
-                  </NavButton>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  Customise the fields visitors fill in when they check in,
-                  including required information and consent
-                </TooltipContent>
-              </Tooltip>
+              <LockedOverlay
+                locked={isFormBuilderLocked}
+                featureKey="csv_export"
+                title="Configure visitor form"
+                ctaLabel={null}
+                className="flex-1 sm:flex-none"
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <NavButton
+                      href={formBuilderHref}
+                      className="flex-1 sm:flex-none min-h-[44px]"
+                    >
+                      {loadingHref === formBuilderHref ? (
+                        <Loader2
+                          className="mr-2 h-4 w-4 animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <Settings2
+                          className="mr-2 h-4 w-4"
+                          aria-hidden="true"
+                        />
+                      )}
+                      Configure form
+                    </NavButton>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    Customise the fields visitors fill in when they check in,
+                    including required information and consent
+                  </TooltipContent>
+                </Tooltip>
+              </LockedOverlay>
             )}
             <Tooltip>
               <TooltipTrigger asChild>
@@ -280,33 +304,65 @@ export function VisitorsPageClient({ activeState }: VisitorsPageClientProps) {
                 picking them from the list
               </TooltipContent>
             </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <NavButton
-                  href="/app/visitors/qr"
-                  variant="outline"
-                  className="flex-1 sm:flex-none min-h-[44px]"
-                  data-tutorial-anchor="visitor-registration-qr"
-                >
-                  {loadingHref === "/app/visitors/qr" ? (
-                    <Loader2
-                      className="mr-2 h-4 w-4 animate-spin"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <QrCode
+            {isRegistrationQrLocked ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 sm:flex-none min-h-[44px]"
+                    onClick={() => {
+                      if (!tenantId) return;
+                      window.open(
+                        `/register/${tenantId}`,
+                        "_blank",
+                        "noopener,noreferrer",
+                      );
+                    }}
+                    disabled={!tenantId}
+                    data-tutorial-anchor="visitor-registration-qr"
+                  >
+                    <UserPlus
                       className="mr-2 h-4 w-4"
                       aria-hidden="true"
                     />
-                  )}
-                  Registration QR
-                </NavButton>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                Generate a QR code visitors can scan to self-register from their
-                phone
-              </TooltipContent>
-            </Tooltip>
+                    Register visitor
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  Open the public visitor registration kiosk in a new tab so a
+                  visitor can fill in their own details and check in
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <NavButton
+                    href="/app/visitors/qr"
+                    variant="outline"
+                    className="flex-1 sm:flex-none min-h-[44px]"
+                    data-tutorial-anchor="visitor-registration-qr"
+                  >
+                    {loadingHref === "/app/visitors/qr" ? (
+                      <Loader2
+                        className="mr-2 h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <QrCode
+                        className="mr-2 h-4 w-4"
+                        aria-hidden="true"
+                      />
+                    )}
+                    Registration QR
+                  </NavButton>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  Generate a QR code visitors can scan to self-register from
+                  their phone
+                </TooltipContent>
+              </Tooltip>
+            )}
 
             {/* Issue 7: tutorial entry point. Never auto-launches — only
                 appears here as a button. Copy switches between Start /

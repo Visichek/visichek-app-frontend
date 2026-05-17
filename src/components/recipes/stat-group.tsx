@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils/cn";
+import { LockedOverlay } from "@/features/limitations/components/locked-overlay";
+import type { PlanFeatureKey } from "@/types/billing";
 
 export interface StatGroupItem {
   label: string;
@@ -12,6 +14,15 @@ export interface StatGroupItem {
     value: number;
     isPositive: boolean;
   };
+  /**
+   * When true, the cell renders blurred with a shaking padlock overlay.
+   * Clicking the overlay opens the shared upgrade modal pre-keyed to
+   * `lockedFeatureKey`. Use for individual KPIs whose value is hidden
+   * behind a plan gate (e.g. retention rate on the Free plan).
+   */
+  locked?: boolean;
+  /** Feature key passed to the upgrade modal when `locked` is true. */
+  lockedFeatureKey?: PlanFeatureKey | string;
 }
 
 export interface StatGroupProps {
@@ -75,8 +86,8 @@ export function StatGroup({
       <CardContent className={cn("grid gap-x-6 gap-y-4", COL_CLASS[cols], !title && "pt-6")}>
         {items.map((item) => {
           const tone = TONE_CLASS[item.tone ?? "default"];
-          return (
-            <div key={item.label} className="min-w-0">
+          const cell = (
+            <div className="min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <p className="truncate text-xs font-medium text-muted-foreground">
                   {item.label}
@@ -115,6 +126,22 @@ export function StatGroup({
               )}
             </div>
           );
+
+          if (item.locked) {
+            return (
+              <LockedOverlay
+                key={item.label}
+                locked
+                featureKey={item.lockedFeatureKey}
+                title={item.label}
+                ctaLabel={null}
+                className="min-h-[88px]"
+              >
+                {cell}
+              </LockedOverlay>
+            );
+          }
+          return <div key={item.label}>{cell}</div>;
         })}
       </CardContent>
     </Card>

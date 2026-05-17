@@ -11,7 +11,12 @@ import type { TopItem } from "@/types/dashboard";
 interface TopListProps {
   title: string;
   description?: string;
-  items: TopItem[];
+  /**
+   * Ranked items. Accepts `null`/`undefined` because the Free-plan
+   * dashboard payload nulls top-N fields by design — the card falls
+   * through to the empty state in that case.
+   */
+  items: TopItem[] | null | undefined;
   unit?: string;
   emptyTitle?: string;
   emptyDescription?: string;
@@ -40,7 +45,7 @@ export function TopList({
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent>
-        {items.length === 0 ? (
+        {!items || items.length === 0 ? (
           <EmptyState title={emptyTitle} description={emptyDescription} />
         ) : (
           <ol className="space-y-3">

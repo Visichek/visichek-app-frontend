@@ -17,6 +17,9 @@ import {
 } from "@/components/ui/tooltip";
 import { PageHeader } from "@/components/recipes/page-header";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
+import { useCapability } from "@/features/limitations/hooks/use-limitations";
+import { LockedOverlay } from "@/features/limitations/components/locked-overlay";
+import type { PlanFeatureKey } from "@/types/billing";
 
 interface MethodOption {
   href: string;
@@ -24,6 +27,12 @@ interface MethodOption {
   description: string;
   Icon: typeof QrCode;
   tooltip: string;
+  /**
+   * Feature key gating this method. When denied by the active plan, the
+   * tile renders blurred behind a padlock and clicks open the upgrade
+   * modal instead of navigating to the workflow.
+   */
+  lockFeature?: PlanFeatureKey;
 }
 
 const METHODS: readonly MethodOption[] = [
@@ -35,6 +44,9 @@ const METHODS: readonly MethodOption[] = [
     Icon: QrCode,
     tooltip:
       "Open the scanner workflow — pick the visitor, then scan their badge to confirm",
+    // Free plan blocks /v1/badges entirely — printable badges and the
+    // QR scanner that reads them are paid-only.
+    lockFeature: "badges",
   },
   {
     href: "/app/visitors/checkout/manual",
@@ -49,6 +61,7 @@ const METHODS: readonly MethodOption[] = [
 
 export default function CheckOutMethodChoicePage() {
   const { loadingHref, navigateFromOverlay } = useNavigationLoading();
+  const { can, isLoading: limitationsLoading } = useCapability();
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -79,10 +92,11 @@ export default function CheckOutMethodChoicePage() {
       />
 
       <div className="grid gap-4 md:grid-cols-2">
-        {METHODS.map(({ href, label, description, Icon, tooltip }) => {
+        {METHODS.map(({ href, label, description, Icon, tooltip, lockFeature }) => {
           const isLoadingTile = loadingHref === href;
-          return (
-            <Tooltip key={href}>
+          const locked = !!lockFeature && !limitationsLoading && !can(lockFeature);
+          const tile = (
+            <Tooltip>
               <TooltipTrigger asChild>
                 <Link
                   href={href}
@@ -126,6 +140,20 @@ export default function CheckOutMethodChoicePage() {
               <TooltipContent side="bottom">{tooltip}</TooltipContent>
             </Tooltip>
           );
+
+          if (locked) {
+            return (
+              <LockedOverlay
+                key={href}
+                locked
+                featureKey={lockFeature ?? null}
+                title={label}
+              >
+                {tile}
+              </LockedOverlay>
+            );
+          }
+          return <div key={href}>{tile}</div>;
         })}
       </div>
     </div>

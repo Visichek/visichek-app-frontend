@@ -14,6 +14,9 @@ import { summarizeBulkResult } from "@/lib/api/bulk";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
 import { NavButton } from "@/components/recipes/nav-button";
+import { DetailSheet } from "@/components/recipes/detail-sheet";
+import { RecordDetailList, type RecordDetailRow } from "@/components/recipes/record-detail-list";
+import { formatDateTime } from "@/lib/utils/format-date";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -207,6 +210,7 @@ export function DiscountsPageClient() {
   const [bulkOp, setBulkOp] = React.useState<BulkOp | null>(null);
   const [bulkTargetIds, setBulkTargetIds] = React.useState<string[]>([]);
   const [bulkPending, setBulkPending] = React.useState(false);
+  const [detailTarget, setDetailTarget] = React.useState<Discount | null>(null);
 
   async function handleBulkConfirm() {
     if (!bulkOp || bulkTargetIds.length === 0) return;
@@ -474,8 +478,89 @@ export function DiscountsPageClient() {
               </div>
             </div>
           )}
+          onRowClick={(discount) => setDetailTarget(discount)}
+          rowClickAriaLabel={(discount) => `View details for discount ${discount.code}`}
         />
       )}
+
+      <DetailSheet
+        open={!!detailTarget}
+        onOpenChange={(open) => { if (!open) setDetailTarget(null); }}
+        title={detailTarget ? detailTarget.code : ""}
+        description={
+          detailTarget
+            ? detailTarget.name || `${capitalize(detailTarget.discountType)} discount`
+            : undefined
+        }
+      >
+        {detailTarget && (
+          <RecordDetailList
+            rows={(
+              [
+                {
+                  label: "Status",
+                  value: (
+                    <Badge variant={statusVariant(detailTarget.status)}>
+                      {capitalize(detailTarget.status?.replace(/_/g, " "))}
+                    </Badge>
+                  ),
+                },
+                {
+                  label: "Type",
+                  value: capitalize(detailTarget.discountType),
+                },
+                {
+                  label: "Value",
+                  value: formatValue(detailTarget.value, detailTarget.discountType),
+                },
+                {
+                  label: "Scope",
+                  value: <span className="capitalize">{detailTarget.scope}</span>,
+                },
+                {
+                  label: "Redemptions",
+                  value: detailTarget.maxRedemptions
+                    ? `${detailTarget.currentRedemptions ?? 0} / ${detailTarget.maxRedemptions}`
+                    : `${detailTarget.currentRedemptions ?? 0}`,
+                },
+                {
+                  label: "Stackable",
+                  value: detailTarget.stackable ? "Yes" : "No",
+                },
+                {
+                  label: "Valid from",
+                  value: detailTarget.validFrom
+                    ? formatDateTime(detailTarget.validFrom)
+                    : null,
+                },
+                {
+                  label: "Valid until",
+                  value: detailTarget.validUntil
+                    ? formatDateTime(detailTarget.validUntil)
+                    : null,
+                },
+                {
+                  label: "Min subscription value",
+                  value: detailTarget.minSubscriptionValue,
+                },
+                {
+                  label: "Created",
+                  value: formatDateTime(detailTarget.dateCreated),
+                },
+                {
+                  label: "Last updated",
+                  value: formatDateTime(detailTarget.lastUpdated),
+                },
+                {
+                  label: "Description",
+                  value: detailTarget.description,
+                  full: true,
+                },
+              ] as RecordDetailRow[]
+            ).filter((r) => r.value !== null && r.value !== undefined && r.value !== "")}
+          />
+        )}
+      </DetailSheet>
 
       <ConfirmDialog
         open={bulkOp !== null}

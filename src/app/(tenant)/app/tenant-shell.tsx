@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { PageSkeleton } from "@/components/feedback/page-skeleton";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { FreePlanBanner } from "@/components/billing/free-plan-banner";
 import {
@@ -46,7 +47,10 @@ import { cn } from "@/lib/utils/cn";
 import { useThemeSync } from "@/hooks/use-theme-sync";
 import { requestUserLocation } from "@/lib/geolocation/user-location";
 import { useCapability } from "@/features/limitations/hooks/use-limitations";
+import { useHideLocked } from "@/features/limitations/hooks/use-hide-locked";
 import { UpgradePromptProvider } from "@/features/limitations/components/upgrade-prompt-provider";
+import { HideLockedExpiryToast } from "@/features/limitations/components/hide-locked-expiry-toast";
+import { HideLockedMenuItem } from "@/features/limitations/components/hide-locked-menu-item";
 import { useNotificationBuckets } from "@/features/notifications/hooks";
 import type { PlanFeatureKey } from "@/types/billing";
 
@@ -202,6 +206,28 @@ const ALL_TENANT_NAV_ITEMS: (GatedNavItem | GatedNavGroup)[] = [
   },
 ];
 
+/**
+ * Plan-gated pages that do NOT live as their own top-level nav entry.
+ * The page-level redirect needs to know about these on top of the nav-
+ * derived locks above — otherwise typing the URL bypasses the lock.
+ *
+ * Add an entry here whenever you ship a route whose gate is enforced
+ * elsewhere in the UI (e.g. a button is hidden) rather than via the
+ * sidebar.
+ */
+const EXTRA_LOCKED_ROUTES: Array<{
+  pathPrefix: string;
+  feature?: PlanFeatureKey;
+  apiPrefix?: string;
+}> = [
+  // Visitor self-registration QR generator. The Visitors page already
+  // swaps the entry button for free users; this catches direct-URL hits.
+  {
+    pathPrefix: "/app/visitors/qr",
+    apiPrefix: "/v1/visitors/registration-qr",
+  },
+];
+
 function formatRole(role: string): string {
   return role
     .replace(/_/g, " ")
@@ -230,6 +256,7 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
   const { logout } = useAuth();
   const { navigateFromOverlay } = useNavigationLoading();
   const pathname = usePathname() ?? "";
+  const router = useRouter();
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -263,6 +290,7 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
   const workspaceLogo = branding?.logoUrl;
 
   const { can, isEndpointDenied, isLoading: limitationsLoading } = useCapability();
+  const { hideLocked } = useHideLocked();
   // Issue 2: tenant-side notification badges. Reuses the same
   // bucket-classification path the admin shell uses so the topbar bell,
   // sidebar badges, and any page-level alerts stay in sync.
@@ -282,15 +310,28 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
     // intercepts the click and opens the upgrade modal instead of
     // navigating. Role-denied items are still filtered out — those are not
     // upgrade prompts, they're role-scoped.
+    //
+    // While limitations are loading we LOCK every gated item by default.
+    // That eliminates the "shake" where Appointments looks free for the
+    // first ~200ms and then snaps to PRO once /me/limitations resolves —
+    // for free users (the common case) the badge is correct from frame
+    // one, and paid users see at most a single lock → unlock transition.
     function toNavItem(leaf: GatedNavItem): NavItem | null {
       if (!roleAllowsLeaf(leaf)) return null;
-      if (limitationsLoading) return leaf;
 
-      const featureDenied = !!leaf.feature && !can(leaf.feature);
+      const hasGate = !!leaf.feature || !!leaf.apiPrefix;
+      const featureDenied =
+        !!leaf.feature && (limitationsLoading || !can(leaf.feature));
       const endpointDenied =
-        !!leaf.apiPrefix && isEndpointDenied(leaf.apiPrefix);
+        !!leaf.apiPrefix &&
+        (limitationsLoading || isEndpointDenied(leaf.apiPrefix));
 
-      if (!featureDenied && !endpointDenied) return leaf;
+      if (!hasGate || (!featureDenied && !endpointDenied)) return leaf;
+      // Device-only opt-in: when "Hide locked items" is on, the row
+      // disappears from the rail rather than rendering as a locked
+      // padlock. The parent-group emptiness check below collapses any
+      // group whose children all dropped out for the same reason.
+      if (hideLocked) return null;
       return {
         ...leaf,
         locked: true,
@@ -312,10 +353,58 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
       }
     }
     return visible;
-  }, [currentRole, can, isEndpointDenied, limitationsLoading]);
+  }, [currentRole, can, isEndpointDenied, limitationsLoading, hideLocked]);
+
+  // Page-level lock check. Builds the set of href prefixes the current
+  // plan denies (from nav items + extra map), then tests the current
+  // pathname against it. Returns false while limitations are still
+  // loading — the children gate below renders a skeleton in that window,
+  // so the user can't see or interact with locked content before we know.
+  const isOnLockedPath = useMemo(() => {
+    if (limitationsLoading) return false;
+    const lockedPrefixes: string[] = [];
+
+    function collect(items: (GatedNavItem | GatedNavGroup)[]) {
+      for (const item of items) {
+        if (item.children) {
+          collect(item.children as GatedNavItem[]);
+          continue;
+        }
+        const leaf = item as GatedNavItem;
+        if (!leaf.href) continue;
+        const featureDenied = !!leaf.feature && !can(leaf.feature);
+        const endpointDenied =
+          !!leaf.apiPrefix && isEndpointDenied(leaf.apiPrefix);
+        if (featureDenied || endpointDenied) lockedPrefixes.push(leaf.href);
+      }
+    }
+    collect(ALL_TENANT_NAV_ITEMS);
+
+    for (const route of EXTRA_LOCKED_ROUTES) {
+      const featureDenied = !!route.feature && !can(route.feature);
+      const endpointDenied =
+        !!route.apiPrefix && isEndpointDenied(route.apiPrefix);
+      if (featureDenied || endpointDenied) lockedPrefixes.push(route.pathPrefix);
+    }
+
+    return lockedPrefixes.some(
+      (p) => pathname === p || pathname.startsWith(p + "/"),
+    );
+  }, [pathname, can, isEndpointDenied, limitationsLoading]);
+
+  // Hard redirect when the user lands on a locked route — directly via
+  // the URL bar, a bookmark, or a click that landed before the lock
+  // resolved. Skeleton stays visible until the redirect completes so
+  // the page content never paints.
+  useEffect(() => {
+    if (isOnLockedPath) router.replace("/app/dashboard");
+  }, [isOnLockedPath, router]);
+
+  const shouldBlockChildren = limitationsLoading || isOnLockedPath;
 
   return (
     <UpgradePromptProvider>
+      <HideLockedExpiryToast />
       <div className="min-h-screen bg-background">
         <AppSidebar
           items={visibleNavItems}
@@ -333,6 +422,7 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
           onHelpClick={() => navigateFromOverlay("/app/support-cases")}
           helpHref="/app/support-cases"
           onLogoutClick={logout}
+          extraUserMenuItems={<HideLockedMenuItem />}
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
         />
@@ -356,7 +446,7 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
           />
           <FreePlanBanner pathname={pathname} />
           <main id="main-content" className="p-4 lg:p-6">
-            {children}
+            {shouldBlockChildren ? <PageSkeleton /> : children}
           </main>
         </div>
 

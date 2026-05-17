@@ -366,6 +366,8 @@ export function BlogsPageClient() {
         mobileCard={mobileCard}
         getRowId={(blog) => blog.id}
         itemNoun="article"
+        getRowHref={(blog) => `/admin/blogs/${blog.id}/edit`}
+        rowClickAriaLabel={(blog) => `Edit article ${blog.title ?? "untitled draft"}`}
       />
 
       <ConfirmDialog

@@ -9,6 +9,8 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/api/request";
+import { bulkAction } from "@/lib/api/bulk";
+import type { BulkJobResult } from "@/types/list";
 import type {
   CheckinOut,
   CheckinListParams,
@@ -18,6 +20,9 @@ import type {
   PendingApprovalsParams,
 } from "@/types/checkin";
 import {
+  checkinBulkApprovePath,
+  checkinBulkForceApprovePendingPath,
+  checkinBulkRejectPath,
   checkinConfirmPath,
   checkinDetailPath,
   checkinForceApprovePendingPath,
@@ -115,6 +120,108 @@ export function useForceApprovePendingCheckin() {
       queryClient.invalidateQueries({
         queryKey: checkinKeys.detail(checkinId),
       });
+    },
+  });
+}
+
+/**
+ * Per-id result row returned by the bulk approve worker. Shape mirrors
+ * the backend snippet in `new-limitations.txt § "NEW BULK ENDPOINTS"`.
+ */
+export interface BulkApprovePerIdResult {
+  id: string;
+  state: string;
+  badgeId?: string;
+}
+
+export interface BulkApproveArgs {
+  ids: string[];
+  notes?: string;
+  atomic?: boolean;
+}
+
+export interface BulkRejectArgs {
+  ids: string[];
+  reason?: string;
+  atomic?: boolean;
+}
+
+export interface BulkForceApprovePendingArgs {
+  ids: string[];
+  atomic?: boolean;
+}
+
+/**
+ * Bulk approve N pending check-ins in a single queued job.
+ *
+ * Wraps `POST /v1/checkins/bulk/approve`. Per-id outcomes land in
+ * `BulkJobResult.succeeded` / `.failed` once the worker settles — the
+ * axios layer auto-polls the job so this hook resolves with the
+ * settled result, not the 202 ack.
+ *
+ * Side effects per id are the same as the single-item confirm flow:
+ * badge issuance (when the plan grants it), host notification, audit
+ * row, and dashboard / visitor-profile cache invalidation. The frontend
+ * mirrors that invalidation here so the pending count, the Approved
+ * tab, and the dashboard recent-checkins card all refresh once the
+ * worker reports succeeded ids.
+ */
+export function useBulkApproveCheckins() {
+  const queryClient = useQueryClient();
+  return useMutation<BulkJobResult<BulkApprovePerIdResult>, Error, BulkApproveArgs>({
+    mutationFn: ({ ids, notes, atomic }) =>
+      bulkAction<BulkApprovePerIdResult>(checkinBulkApprovePath(), ids, {
+        atomic,
+        extras:
+          notes !== undefined && notes !== null && notes.trim().length > 0
+            ? { notes }
+            : undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: checkinKeys.all });
+    },
+  });
+}
+
+/**
+ * Bulk reject N pending check-ins. `reason` is stored on each row as
+ * `rejection_reason` and the visitor's host is notified per id. Backend
+ * caps `reason` at 500 chars; the UI does the same to avoid surprise
+ * truncation.
+ */
+export function useBulkRejectCheckins() {
+  const queryClient = useQueryClient();
+  return useMutation<BulkJobResult<BulkApprovePerIdResult>, Error, BulkRejectArgs>({
+    mutationFn: ({ ids, reason, atomic }) =>
+      bulkAction<BulkApprovePerIdResult>(checkinBulkRejectPath(), ids, {
+        atomic,
+        extras:
+          reason !== undefined && reason !== null && reason.trim().length > 0
+            ? { reason }
+            : undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: checkinKeys.all });
+    },
+  });
+}
+
+/**
+ * Super-admin bulk recovery for stuck check-ins. Force-moves a batch
+ * from `pending_verification` → `pending_approval` so reception can
+ * action them. Same semantics as the single-item endpoint, queued.
+ */
+export function useBulkForceApprovePendingCheckins() {
+  const queryClient = useQueryClient();
+  return useMutation<BulkJobResult<BulkApprovePerIdResult>, Error, BulkForceApprovePendingArgs>({
+    mutationFn: ({ ids, atomic }) =>
+      bulkAction<BulkApprovePerIdResult>(
+        checkinBulkForceApprovePendingPath(),
+        ids,
+        { atomic },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: checkinKeys.all });
     },
   });
 }

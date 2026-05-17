@@ -12,6 +12,9 @@ export type { FilterConfig, FilterOption, FilterBarProps } from "./filter-bar";
 export { DetailSheet } from "./detail-sheet";
 export type { DetailSheetProps } from "./detail-sheet";
 
+export { RecordDetailList } from "./record-detail-list";
+export type { RecordDetailRow } from "./record-detail-list";
+
 export { PageHeader } from "./page-header";
 export type { PageHeaderProps } from "./page-header";
 

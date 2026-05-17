@@ -402,7 +402,15 @@ export type PlanFeatureKey =
   | "host_email_notifications"
   | "multi_location"
   | "watchlist"
-  | "sso";
+  | "sso"
+  // Settings sub-sections gated on Free — backend ships these inside
+  // `deniedFeatures` and the writer strips matching fields server-side
+  // (see `new-limitations.txt` § "LIMITATIONS UPDATE — FIELD-LEVEL
+  // FREE-PLAN GATES"). The frontend uses them to hide / lock the
+  // matching block in the Advanced settings tab.
+  | "email_preferences"
+  | "visitor_policies"
+  | "geofencing";
 
 export interface LimitationsPlanSummary {
   id: string;

@@ -17,6 +17,7 @@ import {
   Users,
   AlertTriangle,
   GripVertical,
+  Lock,
   Settings2,
   RotateCcw,
   type LucideIcon,
@@ -24,6 +25,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { useCapabilities } from "@/hooks/use-capabilities";
 import { CAPABILITIES, type Capability } from "@/lib/permissions/capabilities";
+import { useCapability } from "@/features/limitations/hooks/use-limitations";
+import { useUpgradePrompt } from "@/features/limitations/components/upgrade-prompt-provider";
+import type { PlanFeatureKey } from "@/types/billing";
 
 // ── Action definitions ────────────────────────────────────────────────
 
@@ -37,6 +41,28 @@ interface TenantQuickAction {
   iconColor: string;
   /** Capability required to see this action. */
   capability: Capability;
+  /**
+   * When set and the feature is denied by the active plan, the card
+   * renders locked (blurred + shaking padlock) and clicks open the
+   * upgrade modal instead of navigating.
+   */
+  lockFeature?: PlanFeatureKey | string;
+  /**
+   * Alternative gate: when set and the API prefix appears in
+   * `deniedEndpoints`, the card is locked. Used for actions whose target
+   * surface has no stable `deniedFeatures` key (e.g. incidents).
+   */
+  lockApiPrefix?: string;
+  /**
+   * Cap-based gate. Locks the action when `capFor(capField)` is non-null
+   * and `<= capMax`. Used for actions whose plan limit is expressed as a
+   * cap (e.g. Free plan = 1 system user, 1 department) rather than a
+   * feature flag. The card stays clickable but opens the upgrade modal.
+   */
+  lockCap?: {
+    field: "maxSystemUsers" | "maxDepartments" | "maxBranches";
+    max: number;
+  };
 }
 
 const ALL_ACTIONS: TenantQuickAction[] = [
@@ -69,6 +95,7 @@ const ALL_ACTIONS: TenantQuickAction[] = [
     color: "bg-emerald-50",
     iconColor: "text-emerald-600",
     capability: CAPABILITIES.APPOINTMENT_CREATE,
+    lockFeature: "appointments",
   },
   {
     id: "invite-user",
@@ -79,6 +106,9 @@ const ALL_ACTIONS: TenantQuickAction[] = [
     color: "bg-violet-50",
     iconColor: "text-violet-600",
     capability: CAPABILITIES.USER_CREATE,
+    // Free plan caps system users at 1 — the owner. Locks the action so
+    // the second invite doesn't 422 from the backend.
+    lockCap: { field: "maxSystemUsers", max: 1 },
   },
   {
     id: "add-department",
@@ -89,6 +119,8 @@ const ALL_ACTIONS: TenantQuickAction[] = [
     color: "bg-amber-50",
     iconColor: "text-amber-600",
     capability: CAPABILITIES.DEPARTMENT_CREATE,
+    // Free plan caps departments at 1.
+    lockCap: { field: "maxDepartments", max: 1 },
   },
   {
     id: "add-branch",
@@ -99,6 +131,7 @@ const ALL_ACTIONS: TenantQuickAction[] = [
     color: "bg-sky-50",
     iconColor: "text-sky-600",
     capability: CAPABILITIES.BRANCH_CREATE,
+    lockFeature: "multi_location",
   },
   {
     id: "report-incident",
@@ -109,6 +142,7 @@ const ALL_ACTIONS: TenantQuickAction[] = [
     color: "bg-orange-50",
     iconColor: "text-orange-600",
     capability: CAPABILITIES.INCIDENT_CREATE,
+    lockApiPrefix: "/v1/incidents",
   },
 ];
 
@@ -157,12 +191,32 @@ function orderActions(
 export function QuickActions() {
   const { navigate } = useNavigationLoading();
   const { hasCapability } = useCapabilities();
+  const { can, isEndpointDenied, capFor, isLoading: limitationsLoading } =
+    useCapability();
+  const { promptUpgrade } = useUpgradePrompt();
 
-  // Filter to only the actions the current role can perform.
+  // Filter to only the actions the current role can perform. Plan-denied
+  // actions stay visible — they're rendered locked so the user can see
+  // what an upgrade buys them.
   const visibleActions = useMemo(
     () => ALL_ACTIONS.filter((a) => hasCapability(a.capability)),
     [hasCapability]
   );
+
+  function isActionLocked(action: TenantQuickAction): boolean {
+    if (limitationsLoading) return false;
+    if (action.lockFeature && !can(action.lockFeature)) return true;
+    if (action.lockApiPrefix && isEndpointDenied(action.lockApiPrefix)) return true;
+    if (action.lockCap) {
+      const cap = capFor(action.lockCap.field);
+      // `null` means unlimited — not locked. Concrete caps at/under the
+      // threshold flip the action into locked mode.
+      if (cap !== null && cap !== undefined && cap <= action.lockCap.max) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   const [actions, setActions] = useState<TenantQuickAction[]>(() =>
     orderActions(visibleActions, getPersistedOrder())
@@ -319,6 +373,14 @@ export function QuickActions() {
           const Icon = action.icon;
           const isDragged = draggedId === action.id;
           const isDragOver = dragOverId === action.id && draggedId !== action.id;
+          const locked = isActionLocked(action);
+          const handleActivate = locked
+            ? () =>
+                promptUpgrade({
+                  featureKey: action.lockFeature ?? null,
+                  title: action.label,
+                })
+            : () => navigate(action.href);
 
           return (
             <Tooltip key={action.id}>
@@ -339,15 +401,20 @@ export function QuickActions() {
                   onDragOver={isEditing ? handleDragOver : undefined}
                   onDrop={isEditing ? (e) => handleDrop(e, action.id) : undefined}
                   onDragEnd={isEditing ? handleDragEnd : undefined}
-                  onClick={!isEditing ? () => navigate(action.href) : undefined}
+                  onClick={!isEditing ? handleActivate : undefined}
                   onKeyDown={(e) => {
                     if (!isEditing && (e.key === "Enter" || e.key === " ")) {
                       e.preventDefault();
-                      navigate(action.href);
+                      handleActivate();
                     }
                   }}
+                  aria-label={
+                    locked
+                      ? `${action.label} (locked — upgrade to unlock)`
+                      : action.label
+                  }
                   className={cn(
-                    "group relative flex items-center gap-3 rounded-xl border bg-card p-4 transition-all",
+                    "group/qa relative flex items-center gap-3 rounded-xl border bg-card p-4 transition-all",
                     "min-h-[72px]",
                     !isEditing &&
                       "cursor-pointer hover:border-primary/30 hover:shadow-sm",
@@ -355,7 +422,9 @@ export function QuickActions() {
                     isDragged && "opacity-40 scale-95",
                     isDragOver &&
                       "border-primary border-dashed bg-primary/5 scale-[1.02]",
-                    !isDragged && !isDragOver && "border-border"
+                    !isDragged && !isDragOver && "border-border",
+                    locked &&
+                      "border-amber-300/60 bg-amber-50/30 hover:border-amber-400/70 hover:bg-amber-50/60 dark:border-amber-500/30 dark:bg-amber-500/[0.04] dark:hover:bg-amber-500/[0.08]",
                   )}
                 >
                   {isEditing && (
@@ -364,16 +433,30 @@ export function QuickActions() {
                     </div>
                   )}
 
+                  {locked && !isEditing && (
+                    <span
+                      className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-500/20 dark:text-amber-200"
+                      aria-hidden="true"
+                    >
+                      <Lock
+                        className="h-2.5 w-2.5 animate-padlock-shake-loop group-hover/qa:animate-padlock-shake group-hover/qa:[animation-iteration-count:3]"
+                        aria-hidden="true"
+                      />
+                      Pro
+                    </span>
+                  )}
+
                   <div
                     className={cn(
                       "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-                      action.color
+                      action.color,
+                      locked && "opacity-60",
                     )}
                   >
                     <Icon className={cn("h-5 w-5", action.iconColor)} />
                   </div>
 
-                  <div className="flex-1 min-w-0">
+                  <div className={cn("flex-1 min-w-0", locked && "opacity-70")}>
                     <div className="text-sm font-medium text-foreground">
                       {action.label}
                     </div>
@@ -384,7 +467,9 @@ export function QuickActions() {
                 </div>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-[250px]">
-                {action.description}
+                {locked
+                  ? `${action.label} — upgrade your plan to unlock this action.`
+                  : action.description}
               </TooltipContent>
             </Tooltip>
           );

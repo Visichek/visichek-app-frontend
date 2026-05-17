@@ -816,6 +816,11 @@ export function SubscriptionsPageClient() {
               </div>
             </div>
           )}
+          getRowId={(subscription) => subscription.id}
+          getRowHref={(subscription) =>
+            subscription.tenantId ? `/admin/tenants/${subscription.tenantId}` : undefined
+          }
+          rowClickAriaLabel={() => "View the tenant this subscription belongs to"}
         />
       )}
     </div>

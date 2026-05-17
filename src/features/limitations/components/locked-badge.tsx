@@ -8,6 +8,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
+import { useHideLocked } from "../hooks/use-hide-locked";
 
 export interface LockedBadgeProps {
   /** "branch" / "department" — used in the tooltip copy. */
@@ -24,6 +25,10 @@ export interface LockedBadgeProps {
  * tenant can see them, but writes against them return 403.
  */
 export function LockedBadge({ noun, planLabel = "your current plan", className }: LockedBadgeProps) {
+  const { hideLocked } = useHideLocked();
+  // Device-only opt-in: the "Hide locked items" pref collapses every
+  // padlock affordance — including this badge — out of the UI.
+  if (hideLocked) return null;
   return (
     <Tooltip>
       <TooltipTrigger asChild>

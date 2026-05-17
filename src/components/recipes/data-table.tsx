@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   ColumnDef,
   RowSelectionState,
@@ -38,6 +39,45 @@ import {
   BulkActionsBar,
   type BulkAction,
 } from "@/components/recipes/bulk-actions-bar";
+
+// Click targets that should NOT trigger the row-level navigation handler.
+// Order matters only for readability — the selector list is OR-ed by the
+// browser's matches(). Keep in sync with the "Click-ignore rules" section
+// of CLAUDE.md so primitives behave consistently across every table.
+const ROW_CLICK_IGNORE_SELECTOR = [
+  "button",
+  "a",
+  "input",
+  "select",
+  "textarea",
+  "label",
+  '[role="button"]',
+  '[role="menuitem"]',
+  '[role="menuitemcheckbox"]',
+  '[role="menuitemradio"]',
+  '[role="checkbox"]',
+  '[role="switch"]',
+  '[role="tab"]',
+  '[role="option"]',
+  "[data-row-click-ignore]",
+].join(",");
+
+function isInteractiveClickTarget(
+  target: EventTarget | null,
+  rowRoot: HTMLElement | null,
+): boolean {
+  if (!(target instanceof Element)) return false;
+  // Walk up from the click target until we either find an interactive
+  // ancestor (ignore the row click) or reach the row root (treat the
+  // click as a row click). closest() would happily walk past the row
+  // and match a button outside the table, so we bound it explicitly.
+  let node: Element | null = target;
+  while (node && node !== rowRoot) {
+    if (node.matches(ROW_CLICK_IGNORE_SELECTOR)) return true;
+    node = node.parentElement;
+  }
+  return false;
+}
 
 export type DataTableBulkAction<TData> = Omit<BulkAction, "onClick"> & {
   onClick: (selectedIds: string[], selectedRows: TData[]) => void;
@@ -99,6 +139,19 @@ export interface DataTableProps<TData, TValue> {
   onSelectionChange?: (selectedIds: string[], selectedRows: TData[]) => void;
   bulkActions?: DataTableBulkAction<TData>[];
   itemNoun?: string;
+
+  /**
+   * Row-click shortcut to the row's detail view. Use `getRowHref` when the
+   * destination is a route — middle-click / ctrl-click / open-in-new-tab
+   * keep working, the row prefetches on hover, and SSR sees a real link.
+   * Use `onRowClick` for sheets, modals, or other programmatic side
+   * effects. Clicks inside interactive controls (buttons, links, inputs,
+   * `[role="menuitem"]`, `[data-row-click-ignore]`, etc.) are ignored.
+   */
+  getRowHref?: (row: TData) => string | undefined;
+  onRowClick?: (row: TData) => void;
+  /** aria-label override for the row-as-button. Defaults to "View details". */
+  rowClickAriaLabel?: (row: TData) => string;
 }
 
 export function DataTable<TData, TValue>({
@@ -119,7 +172,42 @@ export function DataTable<TData, TValue>({
   onSelectionChange,
   bulkActions,
   itemNoun,
+  getRowHref,
+  onRowClick,
+  rowClickAriaLabel,
 }: DataTableProps<TData, TValue>) {
+  const router = useRouter();
+  const rowClickEnabled = !!(getRowHref || onRowClick);
+
+  // Resolve a row's destination + click behavior once per render. `href`
+  // is only meaningful when the caller supplied `getRowHref` — we still
+  // honor `onRowClick` as a fallback so a caller can do both (rare, but
+  // valid: e.g. "navigate AND track"). Returns `null` when there's no
+  // action for this particular row — caller renders a non-button row.
+  const resolveRowAction = React.useCallback(
+    (row: TData): { href?: string; activate: () => void } | null => {
+      const href = getRowHref?.(row);
+      if (!href && !onRowClick) return null;
+      return {
+        href,
+        activate: () => {
+          if (href) router.push(href);
+          if (onRowClick) onRowClick(row);
+        },
+      };
+    },
+    [getRowHref, onRowClick, router],
+  );
+
+  const handleRowKeyDown = React.useCallback(
+    (e: React.KeyboardEvent<HTMLElement>, activate: () => void) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      if (isInteractiveClickTarget(e.target, e.currentTarget)) return;
+      e.preventDefault();
+      activate();
+    },
+    [],
+  );
   const isServerPaginated = !!serverPagination;
   const effectivePageSize = isServerPaginated ? serverPagination.pageSize : pageSize;
   const [sorting, setSorting] = React.useState<SortingState>([]);
@@ -304,8 +392,39 @@ export function DataTable<TData, TValue>({
           <div className="space-y-2">
             {table.getRowModel().rows.map((row) => {
               const card = mobileCard(row.original);
+              const action = rowClickEnabled ? resolveRowAction(row.original) : null;
+              const ariaLabel = rowClickAriaLabel?.(row.original) ?? "View details";
+
+              const cardBody = action ? (
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-label={ariaLabel}
+                  className={cn(
+                    "min-w-0 flex-1 cursor-pointer rounded-lg outline-none transition-colors",
+                    "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  )}
+                  onMouseEnter={() => {
+                    if (action.href) router.prefetch(action.href);
+                  }}
+                  onClick={(e) => {
+                    if (isInteractiveClickTarget(e.target, e.currentTarget)) return;
+                    action.activate();
+                  }}
+                  onKeyDown={(e) => handleRowKeyDown(e, action.activate)}
+                >
+                  {card}
+                </div>
+              ) : (
+                <div className="min-w-0 flex-1">{card}</div>
+              );
+
               if (!selectable) {
-                return <div key={row.id}>{card}</div>;
+                return (
+                  <div key={row.id}>
+                    {action ? cardBody : <div>{card}</div>}
+                  </div>
+                );
               }
               const isSelected = row.getIsSelected();
               return (
@@ -319,13 +438,14 @@ export function DataTable<TData, TValue>({
                   <label
                     className="flex h-11 w-11 flex-none items-center justify-center"
                     aria-label={isSelected ? "Deselect row" : "Select row"}
+                    data-row-click-ignore
                   >
                     <Checkbox
                       checked={isSelected}
                       onCheckedChange={(value) => row.toggleSelected(!!value)}
                     />
                   </label>
-                  <div className="min-w-0 flex-1">{card}</div>
+                  {cardBody}
                 </div>
               );
             })}
@@ -480,14 +600,46 @@ export function DataTable<TData, TValue>({
             <TableBody>
               {table.getRowModel().rows.map((row) => {
                 const isSelected = selectable && row.getIsSelected();
+                const action = rowClickEnabled ? resolveRowAction(row.original) : null;
+                const ariaLabel = rowClickAriaLabel?.(row.original) ?? "View details";
+
                 return (
                   <TableRow
                     key={row.id}
                     data-state={isSelected ? "selected" : undefined}
-                    className={isSelected ? "bg-primary/5" : undefined}
+                    role={action ? "button" : undefined}
+                    tabIndex={action ? 0 : undefined}
+                    aria-label={action ? ariaLabel : undefined}
+                    onMouseEnter={
+                      action?.href ? () => router.prefetch(action.href!) : undefined
+                    }
+                    onClick={
+                      action
+                        ? (e) => {
+                            if (
+                              isInteractiveClickTarget(
+                                e.target,
+                                e.currentTarget as HTMLElement,
+                              )
+                            )
+                              return;
+                            action.activate();
+                          }
+                        : undefined
+                    }
+                    onKeyDown={
+                      action
+                        ? (e) => handleRowKeyDown(e, action.activate)
+                        : undefined
+                    }
+                    className={cn(
+                      isSelected && "bg-primary/5",
+                      action &&
+                        "cursor-pointer outline-none transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                    )}
                   >
                     {selectable && (
-                      <TableCell className="w-10">
+                      <TableCell className="w-10" data-row-click-ignore>
                         <Checkbox
                           checked={row.getIsSelected()}
                           onCheckedChange={(value) => row.toggleSelected(!!value)}

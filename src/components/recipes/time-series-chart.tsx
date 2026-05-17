@@ -8,13 +8,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { EmptyState } from "@/components/feedback/empty-state";
 import { ChartBodySkeleton } from "./chart-body-skeleton";
 import type { TimeSeriesPoint } from "@/types/dashboard";
 
 interface TimeSeriesChartProps {
   title: string;
   description?: string;
-  data: TimeSeriesPoint[];
+  /**
+   * Series points. Accepts `null`/`undefined` because the Free-plan
+   * dashboard payload nulls trend series fields by design — the card
+   * falls through to the empty state in that case.
+   */
+  data: TimeSeriesPoint[] | null | undefined;
   /** HSL color string. Defaults to chart blue. */
   color?: string;
   height?: number;
@@ -24,6 +30,8 @@ interface TimeSeriesChartProps {
   valueLabel?: string;
   /** Format the y-axis tick + tooltip number (default `toLocaleString`). */
   valueFormatter?: (value: number) => string;
+  /** Copy shown in the empty state when `data` is null/empty. */
+  emptyTitle?: string;
 }
 
 /** Internal props consumed by the recharts-using body. Lives in the
@@ -68,6 +76,7 @@ export function TimeSeriesChart({
   xAxisFormat = "short",
   valueLabel = "Value",
   valueFormatter = (value: number) => value.toLocaleString(),
+  emptyTitle = "No data yet",
 }: TimeSeriesChartProps) {
   return (
     <Card>
@@ -76,14 +85,18 @@ export function TimeSeriesChart({
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent>
-        <TimeSeriesChartBody
-          data={data}
-          color={color}
-          height={height}
-          xAxisFormat={xAxisFormat}
-          valueLabel={valueLabel}
-          valueFormatter={valueFormatter}
-        />
+        {!data || data.length === 0 ? (
+          <EmptyState title={emptyTitle} />
+        ) : (
+          <TimeSeriesChartBody
+            data={data}
+            color={color}
+            height={height}
+            xAxisFormat={xAxisFormat}
+            valueLabel={valueLabel}
+            valueFormatter={valueFormatter}
+          />
+        )}
       </CardContent>
     </Card>
   );

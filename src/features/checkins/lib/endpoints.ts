@@ -119,6 +119,24 @@ export const checkinForceApprovePendingPath = (checkinId: string) =>
   `/checkins/${checkinId}/force-approve-pending`;
 
 /**
+ * Bulk equivalents of the single-item endpoints above. All three are
+ * queued writes — the backend returns 202 with `{ id, jobId, status }`
+ * and writes the per-id outcome (succeeded/failed) into `queue_job_log`.
+ * The shared axios layer auto-polls `GET /v1/jobs/{jobId}` and resolves
+ * the call with the worker's `BulkJobResult`.
+ *
+ *  - approve / reject: receptionist + super_admin
+ *  - force-approve-pending: super_admin only
+ *
+ * Cap per call: 500 ids. Idempotency-Key header is supplied by
+ * `lib/api/bulk.ts` so retries don't double-enqueue.
+ */
+export const checkinBulkApprovePath = () => `/checkins/bulk/approve`;
+export const checkinBulkRejectPath = () => `/checkins/bulk/reject`;
+export const checkinBulkForceApprovePendingPath = () =>
+  `/checkins/bulk/force-approve-pending`;
+
+/**
  * Unified approval queue — pending kiosk check-ins AND scheduled
  * appointments whose host pre-vetted them, in one paginated list.
  * Each row carries a `sourceType` discriminator so the frontend knows

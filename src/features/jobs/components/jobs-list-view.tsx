@@ -277,6 +277,11 @@ export function JobsListView({ basePath }: JobsListViewProps) {
               onOpen={() => navigate(`${basePath}/${job.taskId}`)}
             />
           )}
+          getRowId={(job) => job.taskId}
+          getRowHref={(job) => `${basePath}/${job.taskId}`}
+          rowClickAriaLabel={(job) =>
+            `View details for job ${job.taskKey} (${job.taskId.slice(0, 8)})`
+          }
         />
       )}
     </div>

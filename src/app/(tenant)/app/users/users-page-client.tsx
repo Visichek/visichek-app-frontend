@@ -56,6 +56,8 @@ import { isBranchScopedRole } from "@/lib/permissions/roles";
 import { isSuperAdminDeleteBlocked, superAdminDeleteHint } from "@/types/api";
 import { EditUserDialog } from "@/features/users/components/edit-user-dialog";
 import { ResetPasswordDialog } from "@/features/users/components/reset-password-dialog";
+import { useCapability } from "@/features/limitations/hooks/use-limitations";
+import { LockedOverlay } from "@/features/limitations/components/locked-overlay";
 import type { SystemUser } from "@/types/user";
 import type { Branch } from "@/types/tenant";
 
@@ -74,6 +76,16 @@ type UserRoleTab = (typeof USER_ROLE_TABS)[number]["value"];
 export function UsersPageClient() {
   const [roleTab, setRoleTab] = useState<UserRoleTab>("all");
   const [pageIndex, setPageIndex] = useState(0);
+  // Free plan caps system users at 1 (the owner). Lock the invite entry
+  // point so the second invite is gated by the upgrade modal rather than
+  // a backend 422.
+  const { capFor, isLoading: limitationsLoading } = useCapability();
+  const maxUsers = capFor("maxSystemUsers");
+  const isInviteLocked =
+    !limitationsLoading &&
+    maxUsers !== null &&
+    maxUsers !== undefined &&
+    maxUsers <= 1;
 
   useEffect(() => {
     setPageIndex(0);
@@ -385,24 +397,31 @@ export function UsersPageClient() {
         title="Users"
         description="Manage staff accounts, roles, and branch assignments"
         actions={
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <NavButton href="/app/users/new" className="w-full md:w-auto min-h-[44px]">
-                {loadingHref === "/app/users/new" ? (
-                  <Loader2
-                    className="mr-2 h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
-                )}
-                Invite User
-              </NavButton>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              Open the new-user form to invite a new staff member
-            </TooltipContent>
-          </Tooltip>
+          <LockedOverlay
+            locked={isInviteLocked}
+            title="Invite User"
+            ctaLabel={null}
+            className="w-full md:w-auto"
+          >
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <NavButton href="/app/users/new" className="w-full md:w-auto min-h-[44px]">
+                  {loadingHref === "/app/users/new" ? (
+                    <Loader2
+                      className="mr-2 h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+                  )}
+                  Invite User
+                </NavButton>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Open the new-user form to invite a new staff member
+              </TooltipContent>
+            </Tooltip>
+          </LockedOverlay>
         }
       />
 
@@ -447,6 +466,8 @@ export function UsersPageClient() {
         getRowId={(user) => user.id}
         itemNoun="user"
         bulkActions={bulkActions}
+        onRowClick={(user) => setEditTarget(user)}
+        rowClickAriaLabel={(user) => `View details for ${user.fullName}`}
       />
 
       <ConfirmDialog

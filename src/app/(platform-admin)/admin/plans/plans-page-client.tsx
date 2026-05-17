@@ -551,6 +551,8 @@ export function PlansPageClient() {
         getRowId={(plan) => plan.id}
         itemNoun="plan"
         bulkActions={bulkActions}
+        getRowHref={(plan) => `/admin/plans/${plan.id}/edit`}
+        rowClickAriaLabel={(plan) => `View details for ${plan.displayName || plan.name}`}
       />
 
       <ConfirmDialog

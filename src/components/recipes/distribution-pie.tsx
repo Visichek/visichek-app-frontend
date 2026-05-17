@@ -30,7 +30,12 @@ export const CHART_PALETTE = [
 interface DistributionPieProps {
   title: string;
   description?: string;
-  data: DistributionSlice[];
+  /**
+   * Slices to render. Accepts `null`/`undefined` because the Free-plan
+   * dashboard payload nulls these distribution fields by design — the
+   * card falls through to the empty state in that case.
+   */
+  data: DistributionSlice[] | null | undefined;
   height?: number;
   emptyTitle?: string;
 }
@@ -67,7 +72,7 @@ export function DistributionPie({
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent>
-        {data.length === 0 ? (
+        {!data || data.length === 0 ? (
           <EmptyState title={emptyTitle} />
         ) : (
           <DistributionPieBody data={data} height={height} />

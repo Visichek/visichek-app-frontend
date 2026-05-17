@@ -14,6 +14,8 @@ import { DataTable } from "@/components/recipes/data-table";
 import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
 import { NavButton } from "@/components/recipes/nav-button";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
+import { DetailSheet } from "@/components/recipes/detail-sheet";
+import { RecordDetailList, type RecordDetailRow } from "@/components/recipes/record-detail-list";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -99,6 +101,7 @@ export default function DPOPage() {
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [dsrToDelete, setDSRToDelete] = useState<DataSubjectRequest | undefined>();
+  const [detailTarget, setDetailTarget] = useState<DataSubjectRequest | null>(null);
 
   const handleDeleteClick = (dsr: DataSubjectRequest) => {
     setDSRToDelete(dsr);
@@ -284,7 +287,67 @@ export default function DPOPage() {
         emptyTitle="No data subject requests"
         emptyDescription="Requests from data subjects will appear here."
         mobileCard={mobileCard}
+        getRowId={(dsr) => dsr.id}
+        onRowClick={(dsr) => setDetailTarget(dsr)}
+        rowClickAriaLabel={(dsr) => `View request from ${dsr.requesterName}`}
       />
+
+      <DetailSheet
+        open={!!detailTarget}
+        onOpenChange={(open) => { if (!open) setDetailTarget(null); }}
+        title={detailTarget ? `Request from ${detailTarget.requesterName}` : ""}
+        description={
+          detailTarget
+            ? `${detailTarget.type.replace(/_/g, " ")} request — created ${formatDateTime(detailTarget.createdAt)}`
+            : undefined
+        }
+      >
+        {detailTarget && (
+          <RecordDetailList
+            rows={(
+              [
+                {
+                  label: "Status",
+                  value: (
+                    <Badge variant={statusVariant(detailTarget.status)}>
+                      {detailTarget.status.replace(/_/g, " ")}
+                    </Badge>
+                  ),
+                },
+                {
+                  label: "Type",
+                  value: (
+                    <span className="capitalize">
+                      {detailTarget.type.replace(/_/g, " ")}
+                    </span>
+                  ),
+                },
+                {
+                  label: "Requester",
+                  value: detailTarget.requesterName,
+                },
+                {
+                  label: "Email",
+                  value: detailTarget.requesterEmail,
+                },
+                {
+                  label: "Created",
+                  value: formatDateTime(detailTarget.createdAt),
+                },
+                {
+                  label: "Last updated",
+                  value: formatDateTime(detailTarget.updatedAt),
+                },
+                {
+                  label: "Description",
+                  value: detailTarget.description,
+                  full: true,
+                },
+              ] as RecordDetailRow[]
+            ).filter((r) => r.value !== null && r.value !== undefined && r.value !== "")}
+          />
+        )}
+      </DetailSheet>
 
       <ConfirmDialog
         open={deleteDialogOpen}

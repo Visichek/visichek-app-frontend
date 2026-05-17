@@ -466,6 +466,10 @@ export function OnboardingQueueClient() {
         getRowId={(submission) => submission.id}
         itemNoun="submission"
         bulkActions={bulkActions}
+        getRowHref={(submission) => detailHref(submission.id)}
+        rowClickAriaLabel={(submission) =>
+          `Review onboarding submission from ${submission.email}`
+        }
       />
 
       <ConfirmDialog

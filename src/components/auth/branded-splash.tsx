@@ -1,8 +1,51 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
+import { Lightbulb } from "lucide-react";
 
 const BRAND_GREEN = "#359300";
+const TIP_ROTATE_MS = 6000;
+
+interface SplashTip {
+  title: string;
+  body: string;
+}
+
+// Cross-role tips — written so they're useful to a receptionist on their
+// first shift OR a tenant owner kicking the tyres for the first time.
+// Order doesn't matter; first tip on screen is randomised at mount so
+// fast bootstraps still surface variety across visits.
+const SPLASH_TIPS: readonly SplashTip[] = [
+  {
+    title: "Hide what you can't use",
+    body: "Free-plan warnings everywhere? Open Settings and turn them off — locked features will be hidden on this device.",
+  },
+  {
+    title: "Select many at once",
+    body: "Most tables and lists support multi-select. Tick the header checkbox to grab everything visible, then run bulk actions from the toolbar that slides in.",
+  },
+  {
+    title: "Tailor the visitor form",
+    body: "Visitors → Configure form lets you add, hide, or require any field — including custom questions and consent.",
+  },
+  {
+    title: "Take the in-app tutorial",
+    body: "Look for the Start tutorial button on key pages. Your progress saves between sessions so you can pick up where you left off.",
+  },
+  {
+    title: "Lists refresh themselves",
+    body: "Active visitors, pending approvals, and awaiting check-outs all poll on their own — no need to reload the page to see new arrivals.",
+  },
+  {
+    title: "Built for the front desk",
+    body: "On a tablet? The sidebar becomes a drawer and modals slide up from the bottom so the receptionist can work one-handed.",
+  },
+  {
+    title: "Don't see a menu item?",
+    body: "The sidebar only shows what your role can do. Ask an admin to update your role from Users if something looks missing.",
+  },
+] as const;
 
 /**
  * Presentation-only branded splash. No redirects, no session reads —
@@ -12,11 +55,31 @@ const BRAND_GREEN = "#359300";
  * loading state instead of a spinner-then-splash hop.
  */
 export function BrandedSplash({ label }: { label?: string }) {
+  // `null` while we're still on the server / pre-hydration so SSR and the
+  // first client render agree. The actual starting tip is picked in the
+  // mount effect — Math.random() in a useState initialiser would diverge
+  // between server and client and trip a hydration mismatch.
+  const [tipIndex, setTipIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    setTipIndex(Math.floor(Math.random() * SPLASH_TIPS.length));
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    if (prefersReducedMotion) return;
+    const id = window.setInterval(() => {
+      setTipIndex((i) => ((i ?? 0) + 1) % SPLASH_TIPS.length);
+    }, TIP_ROTATE_MS);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const tip = tipIndex === null ? null : SPLASH_TIPS[tipIndex];
+
   return (
     <div
       className="relative min-h-screen overflow-hidden bg-white text-gray-900 font-sans"
       role="status"
-      aria-live="polite"
+      aria-live="off"
       aria-label={label ?? "Loading VisiChek"}
     >
       <style>{`
@@ -37,6 +100,10 @@ export function BrandedSplash({ label }: { label?: string }) {
           0%   { transform: translateX(-100%); }
           100% { transform: translateX(400%); }
         }
+        @keyframes branded-splash-tip-in {
+          0%   { opacity: 0; transform: translateY(6px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
         .branded-splash-logo {
           animation: branded-splash-logo-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
         }
@@ -49,11 +116,19 @@ export function BrandedSplash({ label }: { label?: string }) {
         .branded-splash-progress-bar {
           animation: branded-splash-progress 1.4s cubic-bezier(0.45, 0, 0.2, 1) infinite;
         }
+        .branded-splash-tip-card {
+          animation: branded-splash-fade-in 520ms ease-out 980ms both;
+        }
+        .branded-splash-tip-content {
+          animation: branded-splash-tip-in 380ms ease-out both;
+        }
         @media (prefers-reduced-motion: reduce) {
           .branded-splash-logo,
           .branded-splash-wordmark,
           .branded-splash-tagline,
-          .branded-splash-progress-bar {
+          .branded-splash-progress-bar,
+          .branded-splash-tip-card,
+          .branded-splash-tip-content {
             animation: none !important;
           }
         }
@@ -79,6 +154,31 @@ export function BrandedSplash({ label }: { label?: string }) {
             Enterprise Visitor Management
           </span>
         </div>
+
+        {tip && (
+          <div
+            className="branded-splash-tip-card mt-10 w-full max-w-sm rounded-xl border border-gray-200 bg-gray-50/80 p-4 text-left shadow-sm"
+            aria-hidden="true"
+          >
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              <Lightbulb
+                className="h-3.5 w-3.5"
+                style={{ color: BRAND_GREEN }}
+                aria-hidden="true"
+              />
+              Tip
+            </div>
+            <div
+              key={tipIndex}
+              className="branded-splash-tip-content mt-1"
+            >
+              <p className="text-sm font-semibold text-gray-900">{tip.title}</p>
+              <p className="mt-1 text-sm leading-relaxed text-gray-600">
+                {tip.body}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       <div

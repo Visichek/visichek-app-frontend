@@ -21,9 +21,12 @@ interface ComplianceTabProps {
  * (super_admin / dpo / auditor); the page client gates this.
  */
 export function ComplianceTab({ stats }: ComplianceTabProps) {
-  const hasIncidentTypes = stats.incidentTypeDistribution.length > 0;
-  const hasIncidentStatuses = stats.incidentStatusDistribution.length > 0;
-  const hasIncidentTrend = stats.incidentsLast30Days.some((p) => p.value > 0);
+  // Free-plan responses null these fields out — treat null/undefined as
+  // "no data" rather than crashing on .length / .some.
+  const hasIncidentTypes = (stats.incidentTypeDistribution?.length ?? 0) > 0;
+  const hasIncidentStatuses = (stats.incidentStatusDistribution?.length ?? 0) > 0;
+  const hasIncidentTrend =
+    stats.incidentsLast30Days?.some((p) => p.value > 0) ?? false;
 
   return (
     <div className="space-y-6">

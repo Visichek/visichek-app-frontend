@@ -16,6 +16,8 @@ import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-t
 import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
 import { NavButton } from "@/components/recipes/nav-button";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
+import { DetailSheet } from "@/components/recipes/detail-sheet";
+import { RecordDetailList, type RecordDetailRow } from "@/components/recipes/record-detail-list";
 import { summarizeBulkResult } from "@/lib/api/bulk";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -161,6 +163,7 @@ export default function IncidentsPage() {
   >(null);
   const [bulkNotifyIds, setBulkNotifyIds] = useState<string[] | null>(null);
   const [bulkPending, setBulkPending] = useState(false);
+  const [detailTarget, setDetailTarget] = useState<Incident | null>(null);
 
   async function handleBulkMarkNotifiedConfirm() {
     if (!bulkNotifyIds || bulkNotifyIds.length === 0) return;
@@ -450,7 +453,94 @@ export default function IncidentsPage() {
         getRowId={(incident) => incident.id}
         itemNoun="incident"
         bulkActions={bulkActions}
+        onRowClick={(incident) => setDetailTarget(incident)}
+        rowClickAriaLabel={(incident) => `View details for ${incidentLabel(incident)}`}
       />
+
+      <DetailSheet
+        open={!!detailTarget}
+        onOpenChange={(open) => { if (!open) setDetailTarget(null); }}
+        title={detailTarget ? incidentLabel(detailTarget) : ""}
+        description={
+          detailTarget
+            ? `Reported ${formatDateTime(detailTarget.dateCreated)}`
+            : undefined
+        }
+      >
+        {detailTarget && (
+          <RecordDetailList
+            rows={(
+              [
+                {
+                  label: "Status",
+                  value: (
+                    <Badge variant={statusVariant(detailTarget.status)}>
+                      {detailTarget.status.replace(/_/g, " ")}
+                    </Badge>
+                  ),
+                },
+                {
+                  label: "Type",
+                  value: formatType(detailTarget.incidentType),
+                },
+                {
+                  label: "Risk",
+                  value: detailTarget.riskLevel ? (
+                    <Badge variant={riskVariant(detailTarget.riskLevel)}>
+                      {detailTarget.riskLevel}
+                    </Badge>
+                  ) : null,
+                },
+                {
+                  label: "Branch",
+                  value: detailTarget.branchSummary?.name ?? null,
+                },
+                {
+                  label: "Detected",
+                  value: detailTarget.detectionTime
+                    ? formatDateTime(detailTarget.detectionTime)
+                    : null,
+                },
+                {
+                  label: "NDPC deadline",
+                  value: detailTarget.notificationDeadline
+                    ? formatDateTime(detailTarget.notificationDeadline)
+                    : null,
+                },
+                {
+                  label: "NDPC notified",
+                  value: detailTarget.ndpcNotified
+                    ? detailTarget.ndpcNotifiedAt
+                      ? formatDateTime(detailTarget.ndpcNotifiedAt)
+                      : "Yes"
+                    : "No",
+                },
+                {
+                  label: "Resolved",
+                  value: detailTarget.resolvedAt
+                    ? formatDateTime(detailTarget.resolvedAt)
+                    : null,
+                },
+                {
+                  label: "Description",
+                  value: detailTarget.description,
+                  full: true,
+                },
+                {
+                  label: "Data affected",
+                  value: detailTarget.dataAffected,
+                  full: true,
+                },
+                {
+                  label: "Mitigation",
+                  value: detailTarget.mitigationSteps,
+                  full: true,
+                },
+              ] as RecordDetailRow[]
+            ).filter((r) => r.value !== null)}
+          />
+        )}
+      </DetailSheet>
 
       <ConfirmDialog
         open={bulkNotifyIds !== null}

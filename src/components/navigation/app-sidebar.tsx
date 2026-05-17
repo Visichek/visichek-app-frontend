@@ -189,6 +189,16 @@ interface AppSidebarProps {
   helpHref?: string;
   /** Called when user clicks Log out in the user dropdown */
   onLogoutClick?: () => void;
+  /**
+   * Extra items injected into the user dropdown menu, rendered between
+   * the built-in Settings/Help block and the Log-out item. The shell
+   * supplies this when it has shell-specific menu entries (e.g. the
+   * tenant shell's "Hide locked items" toggle on Free plans). Pass
+   * `<DropdownMenuItem>` / `<DropdownMenuCheckboxItem>` etc. directly —
+   * the slot is wrapped in its own `<DropdownMenuSeparator>` only when
+   * non-null so the separator collapses when there are no extras.
+   */
+  extraUserMenuItems?: React.ReactNode;
   /** Whether the sidebar is collapsed to icon-only rail */
   collapsed?: boolean;
   /** Toggle collapsed state */
@@ -214,6 +224,7 @@ export function AppSidebar({
   onHelpClick,
   helpHref,
   onLogoutClick,
+  extraUserMenuItems,
   collapsed = false,
   onCollapsedChange,
 }: AppSidebarProps) {
@@ -559,6 +570,16 @@ export function AppSidebar({
                   )}
                   Get help
                 </DropdownMenuItem>
+              )}
+
+              {/* Shell-supplied extras — e.g. tenant shell's "Hide locked
+                  items" toggle on Free plans. Self-separator so the slot
+                  collapses cleanly when no extras are provided. */}
+              {extraUserMenuItems && (
+                <>
+                  <DropdownMenuSeparator />
+                  {extraUserMenuItems}
+                </>
               )}
 
               <DropdownMenuSeparator />

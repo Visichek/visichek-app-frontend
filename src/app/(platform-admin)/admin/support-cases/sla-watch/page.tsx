@@ -201,6 +201,12 @@ export default function AdminSlaWatchPage() {
         mobileCard={mobileCard}
         emptyTitle="No cases are approaching SLA"
         emptyDescription="Nothing to do here — the queue is healthy."
+        getRowId={(c) => c.id ?? c._id ?? ""}
+        getRowHref={(c) => {
+          const id = c.id ?? c._id ?? "";
+          return id ? `/admin/support-cases/${id}` : undefined;
+        }}
+        rowClickAriaLabel={(c) => `View support case ${c.subject ?? "details"}`}
       />
     </div>
   );

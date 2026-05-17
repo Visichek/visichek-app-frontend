@@ -21,6 +21,8 @@ import {
   useTenantSettings,
   useUpdateTenantSettings,
 } from "@/features/settings/hooks";
+import { useCapability } from "@/features/limitations/hooks/use-limitations";
+import { LockedOverlay } from "@/features/limitations/components/locked-overlay";
 
 export function AdvancedTab() {
   const { data: manifest } = useSettingsManifest();
@@ -31,6 +33,26 @@ export function AdvancedTab() {
 
   const { data: tenantSettingsData } = useTenantSettings(tenantId);
   const updateTenantSettings = useUpdateTenantSettings(tenantId);
+
+  // Free-plan gating for the three sections the backend should refuse
+  // to persist on Free (see `new-limitations.txt` § "Settings sections
+  // gated on Free plan"):
+  //
+  //   - Email preferences   → hidden entirely on Free
+  //   - Visitor policies    → hidden entirely on Free
+  //   - Geofencing          → wrapped in <LockedOverlay/> so the user
+  //     sees "this exists, upgrade to unlock" rather than the section
+  //     disappearing
+  //
+  // We honour both the formal `deniedFeatures` keys (`email_preferences`,
+  // `visitor_policies`, `geofencing`) AND the current plan tier so the
+  // gate works the moment we ship even if the backend feature keys
+  // arrive in a later deploy.
+  const { isFreePlan, denied, isLoading: capsLoading } = useCapability();
+  const hideEmailPrefs = !capsLoading && (isFreePlan || denied("email_preferences"));
+  const hideVisitorPolicies =
+    !capsLoading && (isFreePlan || denied("visitor_policies"));
+  const lockGeofencing = !capsLoading && (isFreePlan || denied("geofencing"));
 
   return (
     <div className="space-y-6">
@@ -77,26 +99,36 @@ export function AdvancedTab() {
         <>
           <Separator />
 
-          <section>
-            <h2 className="text-base font-semibold mb-1">Visitor policies</h2>
-            <p className="text-sm text-muted-foreground mb-4">Rules for how visitors are checked in and managed</p>
-            <div className="space-y-1">
-              <SettingsToggle id="requireIdScan" label="Require ID scan" description="Mandate identity document scanning during check-in" checked={tenantSettingsData.requireIdScan ?? false} onCheckedChange={(v) => updateTenantSettings.mutate({ requireIdScan: v })} isLoading={updateTenantSettings.isPending} />
-              <SettingsToggle id="requireHostApproval" label="Require host approval" description="Visitor must be approved by their host before completing check-in" checked={tenantSettingsData.requireHostApproval ?? false} onCheckedChange={(v) => updateTenantSettings.mutate({ requireHostApproval: v })} isLoading={updateTenantSettings.isPending} />
-              <SettingsToggle id="requireConsent" label="Require NDPA consent" description="Visitors must acknowledge a data protection notice before check-in" checked={tenantSettingsData.requireConsentBeforeCheckIn ?? true} onCheckedChange={(v) => updateTenantSettings.mutate({ requireConsentBeforeCheckIn: v })} isLoading={updateTenantSettings.isPending} />
-              <SettingsToggle id="allowSelfRegistration" label="Self-registration via QR" description="Allow visitors to register themselves by scanning a public QR code" checked={tenantSettingsData.allowSelfRegistration ?? false} onCheckedChange={(v) => updateTenantSettings.mutate({ allowSelfRegistration: v })} isLoading={updateTenantSettings.isPending} />
-              <SettingsSelect id="autoCheckout" label="Auto checkout" description="Automatically check visitors out after a set duration" value={tenantSettingsData.autoCheckoutAfterHours ? String(tenantSettingsData.autoCheckoutAfterHours) : "disabled"} onValueChange={(v) => updateTenantSettings.mutate({ autoCheckoutAfterHours: v === "disabled" ? null : parseInt(v, 10) })} options={[{ value: "disabled", label: "Disabled" }, { value: "4", label: "4 hours" }, { value: "8", label: "8 hours" }, { value: "12", label: "12 hours" }]} isLoading={updateTenantSettings.isPending} />
-              <SettingsSelect id="badgeExpiry" label="Badge expiry" description="When visitor badges become invalid" value={tenantSettingsData.visitorBadgeExpiry ?? "end_of_day"} onValueChange={(v) => updateTenantSettings.mutate({ visitorBadgeExpiry: v as "end_of_day" | "manual" | "hours" })} options={[{ value: "end_of_day", label: "End of day" }, { value: "manual", label: "Manual" }, { value: "hours", label: "After set hours" }]} isLoading={updateTenantSettings.isPending} />
-            </div>
-          </section>
+          {!hideVisitorPolicies && (
+            <>
+              <section>
+                <h2 className="text-base font-semibold mb-1">Visitor policies</h2>
+                <p className="text-sm text-muted-foreground mb-4">Rules for how visitors are checked in and managed</p>
+                <div className="space-y-1">
+                  <SettingsToggle id="requireIdScan" label="Require ID scan" description="Mandate identity document scanning during check-in" checked={tenantSettingsData.requireIdScan ?? false} onCheckedChange={(v) => updateTenantSettings.mutate({ requireIdScan: v })} isLoading={updateTenantSettings.isPending} />
+                  <SettingsToggle id="requireHostApproval" label="Require host approval" description="Visitor must be approved by their host before completing check-in" checked={tenantSettingsData.requireHostApproval ?? false} onCheckedChange={(v) => updateTenantSettings.mutate({ requireHostApproval: v })} isLoading={updateTenantSettings.isPending} />
+                  <SettingsToggle id="requireConsent" label="Require NDPA consent" description="Visitors must acknowledge a data protection notice before check-in" checked={tenantSettingsData.requireConsentBeforeCheckIn ?? true} onCheckedChange={(v) => updateTenantSettings.mutate({ requireConsentBeforeCheckIn: v })} isLoading={updateTenantSettings.isPending} />
+                  <SettingsToggle id="allowSelfRegistration" label="Self-registration via QR" description="Allow visitors to register themselves by scanning a public QR code" checked={tenantSettingsData.allowSelfRegistration ?? false} onCheckedChange={(v) => updateTenantSettings.mutate({ allowSelfRegistration: v })} isLoading={updateTenantSettings.isPending} />
+                  <SettingsSelect id="autoCheckout" label="Auto checkout" description="Automatically check visitors out after a set duration" value={tenantSettingsData.autoCheckoutAfterHours ? String(tenantSettingsData.autoCheckoutAfterHours) : "disabled"} onValueChange={(v) => updateTenantSettings.mutate({ autoCheckoutAfterHours: v === "disabled" ? null : parseInt(v, 10) })} options={[{ value: "disabled", label: "Disabled" }, { value: "4", label: "4 hours" }, { value: "8", label: "8 hours" }, { value: "12", label: "12 hours" }]} isLoading={updateTenantSettings.isPending} />
+                  <SettingsSelect id="badgeExpiry" label="Badge expiry" description="When visitor badges become invalid" value={tenantSettingsData.visitorBadgeExpiry ?? "end_of_day"} onValueChange={(v) => updateTenantSettings.mutate({ visitorBadgeExpiry: v as "end_of_day" | "manual" | "hours" })} options={[{ value: "end_of_day", label: "End of day" }, { value: "manual", label: "Manual" }, { value: "hours", label: "After set hours" }]} isLoading={updateTenantSettings.isPending} />
+                </div>
+              </section>
 
-          <Separator />
+              <Separator />
+            </>
+          )}
 
-          <section>
-            <h2 className="text-base font-semibold mb-1">Geofencing</h2>
-            <p className="text-sm text-muted-foreground mb-4">Require visitors to be on-site before their check-in is accepted. Off by default; enable only after updating your privacy notice.</p>
-            <GeofencingSection settings={tenantSettingsData} />
-          </section>
+          <LockedOverlay
+            locked={lockGeofencing}
+            featureKey="geofencing"
+            title="Geofencing"
+          >
+            <section>
+              <h2 className="text-base font-semibold mb-1">Geofencing</h2>
+              <p className="text-sm text-muted-foreground mb-4">Require visitors to be on-site before their check-in is accepted. Off by default; enable only after updating your privacy notice.</p>
+              <GeofencingSection settings={tenantSettingsData} />
+            </section>
+          </LockedOverlay>
 
           <Separator />
 
@@ -169,17 +201,21 @@ export function AdvancedTab() {
             </div>
           </section>
 
-          <Separator />
+          {!hideEmailPrefs && (
+            <>
+              <Separator />
 
-          <section>
-            <h2 className="text-base font-semibold mb-1">Email preferences</h2>
-            <p className="text-sm text-muted-foreground mb-4">Organisation-wide email behaviour</p>
-            <div className="space-y-1">
-              <SettingsToggle id="sendWelcomeEmail" label="Welcome email" description="Send a welcome email when new staff accounts are created" checked={tenantSettingsData.sendWelcomeEmail ?? true} onCheckedChange={(v) => updateTenantSettings.mutate({ sendWelcomeEmail: v })} isLoading={updateTenantSettings.isPending} />
-              <SettingsToggle id="sendHostNotification" label="Host arrival notification" description="Notify hosts via email when their visitor arrives" checked={tenantSettingsData.sendHostNotificationOnArrival ?? true} onCheckedChange={(v) => updateTenantSettings.mutate({ sendHostNotificationOnArrival: v })} isLoading={updateTenantSettings.isPending} />
-              <SettingsToggle id="sendVisitorBadgeEmail" label="Visitor badge email" description="Email the visitor badge to the visitor after check-in" checked={tenantSettingsData.sendVisitorBadgeEmail ?? false} onCheckedChange={(v) => updateTenantSettings.mutate({ sendVisitorBadgeEmail: v })} isLoading={updateTenantSettings.isPending} />
-            </div>
-          </section>
+              <section>
+                <h2 className="text-base font-semibold mb-1">Email preferences</h2>
+                <p className="text-sm text-muted-foreground mb-4">Organisation-wide email behaviour</p>
+                <div className="space-y-1">
+                  <SettingsToggle id="sendWelcomeEmail" label="Welcome email" description="Send a welcome email when new staff accounts are created" checked={tenantSettingsData.sendWelcomeEmail ?? true} onCheckedChange={(v) => updateTenantSettings.mutate({ sendWelcomeEmail: v })} isLoading={updateTenantSettings.isPending} />
+                  <SettingsToggle id="sendHostNotification" label="Host arrival notification" description="Notify hosts via email when their visitor arrives" checked={tenantSettingsData.sendHostNotificationOnArrival ?? true} onCheckedChange={(v) => updateTenantSettings.mutate({ sendHostNotificationOnArrival: v })} isLoading={updateTenantSettings.isPending} />
+                  <SettingsToggle id="sendVisitorBadgeEmail" label="Visitor badge email" description="Email the visitor badge to the visitor after check-in" checked={tenantSettingsData.sendVisitorBadgeEmail ?? false} onCheckedChange={(v) => updateTenantSettings.mutate({ sendVisitorBadgeEmail: v })} isLoading={updateTenantSettings.isPending} />
+                </div>
+              </section>
+            </>
+          )}
         </>
       )}
     </div>

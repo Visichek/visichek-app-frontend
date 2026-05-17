@@ -12,7 +12,12 @@ import type { UpcomingAppointment } from "@/types/dashboard";
 import type { AppointmentStatus } from "@/types/enums";
 
 interface UpcomingAppointmentsCardProps {
-  items: UpcomingAppointment[];
+  /**
+   * Today's upcoming appointments (server-capped at 10). Accepts
+   * `null`/`undefined` because the Free-plan dashboard payload nulls
+   * `upcomingAppointmentsToday` by design.
+   */
+  items: UpcomingAppointment[] | null | undefined;
 }
 
 /**
@@ -29,7 +34,7 @@ export function UpcomingAppointmentsCard({
         <CardDescription>Scheduled appointments</CardDescription>
       </CardHeader>
       <CardContent>
-        {items.length === 0 ? (
+        {!items || items.length === 0 ? (
           <EmptyState
             title="No appointments scheduled"
             description="Upcoming appointments for today will appear here."
