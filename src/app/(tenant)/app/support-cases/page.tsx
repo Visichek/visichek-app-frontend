@@ -69,8 +69,8 @@ export default function SupportCasesPage() {
       status: status === "all" ? undefined : status,
       priority: priority === "all" ? undefined : priority,
       category: category === "all" ? undefined : category,
-      start: pageIndex * SUPPORT_CASES_PAGE_SIZE,
-      stop: pageIndex * SUPPORT_CASES_PAGE_SIZE + SUPPORT_CASES_PAGE_SIZE,
+      skip: pageIndex * SUPPORT_CASES_PAGE_SIZE,
+      limit: SUPPORT_CASES_PAGE_SIZE,
     }),
     [status, priority, category, pageIndex],
   );
@@ -305,6 +305,7 @@ export default function SupportCasesPage() {
             pageIndex,
             pageSize: SUPPORT_CASES_PAGE_SIZE,
             totalCount: meta?.total ?? null,
+            hasMore: meta?.hasMore,
             onPageChange: setPageIndex,
           }}
           mobileCard={mobileCard}

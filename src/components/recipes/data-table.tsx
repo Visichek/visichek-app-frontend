@@ -96,6 +96,12 @@ export interface ServerPagination {
   pageIndex: number; // 0-based
   pageSize: number;
   totalCount: number | null | undefined;
+  /**
+   * Authoritative "is there a next page" signal from the response envelope's
+   * `meta.hasMore`. Prefer this over inferring from the page length — a full
+   * final page would falsely show "Next" otherwise.
+   */
+  hasMore?: boolean | null;
   onPageChange: (pageIndex: number) => void;
 }
 
@@ -322,14 +328,15 @@ export function DataTable<TData, TValue>({
       ? Math.max(1, Math.ceil(serverTotal / serverPagination.pageSize))
       : null;
   const serverCanPrev = serverPagination ? serverPagination.pageIndex > 0 : false;
-  const serverCanNext =
-    serverPagination && serverPageCount != null
+  const serverCanNext = serverPagination
+    ? serverPageCount != null
       ? serverPagination.pageIndex < serverPageCount - 1
-      : // If we don't know the total, allow next as long as the current
-        // page is full — best-effort hint that there might be more.
-        serverPagination
-        ? data.length === serverPagination.pageSize
-        : false;
+      : // Prefer the envelope's `hasMore` when the backend doesn't return a
+        // total (newer skip/limit endpoints). Fall back to a length probe
+        // only as a last resort — it's off-by-one on a full final page.
+        serverPagination.hasMore ??
+        (data.length === serverPagination.pageSize)
+    : false;
   const serverPageStart = serverPagination
     ? serverPagination.pageIndex * serverPagination.pageSize + (data.length === 0 ? 0 : 1)
     : 0;

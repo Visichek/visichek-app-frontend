@@ -9,8 +9,8 @@ interface PaginatedResponse<T> {
   data: T[];
   meta?: {
     total?: number;
-    start?: number;
-    stop?: number;
+    skip?: number;
+    limit?: number;
   };
 }
 
@@ -32,8 +32,8 @@ export interface UpdatePrivacyNoticeRequest {
 }
 
 interface UsePrivacyNoticesParams {
-  start?: number;
-  stop?: number;
+  skip?: number;
+  limit?: number;
 }
 
 /**

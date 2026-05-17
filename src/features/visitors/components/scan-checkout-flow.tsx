@@ -169,7 +169,7 @@ export function ScanCheckoutFlow({ onDone }: ScanCheckoutFlowProps = {}) {
     error,
     refetch,
     isRefetching,
-  } = useAwaitingCheckout({ start: 0, stop: 50 });
+  } = useAwaitingCheckout({ skip: 0, limit: 50 });
 
   const checkOut = useCheckOut();
 

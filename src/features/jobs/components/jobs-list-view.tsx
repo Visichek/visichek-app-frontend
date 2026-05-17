@@ -107,8 +107,8 @@ export function JobsListView({ basePath }: JobsListViewProps) {
   const params = useMemo(
     () => ({
       status: status === "all" ? undefined : status,
-      start: 0,
-      stop: 50,
+      skip: 0,
+      limit: 50,
     }),
     [status],
   );

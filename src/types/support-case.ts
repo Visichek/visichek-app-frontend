@@ -105,8 +105,8 @@ export interface AttachmentIntentResponse {
 // ── List Filters ──────────────────────────────────────────────────────
 
 export interface SupportCaseListParams {
-  start?: number;
-  stop?: number;
+  skip?: number;
+  limit?: number;
   status?: SupportCaseStatus;
   priority?: SupportCasePriority;
   category?: SupportCaseCategory;

@@ -32,8 +32,12 @@ export async function apiGetList<TItem>(
   if (Array.isArray(data)) {
     const items = data as TItem[];
     const incoming = envelopeMeta ?? {};
+    // Leave `total` null when the backend doesn't return one — newer
+    // skip/limit endpoints ship `{ skip, limit, hasMore }` without a count,
+    // and synthesizing `items.length` here masks "there's more" from the
+    // pager.
     const meta: ListMeta = {
-      total: incoming.total ?? items.length,
+      total: incoming.total ?? null,
       skip:
         incoming.skip ??
         (typeof params?.skip === "number" ? (params.skip as number) : 0),
@@ -59,7 +63,7 @@ export async function apiGetList<TItem>(
     // envelope meta in case the backend split them.
     const incoming = obj.meta ?? envelopeMeta ?? {};
     const meta: ListMeta = {
-      total: incoming.total ?? items.length,
+      total: incoming.total ?? null,
       skip: incoming.skip ?? 0,
       limit: incoming.limit ?? items.length,
       hasMore: incoming.hasMore ?? false,

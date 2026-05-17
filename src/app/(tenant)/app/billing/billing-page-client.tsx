@@ -514,6 +514,7 @@ export function BillingPageClient() {
                 pageIndex: invoicesPageIndex,
                 pageSize: INVOICES_PAGE_SIZE,
                 totalCount: invoicesMeta?.total ?? null,
+                hasMore: invoicesMeta?.hasMore,
                 onPageChange: setInvoicesPageIndex,
               }}
               emptyTitle="No invoices"

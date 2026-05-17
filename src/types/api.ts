@@ -20,13 +20,7 @@ export interface ErrorEnvelope {
 export type ApiEnvelope<T> = SuccessEnvelope<T> | ErrorEnvelope;
 
 // ── Pagination ────────────────────────────────────────────────────────
-/** Used by most list endpoints */
-export interface StartStopParams {
-  start?: number;
-  stop?: number;
-}
-
-/** Used by newer admin endpoints (plans, subscriptions, discounts) */
+/** Pagination params for every list endpoint. */
 export interface SkipLimitParams {
   skip?: number;
   limit?: number;
@@ -34,8 +28,6 @@ export interface SkipLimitParams {
 
 export interface PaginatedMeta {
   total?: number;
-  start?: number;
-  stop?: number;
   skip?: number;
   limit?: number;
 }

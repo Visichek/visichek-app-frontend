@@ -58,12 +58,8 @@ export interface AuditLogFilters {
   q?: string;
   sort?: string;
   facets?: string;
-  /** New pagination. */
   skip?: number;
   limit?: number;
-  /** Legacy pagination (still accepted on backend). */
-  start?: number;
-  stop?: number;
   /** Legacy actor filter (kept for compat with the existing list query). */
   actorId?: string;
 }
@@ -71,8 +67,8 @@ export interface AuditLogFilters {
 /**
  * Query for `GET /v1/audit-logs/export` (tenant-scoped XLSX export).
  *
- * Mirrors the JSON list filters minus pagination — exports cap rows by
- * `limit` (1..50000, default 10000) instead of slicing with start/stop.
+ * Mirrors the JSON list filters minus paginated slicing — exports cap rows by
+ * `limit` (1..50000, default 10000).
  */
 export interface AuditLogExportFilters {
   actorId?: string;

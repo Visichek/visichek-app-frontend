@@ -282,6 +282,7 @@ export default function DPOPage() {
           pageIndex,
           pageSize: DSR_PAGE_SIZE,
           totalCount: meta?.total ?? null,
+          hasMore: meta?.hasMore,
           onPageChange: setPageIndex,
         }}
         emptyTitle="No data subject requests"

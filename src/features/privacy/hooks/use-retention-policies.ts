@@ -9,8 +9,8 @@ interface PaginatedResponse<T> {
   data: T[];
   meta?: {
     total?: number;
-    start?: number;
-    stop?: number;
+    skip?: number;
+    limit?: number;
   };
 }
 
@@ -29,8 +29,8 @@ export interface UpdateRetentionPolicyRequest {
 }
 
 interface UseRetentionPoliciesParams {
-  start?: number;
-  stop?: number;
+  skip?: number;
+  limit?: number;
 }
 
 /**

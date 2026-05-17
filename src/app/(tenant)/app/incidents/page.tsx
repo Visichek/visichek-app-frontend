@@ -444,6 +444,7 @@ export default function IncidentsPage() {
           pageIndex,
           pageSize: INCIDENTS_PAGE_SIZE,
           totalCount: incidentsMeta?.total ?? null,
+          hasMore: incidentsMeta?.hasMore,
           onPageChange: setPageIndex,
         }}
         mobileCard={mobileCard}

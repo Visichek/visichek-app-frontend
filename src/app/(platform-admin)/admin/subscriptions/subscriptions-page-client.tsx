@@ -781,6 +781,7 @@ export function SubscriptionsPageClient() {
             pageIndex,
             pageSize: SUBSCRIPTION_PAGE_SIZE,
             totalCount: meta?.total ?? null,
+            hasMore: meta?.hasMore,
             onPageChange: setPageIndex,
           }}
           mobileCard={(subscription) => (

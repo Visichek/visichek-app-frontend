@@ -455,6 +455,7 @@ export function UsersPageClient() {
           pageIndex,
           pageSize: USERS_PAGE_SIZE,
           totalCount: meta?.total ?? null,
+          hasMore: meta?.hasMore,
           onPageChange: setPageIndex,
         }}
         searchKey="fullName"

@@ -94,12 +94,11 @@ export interface JobRecord<TResult = unknown> {
 }
 
 /**
- * Query params for the paginated jobs list (`GET /v1/jobs`). Uses the older
- * `start` / `stop` convention — not `skip` / `limit`.
+ * Query params for the paginated jobs list (`GET /v1/jobs`).
  */
 export interface JobListParams {
-  start?: number;
-  stop?: number;
+  skip?: number;
+  limit?: number;
   /** Filter to a single terminal / transient status. */
   status?: JobStatus;
   /** Filter by taskKey prefix (e.g. `"db.write:department"`). */

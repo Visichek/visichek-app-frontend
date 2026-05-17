@@ -345,6 +345,7 @@ export function BlogsPageClient() {
           pageIndex,
           pageSize: BLOGS_PAGE_SIZE,
           totalCount: meta?.total ?? null,
+          hasMore: meta?.hasMore,
           onPageChange: setPageIndex,
         }}
         searchKey="article"

@@ -231,8 +231,8 @@ export function AwaitingCheckoutPicker({
     isRefetching,
   } = useAwaitingCheckout({
     departmentId,
-    start: 0,
-    stop: pageSize,
+    skip: 0,
+    limit: pageSize,
   });
 
   const checkOut = useCheckOut();

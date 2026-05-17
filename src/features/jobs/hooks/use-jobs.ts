@@ -16,8 +16,6 @@ export const jobKeys = {
  * Paginated list of queued writes for the caller's tenant — powers the
  * "Recent activity" page and the jobs detail deep-link from failure
  * notifications.
- *
- * Uses the `start` / `stop` pagination convention (not `skip` / `limit`).
  */
 export function useJobs(params?: JobListParams) {
   return useQuery<JobRecord[]>({

@@ -345,6 +345,7 @@ export function AppointmentsPageClient() {
           pageIndex,
           pageSize: APPOINTMENTS_PAGE_SIZE,
           totalCount: meta?.total ?? null,
+          hasMore: meta?.hasMore,
           onPageChange: setPageIndex,
         }}
         mobileCard={mobileCard}

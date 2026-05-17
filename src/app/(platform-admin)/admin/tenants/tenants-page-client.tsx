@@ -641,6 +641,7 @@ export function TenantsPageClient() {
           pageIndex,
           pageSize: TENANTS_PAGE_SIZE,
           totalCount: meta?.total ?? null,
+          hasMore: meta?.hasMore,
           onPageChange: setPageIndex,
         }}
         searchKey="companyName"

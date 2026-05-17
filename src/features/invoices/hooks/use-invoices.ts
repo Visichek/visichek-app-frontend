@@ -53,8 +53,8 @@ export interface InvoiceWithSummary extends Invoice {
 
 /**
  * Fetch all invoices (admin). The axios interceptor unwraps the envelope, so
- * this returns the flat Invoice[] array. Pagination meta (total, start, stop)
- * is discarded on the client — use `start`/`stop` params to page through.
+ * this returns the flat Invoice[] array. Pagination meta (total, skip, limit)
+ * is discarded on the client — use `skip`/`limit` params to page through.
  */
 export function useAllInvoices(params?: UseInvoicesParams) {
   return useQuery<ListResponse<InvoiceWithSummary>>({

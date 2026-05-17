@@ -147,6 +147,7 @@ export default function AuditPage() {
           pageIndex,
           pageSize: AUDIT_PAGE_SIZE,
           totalCount: meta?.total ?? null,
+          hasMore: meta?.hasMore,
           onPageChange: setPageIndex,
         }}
         emptyTitle="No audit events"

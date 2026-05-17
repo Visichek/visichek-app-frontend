@@ -161,8 +161,8 @@ export function useSearchAdmins(query: string) {
     queryFn: () =>
       apiGet<AdminSearchResult[]>("/admins/search", {
         q: trimmed,
-        start: 0,
-        stop: 20,
+        skip: 0,
+        limit: 20,
       }),
     enabled: trimmed.length >= 1,
     staleTime: 30_000,

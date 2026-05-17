@@ -71,8 +71,8 @@ export default function AdminSupportCasesPage() {
       supportTier: supportTier === "all" ? undefined : supportTier,
       tenantId: tenantId.trim() || undefined,
       assignedAdminId: assignedAdminId.trim() || undefined,
-      start: pageIndex * SUPPORT_CASES_PAGE_SIZE,
-      stop: pageIndex * SUPPORT_CASES_PAGE_SIZE + SUPPORT_CASES_PAGE_SIZE,
+      skip: pageIndex * SUPPORT_CASES_PAGE_SIZE,
+      limit: SUPPORT_CASES_PAGE_SIZE,
     }),
     [status, priority, category, supportTier, tenantId, assignedAdminId, pageIndex],
   );
@@ -340,6 +340,7 @@ export default function AdminSupportCasesPage() {
           pageIndex,
           pageSize: SUPPORT_CASES_PAGE_SIZE,
           totalCount: meta?.total ?? null,
+          hasMore: meta?.hasMore,
           onPageChange: setPageIndex,
         }}
         mobileCard={mobileCard}

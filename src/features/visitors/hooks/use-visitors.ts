@@ -49,8 +49,8 @@ const visitorKeys = {
     ['visitors', 'active', departmentId] as const,
   sessions: ['visitors', 'sessions'] as const,
   sessionsList: (params: {
-    start?: number;
-    stop?: number;
+    skip?: number;
+    limit?: number;
     departmentId?: string;
   }) => ['visitors', 'sessions', params] as const,
   session: (sessionId: string) => ['visitors', 'sessions', sessionId] as const,
@@ -58,8 +58,8 @@ const visitorKeys = {
   awaitingCheckout: ['visitors', 'awaiting-checkout'] as const,
   awaitingCheckoutList: (params: {
     departmentId?: string;
-    start?: number;
-    stop?: number;
+    skip?: number;
+    limit?: number;
   }) => ['visitors', 'awaiting-checkout', params] as const,
   profiles: ['visitor-profiles'] as const,
   profilesSearch: (query: string) =>
@@ -90,8 +90,8 @@ export function useActiveVisitors(departmentId?: string) {
  * Fetch visitor sessions with pagination and optional department filtering.
  */
 export function useVisitorSessions(params: {
-  start?: number;
-  stop?: number;
+  skip?: number;
+  limit?: number;
   departmentId?: string;
 }) {
   return useQuery({
@@ -152,13 +152,13 @@ export function useVisitorBadge(sessionId: string) {
  */
 export function useAwaitingCheckout(params?: {
   departmentId?: string;
-  start?: number;
-  stop?: number;
+  skip?: number;
+  limit?: number;
 }) {
   const normalized = {
     departmentId: params?.departmentId,
-    start: params?.start,
-    stop: params?.stop,
+    skip: params?.skip,
+    limit: params?.limit,
   };
   return useQuery({
     queryKey: visitorKeys.awaitingCheckoutList(normalized),
@@ -169,8 +169,8 @@ export function useAwaitingCheckout(params?: {
           ...(normalized.departmentId && {
             departmentId: normalized.departmentId,
           }),
-          ...(normalized.start !== undefined && { start: normalized.start }),
-          ...(normalized.stop !== undefined && { stop: normalized.stop }),
+          ...(normalized.skip !== undefined && { skip: normalized.skip }),
+          ...(normalized.limit !== undefined && { limit: normalized.limit }),
         },
       );
       return data ?? [];

@@ -447,6 +447,7 @@ export function OnboardingQueueClient() {
           pageIndex,
           pageSize: ONBOARDING_PAGE_SIZE,
           totalCount: meta?.total ?? null,
+          hasMore: meta?.hasMore,
           onPageChange: setPageIndex,
         }}
         searchKey="email"
