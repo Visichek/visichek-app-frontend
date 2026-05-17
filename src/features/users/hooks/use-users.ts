@@ -16,6 +16,9 @@ import type {
   InviteAdminRequest,
   ResetUserPasswordRequest,
   ResetUserPasswordResponse,
+  InitiateTransferMainSuperAdminRequest,
+  InitiateTransferMainSuperAdminResponse,
+  CompleteTransferMainSuperAdminRequest,
 } from '@/types/user';
 import type { SystemUserProfile } from '@/types/auth';
 import type { ListResponse, BulkJobResult } from '@/types/list';
@@ -203,6 +206,51 @@ export function useInviteUser() {
  * - 422 VALIDATION_FAILED: policy / history failure — surface inline
  *   against the password input.
  */
+/**
+ * Step 1 of the two-step main super_admin transfer flow. Triggers an OTP
+ * delivered to the actor's configured 2FA channel and returns the
+ * `otpChallengeId` to bind the verify call to.
+ *
+ * The hook does NOT invalidate the users list — the rotation only takes
+ * effect after step 2 (verify) succeeds.
+ */
+export function useInitiateTransferMainSuperAdmin() {
+  return useMutation({
+    mutationFn: async (request: InitiateTransferMainSuperAdminRequest) => {
+      const data = await apiPost<InitiateTransferMainSuperAdminResponse>(
+        '/system-users/transfer-main-super-admin/initiate',
+        request,
+      );
+      return data;
+    },
+  });
+}
+
+/**
+ * Step 2 of the main super_admin transfer flow. The body MUST echo the
+ * `newMainSuperAdminUserId` + `tenantId` returned by step 1 — the server
+ * checks both against the OTP intent and rejects with
+ * `OTP_TARGET_MISMATCH` if they diverge.
+ *
+ * On success, invalidates the users list so the `isMainSuperAdmin` flag
+ * flips on both rows without a manual refetch.
+ */
+export function useCompleteTransferMainSuperAdmin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (request: CompleteTransferMainSuperAdminRequest) => {
+      const data = await apiPost<SystemUser>(
+        '/system-users/transfer-main-super-admin',
+        request,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: userKeys.lists() });
+    },
+  });
+}
+
 export function useResetUserPassword() {
   return useMutation({
     mutationFn: async ({

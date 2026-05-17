@@ -61,8 +61,21 @@ export interface SessionOut {
   ipAddress: string;
   userAgent: string;
   deviceType: DeviceType;
+  /**
+   * Backend-formatted device label like "Chrome (Windows)". Prefer this
+   * over parsing `userAgent` on the client — the server has richer UA
+   * data and keeps the format consistent across rows. May be missing on
+   * legacy rows; clients should fall back to `userAgent` parsing.
+   */
+  device?: string;
   location: string | null;
   isCurrent: boolean;
+  /**
+   * DB id of the access-token row backing this session. Used by the
+   * server to compute `isCurrent`; surfaced so the client can correlate
+   * sessions with token revocation events if needed.
+   */
+  accessTokenId?: string;
   dateCreated: number;
   lastActiveAt: number;
 }

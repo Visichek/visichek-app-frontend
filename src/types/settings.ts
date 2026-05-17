@@ -57,10 +57,28 @@ export interface SettingsManifestProfile {
   mfaLockedByAdmin?: boolean;
 }
 
+/**
+ * Policy block returned by GET /v1/settings. Each policy describes a
+ * tenant-wide invariant the backend enforces; the frontend renders
+ * informational chips so operators understand why certain controls are
+ * locked. The `transferEndpoint` (for the main super_admin policy) is the
+ * same one the transfer modal posts to — no separate wiring needed.
+ */
+export interface MainSuperAdminPolicy {
+  active: boolean;
+  rule: string;
+  transferEndpoint: string;
+}
+
+export interface SettingsPolicies {
+  mainSuperAdmin?: MainSuperAdminPolicy;
+}
+
 export interface SettingsManifest {
   profile: SettingsManifestProfile;
   isPrimaryAdmin: boolean;
   sections: SettingsSection[];
+  policies?: SettingsPolicies;
 }
 
 // ── User Settings (per-user personal preferences) ───────────────────

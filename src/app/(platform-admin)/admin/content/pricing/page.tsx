@@ -1,17 +1,14 @@
 /**
- * /admin/content/pricing — marketing pricing display management
- * (Issue 10).
+ * /admin/content/pricing — marketing pricing display management.
  *
- * This is the editorial layer that sits on top of the live plans
- * data. Plans (and their prices, feature rules, entity caps) remain
- * billing's source of truth; this page lets content / marketing ops
- * tweak display names, marketing descriptions, feature highlights,
- * CTAs, ordering, and visibility for the public pricing card grid.
+ * Editorial overlay on top of the live billing plans. Prices, caps,
+ * and feature toggles still come from `/v1/plans/*`; this page owns
+ * only the marketing copy that wraps them — headline / subheadline,
+ * per-plan tagline / CTA / badge / highlight bullets, and
+ * per-comparison-row label / description / section assignment.
  *
- * Until the backend ships the pricing-content tables + endpoints,
- * the page renders the existing plan list with a "review for drift"
- * call to action and a placeholder banner so the page is wired into
- * the sidebar and the route guards land somewhere meaningful.
+ * Backed by `GET/PATCH /v1/pricing-marketing` and
+ * `DELETE /v1/pricing-marketing/{kind}/{key}`.
  */
 import type { Metadata } from "next";
 import PricingContentClient from "./pricing-content-client";

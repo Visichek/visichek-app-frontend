@@ -110,6 +110,50 @@ export function superAdminDeleteHint(error: ApiError): string | undefined {
 }
 
 /**
+ * `MAIN_SUPER_ADMIN_LOCKED` — the request tried to PATCH, DELETE, or
+ * bulk-mutate the row that is the tenant's main super_admin. The role
+ * must be moved first via the two-step transfer flow; the same code
+ * fires regardless of which mutation was attempted.
+ *
+ * `details.lockedFields` enumerates which fields the server refused to
+ * touch on this specific request (commonly `["role"]`, `["accountStatus"]`,
+ * or `["isActive"]`). Prefer disabling those controls on the row in the
+ * first place; treat this error as a race-condition fallback (e.g.,
+ * another admin transferred ownership between page load and submit).
+ */
+export type MainSuperAdminLockedField = "role" | "accountStatus" | "isActive";
+
+export function isMainSuperAdminLocked(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === "MAIN_SUPER_ADMIN_LOCKED";
+}
+
+export function mainSuperAdminLockedFields(
+  error: ApiError,
+): MainSuperAdminLockedField[] {
+  const details = error.details;
+  if (typeof details !== "object" || details === null) return [];
+  const fields = (details as { lockedFields?: unknown }).lockedFields;
+  if (!Array.isArray(fields)) return [];
+  return fields.filter(
+    (f): f is MainSuperAdminLockedField =>
+      f === "role" || f === "accountStatus" || f === "isActive",
+  );
+}
+
+/**
+ * `403 SUPER_ADMIN_INVITE_FORBIDDEN` — the request tried to invite a
+ * super_admin via `POST /v1/system-users/signup` (or `/invite`). The
+ * super_admin role is provisioned through the application-admin path
+ * (`POST /v1/admins/tenants/{tenantId}/super-admins`) or rotated via the
+ * transfer flow — it cannot be granted from the regular invite endpoint.
+ */
+export function isSuperAdminInviteForbidden(error: unknown): error is ApiError {
+  return (
+    error instanceof ApiError && error.code === "SUPER_ADMIN_INVITE_FORBIDDEN"
+  );
+}
+
+/**
  * `403 ENTERPRISE_PLAN_MISMATCH` — the request hit a custom enterprise
  * sub-app endpoint (`/v1/enterprise/<slug>/*`) but the calling tenant is
  * not subscribed to the plan whose `name == <slug>`. Hide the nav entry

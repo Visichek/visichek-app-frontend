@@ -29,14 +29,19 @@ import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useCreateSystemUser } from "@/features/users/hooks/use-users";
 import { useDepartments } from "@/features/departments/hooks/use-departments";
 import { BranchPicker } from "@/features/users/components/branch-picker";
+import { isSuperAdminInviteForbidden } from "@/types/api";
 import type { SystemUserRole } from "@/types/enums";
 
 const userSchema = z.object({
   fullName: z.string().trim().min(1, "Full name is required"),
   email: z.string().trim().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
+  // Super_admin is provisioned exclusively through the app-admin path
+  // (POST /v1/admins/tenants/{tenantId}/super-admins) or rotated via the
+  // transfer flow. The regular invite endpoint rejects super_admin with
+  // SUPER_ADMIN_INVITE_FORBIDDEN, so the role is removed from this
+  // dropdown entirely.
   role: z.enum([
-    "super_admin",
     "dept_admin",
     "receptionist",
     "auditor",
@@ -92,6 +97,16 @@ export default function NewUserPage() {
       toast.success("System user created");
       router.push("/app/users");
     } catch (err) {
+      // Defensive: the form already omits super_admin from the dropdown,
+      // but if a request slips through (zod bypass, race) the server
+      // rejects with SUPER_ADMIN_INVITE_FORBIDDEN. Translate to a copy
+      // that points operators at the right flow.
+      if (isSuperAdminInviteForbidden(err)) {
+        toast.error(
+          "Super admins can't be invited from this form. Add a super admin to this tenant from the platform-admin console, or transfer the role from an existing super admin.",
+        );
+        return;
+      }
       toast.error(err instanceof Error ? err.message : "Failed to create user");
     }
   });
@@ -185,13 +200,12 @@ export default function NewUserPage() {
               <div>
                 <Select
                   value={role}
-                  onValueChange={(value) => setValue("role", value as SystemUserRole)}
+                  onValueChange={(value) => setValue("role", value as UserFormData["role"])}
                 >
                   <SelectTrigger id="role" className="min-h-[44px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="super_admin">Super Admin</SelectItem>
                     <SelectItem value="dept_admin">Department Admin</SelectItem>
                     <SelectItem value="receptionist">Receptionist</SelectItem>
                     <SelectItem value="auditor">Auditor</SelectItem>

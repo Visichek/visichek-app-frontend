@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { KeyRound, ShieldOff, ShieldAlert } from "lucide-react";
+import { KeyRound, ShieldOff, ShieldAlert, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
@@ -35,8 +36,29 @@ export function SecurityTab() {
   const mfaRequired = twoFa?.required ?? false;
   const mfaEnforcementReason = twoFa?.enforcementReason ?? null;
 
+  const mainSuperAdminPolicy = manifest?.policies?.mainSuperAdmin;
+
   return (
     <div className="space-y-6">
+      {mainSuperAdminPolicy?.active && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge
+              variant="secondary"
+              className="gap-1.5 font-normal bg-emerald-100 text-emerald-900 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-200"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+              Main super admin policy: Active
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-xs">
+            Exactly one super admin per tenant carries the main role. They
+            can&apos;t be deleted, demoted, or deactivated directly — the role
+            must be transferred to another active super admin first.
+          </TooltipContent>
+        </Tooltip>
+      )}
+
       {twoFactorSection && (
         <section>
           <h2 className="text-base font-semibold mb-1">{twoFactorSection.label}</h2>

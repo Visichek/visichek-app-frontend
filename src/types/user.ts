@@ -30,6 +30,19 @@ export interface SystemUser {
   /** Optional embedded branch label; populated for unscoped roles in Phase 4. */
   branchSummary?: BranchSummary | null;
   accountStatus?: AccountStatus;
+  /**
+   * Exactly one super_admin per tenant carries `true`. Every endpoint that
+   * mutates a system_user (PATCH, DELETE, bulk delete/deactivate) returns
+   * `MAIN_SUPER_ADMIN_LOCKED` when called on the main super_admin row.
+   * The role can only be moved via the two-step transfer flow
+   * (`/v1/system-users/transfer-main-super-admin/initiate` + verify).
+   *
+   * The field is absent on responses from older backends — treat missing
+   * as `false`. Always guard demote/delete UI by checking strictly
+   * `=== true` so legacy rows fall through to the server's authoritative
+   * rejection rather than getting silently disabled.
+   */
+  isMainSuperAdmin?: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -156,6 +169,56 @@ export interface AdminSignupRequest {
   email: string;
   password: string;
   accessPreset?: AdminAccessPreset;
+}
+
+/**
+ * Body for POST /v1/system-users/transfer-main-super-admin/initiate.
+ *
+ * `tenantId` is REQUIRED when the actor is an application admin and
+ * OPTIONAL (server resolves from session) when the actor is the current
+ * main super_admin of the tenant.
+ *
+ * The target must:
+ *   - currently hold `role === "super_admin"` in the same tenant
+ *   - be `ACTIVE`
+ *   - not already be the main super_admin
+ *
+ * Errors (machine codes):
+ *   400 TARGET_NOT_SUPER_ADMIN | TARGET_INACTIVE | TARGET_ALREADY_MAIN |
+ *       TENANT_ID_REQUIRED
+ *   403 AUTH_PERMISSION_DENIED
+ *   404 RESOURCE_NOT_FOUND
+ */
+export interface InitiateTransferMainSuperAdminRequest {
+  newMainSuperAdminUserId: string;
+  tenantId?: string;
+}
+
+export interface InitiateTransferMainSuperAdminResponse {
+  otpRequired: true;
+  otpChallengeId: string;
+  newMainSuperAdminUserId: string;
+  tenantId: string;
+  message: string;
+}
+
+/**
+ * Body for POST /v1/system-users/transfer-main-super-admin.
+ *
+ * `newMainSuperAdminUserId` and `tenantId` MUST match the values returned
+ * by the initiate call. The server checks the OTP intent + target before
+ * applying the rotation; mismatches return `OTP_TARGET_MISMATCH`.
+ *
+ * Errors:
+ *   400 OTP_WRONG_INTENT | OTP_TARGET_MISMATCH
+ *   401 (invalid / expired OTP)
+ *   429 (too many OTP attempts — reset by re-initiating)
+ */
+export interface CompleteTransferMainSuperAdminRequest {
+  otpChallengeId: string;
+  otpCode: string;
+  newMainSuperAdminUserId: string;
+  tenantId: string;
 }
 
 /**

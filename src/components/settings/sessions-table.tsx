@@ -79,7 +79,7 @@ export function SessionsTable({ sessions, onRevoke, revokingId }: SessionsTableP
                   <td className="px-4 py-3 font-medium">
                     <span className="flex items-center gap-2">
                       <DeviceIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-                      {parseUserAgent(sess.userAgent)}
+                      {sess.device ?? parseUserAgent(sess.userAgent)}
                       {sess.isCurrent && (
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-primary bg-primary/10 px-1.5 py-0.5 rounded">
                           Current

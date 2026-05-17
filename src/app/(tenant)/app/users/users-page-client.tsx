@@ -8,8 +8,10 @@ import {
   Trash2,
   KeyRound,
   ShieldAlert,
+  ShieldCheck,
   MoreHorizontal,
   Loader2,
+  ArrowRightLeft,
 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
@@ -53,9 +55,14 @@ import { useBranches } from "@/features/branches/hooks/use-branches";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useSession } from "@/hooks/use-session";
 import { isBranchScopedRole } from "@/lib/permissions/roles";
-import { isSuperAdminDeleteBlocked, superAdminDeleteHint } from "@/types/api";
+import {
+  isSuperAdminDeleteBlocked,
+  superAdminDeleteHint,
+  isMainSuperAdminLocked,
+} from "@/types/api";
 import { EditUserDialog } from "@/features/users/components/edit-user-dialog";
 import { ResetPasswordDialog } from "@/features/users/components/reset-password-dialog";
+import { TransferMainSuperAdminModal } from "@/features/users/components/transfer-main-super-admin-modal";
 import { useCapability } from "@/features/limitations/hooks/use-limitations";
 import { LockedOverlay } from "@/features/limitations/components/locked-overlay";
 import type { SystemUser } from "@/types/user";
@@ -131,6 +138,14 @@ export function UsersPageClient() {
   const [superAdminBlockedHint, setSuperAdminBlockedHint] = useState<
     string | null
   >(null);
+  // When `MAIN_SUPER_ADMIN_LOCKED` fires (either pre-check or race), we
+  // surface the transfer modal as the recovery path. `transferOpen`
+  // controls visibility; `transferTargetId` lets us deep-link from a
+  // future "transfer to this user" action without re-picking.
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferTargetId, setTransferTargetId] = useState<string | undefined>(
+    undefined,
+  );
 
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null);
   const [bulkSkippedCount, setBulkSkippedCount] = useState(0);
@@ -166,13 +181,13 @@ export function UsersPageClient() {
   const showBranchColumn = !isBranchScopedRole(currentRole);
 
   const handleDeleteClick = (user: SystemUser) => {
-    // Spec: PREFERRED — hide / disable the [Remove user] button on
-    // super_admin rows. The 400 should never need to fire in the happy
-    // path, but we still defend against the race below.
-    if (user.role === "super_admin") {
-      setSuperAdminBlockedHint(
-        "Super admins can't be removed from user management. Use tenant offboarding (application admin only) to remove the tenant entirely, or transfer the role first."
-      );
+    // The main super_admin row can never be deleted directly — the
+    // server returns `MAIN_SUPER_ADMIN_LOCKED` and points operators at
+    // the transfer flow. Surface the same recovery path here as the
+    // first line of defense so the request doesn't even fly.
+    if (user.isMainSuperAdmin === true) {
+      setTransferTargetId(undefined);
+      setTransferOpen(true);
       return;
     }
     setUserToDelete(user);
@@ -187,8 +202,19 @@ export function UsersPageClient() {
       setDeleteDialogOpen(false);
       setUserToDelete(undefined);
     } catch (error) {
-      // Race-condition fallback: if the row was a super_admin by the
-      // time the request hit the server we get the structured 400.
+      // Race-condition fallback: another admin transferred ownership to
+      // this row between page load and submit. Open the transfer modal
+      // so the operator can resolve the lock.
+      if (isMainSuperAdminLocked(error)) {
+        setDeleteDialogOpen(false);
+        setUserToDelete(undefined);
+        setTransferTargetId(undefined);
+        setTransferOpen(true);
+        return;
+      }
+      // Older backends still emit `SUPER_ADMIN_DELETE_BLOCKED` for any
+      // super_admin delete. Keep the legacy AlertDialog so we don't
+      // silently swallow that signal during the rollout.
       if (isSuperAdminDeleteBlocked(error)) {
         setDeleteDialogOpen(false);
         setUserToDelete(undefined);
@@ -263,7 +289,7 @@ export function UsersPageClient() {
     !!systemUserProfile?.id && systemUserProfile.id === user.id;
 
   const renderActions = (user: SystemUser) => {
-    const isSuperAdminRow = user.role === "super_admin";
+    const isMain = user.isMainSuperAdmin === true;
     const targetingSelf = isSelf(user);
 
     return (
@@ -292,16 +318,27 @@ export function UsersPageClient() {
               Reset password
             </DropdownMenuItem>
           )}
+          {isMain && (
+            <DropdownMenuItem
+              onClick={() => {
+                setTransferTargetId(undefined);
+                setTransferOpen(true);
+              }}
+            >
+              <ArrowRightLeft className="mr-2 h-4 w-4" />
+              Transfer main super admin
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => handleDeleteClick(user)}
-            disabled={isSuperAdminRow}
+            disabled={isMain}
             className={
-              isSuperAdminRow ? "text-muted-foreground" : "text-destructive"
+              isMain ? "text-muted-foreground" : "text-destructive"
             }
           >
             <Trash2 className="mr-2 h-4 w-4" />
-            {isSuperAdminRow ? "Delete (protected)" : "Delete"}
+            {isMain ? "Delete (protected — transfer first)" : "Delete"}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -311,17 +348,19 @@ export function UsersPageClient() {
   const bulkActions: DataTableBulkAction<SystemUser>[] = [
     {
       label: "Delete",
-      description: "Permanently delete every selected user — super_admin rows are skipped automatically",
+      description: "Permanently delete every selected user — the main super admin and your own account are skipped automatically",
       icon: <Trash2 className="h-4 w-4" />,
       variant: "destructive",
       onClick: (_ids, rows) => {
         const eligible = rows
-          .filter((u) => u.role !== "super_admin")
+          .filter((u) => u.isMainSuperAdmin !== true)
           .filter((u) => !isSelf(u))
           .map((u) => u.id);
         const skipped = rows.length - eligible.length;
         if (eligible.length === 0) {
-          toast.info("No eligible users selected — super_admins and your own account cannot be deleted here");
+          toast.info(
+            "No eligible users selected — the main super admin and your own account cannot be deleted here",
+          );
           return;
         }
         setBulkSkippedCount(skipped);
@@ -351,9 +390,28 @@ export function UsersPageClient() {
       id: "role",
       header: "Role",
       cell: ({ row }) => (
-        <Badge variant={getRoleBadgeVariant(row.original.role)}>
-          {row.original.role.replace(/_/g, " ")}
-        </Badge>
+        <div className="flex items-center gap-1.5">
+          <Badge variant={getRoleBadgeVariant(row.original.role)}>
+            {row.original.role.replace(/_/g, " ")}
+          </Badge>
+          {row.original.isMainSuperAdmin === true && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge
+                  variant="secondary"
+                  className="gap-1 font-normal bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-200"
+                >
+                  <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+                  Main
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                Tenant&apos;s main super admin. Locked from delete and role
+                change — transfer the role first to demote.
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       ),
     },
     ...(showBranchColumn
@@ -508,6 +566,11 @@ export function UsersPageClient() {
           if (!open) setEditTarget(null);
         }}
         user={editTarget}
+        onTransferRequest={() => {
+          setEditTarget(null);
+          setTransferTargetId(undefined);
+          setTransferOpen(true);
+        }}
       />
 
       <ResetPasswordDialog
@@ -518,6 +581,22 @@ export function UsersPageClient() {
         target={resetTarget}
         onReset={resetPassword.mutateAsync}
         isPending={resetPassword.isPending}
+      />
+
+      <TransferMainSuperAdminModal
+        open={transferOpen}
+        onOpenChange={(open) => {
+          setTransferOpen(open);
+          if (!open) setTransferTargetId(undefined);
+        }}
+        candidates={data.filter(
+          (u) =>
+            u.role === "super_admin" &&
+            u.isMainSuperAdmin !== true &&
+            (u.accountStatus === "ACTIVE" || u.accountStatus === undefined),
+        )}
+        currentMain={data.find((u) => u.isMainSuperAdmin === true) ?? null}
+        defaultTargetId={transferTargetId}
       />
 
       <AlertDialog
