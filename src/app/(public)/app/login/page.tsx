@@ -427,20 +427,16 @@ function CredentialsView({
               >
                 Password
               </label>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className="text-xs font-medium text-[#00D287] hover:text-[#00bd78] transition-colors"
-                  >
-                    Forgot password?
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  Start the password recovery flow to reset access to your
-                  account
-                </TooltipContent>
-              </Tooltip>
+              {/* Plain <Link>, no Tooltip wrapper — see
+                  `project_tooltip_link_portal_race.md`: Radix Tooltip portal
+                  racing React 19 on a page-tree-swap nav like this one was
+                  the source of recurring `removeChild on null` crashes. */}
+              <Link
+                href="/forgot-password"
+                className="text-xs font-medium text-[#00D287] hover:text-[#00bd78] transition-colors"
+              >
+                Forgot password?
+              </Link>
             </div>
             <div className="relative group">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[#00D287] transition-colors">

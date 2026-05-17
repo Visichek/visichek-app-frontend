@@ -10,6 +10,30 @@ export interface RefreshTokenRequest {
   refreshToken: string;
 }
 
+// ── Forgot / Reset Password ──────────────────────────────────────────
+//
+// The forgot/reset endpoints are unified across admin + system_user. The
+// server decides which kind of account the email belongs to and dispatches
+// the matching reset email. We never reveal whether the email exists — a
+// 202 is returned even for unknown addresses.
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ForgotPasswordResponse {
+  requested: true;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+}
+
+export interface ResetPasswordResponse {
+  reset: true;
+}
+
 // ── Token Shapes ──────────────────────────────────────────────────────
 export interface TokenPair {
   accessToken: string;
@@ -133,6 +157,18 @@ export interface AdminLoginResponse {
   refreshToken: string;
   accountStatus: string;
   permissionList: string[] | null;
+  /**
+   * Access preset persisted on the admin row. Drives sidebar
+   * filtering. Optional on the wire for backwards compat with admins
+   * provisioned before the preset feature shipped.
+   */
+  accessPreset?: AdminAccessPreset;
+  /**
+   * True for every invited admin (2FA is mandatory). Surfaced so the
+   * admin list can show a security-posture column without an extra
+   * round trip.
+   */
+  mfaEnabled?: boolean;
   password: string;
   dateCreated: number | null;
   lastUpdated: number | null;

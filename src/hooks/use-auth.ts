@@ -37,6 +37,10 @@ import type {
   AdminLoginResponse,
   SystemUserLoginResponse,
   SuperAdminGlobalLoginResponse,
+  ForgotPasswordRequest,
+  ForgotPasswordResponse,
+  ResetPasswordRequest,
+  ResetPasswordResponse,
 } from "@/types/auth";
 
 const API_BASE_URL =
@@ -117,6 +121,8 @@ export function useAuth() {
         id: loginData.id,
         fullName: loginData.fullName,
         email: loginData.email,
+        accessPreset: loginData.accessPreset,
+        mfaEnabled: loginData.mfaEnabled,
       };
 
       clearExplicitLogout();
@@ -299,6 +305,8 @@ export function useAuth() {
           id: adminData.id,
           fullName: adminData.fullName,
           email: adminData.email,
+          accessPreset: adminData.accessPreset,
+          mfaEnabled: adminData.mfaEnabled,
         };
         clearExplicitLogout();
         dispatch(setAdminSession({ type: "admin", tokens: EMPTY_TOKENS, profile }));
@@ -318,6 +326,40 @@ export function useAuth() {
       }
     },
     [dispatch, navigate]
+  );
+
+  /**
+   * Request a password-reset email.
+   * POST /v1/auth/forgot-password
+   *
+   * The endpoint always returns 202 — even for unknown emails — so the
+   * caller treats success and "unknown account" the same way (show the
+   * generic "check your inbox" screen). No enumeration leak.
+   */
+  const forgotPassword = useCallback(
+    async (request: ForgotPasswordRequest): Promise<ForgotPasswordResponse> => {
+      return apiPost<ForgotPasswordResponse>("/auth/forgot-password", request);
+    },
+    []
+  );
+
+  /**
+   * Consume a reset token and set a new password.
+   * POST /v1/auth/reset-password
+   *
+   * The token is single-use (cleared via `mark_reset_token_used` after a
+   * successful reset). Re-submitting the same token returns 400 with
+   * "This reset link has already been used."
+   *
+   * Errors the UI maps:
+   *   400 → expired / already-used link (re-request reset)
+   *   422 → password policy failure, `details` carries field-level info
+   */
+  const resetPassword = useCallback(
+    async (request: ResetPasswordRequest): Promise<ResetPasswordResponse> => {
+      return apiPost<ResetPasswordResponse>("/auth/reset-password", request);
+    },
+    []
   );
 
   /**
@@ -372,6 +414,8 @@ export function useAuth() {
     loginSuperAdminGlobal,
     loginSuperAdminTenant,
     verifyOtp,
+    forgotPassword,
+    resetPassword,
     logout,
   };
 }

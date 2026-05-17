@@ -21,6 +21,7 @@ import {
   Wallet,
   FileText,
   Headphones,
+  ShieldCheck,
 } from "lucide-react";
 import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
 import { MobileNavSheet } from "@/components/navigation/mobile-nav-sheet";
@@ -158,6 +159,12 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
         notificationBucket: "jobs",
       },
     ],
+  },
+  {
+    label: "Admins",
+    href: "/admin/admins",
+    icon: ShieldCheck,
+    description: "Invite new platform admins, re-scope their access preset, and review 2FA posture",
   },
   {
     label: "Settings",

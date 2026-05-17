@@ -196,10 +196,17 @@ async function tryFetchSystemUserProfile(): Promise<SystemUserProfile | null> {
 async function tryFetchAdminProfile(): Promise<AdminProfile | null> {
   try {
     const data = await apiGet<Record<string, unknown>>("/admins/profile");
+    const accessPresetRaw =
+      (data.accessPreset as string | undefined) ??
+      (data.access_preset as string | undefined);
     return {
       id: (data.id as string) ?? "",
       fullName: (data.fullName as string) ?? (data.full_name as string) ?? "",
       email: (data.email as string) ?? "",
+      accessPreset: accessPresetRaw as AdminProfile["accessPreset"],
+      mfaEnabled:
+        (data.mfaEnabled as boolean | undefined) ??
+        (data.mfa_enabled as boolean | undefined),
     };
   } catch {
     return null;

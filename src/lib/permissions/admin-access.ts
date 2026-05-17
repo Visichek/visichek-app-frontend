@@ -34,6 +34,7 @@ export type AdminSectionKey =
   | "billing"
   | "content"
   | "support"
+  | "admins"
   | "settings";
 
 const PRESET_SECTIONS: Record<AdminAccessPreset, Set<AdminSectionKey>> = {
@@ -43,6 +44,7 @@ const PRESET_SECTIONS: Record<AdminAccessPreset, Set<AdminSectionKey>> = {
     "billing",
     "content",
     "support",
+    "admins",
     "settings",
   ]),
   content_only: new Set<AdminSectionKey>(["dashboard", "content", "settings"]),
@@ -67,6 +69,7 @@ function sectionKeyForLabel(label: string): AdminSectionKey | null {
   if (normalized === "billing") return "billing";
   if (normalized === "content") return "content";
   if (normalized === "support") return "support";
+  if (normalized === "admins") return "admins";
   if (normalized === "settings") return "settings";
   return null;
 }

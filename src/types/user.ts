@@ -1,4 +1,5 @@
 import type { SystemUserRole, AccountStatus } from './enums';
+import type { AdminAccessPreset } from './auth';
 
 /**
  * Compact branch reference embedded on records the FE displays.
@@ -123,13 +124,47 @@ export interface Admin {
   email: string;
   createdAt: number;
   updatedAt: number;
+  /**
+   * Access preset selected at invite time. Optional for backwards compat
+   * with admins provisioned before the preset feature shipped — those
+   * resolve to `all_controls` at the UI layer.
+   */
+  accessPreset?: AdminAccessPreset;
+  /**
+   * Live permission slice derived from `accessPreset`. The backend's
+   * route gate reads the live row, so the FE only uses this for display
+   * (e.g., capability badges).
+   */
+  permissionList?: string[] | null;
+  /**
+   * Always true for invited admins (2FA is mandatory). Surfaced so the
+   * admin list can show a security-posture column.
+   */
+  mfaEnabled?: boolean;
 }
 
 /**
- * Admin Signup Request
+ * Admin Signup Request.
+ *
+ * `accessPreset` is OPTIONAL. The backend defaults to `all_controls`
+ * when omitted, preserving the legacy "platform admin can do
+ * everything" behavior. Inviters should pass an explicit preset
+ * whenever they want to scope the invitee.
  */
 export interface AdminSignupRequest {
   fullName: string;
   email: string;
   password: string;
+  accessPreset?: AdminAccessPreset;
+}
+
+/**
+ * Body for PATCH /v1/admins/{admin_id}/access-preset.
+ *
+ * Re-scopes an existing admin to a different preset. Backend rejects
+ * with 403 if the target is the env-pinned primary admin and the
+ * requested preset is anything other than `all_controls`.
+ */
+export interface UpdateAdminAccessPresetRequest {
+  accessPreset: AdminAccessPreset;
 }

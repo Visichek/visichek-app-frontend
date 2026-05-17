@@ -136,7 +136,7 @@ export default function AdminLoginPage() {
             </h1>
             <p className="text-sm text-gray-500">
               {otpChallengeId
-                ? "Enter the 6-digit code from your authenticator app"
+                ? "Check your email for the 6-digit verification code"
                 : "Sign in to the VisiChek admin console"}
             </p>
           </div>
@@ -180,7 +180,7 @@ export default function AdminLoginPage() {
                   aria-label="Enter your 6-digit verification code"
                 />
                 <p className="text-[11px] text-gray-400 text-center">
-                  You can also use a backup code
+                  Can&apos;t find it? Check your spam folder.
                 </p>
               </div>
 
@@ -263,12 +263,12 @@ export default function AdminLoginPage() {
                     >
                       Password
                     </label>
-                    <button
-                      type="button"
+                    <Link
+                      href="/forgot-password"
                       className="text-xs font-medium text-[#00D287] hover:text-[#00bd78] transition-colors"
                     >
                       Forgot password?
-                    </button>
+                    </Link>
                   </div>
                   <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[#00D287] transition-colors">
