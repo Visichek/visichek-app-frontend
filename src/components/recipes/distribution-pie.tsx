@@ -40,9 +40,10 @@ interface DistributionPieProps {
   emptyTitle?: string;
 }
 
-export type DistributionPieBodyProps = Required<
-  Pick<DistributionPieProps, "data" | "height">
->;
+export interface DistributionPieBodyProps {
+  data: DistributionSlice[];
+  height: number;
+}
 
 // Shared dynamic specifier — see comment in `time-series-chart.tsx` for why
 // every chart wrapper imports from `./chart-bodies` rather than its own

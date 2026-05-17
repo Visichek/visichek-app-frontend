@@ -37,12 +37,14 @@ interface TimeSeriesChartProps {
 /** Internal props consumed by the recharts-using body. Lives in the
  *  public wrapper module so the dynamic import target only depends on
  *  recharts, never on the wrapper's eagerly-loaded Card primitives. */
-export type TimeSeriesChartBodyProps = Required<
-  Pick<
-    TimeSeriesChartProps,
-    "data" | "color" | "height" | "xAxisFormat" | "valueLabel" | "valueFormatter"
-  >
->;
+export interface TimeSeriesChartBodyProps {
+  data: TimeSeriesPoint[];
+  color: string;
+  height: number;
+  xAxisFormat: "short" | "full";
+  valueLabel: string;
+  valueFormatter: (value: number) => string;
+}
 
 const DEFAULT_COLOR = "hsl(217 91% 60%)";
 

@@ -222,7 +222,7 @@ function PlanRow({
 }
 
 export default function PricingContentClient() {
-  const plansQ = usePlans({ limit: 100, sort: "sortOrder" });
+  const plansQ = usePlans({ limit: 100 });
   const prefsQ = useUserPreferences();
   const updatePref = useUpdateUserPreference();
   const [savingId, setSavingId] = useState<string | null>(null);

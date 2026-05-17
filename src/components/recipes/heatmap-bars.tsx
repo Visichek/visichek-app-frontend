@@ -29,9 +29,12 @@ interface HeatmapBarsProps {
   emptyTitle?: string;
 }
 
-export type HeatmapBarsBodyProps = Required<
-  Pick<HeatmapBarsProps, "data" | "height" | "color">
-> & { unit?: string };
+export interface HeatmapBarsBodyProps {
+  data: Array<{ label: string; value: number }>;
+  height: number;
+  color: string;
+  unit?: string;
+}
 
 const DEFAULT_COLOR = "hsl(217 91% 60%)";
 
