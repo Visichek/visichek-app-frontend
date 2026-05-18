@@ -5,6 +5,7 @@ import { Upload, X } from "lucide-react";
 import { useDocumentUpload } from "@/hooks/use-document-upload";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import type { UploadPurpose } from "@/types/api";
 
 interface FileUploadZoneProps {
   /**
@@ -19,6 +20,16 @@ interface FileUploadZoneProps {
    * Called when upload completes successfully
    */
   onUploadComplete?: (objectKey: string) => void;
+  /**
+   * Upload purpose for the unified pipeline. Drives storage prefix +
+   * quota accounting on the backend. Default depends on the caller.
+   */
+  purpose?: UploadPurpose;
+  /**
+   * Tenant form field this upload satisfies. Forward when the file is
+   * the value of a published form field.
+   */
+  fieldId?: string;
   /**
    * Placeholder text shown in the drop zone
    */
@@ -37,6 +48,8 @@ export function FileUploadZone({
   accept,
   maxSize,
   onUploadComplete,
+  purpose,
+  fieldId,
   placeholder = "Drop your file here or click to browse",
   helpText,
   disabled = false,
@@ -46,7 +59,10 @@ export function FileUploadZone({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  const { upload, isUploading, error } = useDocumentUpload();
+  const { upload, isUploading, error } = useDocumentUpload({
+    purpose,
+    fieldId,
+  });
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
