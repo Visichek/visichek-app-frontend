@@ -21,8 +21,19 @@ import {
   FileText,
   Layers3,
   Loader2,
+  MoreHorizontal,
   Plus,
+  RefreshCw,
+  RotateCcw,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
@@ -56,15 +67,22 @@ import {
 } from "../lib/field-types";
 import {
   useActiveTenantForm,
-  useCreateTenantForm,
-  useUpdateTenantForm,
+  useBootstrapTenantFormDraft,
+  useDiscardTenantFormDraft,
+  usePublishTenantForm,
+  useSeedTenantFormDefaults,
+  useUpdateTenantFormWithWarnings,
 } from "../hooks/use-tenant-forms";
-import type {
-  FormFieldDefinition,
-  FormFieldType,
-  FormTargetType,
-  TenantForm,
+import {
+  asPublishValidationDetails,
+  type FormFieldDefinition,
+  type FormFieldType,
+  type FormTargetType,
+  type PublishValidationFieldError,
+  type TenantForm,
+  type TenantFormAutosaveWarning,
 } from "../types";
+import { ApiError } from "@/types/api";
 import { FieldInlineEditor } from "./field-inline-editor";
 
 interface FormBuilderProps {
@@ -109,6 +127,33 @@ type SaveStatus =
   | { kind: "saved"; at: number }
   | { kind: "error"; message: string }
   | { kind: "blocked"; reason: string };
+
+/**
+ * Convert a publish-validation error into user copy. The backend
+ * sometimes ships `message`; fall back to a canned line per known
+ * `code` so we always render something readable.
+ */
+function publishErrorMessage(error: PublishValidationFieldError): string {
+  if (error.message) return error.message;
+  switch (error.code) {
+    case "NAME_REQUIRED":
+      return "Add a form title before publishing.";
+    case "NO_FIELDS":
+      return "Add at least one question before publishing.";
+    case "EMPTY_LABEL":
+      return "This question needs a label.";
+    case "DUPLICATE_FIELD_ID":
+      return "This question's id is used by another question — pick a different one.";
+    case "CONSENT_TEXT_REQUIRED":
+      return "Consent questions need consent text.";
+    case "OPTIONS_REQUIRED":
+      return "Select / multi-select questions need at least one option.";
+    case "FORMULA_REQUIRED":
+      return "Calculated fields need a formula.";
+    default:
+      return `Fix this question before publishing (${error.code}).`;
+  }
+}
 
 function ordered(fields: FormFieldDefinition[]): FormFieldDefinition[] {
   return [...fields].sort((a, b) => {
@@ -324,15 +369,27 @@ export function FormBuilder({
   );
 
   const activeFormQuery = useActiveTenantForm(tenantId ?? undefined, target);
-  const createMutation = useCreateTenantForm(tenantId ?? undefined);
-  const updateMutation = useUpdateTenantForm(tenantId ?? undefined);
+  const bootstrapMutation = useBootstrapTenantFormDraft(tenantId ?? undefined);
+  const updateMutation = useUpdateTenantFormWithWarnings(tenantId ?? undefined);
+  const publishMutation = usePublishTenantForm(tenantId ?? undefined);
+  const discardDraftMutation = useDiscardTenantFormDraft(tenantId ?? undefined);
+  const seedDefaultsMutation = useSeedTenantFormDefaults(tenantId ?? undefined);
   const activeForm = activeFormQuery.data ?? null;
   const fields = useMemo(() => ordered(draft.fields), [draft.fields]);
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: "idle" });
+  const [autosaveWarnings, setAutosaveWarnings] = useState<
+    TenantFormAutosaveWarning[]
+  >([]);
+  const [publishErrors, setPublishErrors] = useState<
+    PublishValidationFieldError[]
+  >([]);
   const lastSavedSignatureRef = useRef<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inflightAbortRef = useRef<AbortController | null>(null);
+  // Tracks the `(tenantId, target)` we've already bootstrapped this
+  // session, so a target switch only POSTs `/draft/{target}` once.
+  const bootstrappedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     setTarget(defaultTarget);
@@ -382,8 +439,55 @@ export function FormBuilder({
     if (!isSwitchPending) setSwitchingTo(null);
   }, [isSwitchPending]);
 
+  // Bootstrap a draft row for this (tenant, target) the first time we
+  // see it. The endpoint is idempotent — when a head row already
+  // exists, the backend returns it untouched; otherwise it creates a
+  // fresh head with `status=draft`, `version=0`, and `draft_*`
+  // pre-populated with the system defaults for the target_type.
+  //
+  // We deliberately do NOT gate on `activeFormQuery.data === null` —
+  // gating on "no row" misses the case where the row exists but has
+  // never been seeded (legacy drafts from before defaults shipped).
+  // The mutation primes the byTarget cache on success so the
+  // subsequent autosave hits the right formId.
+  useEffect(() => {
+    if (!tenantId) return;
+    if (activeFormQuery.isLoading) return;
+    if (activeForm) return; // a head row already exists; nothing to bootstrap
+    const key = `${tenantId}:${target}`;
+    if (bootstrappedRef.current.has(key)) return;
+    bootstrappedRef.current.add(key);
+    bootstrapMutation.mutate(target, {
+      onError: () => {
+        // Allow retry on the next render — clear the flag so the next
+        // pass tries again instead of getting stuck on a transient
+        // failure.
+        bootstrappedRef.current.delete(key);
+      },
+    });
+  }, [
+    tenantId,
+    target,
+    activeForm,
+    activeFormQuery.isLoading,
+    bootstrapMutation,
+  ]);
+
   const runSave = useCallback(
     async (payload: SavablePayload) => {
+      // PATCH writes to `draft_*` only — the published shape is untouched
+      // until the user explicitly hits Publish. So autosave is always a
+      // PATCH against the bootstrap-created head row; the legacy
+      // POST `/tenant-forms` (create) fallback is gone because bootstrap
+      // guarantees a row exists before we get here.
+      if (!activeForm) {
+        setSaveStatus({
+          kind: "blocked",
+          reason: "Setting up the draft… autosave will resume in a moment.",
+        });
+        return;
+      }
+
       // Cancel any earlier in-flight save — we always want the most recent
       // payload to win, not the first to land.
       if (inflightAbortRef.current) inflightAbortRef.current.abort();
@@ -392,22 +496,14 @@ export function FormBuilder({
 
       setSaveStatus({ kind: "saving" });
       try {
-        if (activeForm) {
-          await updateMutation.mutateAsync({
-            formId: activeForm.formId,
-            name: payload.name.trim(),
-            description: payload.description.trim() || null,
-            fields: payload.fields,
-          });
-        } else {
-          await createMutation.mutateAsync({
-            targetType: target,
-            name: payload.name.trim(),
-            description: payload.description.trim() || null,
-            fields: payload.fields,
-          });
-        }
+        const result = await updateMutation.mutateAsync({
+          formId: activeForm.formId,
+          name: payload.name.trim(),
+          description: payload.description.trim() || null,
+          fields: payload.fields,
+        });
         if (controller.signal.aborted) return;
+        setAutosaveWarnings(result.warnings);
         lastSavedSignatureRef.current = payloadSignature(payload);
         setSaveStatus({ kind: "saved", at: Date.now() });
       } catch (err) {
@@ -422,7 +518,7 @@ export function FormBuilder({
         }
       }
     },
-    [activeForm, createMutation, updateMutation, target],
+    [activeForm, updateMutation],
   );
 
   // `runSave` is re-created every render because react-query's mutation
@@ -525,31 +621,162 @@ export function FormBuilder({
     setDraggingFieldId(null);
   }
 
+  /**
+   * Publish flow per `backend-docs/form-flow.txt §4.3`:
+   *   1. Flush any pending autosave so `draft_*` matches the visible UI.
+   *   2. POST `/tenant-forms/{id}/publish` — promotes draft → published,
+   *      bumps `version`, clears `draft_*`, supersedes other actives.
+   *   3. On 422 VALIDATION_FAILED, pin each `details.errors[]` entry
+   *      against its question card (or as a form-level error banner
+   *      when `fieldId === null`).
+   */
   async function handlePublishClick() {
+    setPublishErrors([]);
+
     const payload = payloadFromDraft(draft);
     const validation = validatePayload(payload);
     if (validation.blocked) {
       toast.error(validation.reason ?? "Form isn't ready to publish yet.");
       return;
     }
+    if (!activeForm) {
+      toast.error("Draft is still being created — try again in a moment.");
+      return;
+    }
+
+    // Flush autosave so the draft on the server matches what's on screen.
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
-    try {
+    const signature = payloadSignature(payload);
+    if (signature !== lastSavedSignatureRef.current) {
       await runSave(payload);
-      toast.success(
-        activeForm ? "Form updated. The new version is live." : "Form published.",
+      if (signature !== lastSavedSignatureRef.current) {
+        // runSave already surfaced the error in saveStatus; bail.
+        toast.error("Couldn't save the draft before publishing — retry.");
+        return;
+      }
+    }
+
+    try {
+      await publishMutation.mutateAsync(activeForm.formId);
+      toast.success("Form published. The new version is live on the kiosk.");
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 422) {
+        const parsed = asPublishValidationDetails(err.details);
+        if (parsed && parsed.errors.length > 0) {
+          setPublishErrors(parsed.errors);
+          toast.error(
+            `Fix ${parsed.errors.length} issue${parsed.errors.length === 1 ? "" : "s"} before publishing.`,
+          );
+          return;
+        }
+      }
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't publish this form.",
       );
-    } catch {
-      // runSave already set the error status; toast is redundant.
     }
   }
 
+  /**
+   * Drop the draft working copy. Resets local UI state from the
+   * server's published shape (which `discard-draft` leaves untouched).
+   */
+  async function handleDiscardDraft() {
+    if (!activeForm) return;
+    if (
+      !window.confirm(
+        "Discard the draft and revert to the last published version? Unsaved field changes will be lost.",
+      )
+    ) {
+      return;
+    }
+    try {
+      const refreshed = await discardDraftMutation.mutateAsync(
+        activeForm.formId,
+      );
+      const next = formToDraft(refreshed);
+      dispatchDraft({ type: "hydrate", draft: next });
+      lastSavedSignatureRef.current = payloadSignature(payloadFromDraft(next));
+      setSaveStatus({ kind: "idle" });
+      setAutosaveWarnings([]);
+      setPublishErrors([]);
+      toast.success("Draft discarded.");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't discard the draft.",
+      );
+    }
+  }
+
+  /**
+   * Re-seed the draft with the system defaults for this target_type.
+   * `force=true` replaces whatever's in the draft; without it the
+   * backend silently no-ops when the draft already has fields.
+   */
+  async function handleSeedDefaults(force: boolean) {
+    if (!activeForm) return;
+    if (
+      force &&
+      !window.confirm(
+        "Replace the current draft with the system defaults? Existing draft fields will be removed.",
+      )
+    ) {
+      return;
+    }
+    try {
+      const refreshed = await seedDefaultsMutation.mutateAsync({
+        formId: activeForm.formId,
+        force,
+      });
+      const next = formToDraft(refreshed);
+      dispatchDraft({ type: "hydrate", draft: next });
+      lastSavedSignatureRef.current = payloadSignature(payloadFromDraft(next));
+      setSaveStatus({ kind: "idle" });
+      setAutosaveWarnings([]);
+      setPublishErrors([]);
+      toast.success(
+        force ? "Draft replaced with system defaults." : "Defaults loaded.",
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't seed defaults.",
+      );
+    }
+  }
+
+  const formLevelPublishErrors = useMemo(
+    () => publishErrors.filter((e) => !e.fieldId),
+    [publishErrors],
+  );
+  const publishErrorByFieldId = useMemo(() => {
+    const map = new Map<string, PublishValidationFieldError>();
+    for (const e of publishErrors) {
+      if (e.fieldId) map.set(e.fieldId, e);
+    }
+    return map;
+  }, [publishErrors]);
+
+  // Clear any pinned publish errors as soon as the user edits anything —
+  // the next publish attempt will surface a fresh result.
+  useEffect(() => {
+    if (publishErrors.length === 0) return;
+    if (lastSavedSignatureRef.current === null) return;
+    const current = payloadSignature(payloadFromDraft(draft));
+    if (current !== lastSavedSignatureRef.current) {
+      setPublishErrors([]);
+    }
+  }, [draft, publishErrors.length]);
+
   const submitting =
     saveStatus.kind === "saving" ||
-    createMutation.isPending ||
-    updateMutation.isPending;
+    bootstrapMutation.isPending ||
+    updateMutation.isPending ||
+    publishMutation.isPending;
+
+  const showDraftActions =
+    !!activeForm && (activeForm.hasUnpublishedChanges ?? false);
 
   return (
     <div className="min-h-[calc(100vh-7rem)] bg-muted/20">
@@ -606,6 +833,79 @@ export function FormBuilder({
                 Open a respondent preview of the current draft fields
               </TooltipContent>
             </Tooltip>
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="min-h-[44px] min-w-[44px]"
+                      aria-label="More form actions"
+                    >
+                      <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  Discard draft, seed system defaults, or other form
+                  lifecycle actions
+                </TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel>Draft</DropdownMenuLabel>
+                <DropdownMenuItem
+                  disabled={!showDraftActions || discardDraftMutation.isPending}
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    void handleDiscardDraft();
+                  }}
+                >
+                  <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
+                  <div className="flex flex-col">
+                    <span>Discard draft</span>
+                    <span className="text-xs text-muted-foreground">
+                      Revert to the last published version
+                    </span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>System defaults</DropdownMenuLabel>
+                <DropdownMenuItem
+                  disabled={!activeForm || seedDefaultsMutation.isPending}
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    void handleSeedDefaults(false);
+                  }}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
+                  <div className="flex flex-col">
+                    <span>Load defaults if empty</span>
+                    <span className="text-xs text-muted-foreground">
+                      No-op when the draft already has fields
+                    </span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!activeForm || seedDefaultsMutation.isPending}
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    void handleSeedDefaults(true);
+                  }}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
+                  <div className="flex flex-col">
+                    <span className="text-destructive">
+                      Replace draft with defaults
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      Wipes the current draft fields
+                    </span>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Tooltip>
               <TooltipTrigger asChild>
                 <span>
@@ -613,15 +913,20 @@ export function FormBuilder({
                     type="button"
                     onClick={handlePublishClick}
                     isLoading={submitting}
-                    loadingText={activeForm ? "Saving…" : "Publishing…"}
+                    loadingText={
+                      publishMutation.isPending ? "Publishing…" : "Saving…"
+                    }
                     className="min-h-[44px]"
                   >
-                    {activeForm ? "Publish update" : "Publish form"}
+                    {activeForm && activeForm.version > 0
+                      ? "Publish update"
+                      : "Publish form"}
                   </LoadingButton>
                 </span>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                Force-save the draft and publish it as the active version
+                Promote the current draft to the active version. The kiosk
+                only sees published forms.
               </TooltipContent>
             </Tooltip>
           </div>
@@ -681,6 +986,49 @@ export function FormBuilder({
             />
           ) : (
             <>
+              {formLevelPublishErrors.length > 0 && (
+                <div
+                  role="alert"
+                  className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm"
+                >
+                  <p className="font-medium text-destructive">
+                    Couldn't publish — fix these issues first
+                  </p>
+                  <ul className="mt-1 list-disc pl-5 text-xs text-destructive/90">
+                    {formLevelPublishErrors.map((e, i) => (
+                      <li key={`${e.code}-${i}`}>
+                        {publishErrorMessage(e)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {publishErrors.length > 0 &&
+                formLevelPublishErrors.length === 0 && (
+                  <div
+                    role="alert"
+                    className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm"
+                  >
+                    <p className="font-medium text-destructive">
+                      Couldn't publish — fix the highlighted questions
+                    </p>
+                  </div>
+                )}
+              {autosaveWarnings.length > 0 && (
+                <div
+                  role="status"
+                  className="rounded-md border border-amber-400/40 bg-amber-500/10 p-3 text-xs"
+                >
+                  <p className="font-medium text-amber-700 dark:text-amber-400">
+                    Soft hints
+                  </p>
+                  <ul className="mt-1 list-disc pl-5 text-muted-foreground">
+                    {autosaveWarnings.map((w, i) => (
+                      <li key={`${w.code ?? "warn"}-${i}`}>{w.message}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <section
                 className={cn(
                   "relative overflow-hidden rounded-xl border bg-card shadow-sm transition",
@@ -787,39 +1135,56 @@ export function FormBuilder({
                 </section>
               ) : (
                 <div className="space-y-3">
-                  {fields.map((field, index) => (
-                    <FieldInlineEditor
-                      key={field.fieldId}
-                      field={field}
-                      index={index}
-                      focused={draft.focusedFieldId === field.fieldId}
-                      dragging={draggingFieldId === field.fieldId}
-                      existingFieldIds={draft.fields.map((f) => f.fieldId)}
-                      onChange={(next) => updateField(next, field.fieldId)}
-                      onFocus={() =>
-                        dispatchDraft({
-                          type: "focus",
-                          fieldId: field.fieldId,
-                        })
-                      }
-                      onDelete={() =>
-                        dispatchDraft({
-                          type: "removeField",
-                          fieldId: field.fieldId,
-                        })
-                      }
-                      onDuplicate={() =>
-                        dispatchDraft({
-                          type: "duplicateField",
-                          fieldId: field.fieldId,
-                        })
-                      }
-                      onDragStart={() => setDraggingFieldId(field.fieldId)}
-                      onDragEnd={() => setDraggingFieldId(null)}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={(event) => handleDrop(event, index)}
-                    />
-                  ))}
+                  {fields.map((field, index) => {
+                    const fieldError = publishErrorByFieldId.get(field.fieldId);
+                    return (
+                      <div
+                        key={field.fieldId}
+                        className={cn(
+                          fieldError && "rounded-xl ring-2 ring-destructive/60",
+                        )}
+                      >
+                        {fieldError && (
+                          <p
+                            role="alert"
+                            className="mb-1 px-2 text-xs font-medium text-destructive"
+                          >
+                            {publishErrorMessage(fieldError)}
+                          </p>
+                        )}
+                        <FieldInlineEditor
+                          field={field}
+                          index={index}
+                          focused={draft.focusedFieldId === field.fieldId}
+                          dragging={draggingFieldId === field.fieldId}
+                          existingFieldIds={draft.fields.map((f) => f.fieldId)}
+                          onChange={(next) => updateField(next, field.fieldId)}
+                          onFocus={() =>
+                            dispatchDraft({
+                              type: "focus",
+                              fieldId: field.fieldId,
+                            })
+                          }
+                          onDelete={() =>
+                            dispatchDraft({
+                              type: "removeField",
+                              fieldId: field.fieldId,
+                            })
+                          }
+                          onDuplicate={() =>
+                            dispatchDraft({
+                              type: "duplicateField",
+                              fieldId: field.fieldId,
+                            })
+                          }
+                          onDragStart={() => setDraggingFieldId(field.fieldId)}
+                          onDragEnd={() => setDraggingFieldId(null)}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={(event) => handleDrop(event, index)}
+                        />
+                      </div>
+                    );
+                  })}
                   {draggingFieldId && (
                     <div
                       onDragOver={(event) => event.preventDefault()}

@@ -189,3 +189,93 @@ export interface TenantFormListParams {
   target?: FormTargetType;
   status?: FormStatus;
 }
+
+// ── Publish validation ────────────────────────────────────────────────
+
+/**
+ * Machine codes from `POST /tenant-forms/{id}/publish` 422 responses.
+ * Each maps to a specific gate inside `_validate_publish`. New codes are
+ * additive — the FE treats unknown codes as a generic "fix this field"
+ * error rather than throwing.
+ */
+export type PublishValidationCode =
+  | "NAME_REQUIRED"
+  | "NO_FIELDS"
+  | "EMPTY_LABEL"
+  | "DUPLICATE_FIELD_ID"
+  | "CONSENT_TEXT_REQUIRED"
+  | "OPTIONS_REQUIRED"
+  | "FORMULA_REQUIRED";
+
+export interface PublishValidationFieldError {
+  /** `null` for form-level errors (e.g. NAME_REQUIRED). */
+  fieldId: string | null;
+  code: PublishValidationCode | string;
+  message?: string;
+}
+
+export interface PublishValidationDetails {
+  formId?: string;
+  errors: PublishValidationFieldError[];
+}
+
+/**
+ * Narrow an `ApiError.details` payload from `/publish` 422 into the
+ * structured field-error list the builder uses to pin inline messages.
+ * Returns `null` when the details don't match the publish-error shape
+ * (e.g. a different 422 surface).
+ */
+export function asPublishValidationDetails(
+  details: unknown,
+): PublishValidationDetails | null {
+  if (!details || typeof details !== "object") return null;
+  const d = details as { formId?: unknown; errors?: unknown };
+  if (!Array.isArray(d.errors)) return null;
+  const cleaned: PublishValidationFieldError[] = [];
+  for (const entry of d.errors) {
+    if (!entry || typeof entry !== "object") continue;
+    const e = entry as {
+      fieldId?: unknown;
+      field_id?: unknown;
+      code?: unknown;
+      message?: unknown;
+    };
+    const rawFieldId = (e.fieldId ?? e.field_id) as unknown;
+    const fieldId =
+      typeof rawFieldId === "string" ? rawFieldId : rawFieldId == null ? null : null;
+    const code = typeof e.code === "string" ? e.code : "";
+    if (!code) continue;
+    cleaned.push({
+      fieldId,
+      code,
+      message: typeof e.message === "string" ? e.message : undefined,
+    });
+  }
+  return {
+    formId: typeof d.formId === "string" ? d.formId : undefined,
+    errors: cleaned,
+  };
+}
+
+// ── Autosave warnings ────────────────────────────────────────────────
+
+/**
+ * Soft hints returned in `meta.warnings[]` from `PATCH /tenant-forms/{id}`
+ * autosave responses. The backend uses these for "your name is empty —
+ * required before publish" style nudges that should NOT block the save.
+ */
+export interface TenantFormAutosaveWarning {
+  code?: string;
+  message: string;
+}
+
+// ── Seed defaults ────────────────────────────────────────────────────
+
+export interface SeedDefaultsParams {
+  /**
+   * When true, the existing draft fields are replaced wholesale with the
+   * system defaults. When false (the default), the call is a no-op if
+   * the draft already has fields.
+   */
+  force?: boolean;
+}
