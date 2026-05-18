@@ -14,6 +14,8 @@ import {
 import { toast } from "sonner";
 import {
   ArrowLeft,
+  Building2,
+  Calendar,
   Check,
   CheckCircle2,
   CircleAlert,
@@ -22,9 +24,13 @@ import {
   Layers3,
   Loader2,
   MoreHorizontal,
+  Pen,
   Plus,
   RefreshCw,
   RotateCcw,
+  Star,
+  Upload,
+  UserCircle2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -54,6 +60,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { cn } from "@/lib/utils/cn";
 import { useSession } from "@/hooks/use-session";
@@ -1240,6 +1253,7 @@ export function FormBuilder({
         title={draft.name}
         description={draft.description}
         fields={fields}
+        target={target}
       />
     </div>
   );
@@ -1355,61 +1369,270 @@ function SideRailButton({
   );
 }
 
+/**
+ * Renders a respondent-side preview of the current draft. The shell
+ * around the questions mirrors whichever real surface will display the
+ * fields once published:
+ *
+ *   - `checkin` / `visit_session` → kiosk shell (logo header,
+ *     "Visitor check-in" subtitle, single card). Matches the layout in
+ *     `app/(public)/register/[tenantId]/page.tsx` / `KioskShell`.
+ *   - `appointment` → scheduler shell. Shows the SYSTEM-required
+ *     pickers (host, department, scheduled date/time) up top in their
+ *     own labelled section, then the tenant-required fields below.
+ *     Matches `features/appointments/components/appointment-form.tsx`.
+ *
+ * The renderer is purely visual — every input is disabled and nothing
+ * is submitted. The goal is for the super_admin to see what the
+ * receptionist / kiosk / visitor will see when the form goes live.
+ */
 function PreviewDialog({
   open,
   onOpenChange,
   title,
   description,
   fields,
+  target,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   description: string;
   fields: FormFieldDefinition[];
+  target: FormTargetType;
 }) {
+  const shell: "kiosk" | "appointment" =
+    target === "appointment" ? "appointment" : "kiosk";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{title || "Untitled form"}</DialogTitle>
-          <DialogDescription>
-            {description || "Preview how this draft renders for respondents."}
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-hidden p-0">
+        <DialogHeader className="border-b bg-background px-5 py-4">
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Eye className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            Preview — {shell === "kiosk" ? "kiosk" : "scheduler"}
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            {shell === "kiosk"
+              ? "Mirrors what the visitor or receptionist sees on the kiosk after publish. Inputs are disabled — this is a visual preview only."
+              : "Mirrors what the scheduler sees when booking an appointment after publish. System-required fields (host, department, date) appear above the tenant section. Inputs are disabled."}
           </DialogDescription>
         </DialogHeader>
-        {fields.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-            Add at least one question to preview the form.
-          </div>
-        ) : (
-          <div className="space-y-5">
-            {fields.map((field) => (
-              <PreviewField key={field.fieldId} field={field} />
-            ))}
-            <div className="flex justify-end border-t pt-4">
-              <Button type="button" className="min-h-[44px]">
-                <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                Submit preview
-              </Button>
-            </div>
-          </div>
-        )}
+
+        <div className="max-h-[calc(90vh-5rem)] overflow-y-auto bg-muted/30 p-4 md:p-6">
+          {shell === "kiosk" ? (
+            <PreviewKioskShell title={title} fields={fields} />
+          ) : (
+            <PreviewAppointmentShell
+              title={title}
+              description={description}
+              fields={fields}
+            />
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-function PreviewField({ field }: { field: FormFieldDefinition }) {
-  const commonLabel = (
-    <Label htmlFor={`preview-${field.fieldId}`}>
-      {field.label || "Untitled question"}
-      {field.required ? <span className="text-destructive"> *</span> : null}
-    </Label>
-  );
-
+/**
+ * Mirrors `KioskShell` in the public register page — branded header
+ * with logo placeholder + tenant name + "Visitor check-in", then a
+ * single Card holding the questions and a primary "Continue" CTA.
+ */
+function PreviewKioskShell({
+  title,
+  fields,
+}: {
+  title: string;
+  fields: FormFieldDefinition[];
+}) {
   return (
-    <div className="space-y-2">
-      {commonLabel}
+    <div className="mx-auto w-full max-w-2xl space-y-6">
+      <header className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded bg-background ring-1 ring-border">
+          <Building2
+            className="h-5 w-5 text-muted-foreground"
+            aria-hidden="true"
+          />
+        </div>
+        <div className="min-w-0">
+          <p className="font-display text-lg leading-tight truncate">
+            {title || "Your tenant"}
+          </p>
+          <p className="text-xs text-muted-foreground">Visitor check-in</p>
+        </div>
+      </header>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Visit details</CardTitle>
+          <CardDescription>
+            Please fill in the details below.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {fields.length === 0 ? (
+            <PreviewEmptyState />
+          ) : (
+            fields.map((field) => (
+              <PreviewField key={field.fieldId} field={field} />
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-end">
+        <Button type="button" disabled className="min-h-[44px]">
+          <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />
+          Continue
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Mirrors the scheduler in `appointment-form.tsx`: a system-required
+ * section (host picker / department picker / scheduled date+time —
+ * always present, never editable by the tenant form) above the
+ * tenant-required section the form-builder is configuring.
+ */
+function PreviewAppointmentShell({
+  title,
+  description,
+  fields,
+}: {
+  title: string;
+  description: string;
+  fields: FormFieldDefinition[];
+}) {
+  return (
+    <div className="mx-auto w-full max-w-xl space-y-6">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          New appointment
+        </p>
+        <h2 className="mt-1 text-lg font-semibold tracking-tight">
+          {title || "Schedule a future appointment for a visitor with a host"}
+        </h2>
+        {description && (
+          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        )}
+      </div>
+
+      <section className="space-y-4 rounded-lg border border-border bg-background p-4">
+        <div className="space-y-1">
+          <h3 className="text-sm font-semibold">System-required fields</h3>
+          <p className="text-xs text-muted-foreground">
+            Always present on the scheduler — enforced server-side regardless
+            of what the tenant form defines.
+          </p>
+        </div>
+        <div className="space-y-3">
+          <PreviewSystemField
+            id="preview-host"
+            icon={<UserCircle2 className="h-4 w-4" aria-hidden="true" />}
+            label="Host *"
+            placeholder="Select a host"
+          />
+          <PreviewSystemField
+            id="preview-department"
+            icon={<Building2 className="h-4 w-4" aria-hidden="true" />}
+            label="Department *"
+            placeholder="Select a department"
+          />
+          <PreviewSystemField
+            id="preview-scheduled"
+            icon={<Calendar className="h-4 w-4" aria-hidden="true" />}
+            label="Scheduled date & time *"
+            placeholder="YYYY-MM-DD, HH:MM"
+            inputType="datetime-local"
+          />
+        </div>
+      </section>
+
+      <section className="space-y-4 rounded-lg border border-border bg-muted/20 p-4">
+        <div className="space-y-1">
+          <h3 className="text-sm font-semibold">Tenant-required fields</h3>
+          <p className="text-xs text-muted-foreground">
+            Defined by this form. Every required field must be filled before
+            the appointment is accepted.
+          </p>
+        </div>
+        {fields.length === 0 ? (
+          <PreviewEmptyState />
+        ) : (
+          <div className="space-y-4">
+            {fields.map((field) => (
+              <PreviewField key={field.fieldId} field={field} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <div className="flex justify-end">
+        <Button type="button" disabled className="min-h-[44px]">
+          <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />
+          Schedule appointment
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function PreviewEmptyState() {
+  return (
+    <div className="rounded-md border border-dashed bg-background p-6 text-center text-sm text-muted-foreground">
+      Add at least one question to preview how the form will render.
+    </div>
+  );
+}
+
+function PreviewSystemField({
+  id,
+  icon,
+  label,
+  placeholder,
+  inputType = "text",
+}: {
+  id: string;
+  icon: ReactNode;
+  label: string;
+  placeholder: string;
+  inputType?: string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id} className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground" aria-hidden="true">
+          {icon}
+        </span>
+        {label}
+      </Label>
+      <Input
+        id={id}
+        type={inputType}
+        placeholder={placeholder}
+        disabled
+        className="min-h-[44px] cursor-not-allowed bg-background text-base md:text-sm"
+      />
+    </div>
+  );
+}
+
+function PreviewField({ field }: { field: FormFieldDefinition }) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={`preview-${field.fieldId}`} className="text-sm">
+        {field.label || "Untitled question"}
+        {field.required ? (
+          <span className="text-destructive" aria-hidden="true">
+            {" "}
+            *
+          </span>
+        ) : null}
+      </Label>
       {field.helpText ? (
         <p className="text-xs text-muted-foreground">{field.helpText}</p>
       ) : null}
@@ -1419,33 +1642,73 @@ function PreviewField({ field }: { field: FormFieldDefinition }) {
 }
 
 function PreviewControl({ field }: { field: FormFieldDefinition }) {
+  const id = `preview-${field.fieldId}`;
+  const baseInputClass =
+    "min-h-[44px] cursor-not-allowed bg-background text-base md:text-sm";
+
   if (field.type === "long_text") {
     return (
       <Textarea
-        id={`preview-${field.fieldId}`}
+        id={id}
         placeholder={field.placeholder ?? ""}
-        className="text-base md:text-sm"
+        disabled
+        className="min-h-20 cursor-not-allowed bg-background text-base md:text-sm"
       />
     );
   }
 
-  if (field.type === "boolean" || field.type === "consent_checkbox") {
+  if (field.type === "consent_checkbox") {
     return (
-      <label className="flex min-h-[44px] items-center gap-3 rounded-md border p-3 text-sm">
-        <input type="checkbox" />
-        <span>{field.consentText || "Yes"}</span>
+      <label className="flex min-h-[44px] cursor-not-allowed items-start gap-3 rounded-md border bg-background p-3 text-sm">
+        <input type="checkbox" disabled className="mt-1 h-4 w-4" />
+        <span className="text-muted-foreground">
+          {field.consentText || "I agree to the consent text shown here."}
+        </span>
+      </label>
+    );
+  }
+
+  if (field.type === "boolean") {
+    return (
+      <label className="flex min-h-[44px] cursor-not-allowed items-center gap-3 rounded-md border bg-background p-3 text-sm">
+        <input type="checkbox" disabled className="h-4 w-4" />
+        <span>{field.label || "Yes"}</span>
       </label>
     );
   }
 
   if (isOptionType(field.type)) {
+    const isMulti = field.type === "multi_select";
+    if (isMulti) {
+      return (
+        <div className="space-y-1 rounded-md border bg-background p-3">
+          {(field.options ?? []).length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No options configured.
+            </p>
+          ) : (
+            (field.options ?? []).map((opt) => (
+              <label
+                key={opt.key}
+                className="flex cursor-not-allowed items-center gap-2 text-sm"
+              >
+                <input type="checkbox" disabled className="h-4 w-4" />
+                <span>{opt.label}</span>
+              </label>
+            ))
+          )}
+        </div>
+      );
+    }
     return (
       <select
-        id={`preview-${field.fieldId}`}
-        multiple={field.type === "multi_select"}
-        className="min-h-[44px] w-full rounded-md border bg-background px-3 py-2 text-base md:text-sm"
+        id={id}
+        disabled
+        className="min-h-[44px] w-full cursor-not-allowed rounded-md border bg-background px-3 py-2 text-base md:text-sm"
       >
-        <option value="">Choose…</option>
+        <option value="">
+          {field.placeholder ?? "Choose…"}
+        </option>
         {(field.options ?? []).map((option) => (
           <option key={option.key} value={option.key}>
             {option.label}
@@ -1455,35 +1718,114 @@ function PreviewControl({ field }: { field: FormFieldDefinition }) {
     );
   }
 
-  if (isFileType(field.type) || field.type === "id_document") {
+  if (field.type === "country") {
     return (
-      <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-        File upload preview only
+      <Input
+        id={id}
+        placeholder="Country (ISO 2-letter code)"
+        disabled
+        className={baseInputClass}
+      />
+    );
+  }
+
+  if (field.type === "address") {
+    return (
+      <div className="space-y-2 rounded-md border bg-background p-3">
+        <Input placeholder="Street address" disabled className={baseInputClass} />
+        <div className="grid grid-cols-2 gap-2">
+          <Input placeholder="City" disabled className={baseInputClass} />
+          <Input placeholder="Region" disabled className={baseInputClass} />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Input placeholder="Postal code" disabled className={baseInputClass} />
+          <Input placeholder="Country" disabled className={baseInputClass} />
+        </div>
+      </div>
+    );
+  }
+
+  if (field.type === "host_picker" || field.type === "visitor_picker") {
+    return (
+      <select
+        id={id}
+        disabled
+        className="min-h-[44px] w-full cursor-not-allowed rounded-md border bg-background px-3 py-2 text-base md:text-sm"
+      >
+        <option value="">
+          {field.type === "host_picker"
+            ? "Pick a host from this tenant's staff"
+            : "Pick a returning visitor"}
+        </option>
+      </select>
+    );
+  }
+
+  if (field.type === "signature") {
+    return (
+      <div className="flex h-28 items-center justify-center rounded-md border border-dashed bg-background text-sm text-muted-foreground">
+        <Pen className="mr-2 h-4 w-4" aria-hidden="true" />
+        Sign here
+      </div>
+    );
+  }
+
+  if (
+    field.type === "file" ||
+    field.type === "image" ||
+    field.type === "id_document"
+  ) {
+    return (
+      <div className="flex items-center gap-3 rounded-md border border-dashed bg-background p-4 text-sm text-muted-foreground">
+        <Upload className="h-4 w-4" aria-hidden="true" />
+        <span>
+          {field.type === "id_document"
+            ? "Upload a photo of a government-issued ID"
+            : field.type === "image"
+              ? "Tap to take a photo or upload an image"
+              : "Tap to upload a file"}
+        </span>
       </div>
     );
   }
 
   if (field.type === "rating") {
+    const max = typeof field.max === "number" ? field.max : 5;
     return (
-      <div
-        className="flex gap-1 text-lg text-muted-foreground"
-        aria-hidden="true"
-      >
-        {Array.from({ length: 5 }).map((_, index) => (
-          <span key={index}>*</span>
+      <div className="flex gap-1" aria-hidden="true">
+        {Array.from({ length: max }).map((_, index) => (
+          <Star
+            key={index}
+            className="h-5 w-5 text-muted-foreground"
+            aria-hidden="true"
+          />
         ))}
       </div>
+    );
+  }
+
+  if (field.type === "calculated") {
+    return (
+      <Input
+        id={id}
+        placeholder="Computed from other fields"
+        disabled
+        readOnly
+        value=""
+        className={baseInputClass}
+      />
     );
   }
 
   const inputType = getInputType(field.type);
   return (
     <Input
-      id={`preview-${field.fieldId}`}
+      id={id}
       type={inputType}
       placeholder={field.placeholder ?? ""}
       inputMode={isNumericType(field.type) ? "decimal" : undefined}
-      className="min-h-[44px] text-base md:text-sm"
+      disabled
+      className={baseInputClass}
     />
   );
 }
