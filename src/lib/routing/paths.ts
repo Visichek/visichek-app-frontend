@@ -7,6 +7,12 @@ export const PATHS = {
   ADMIN_LOGIN: "/admin/login",
   APP_LOGIN: "/app/login",
 
+  // Forced password change (server-issued temp password). Both shells
+  // route here on first sign-in until the user posts a real password
+  // via /v1/auth/change-password — every other endpoint is gated.
+  ADMIN_CHANGE_PASSWORD: "/admin/change-password",
+  APP_CHANGE_PASSWORD: "/app/change-password",
+
   // Public visitor flows
   PUBLIC_REGISTER: "/register",
   PUBLIC_CHECKOUT: "/checkout",

@@ -14,7 +14,6 @@ import type {
   SystemUserSignupRequest,
   SystemUserUpdateRequest,
   InviteAdminRequest,
-  ResetUserPasswordRequest,
   ResetUserPasswordResponse,
   InitiateTransferMainSuperAdminRequest,
   InitiateTransferMainSuperAdminResponse,
@@ -188,14 +187,11 @@ export function useInviteUser() {
 /**
  * Reset another tenant user's password (super_admin path).
  *
- * Hits POST /v1/system-users/{user_id}/reset-password. Target must be in
- * the SAME tenant as the caller — cross-tenant attempts return 404.
- *
- * Side effects on the server:
- * - Validates against password policy + last-5 history.
- * - Updates password_hash and revokes ALL active access + refresh tokens
- *   for the target — they will be logged out of every active session.
- * - Writes a `system_user.password_reset` audit row.
+ * Hits POST /v1/system-users/{user_id}/reset-password with an EMPTY
+ * body. The backend generates the temp password, marks the row
+ * `mustChangePassword=true`, revokes every active token for the
+ * target, and emails the cleartext via `password_reset_temp`. Cross-
+ * tenant attempts still 404.
  *
  * Errors the FE must handle:
  * - 400 VALIDATION_FAILED: actor tried to reset their own password
@@ -203,8 +199,6 @@ export function useInviteUser() {
  *   screen.
  * - 404 RESOURCE_NOT_FOUND: user not in this tenant — show a generic
  *   message; do NOT leak cross-tenant existence.
- * - 422 VALIDATION_FAILED: policy / history failure — surface inline
- *   against the password input.
  */
 /**
  * Step 1 of the two-step main super_admin transfer flow. Triggers an OTP
@@ -253,17 +247,10 @@ export function useCompleteTransferMainSuperAdmin() {
 
 export function useResetUserPassword() {
   return useMutation({
-    mutationFn: async ({
-      userId,
-      newPassword,
-    }: {
-      userId: string;
-      newPassword: string;
-    }) => {
-      const body: ResetUserPasswordRequest = { newPassword };
+    mutationFn: async ({ userId }: { userId: string }) => {
       const data = await apiPost<ResetUserPasswordResponse>(
         `/system-users/${userId}/reset-password`,
-        body
+        {},
       );
       return data;
     },

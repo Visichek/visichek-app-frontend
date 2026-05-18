@@ -39,11 +39,36 @@ export const accountKeys = {
 
 // ── Password Change ──────────────────────────────────────────────────
 
+/**
+ * Submit a new password via the unified change-password endpoint.
+ *
+ * `POST /v1/auth/change-password` accepts both admin and system-user
+ * sessions and is on the allowlist while `mustChangePassword=true`, so
+ * it works as the "first sign-in" flow for newly-invited / authority-
+ * reset accounts as well as the regular settings flow.
+ *
+ * The role-specific paths (`/admins/change-password`,
+ * `/system-users/change-password`) are still on the allowlist server-
+ * side and are kept here as a fallback for older deployments.
+ */
 export function useChangePassword() {
   const basePath = useBasePath();
   return useMutation({
-    mutationFn: (data: ChangePasswordRequest) =>
-      apiPost<ChangePasswordResponse>(`${basePath}/change-password`, data),
+    mutationFn: async (data: ChangePasswordRequest) => {
+      try {
+        return await apiPost<ChangePasswordResponse>(
+          "/auth/change-password",
+          data,
+        );
+      } catch (err) {
+        // Fallback to the role-scoped endpoint if the unified path is
+        // not deployed (older backends). Both share the same body shape.
+        return apiPost<ChangePasswordResponse>(
+          `${basePath}/change-password`,
+          data,
+        );
+      }
+    },
   });
 }
 

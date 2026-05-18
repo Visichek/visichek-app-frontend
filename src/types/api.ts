@@ -55,6 +55,59 @@ export interface CompleteUploadRequest {
   checksum?: string;
 }
 
+// ── Unified Upload Pipeline (private + public) ────────────────────────
+//
+// Both `POST /v1/uploads/private` (authenticated, every plan) and
+// `POST /v1/public/tenants/{tenant_id}/uploads` (plan-gated, anonymous
+// when granted) return this shape.
+
+export type UploadPurpose =
+  | "kiosk_form"
+  | "visitor_photo"
+  | "id_document"
+  | "appointment_photo"
+  | "branding"
+  | "system";
+
+export interface UploadResponse {
+  objectKey: string;
+  /** Pre-signed presentation URL — drop into <img src=...>. */
+  downloadUrl: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  backend: "s3" | "local";
+  purpose: UploadPurpose;
+  tenantId?: string | null;
+  fieldId?: string | null;
+  expiresInSeconds: number;
+}
+
+/**
+ * Combined storage budget (plan + active storage_extension addons).
+ *
+ * Returned by `GET /v1/storage/quota` for any tenant principal. Render
+ * before kicking off a multipart upload UI so the user sees
+ * "used X of Y" alongside a "purchase addon" CTA.
+ */
+export interface StorageQuotaOut {
+  tenantId: string;
+  /** Plan-granted storage in MB; null = unlimited. */
+  planStorageMb: number | null;
+  /** Sum of active storage_extension addons (quantity * benefit). */
+  addonStorageMb: number;
+  /** Plan + addon total in MB; null = unlimited. */
+  totalStorageMb: number | null;
+  usedBytes: number;
+  usedMb: number;
+  /** null when the plan is unlimited. */
+  remainingMb: number | null;
+  documentCount: number;
+  maxDocuments: number | null;
+  maxFileSizeMb: number;
+  activeAddons: number;
+}
+
 // ── API Error ─────────────────────────────────────────────────────────
 export class ApiError extends Error {
   code: string;
@@ -192,6 +245,45 @@ export function isFeatureDisabled(error: unknown): error is ApiError {
     error.status === 403 &&
     error.code === "FEATURE_DISABLED"
   );
+}
+
+/**
+ * `403 AUTH_PERMISSION_DENIED` with `details.code = "PASSWORD_CHANGE_REQUIRED"`
+ * — the user authenticated but is holding a temporary password. The
+ * backend rejects every endpoint except the change-password ones until
+ * the user sets a real password.
+ *
+ * The frontend should treat this as a hard redirect to the
+ * change-password screen, even on deep links / browser-back navigation
+ * that doesn't otherwise read `mustChangePassword`.
+ */
+export function isPasswordChangeRequired(error: unknown): error is ApiError {
+  if (!(error instanceof ApiError) || error.status !== 403) return false;
+  if (error.code !== "AUTH_PERMISSION_DENIED") return false;
+  const details = error.details;
+  if (typeof details !== "object" || details === null) return false;
+  return (details as { code?: string }).code === "PASSWORD_CHANGE_REQUIRED";
+}
+
+/**
+ * `403 AUTH_PERMISSION_DENIED` from the kiosk-submit plan gate when a
+ * token of the wrong role was attached (e.g. an auditor token on a
+ * tenant whose plan blocks anonymous submit). Body's `details.role`
+ * carries the offending role for diagnostics.
+ *
+ * Distinct from `FEATURE_DISABLED`, which fires when NO token is sent
+ * but the plan requires one.
+ */
+export function isKioskAuthPermissionDenied(
+  error: unknown,
+): error is ApiError {
+  if (!(error instanceof ApiError) || error.status !== 403) return false;
+  if (error.code !== "AUTH_PERMISSION_DENIED") return false;
+  const details = error.details;
+  if (typeof details !== "object" || details === null) return true;
+  // PASSWORD_CHANGE_REQUIRED is a different surface — split it out via
+  // isPasswordChangeRequired above; this helper covers the kiosk gate.
+  return (details as { code?: string }).code !== "PASSWORD_CHANGE_REQUIRED";
 }
 
 export interface QuotaExceededDetails {

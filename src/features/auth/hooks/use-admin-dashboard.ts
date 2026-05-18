@@ -14,7 +14,8 @@ import type { Tenant, TenantBootstrapRequest } from '@/types/tenant';
 import type {
   AddTenantSuperAdminRequest,
   AddTenantSuperAdminResponse,
-  ResetUserPasswordRequest,
+  ReplaceTenantSuperAdminRequest,
+  ReplaceTenantSuperAdminResponse,
   ResetUserPasswordResponse,
 } from '@/types/user';
 
@@ -197,14 +198,15 @@ export function useDeleteTenant() {
  * Add a super_admin to an EXISTING tenant (app-admin only).
  *
  * Distinct from `useBootstrapTenant`, which creates the tenant + first
- * super_admin together. Use this when:
- *   - the previous super_admin was offboarded
- *   - adding a secondary super_admin for redundancy
- *   - restoring access for a tenant that lost their credentials
+ * super_admin together. The server enforces the singleton invariant —
+ * exactly one active super_admin per tenant — so calling this with a
+ * super_admin already on the tenant returns 409
+ * `SUPER_ADMIN_ALREADY_EXISTS`. To swap the lone super_admin for a
+ * different person, use {@link useReplaceTenantSuperAdmin} instead.
  *
- * Returns the new user along with access + refresh tokens — surface them
- * in a copy-to-clipboard "send out-of-band" modal. The API does NOT
- * email these credentials.
+ * The backend generates a temporary password and emails it via the
+ * `onboarding_accepted` welcome template; the response no longer
+ * carries access / refresh tokens (the cleartext is never returned).
  *
  * Server validations:
  *   - Tenant must exist and be active (400 otherwise).
@@ -239,33 +241,70 @@ export function useAddTenantSuperAdmin() {
 }
 
 /**
- * Reset any system_user's password (app-admin path — unscoped).
+ * Atomically swap the tenant's lone super_admin for a new one.
+ * App-admin only. Side effects (in order):
+ *   1. Clear `isMainSuperAdmin` on the existing main row.
+ *   2. Deactivate it (account_status=INACTIVE, isActive=false).
+ *   3. Revoke every active token for the old super_admin.
+ *   4. Generate a temp password, create the new super_admin row with
+ *      `mustChangePassword=true`.
+ *   5. Email the temp password via the welcome template.
+ *   6. Audit `system_user.super_admin_replaced`.
  *
- * Hits POST /v1/admins/system-users/{user_id}/reset-password. App admins
- * can target users in any tenant including super_admins — used to
- * support locked-out tenants.
+ * Errors to surface in the UI:
+ *   - 400 "Cannot replace a super admin on an inactive tenant"
+ *   - 404 tenant not found
+ *   - 409 `SUPER_ADMIN_NONE_TO_REPLACE` — there is no active super_admin
+ *         to replace; caller should use `useAddTenantSuperAdmin` instead.
+ *   - 409 `MAIN_SUPER_ADMIN_MISSING` — multiple super_admins active but
+ *         none flagged as main; wait for the 6h backfill or designate
+ *         one via the transfer endpoint first.
+ */
+export function useReplaceTenantSuperAdmin() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      tenantId,
+      data,
+    }: {
+      tenantId: string;
+      data: ReplaceTenantSuperAdminRequest;
+    }) => {
+      return apiPost<ReplaceTenantSuperAdminResponse>(
+        `/admins/tenants/${tenantId}/super-admins/replace`,
+        data,
+      );
+    },
+    onSuccess: (_response, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: adminKeys.tenantDetail(variables.tenantId),
+      });
+      queryClient.invalidateQueries({ queryKey: adminKeys.tenants() });
+    },
+  });
+}
+
+/**
+ * Authority password reset (app-admin path — unscoped).
  *
- * Side effects mirror the super_admin reset path: revokes every active
- * token for the target, drops the gate cache, and writes an audit row.
+ * Hits POST /v1/admins/system-users/{user_id}/reset-password with an
+ * EMPTY body. The backend generates a temporary password, sets
+ * `mustChangePassword=true` on the target row, revokes every active
+ * token for the target, and emails the cleartext via the
+ * `password_reset_temp` template. The reviewer never sees the
+ * cleartext.
  *
- * The 422 path returns the same shape as /v1/auth/change-password —
- * surface policy errors inline against the password field.
+ * The 422 path can still fire if the body carries unexpected keys —
+ * keep the call site empty.
  */
 export function useAdminResetSystemUserPassword() {
   return useMutation({
-    mutationFn: async ({
-      userId,
-      newPassword,
-    }: {
-      userId: string;
-      newPassword: string;
-    }) => {
-      const body: ResetUserPasswordRequest = { newPassword };
-      const data = await apiPost<ResetUserPasswordResponse>(
+    mutationFn: async ({ userId }: { userId: string }) => {
+      return apiPost<ResetUserPasswordResponse>(
         `/admins/system-users/${userId}/reset-password`,
-        body
+        {},
       );
-      return data;
     },
   });
 }

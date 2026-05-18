@@ -363,6 +363,19 @@ export interface Appointment {
    * or URL generation fails.
    */
   expectedVisitorPhotoUrl?: string | null;
+  /**
+   * Tenant-specific form data — values keyed on the published
+   * appointment form's `field_id`. The shape is fully dynamic; the
+   * scheduler renders it from the form-requirements endpoint.
+   *
+   * For file/image/signature/id_document fields, the value is the
+   * object_key returned by the unified upload endpoint (see
+   * `lib/upload/unified-upload.ts`), not the bytes themselves.
+   */
+  tenantFormData?: Record<string, unknown> | null;
+  /** Form snapshot the server applied when this appointment was created. */
+  tenantFormId?: string | null;
+  tenantFormVersion?: number | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -385,6 +398,46 @@ export interface AppointmentRequest {
   status?: AppointmentStatus;
   /** Optional photo of the expected visitor — see {@link Appointment}. */
   expectedVisitorPhotoObjectKey?: string | null;
+  /**
+   * Tenant-required fields keyed on the appointment form's `field_id`.
+   * Backend rejects with `400 VALIDATION_FAILED` and
+   * `details.missing_fields = ["..."]` when any field marked
+   * `required=true` is missing or empty. `tenant_form_id` /
+   * `tenant_form_version` are set server-side on accept and must NOT be
+   * supplied here.
+   */
+  tenantFormData?: Record<string, unknown>;
+}
+
+// ── Form requirements (system + tenant) ──────────────────────────────
+
+/**
+ * One field definition returned by
+ * `GET /v1/appointments/form-requirements`.
+ *
+ * System fields (host_id, department_id, scheduled_datetime) carry
+ * `key` and `required: true` only; tenant fields additionally carry
+ * label / type / options for dynamic rendering. The scheduler renders
+ * two visually-distinct sections; every field marked `required=true`
+ * in either list MUST be filled before the create call is accepted.
+ */
+export interface AppointmentFormFieldRequirement {
+  /** field_id from the tenant form, or system-reserved key. */
+  key: string;
+  required: boolean;
+  label?: string;
+  type?: string;
+  placeholder?: string | null;
+  helpText?: string | null;
+  options?: Array<{ key: string; label: string }> | null;
+}
+
+export interface AppointmentFormRequirementsOut {
+  systemRequiredFields: AppointmentFormFieldRequirement[];
+  /** null when the tenant has not published an appointment form yet. */
+  tenantFormId?: string | null;
+  tenantFormVersion?: number | null;
+  tenantRequiredFields: AppointmentFormFieldRequirement[];
 }
 
 /**

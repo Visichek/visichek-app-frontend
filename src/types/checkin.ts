@@ -74,16 +74,34 @@ export type CheckinConfirmAction = "approve" | "reject";
 /** Kinds of configurable required fields in a check-in config. */
 export type RequiredFieldType =
   | "string"
+  | "text"
+  | "long_text"
   | "email"
   | "phone"
   // Backend serializes phone fields as "tel" (HTML input-type convention)
   // but some older configs still use "phone"; both are treated as phone
   // inputs in the renderer.
   | "tel"
+  | "url"
   | "number"
+  | "integer"
   | "date"
+  | "time"
+  | "datetime"
   | "boolean"
-  | "select";
+  | "select"
+  | "multi_select"
+  | "country"
+  | "address"
+  // File-bearing fields. The kiosk uploads bytes via the unified upload
+  // endpoint, then submits the returned object_key in the slot keyed on
+  // the field's `key`.
+  | "file"
+  | "image"
+  | "signature"
+  | "id_document"
+  | "consent_checkbox"
+  | "rating";
 
 /**
  * Which bucket a required field belongs to. Matches the backend
@@ -132,6 +150,23 @@ export interface RequiredField {
 /**
  * Public slice of a check-in config — what the kiosk sees.
  * No secrets or admin settings are exposed here.
+ *
+ * `requiredFields` now reflects the merged set: system BIO defaults
+ * (full_name, phone, email) first, then every field from the published
+ * tenant form (target_type=checkin), then any legacy tenant_specific
+ * entries the form does not already cover. `purpose` is always present.
+ *
+ * `publicSelfCheckinEnabled=false` means the tenant's plan does NOT
+ * grant anonymous kiosk submit — the kiosk MUST attach a system-user
+ * Bearer token (super_admin / dept_admin / receptionist) on every
+ * submit. The plan gate fires with 403 FEATURE_DISABLED when an
+ * anonymous call is made or 403 AUTH_PERMISSION_DENIED when the wrong
+ * role's token is attached.
+ *
+ * `tenantFormId` / `tenantFormVersion` identify the published checkin
+ * form (or null when none exists). Surface these in audit / debugging
+ * UI; the kiosk does not branch on them directly because the merged
+ * `requiredFields` already covers field rendering.
  */
 export interface PublicCheckinConfigOut {
   checkinConfigId: string;
@@ -141,6 +176,11 @@ export interface PublicCheckinConfigOut {
   idUploadEnabled: boolean;
   allowReturningVisitorLookup: boolean;
   requiredFields: RequiredField[];
+  /** Published tenant form (target_type=checkin) backing the field set. */
+  tenantFormId?: string | null;
+  tenantFormVersion?: number | null;
+  /** Plan grant for anonymous public submit (see doc above). */
+  publicSelfCheckinEnabled?: boolean;
 }
 
 /**

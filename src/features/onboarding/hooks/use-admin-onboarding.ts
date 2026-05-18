@@ -11,8 +11,8 @@ import { apiGetList } from "@/lib/api/list";
 import { bulkAction } from "@/lib/api/bulk";
 import type {
   AcceptOnboardingRequest,
-  AcceptOnboardingResponse,
   MarketingOptInExport,
+  OnboardingAcceptOut,
   OnboardingListParams,
   OnboardingSubmission,
   PartialAcceptOnboardingRequest,
@@ -89,12 +89,12 @@ export function useAcceptOnboarding() {
   const queryClient = useQueryClient();
 
   return useMutation<
-    AcceptOnboardingResponse,
+    OnboardingAcceptOut,
     Error,
     { submissionId: string; data: AcceptOnboardingRequest }
   >({
     mutationFn: ({ submissionId, data }) =>
-      apiPost<AcceptOnboardingResponse>(
+      apiPost<OnboardingAcceptOut>(
         `/tenants/onboarding/${submissionId}/accept`,
         data,
       ),
@@ -112,12 +112,12 @@ export function usePartialAcceptOnboarding() {
   const queryClient = useQueryClient();
 
   return useMutation<
-    AcceptOnboardingResponse,
+    OnboardingAcceptOut,
     Error,
     { submissionId: string; data: PartialAcceptOnboardingRequest }
   >({
     mutationFn: ({ submissionId, data }) =>
-      apiPost<AcceptOnboardingResponse>(
+      apiPost<OnboardingAcceptOut>(
         `/tenants/onboarding/${submissionId}/partial-accept`,
         data,
       ),

@@ -106,6 +106,33 @@ export function describeCheckinError(error: unknown): CheckinErrorInfo {
   const geofence = describeGeofenceViolation(error);
   if (geofence) return geofence;
 
+  // Plan gate: the tenant's plan does NOT grant anonymous public kiosk
+  // submit (Free / Starter by default). Anonymous calls return
+  // FEATURE_DISABLED; wrong-role tokens return AUTH_PERMISSION_DENIED.
+  // The kiosk should switch to a "reception-assisted check-in" state
+  // and prompt for a receptionist bearer token.
+  if (error.status === 403 && error.code === "FEATURE_DISABLED") {
+    return {
+      title: "Reception sign-in required",
+      message:
+        "This tenant's plan does not include unattended public kiosk check-ins. Please ask a receptionist to start your check-in.",
+      retryable: false,
+      allowManualFallback: false,
+    };
+  }
+  if (
+    error.status === 403 &&
+    error.code === "AUTH_PERMISSION_DENIED"
+  ) {
+    return {
+      title: "Wrong reception session",
+      message:
+        "The reception account signed in here can't approve public check-ins for this tenant. Please ask a super_admin, dept_admin, or receptionist to sign in.",
+      retryable: false,
+      allowManualFallback: false,
+    };
+  }
+
   switch (error.status) {
     case 400:
       return {

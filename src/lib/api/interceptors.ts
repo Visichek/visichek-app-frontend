@@ -99,7 +99,22 @@ export function setupInterceptors(client: AxiosInstance) {
         originalRequest.skipAuthRefresh ||
         isLogoutTransitionActive()
       ) {
-        return Promise.reject(normalizeError(error));
+        const normalized = normalizeError(error);
+        // PASSWORD_CHANGE_REQUIRED is the backend's hard gate when a
+        // user is holding a server-generated temp password. Every
+        // endpoint except the change-password ones returns this; the
+        // frontend treats it as an unconditional redirect to the
+        // change-password screen even on deep links or back-button
+        // navigation that didn't otherwise read `mustChangePassword`.
+        if (
+          typeof window !== "undefined" &&
+          normalized.status === 403 &&
+          normalized.code === "AUTH_PERMISSION_DENIED" &&
+          isPasswordChangeRequiredDetails(normalized.details)
+        ) {
+          redirectToChangePassword();
+        }
+        return Promise.reject(normalized);
       }
 
       // No auth-hint = user never logged in (or logged out cleanly). The
@@ -138,6 +153,28 @@ export function setupInterceptors(client: AxiosInstance) {
       }
     }
   );
+}
+
+function isPasswordChangeRequiredDetails(details: unknown): boolean {
+  if (typeof details !== "object" || details === null) return false;
+  return (
+    (details as { code?: string }).code === "PASSWORD_CHANGE_REQUIRED"
+  );
+}
+
+/**
+ * Send the user to the change-password screen for whichever shell they
+ * are inside. The shell decision is path-based so a stale Redux slice
+ * (e.g. after a refresh) does not misroute the redirect.
+ */
+function redirectToChangePassword() {
+  if (typeof window === "undefined") return;
+  const pathname = window.location.pathname;
+  const target = pathname.startsWith("/admin")
+    ? "/admin/change-password"
+    : "/app/change-password";
+  if (pathname === target) return;
+  window.location.replace(target);
 }
 
 function normalizeError(error: AxiosError<ErrorEnvelope>): ApiError {

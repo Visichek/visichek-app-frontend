@@ -22,7 +22,7 @@ import {
   isLogoutTransitionActive,
   markExplicitLogout,
 } from "@/lib/auth/auth-transition";
-import { getPostLoginPath } from "@/lib/routing/redirects";
+import { getChangePasswordPath, getPostLoginPath } from "@/lib/routing/redirects";
 import {
   isOtpChallenge,
   isTenantSelectionRequired,
@@ -61,6 +61,7 @@ function extractProfile(response: SystemUserLoginResponse) {
     role: response.role,
     tenantId: response.tenantId,
     departmentId: response.departmentId,
+    mustChangePassword: response.mustChangePassword,
   };
 }
 
@@ -123,11 +124,16 @@ export function useAuth() {
         email: loginData.email,
         accessPreset: loginData.accessPreset,
         mfaEnabled: loginData.mfaEnabled,
+        mustChangePassword: loginData.mustChangePassword,
       };
 
       clearExplicitLogout();
       dispatch(setAdminSession({ type: "admin", tokens: EMPTY_TOKENS, profile }));
-      navigate(getPostLoginPath("admin"));
+      navigate(
+        loginData.mustChangePassword
+          ? getChangePasswordPath("admin")
+          : getPostLoginPath("admin"),
+      );
       return { kind: "complete" };
     },
     [dispatch, navigate]
@@ -180,7 +186,11 @@ export function useAuth() {
           profile,
         })
       );
-      navigate(getPostLoginPath("system_user", loginData.role));
+      navigate(
+        loginData.mustChangePassword
+          ? getChangePasswordPath("system_user")
+          : getPostLoginPath("system_user", loginData.role),
+      );
       return { kind: "complete" };
     },
     [dispatch, navigate]
@@ -220,7 +230,11 @@ export function useAuth() {
           profile,
         })
       );
-      navigate(getPostLoginPath("system_user", loginData.role));
+      navigate(
+        loginData.mustChangePassword
+          ? getChangePasswordPath("system_user")
+          : getPostLoginPath("system_user", loginData.role),
+      );
       return { kind: "complete" };
     },
     [dispatch, navigate]
@@ -273,7 +287,11 @@ export function useAuth() {
           profile,
         })
       );
-      navigate(getPostLoginPath("system_user", "super_admin"));
+      navigate(
+        data.mustChangePassword
+          ? getChangePasswordPath("system_user")
+          : getPostLoginPath("system_user", "super_admin"),
+      );
     },
     [dispatch, navigate]
   );
@@ -307,10 +325,15 @@ export function useAuth() {
           email: adminData.email,
           accessPreset: adminData.accessPreset,
           mfaEnabled: adminData.mfaEnabled,
+          mustChangePassword: adminData.mustChangePassword,
         };
         clearExplicitLogout();
         dispatch(setAdminSession({ type: "admin", tokens: EMPTY_TOKENS, profile }));
-        navigate(getPostLoginPath("admin"));
+        navigate(
+          adminData.mustChangePassword
+            ? getChangePasswordPath("admin")
+            : getPostLoginPath("admin"),
+        );
       } else {
         const userData = data as SystemUserLoginResponse;
         const profile = extractProfile(userData);
@@ -322,7 +345,11 @@ export function useAuth() {
             profile,
           })
         );
-        navigate(getPostLoginPath("system_user", userData.role));
+        navigate(
+          userData.mustChangePassword
+            ? getChangePasswordPath("system_user")
+            : getPostLoginPath("system_user", userData.role),
+        );
       }
     },
     [dispatch, navigate]

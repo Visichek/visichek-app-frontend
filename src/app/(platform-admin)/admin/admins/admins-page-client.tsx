@@ -84,7 +84,6 @@ function InviteAdminModal({ open, onOpenChange }: InviteAdminModalProps) {
   const inviteAdmin = useInviteAdmin();
   const [fullName, setFullName] = React.useState("");
   const [email, setEmail] = React.useState("");
-  const [password, setPassword] = React.useState("");
   const [preset, setPreset] =
     React.useState<AdminAccessPreset>("all_controls");
 
@@ -92,7 +91,6 @@ function InviteAdminModal({ open, onOpenChange }: InviteAdminModalProps) {
     if (!open) {
       setFullName("");
       setEmail("");
-      setPassword("");
       setPreset("all_controls");
     }
   }, [open]);
@@ -100,7 +98,6 @@ function InviteAdminModal({ open, onOpenChange }: InviteAdminModalProps) {
   const canSubmit =
     fullName.trim().length > 0 &&
     email.trim().length > 0 &&
-    password.length >= 8 &&
     !inviteAdmin.isPending;
 
   async function handleSubmit(e: React.FormEvent) {
@@ -110,11 +107,10 @@ function InviteAdminModal({ open, onOpenChange }: InviteAdminModalProps) {
       const result = await inviteAdmin.mutateAsync({
         fullName: fullName.trim(),
         email: email.trim().toLowerCase(),
-        password,
         accessPreset: preset,
       });
       toast.success(
-        `Invite sent to ${result.email}. They'll receive a welcome email with their temp password.`,
+        `Invite sent to ${result.email}. The backend emailed them a temporary password.`,
       );
       onOpenChange(false);
     } catch (err) {
@@ -129,9 +125,19 @@ function InviteAdminModal({ open, onOpenChange }: InviteAdminModalProps) {
       open={open}
       onOpenChange={onOpenChange}
       title="Invite platform admin"
-      description="They'll receive a welcome email with a temporary password and a 6-digit code on first login. 2FA is mandatory for every invited admin."
+      description="They'll receive a welcome email with a server-generated temporary password and a 6-digit code on first login. 2FA is mandatory for every invited admin and the temp password must be changed on first sign-in."
     >
       <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+        <div className="rounded-md border border-info/30 bg-info/5 p-3 text-sm">
+          <p className="font-medium">Temporary password handling</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            A temporary password is generated server-side and emailed
+            to <span className="font-mono">{email.trim() || "the invitee"}</span>.
+            They will be required to change it on first sign-in. You
+            never see the cleartext value.
+          </p>
+        </div>
+
         <div className="space-y-1.5">
           <Label htmlFor="admin-full-name">Full name</Label>
           <Input
@@ -155,24 +161,6 @@ function InviteAdminModal({ open, onOpenChange }: InviteAdminModalProps) {
             autoComplete="off"
             required
           />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="admin-password">Temporary password</Label>
-          <Input
-            id="admin-password"
-            type="text"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="At least 8 characters"
-            autoComplete="off"
-            minLength={8}
-            required
-          />
-          <p className="text-xs text-muted-foreground">
-            Share this with the invitee out of band. They&apos;ll be asked
-            to change it from Settings → Account after first login.
-          </p>
         </div>
 
         <div className="space-y-1.5">

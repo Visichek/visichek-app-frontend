@@ -9,6 +9,7 @@ import type {
   AppointmentRequest,
   AppointmentCheckInRequest,
   AppointmentCheckInResponse,
+  AppointmentFormRequirementsOut,
 } from '@/types/visitor';
 import type { ListResponse, BulkJobResult } from '@/types/list';
 
@@ -34,6 +35,29 @@ export function useAppointments(filters?: Record<string, unknown>) {
     queryFn: () => apiGetList<Appointment>('/appointments', filters),
     staleTime: 30000,
     placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Fetch the system + tenant required fields for the appointment form.
+ *
+ * `GET /v1/appointments/form-requirements` (super_admin / dept_admin /
+ * receptionist). Renders the two visually-distinct sections in the
+ * schedule form; every entry with `required=true` (in either list)
+ * MUST be filled before the create call is accepted. Cached generously
+ * because form definitions change rarely.
+ */
+export function useAppointmentFormRequirements(options?: {
+  enabled?: boolean;
+}) {
+  return useQuery<AppointmentFormRequirementsOut>({
+    queryKey: ['appointments', 'form-requirements'] as const,
+    queryFn: () =>
+      apiGet<AppointmentFormRequirementsOut>(
+        '/appointments/form-requirements',
+      ),
+    enabled: options?.enabled ?? true,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

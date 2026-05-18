@@ -35,7 +35,6 @@ import type { SystemUserRole } from "@/types/enums";
 const userSchema = z.object({
   fullName: z.string().trim().min(1, "Full name is required"),
   email: z.string().trim().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
   // Super_admin is provisioned exclusively through the app-admin path
   // (POST /v1/admins/tenants/{tenantId}/super-admins) or rotated via the
   // transfer flow. The regular invite endpoint rejects super_admin with
@@ -71,7 +70,6 @@ export default function NewUserPage() {
     defaultValues: {
       fullName: "",
       email: "",
-      password: "",
       role: "receptionist",
       departmentId: "",
       branchIds: [],
@@ -79,6 +77,7 @@ export default function NewUserPage() {
   });
 
   const role = watch("role");
+  const email = watch("email");
   const departmentId = watch("departmentId");
   const branchIds = watch("branchIds") ?? [];
 
@@ -87,14 +86,15 @@ export default function NewUserPage() {
       await createMutation.mutateAsync({
         fullName: data.fullName,
         email: data.email,
-        password: data.password,
         role: data.role as SystemUserRole,
         departmentId: data.departmentId || undefined,
         // Server defaults empty/missing to [HQ]; pass explicit list when set.
         branchIds:
           data.branchIds && data.branchIds.length > 0 ? data.branchIds : undefined,
       });
-      toast.success("System user created");
+      toast.success(
+        `Invite sent to ${data.email}. The backend emailed them a temporary password.`,
+      );
       router.push("/app/users");
     } catch (err) {
       // Defensive: the form already omits super_admin from the dropdown,
@@ -175,22 +175,14 @@ export default function NewUserPage() {
           )}
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="password">Password *</Label>
-          <Input
-            id="password"
-            type="password"
-            placeholder="Minimum 8 characters"
-            {...register("password")}
-            aria-invalid={!!errors.password}
-            aria-describedby={errors.password ? "error-password" : undefined}
-            className="min-h-[44px]"
-          />
-          {errors.password && (
-            <p id="error-password" className="text-sm text-destructive" role="alert">
-              {errors.password.message}
-            </p>
-          )}
+        <div className="rounded-md border border-info/30 bg-info/5 p-3 text-sm">
+          <p className="font-medium">Temporary password handling</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            A temporary password is generated server-side and emailed to{" "}
+            <span className="font-mono">{email?.trim() || "the invitee"}</span>.
+            They will be required to change it on first sign-in. You
+            never see the cleartext value.
+          </p>
         </div>
 
         <div className="space-y-2">
@@ -296,7 +288,7 @@ export default function NewUserPage() {
               </span>
             </TooltipTrigger>
             <TooltipContent side="top">
-              Save this user. They'll receive an email with their initial password.
+              Create this user. The backend emails them a temporary password they must change on first sign-in.
             </TooltipContent>
           </Tooltip>
         </div>

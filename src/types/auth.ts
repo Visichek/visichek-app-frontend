@@ -75,6 +75,15 @@ export interface AdminProfile {
    * shipped — those default to `all_controls` at the UI layer.
    */
   accessPreset?: AdminAccessPreset;
+  /**
+   * True when the admin is holding a server-generated temporary
+   * password (after invite / authority reset). While set, every
+   * endpoint EXCEPT the change-password ones returns 403
+   * AUTH_PERMISSION_DENIED with `details.code = "PASSWORD_CHANGE_REQUIRED"`.
+   * The frontend routes the user into the change-password screen and
+   * disables global navigation until they submit a real password.
+   */
+  mustChangePassword?: boolean;
 }
 
 export interface SystemUserProfile {
@@ -93,6 +102,8 @@ export interface SystemUserProfile {
   branchIds?: string[];
   mfaEnabled?: boolean;
   mfaLockedByAdmin?: boolean;
+  /** See {@link AdminProfile.mustChangePassword}. */
+  mustChangePassword?: boolean;
 }
 
 export interface AdminSession {
@@ -130,6 +141,8 @@ export interface SystemUserLoginResponse {
   lastUpdated: number;
   accessToken: string;
   refreshToken: string;
+  /** See {@link SystemUserProfile.mustChangePassword}. */
+  mustChangePassword?: boolean;
 }
 
 /**
@@ -169,6 +182,8 @@ export interface AdminLoginResponse {
    * round trip.
    */
   mfaEnabled?: boolean;
+  /** See {@link AdminProfile.mustChangePassword}. */
+  mustChangePassword?: boolean;
   password: string;
   dateCreated: number | null;
   lastUpdated: number | null;

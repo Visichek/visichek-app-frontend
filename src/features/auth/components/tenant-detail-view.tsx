@@ -335,7 +335,9 @@ export interface TenantDetailViewProps {
 
 export function TenantDetailView({ tenant }: TenantDetailViewProps) {
   const { loadingHref, handleNavClick, navigate } = useNavigationLoading();
-  const [addSuperAdminOpen, setAddSuperAdminOpen] = useState(false);
+  const [superAdminDialog, setSuperAdminDialog] = useState<
+    "add" | "replace" | null
+  >(null);
 
   const subscriptionsHref = `/admin/subscriptions?tenantId=${tenant.id}`;
   const usageHref = `/admin/subscriptions?tenantId=${tenant.id}&tab=usage`;
@@ -440,7 +442,7 @@ export function TenantDetailView({ tenant }: TenantDetailViewProps) {
                     variant="outline"
                     className="min-h-[44px]"
                     disabled={!tenantIsActive}
-                    onClick={() => setAddSuperAdminOpen(true)}
+                    onClick={() => setSuperAdminDialog("add")}
                   >
                     <ShieldCheck
                       className="mr-2 h-4 w-4"
@@ -452,8 +454,31 @@ export function TenantDetailView({ tenant }: TenantDetailViewProps) {
               </TooltipTrigger>
               <TooltipContent side="bottom">
                 {tenantIsActive
-                  ? "Add another super admin to this tenant — useful for offboarded admins, redundancy, or restoring access."
+                  ? "Provision the first super admin on this tenant. A temporary password is emailed to them. Fails when one already exists — use Replace instead."
                   : "This tenant is inactive. Reactivate it before adding a super admin."}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    variant="outline"
+                    className="min-h-[44px]"
+                    disabled={!tenantIsActive}
+                    onClick={() => setSuperAdminDialog("replace")}
+                  >
+                    <ShieldCheck
+                      className="mr-2 h-4 w-4"
+                      aria-hidden="true"
+                    />
+                    Replace super admin
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {tenantIsActive
+                  ? "Atomically deactivate the current super admin and provision a replacement. A temporary password is emailed to the new admin."
+                  : "This tenant is inactive. Reactivate it before replacing the super admin."}
               </TooltipContent>
             </Tooltip>
           </div>
@@ -461,10 +486,13 @@ export function TenantDetailView({ tenant }: TenantDetailViewProps) {
       />
 
       <AddSuperAdminDialog
-        open={addSuperAdminOpen}
-        onOpenChange={setAddSuperAdminOpen}
+        open={superAdminDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setSuperAdminDialog(null);
+        }}
         tenantId={tenant.id}
         tenantName={tenant.companyName}
+        mode={superAdminDialog ?? "add"}
       />
 
       <Tabs defaultValue="overview" className="space-y-4">

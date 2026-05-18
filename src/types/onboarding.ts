@@ -57,35 +57,51 @@ export interface OnboardingListParams {
 }
 
 /**
- * `POST /v1/tenants/onboarding/{id}/accept` body. The three identity
- * overrides are optional — the service falls back to the submission's
- * extracted email/name/org when omitted.
+ * `POST /v1/tenants/onboarding/{id}/accept` body. ALL fields are
+ * optional — the service falls back to the submission's extracted
+ * email/name/org when omitted.
+ *
+ * `adminPassword` is GONE — the backend always generates a
+ * policy-compliant temporary password and emails it to `adminEmail`.
+ * The new super_admin row carries `mustChangePassword=true` and the
+ * reviewer NEVER sees the cleartext value. Sending `adminPassword`
+ * here is now a 422 "extra fields not permitted".
  */
 export interface AcceptOnboardingRequest {
-  adminPassword: string;
   companyName?: string;
   adminFullName?: string;
   adminEmail?: string;
+  /** Shown in the welcome email when set. */
   reviewNotes?: string;
 }
 
 /**
  * `POST /v1/tenants/onboarding/{id}/partial-accept` body.
  * `pendingFieldKeys` must be a subset of `fieldLabels` keys on the
- * submission.
+ * submission. The same "no password" rule applies — see
+ * {@link AcceptOnboardingRequest}.
  */
 export interface PartialAcceptOnboardingRequest extends AcceptOnboardingRequest {
   pendingFieldKeys: string[];
 }
 
-export interface RejectOnboardingRequest {
-  reviewNotes: string;
-}
-
-export interface AcceptOnboardingResponse {
-  submission: OnboardingSubmission;
+/**
+ * Response from `POST /v1/tenants/onboarding/{id}/accept` and
+ * `/partial-accept`. The new super_admin id + tenant id let the
+ * reviewer deep-link straight into the new tenant row; the cleartext
+ * temp password is intentionally absent — it travels via the welcome
+ * email only.
+ */
+export interface OnboardingAcceptOut {
+  submissionId: string;
+  status: OnboardingStatus;
   tenantId: string;
   superAdminUserId: string;
+  pendingFieldKeys?: string[];
+}
+
+export interface RejectOnboardingRequest {
+  reviewNotes: string;
 }
 
 /**

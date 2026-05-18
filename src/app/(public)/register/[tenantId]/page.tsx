@@ -606,6 +606,26 @@ export default function KioskCheckinPage() {
         </div>
       )}
 
+      {config.publicSelfCheckinEnabled === false && (
+        <div
+          role="status"
+          className="rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs flex items-start gap-2"
+        >
+          <AlertTriangle
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600"
+            aria-hidden="true"
+          />
+          <div className="min-w-0">
+            <p className="font-medium">Reception-assisted check-in</p>
+            <p className="text-muted-foreground">
+              This tenant&apos;s plan does not include unattended public
+              check-ins. Please ask a receptionist to start your check-in
+              so it can be submitted from their reception session.
+            </p>
+          </div>
+        </div>
+      )}
+
       <StepIndicator
         steps={visibleSteps}
         currentStep={step}

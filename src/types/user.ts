@@ -43,12 +43,25 @@ export interface SystemUser {
    * rejection rather than getting silently disabled.
    */
   isMainSuperAdmin?: boolean;
+  /**
+   * True while the user is holding a server-generated temporary
+   * password. The backend blocks every endpoint except change-password
+   * for these rows; the FE shows a "Pending password change" badge so
+   * the admin list can spot new invites that haven't completed first
+   * login yet.
+   */
+  mustChangePassword?: boolean;
   createdAt: number;
   updatedAt: number;
 }
 
 /**
  * System User Invite / Signup Request.
+ *
+ * `password` is GONE — the backend generates a temporary password and
+ * emails it via the invite welcome template. The new row carries
+ * `mustChangePassword=true` and the invitee is forced to change the
+ * password on first sign-in.
  *
  * `branchIds` is OPTIONAL. If omitted or empty the server defaults to the
  * tenant's Headquarters branch. Sending more than one branch requires a
@@ -58,7 +71,6 @@ export interface SystemUserSignupRequest {
   departmentId?: string;
   fullName: string;
   email: string;
-  password: string;
   role: SystemUserRole;
   branchIds?: string[];
 }
@@ -80,12 +92,17 @@ export interface SystemUserUpdateRequest {
 }
 
 /**
- * Body for POST /v1/system-users/{user_id}/reset-password (super_admin)
- * and POST /v1/admins/system-users/{user_id}/reset-password (app admin).
+ * Body for POST /v1/system-users/{user_id}/reset-password (super_admin),
+ * POST /v1/admins/system-users/{user_id}/reset-password (app admin), and
+ * POST /v1/system-users/bulk/reset-password (super_admin, queued).
+ *
+ * INTENTIONALLY EMPTY — the backend always generates a temporary
+ * password, marks the row `mustChangePassword=true`, revokes every
+ * active token for the target, and emails the cleartext via the
+ * `password_reset_temp` template. Sending `newPassword` here is now a
+ * 422 "extra fields not permitted".
  */
-export interface ResetUserPasswordRequest {
-  newPassword: string;
-}
+export type ResetUserPasswordRequest = Record<string, never>;
 
 export interface ResetUserPasswordResponse {
   id: string;
@@ -95,18 +112,27 @@ export interface ResetUserPasswordResponse {
 /**
  * Body for POST /v1/admins/tenants/{tenant_id}/super-admins.
  * App-admin path for adding a super_admin to an EXISTING tenant.
+ *
+ * `password` is GONE — the backend generates a temporary password and
+ * emails it to the new super_admin. The reviewer never sees the
+ * cleartext value. Sending `password` here is now a 422 "extra fields
+ * not permitted". Same singleton invariant as the bootstrap path:
+ * exactly one active super_admin per tenant. To swap the lone
+ * super_admin for a different person, hit the `replace` endpoint below.
  */
 export interface AddTenantSuperAdminRequest {
   fullName: string;
   email: string;
-  password: string;
   branchIds?: string[];
 }
 
 /**
  * Response from POST /v1/admins/tenants/{tenant_id}/super-admins.
- * Carries access + refresh tokens so the app admin can deliver them
- * out-of-band to the new super admin (per spec — the API does not email).
+ *
+ * `accessToken` / `refreshToken` are no longer emitted — the welcome
+ * email is the only credential carrier. `mustChangePassword=true` is
+ * set on the new row so first login routes through the change-password
+ * screen.
  */
 export interface AddTenantSuperAdminResponse {
   id: string;
@@ -115,9 +141,39 @@ export interface AddTenantSuperAdminResponse {
   role: 'super_admin';
   fullName: string;
   email: string;
-  accessToken: string;
-  refreshToken: string;
   accountStatus: AccountStatus;
+  mustChangePassword?: boolean;
+}
+
+/**
+ * Body for POST /v1/admins/tenants/{tenant_id}/super-admins/replace.
+ *
+ * Atomically swaps the tenant's lone super_admin for a new one — the
+ * existing super_admin is deactivated, all their tokens are revoked,
+ * the new super_admin is created with a temporary password (emailed
+ * via the welcome template), and the audit row records who replaced
+ * whom. No `password` field.
+ *
+ * Errors to surface in the UI:
+ *   - 400  "Cannot replace a super admin on an inactive tenant"
+ *   - 404  tenant not found
+ *   - 409  `SUPER_ADMIN_NONE_TO_REPLACE` — caller should hit the
+ *          plain super-admins POST instead
+ *   - 409  `MAIN_SUPER_ADMIN_MISSING` — multiple super_admins but none
+ *          flagged as main; wait for the 6h backfill or designate one
+ *          via the transfer endpoint first
+ */
+export interface ReplaceTenantSuperAdminRequest {
+  fullName: string;
+  email: string;
+  branchIds?: string[];
+}
+
+export interface ReplaceTenantSuperAdminResponse {
+  tenantId: string;
+  /** The previously-active super_admin row id (now INACTIVE). */
+  replacedUserId: string;
+  newSuperAdmin: AddTenantSuperAdminResponse;
 }
 
 /**
@@ -154,10 +210,18 @@ export interface Admin {
    * admin list can show a security-posture column.
    */
   mfaEnabled?: boolean;
+  /** See `SystemUser.mustChangePassword`. */
+  mustChangePassword?: boolean;
 }
 
 /**
  * Admin Signup Request.
+ *
+ * `password` is GONE — the backend generates a temporary password,
+ * persists it (hashed) with `mustChangePassword=true` and
+ * `mfaEnabled=true`, and emails the cleartext via the `admin_invite`
+ * template. Sending `password` here is now a 422 "extra fields not
+ * permitted".
  *
  * `accessPreset` is OPTIONAL. The backend defaults to `all_controls`
  * when omitted, preserving the legacy "platform admin can do
@@ -167,7 +231,6 @@ export interface Admin {
 export interface AdminSignupRequest {
   fullName: string;
   email: string;
-  password: string;
   accessPreset?: AdminAccessPreset;
 }
 

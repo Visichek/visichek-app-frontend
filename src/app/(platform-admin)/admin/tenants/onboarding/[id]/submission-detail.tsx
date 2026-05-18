@@ -7,8 +7,6 @@ import {
   Building2,
   CheckCircle2,
   Clock,
-  Eye,
-  EyeOff,
   Globe,
   Loader2,
   Mail,
@@ -472,24 +470,20 @@ interface AcceptDialogProps {
 function AcceptDialog({ submission, open, onClose }: AcceptDialogProps) {
   const accept = useAcceptOnboarding();
   const { navigate } = useNavigationLoading();
-  const [adminPassword, setAdminPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [adminFullName, setAdminFullName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
 
   const requiresCompany = !submission.organizationName;
   const requiresName = !submission.fullName;
   const requiresEmail = !submission.email;
 
   function reset() {
-    setAdminPassword("");
     setCompanyName("");
     setAdminFullName("");
     setAdminEmail("");
     setReviewNotes("");
-    setShowPassword(false);
   }
 
   function handleClose() {
@@ -501,16 +495,10 @@ function AcceptDialog({ submission, open, onClose }: AcceptDialogProps) {
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
 
-    if (adminPassword.length < 8) {
-      toast.error("Password must be at least 8 characters.");
-      return;
-    }
-
     toast.promise(
       accept.mutateAsync({
         submissionId: submission.id,
         data: {
-          adminPassword,
           companyName: companyName.trim() || undefined,
           adminFullName: adminFullName.trim() || undefined,
           adminEmail: adminEmail.trim() || undefined,
@@ -525,7 +513,7 @@ function AcceptDialog({ submission, open, onClose }: AcceptDialogProps) {
           if (response?.tenantId) {
             navigate(`/admin/tenants/${response.tenantId}`);
           }
-          return "Tenant provisioned. Welcome email queued.";
+          return "Tenant provisioned. Welcome email with a temp password queued.";
         },
         error: (err: Error) =>
           err.message || "Failed to provision tenant.",
@@ -541,48 +529,15 @@ function AcceptDialog({ submission, open, onClose }: AcceptDialogProps) {
       description="Creates the tenant and first super admin in one step. Overrides apply only if you want to change the extracted values."
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="accept-password">
-            Initial admin password <span aria-hidden="true">*</span>
-          </Label>
-          <div className="relative">
-            <Input
-              id="accept-password"
-              type={showPassword ? "text" : "password"}
-              value={adminPassword}
-              onChange={(e) => setAdminPassword(e.target.value)}
-              placeholder="Minimum 8 characters"
-              required
-              minLength={8}
-              autoComplete="new-password"
-              className="pr-11 text-base md:text-sm"
-            />
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
-                  onClick={() => setShowPassword((p) => !p)}
-                  aria-label={
-                    showPassword ? "Hide password" : "Show password"
-                  }
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {showPassword ? "Hide password" : "Show password"}
-              </TooltipContent>
-            </Tooltip>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            The new super admin will be required to change this on first login.
+        <div className="rounded-md border border-info/30 bg-info/5 p-3 text-sm">
+          <p className="font-medium">Temporary password handling</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            A temporary password is generated server-side and emailed to{" "}
+            <span className="font-mono">
+              {adminEmail.trim() || submission.email || "the admin"}
+            </span>
+            . They will be required to change it on first sign-in. The
+            reviewer never sees the cleartext value.
           </p>
         </div>
 
@@ -699,26 +654,22 @@ function AcceptDialog({ submission, open, onClose }: AcceptDialogProps) {
 function PartialAcceptDialog({ submission, open, onClose }: AcceptDialogProps) {
   const partialAccept = usePartialAcceptOnboarding();
   const { navigate } = useNavigationLoading();
-  const [adminPassword, setAdminPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [adminFullName, setAdminFullName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
   const [pending, setPending] = useState<Set<string>>(new Set());
-  const [showPassword, setShowPassword] = useState(false);
 
   const requiresCompany = !submission.organizationName;
   const requiresName = !submission.fullName;
   const requiresEmail = !submission.email;
 
   function reset() {
-    setAdminPassword("");
     setCompanyName("");
     setAdminFullName("");
     setAdminEmail("");
     setReviewNotes("");
     setPending(new Set());
-    setShowPassword(false);
   }
 
   function handleClose() {
@@ -739,10 +690,6 @@ function PartialAcceptDialog({ submission, open, onClose }: AcceptDialogProps) {
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
 
-    if (adminPassword.length < 8) {
-      toast.error("Password must be at least 8 characters.");
-      return;
-    }
     if (pending.size === 0) {
       toast.error(
         "Pick at least one field for the tenant to complete — otherwise use Accept.",
@@ -754,7 +701,6 @@ function PartialAcceptDialog({ submission, open, onClose }: AcceptDialogProps) {
       partialAccept.mutateAsync({
         submissionId: submission.id,
         data: {
-          adminPassword,
           companyName: companyName.trim() || undefined,
           adminFullName: adminFullName.trim() || undefined,
           adminEmail: adminEmail.trim() || undefined,
@@ -790,46 +736,16 @@ function PartialAcceptDialog({ submission, open, onClose }: AcceptDialogProps) {
       description="Provisions the tenant now and records which fields the new super admin must clarify on first login."
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="partial-password">
-            Initial admin password <span aria-hidden="true">*</span>
-          </Label>
-          <div className="relative">
-            <Input
-              id="partial-password"
-              type={showPassword ? "text" : "password"}
-              value={adminPassword}
-              onChange={(e) => setAdminPassword(e.target.value)}
-              placeholder="Minimum 8 characters"
-              required
-              minLength={8}
-              autoComplete="new-password"
-              className="pr-11 text-base md:text-sm"
-            />
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
-                  onClick={() => setShowPassword((p) => !p)}
-                  aria-label={
-                    showPassword ? "Hide password" : "Show password"
-                  }
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {showPassword ? "Hide password" : "Show password"}
-              </TooltipContent>
-            </Tooltip>
-          </div>
+        <div className="rounded-md border border-info/30 bg-info/5 p-3 text-sm">
+          <p className="font-medium">Temporary password handling</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            A temporary password is generated server-side and emailed to{" "}
+            <span className="font-mono">
+              {adminEmail.trim() || submission.email || "the admin"}
+            </span>
+            . They will be required to change it on first sign-in. The
+            reviewer never sees the cleartext value.
+          </p>
         </div>
 
         {(requiresCompany || requiresName || requiresEmail) && (
