@@ -335,6 +335,7 @@ export function HostForm({ host }: HostFormProps) {
             previewUrl={host?.pictureUrl}
             visibility="public"
             tenantId={tenantId}
+            purpose="host_photo"
             alt={`${name || "Host"} photo`}
             uploadLabel="Upload photo"
             uploadTooltip="Upload a portrait image for this host; it can be shown on badges and appointment cards"
@@ -354,7 +355,7 @@ export function HostForm({ host }: HostFormProps) {
             onChange={setSignatureImageUrl}
             previewUrl={host?.signatureUrl}
             visibility="private"
-            purpose="system"
+            purpose="host_signature"
             alt={`${name || "Host"} signature`}
             uploadLabel="Upload signature"
             uploadTooltip="Upload this host's signature image; stored privately and used when signing off visits"

@@ -67,7 +67,12 @@ export type UploadPurpose =
   | "id_document"
   | "appointment_photo"
   | "branding"
-  | "system";
+  | "system"
+  // Image-only purposes: the backend enforces an image MIME allowlist
+  // (JPEG/PNG/WebP/GIF/BMP/HEIC/HEIF; SVG rejected) and returns 415
+  // UNSUPPORTED_MEDIA_TYPE on a non-image. Used by the host form.
+  | "host_photo"
+  | "host_signature";
 
 export interface UploadResponse {
   objectKey: string;

@@ -2,59 +2,73 @@
 OPEN BACKEND ASKS — Host photo / signature uploads
 Date: 2026-05-20
 ================================================================================
-Both earlier questions have been ANSWERED by the backend. Q1 is now handled on
-the frontend; Q2 needs no frontend change. The only things left for the backend
-are TWO OPTIONAL changes that are waiting on our go-ahead.
+NOTHING OUTSTANDING FROM THE BACKEND. All questions are answered and the
+backend's optional change A is shipped and fully consumed on the frontend.
+This file is kept only as a short record of the final state + the one manual
+check still worth doing. (Optional change B was declined — see bottom.)
 
 
 --------------------------------------------------------------------------------
-ANSWERED & DONE (frontend) — Q1: per-file size cap + MIME types
+FRONTEND ACTIONS TAKEN in response to the backend's change A (MIME guard)
 --------------------------------------------------------------------------------
-Backend answer: size is plan-dependent (per-file `maxFileSizeMb`, default 10 MB,
-hard ceiling 50 MB), authoritative via GET /v1/storage/quota; there is NO
-server-side MIME allowlist (the route stores whatever content_type arrives).
+The backend's image-MIME enforcement is scoped to TWO new upload purposes; the
+old defaults (kiosk_form / system) are NOT image-enforced, so the host form had
+to switch to the new purposes for the guard to apply:
 
-Frontend done: ImageUploadField now reads the live quota
-(useStorageQuota → maxFileSizeMb) to size the client guard per tenant instead
-of hardcoding 10 MB, shows a precise "that file is X MB, limit is Y MB" error
-before sending bytes, and pre-empts the two 429 cases (storage full via
-remainingMb, document-count cap via documentCount/maxDocuments) by disabling
-the picker with a message. `accept="image/*"` stays as a client convenience.
+  - Photo (PUBLIC upload):      purpose = "host_photo"     (was: backend default)
+  - Signature (PRIVATE upload): purpose = "host_signature" (was: "system")
+
+Done:
+  - types/api.ts: added "host_photo" / "host_signature" to UploadPurpose.
+  - host-form.tsx: photo sends purpose="host_photo", signature sends
+    purpose="host_signature".
+  - image-upload-field.tsx: default `accept` narrowed from "image/*" to the
+    backend's exact allowlist (JPEG/PNG/WebP/GIF/BMP/HEIC/HEIF; SVG excluded)
+    via the new exported IMAGE_FIELD_ACCEPT constant, so the file dialog and
+    the server agree.
+  - image-upload-field.tsx: surfaces the upload error inline (role="alert").
+    The 415 UNSUPPORTED_MEDIA_TYPE body's message is already user-facing
+    ("Upload a JPEG, PNG, WebP, GIF, BMP, or HEIC/HEIF image."), so it renders
+    as-is. The accept guard stays too (server check is declared-content-type,
+    not content sniffing — defence-in-depth on both sides).
 
 
 --------------------------------------------------------------------------------
-ANSWERED — Q2: do host create/update echo pictureUrl / signatureUrl?
+EARLIER ITEMS — all resolved (recorded for context, no action left)
 --------------------------------------------------------------------------------
-Backend answer: NO. POST /v1/hosts and PATCH /v1/hosts/{id} are queued writes
-returning only the 202 { id, jobId, status }; the polled job result is minimal
-(create → {id,tenantId,name}, update → {id,changedFields}). The canonical way
-to get the resolved URLs is a follow-up GET /v1/hosts/{id} (runs _enrich_host).
+  - Save the OBJECT KEY (not downloadUrl) into picture_image_url /
+    signature_image_url. Confirmed correct.
+  - Read path: backend returns read-only pictureUrl / signatureUrl; the field
+    renders those (or the fresh post-upload downloadUrl). No client-side
+    /v1/documents key resolution. Done.
+  - Public photo upload authenticates via the session cookie
+    (withCredentials: true). Confirmed correct; no Bearer header (item #4
+    retracted).
+  - Per-file size cap is plan-dependent: ImageUploadField reads the live
+    GET /v1/storage/quota (maxFileSizeMb) instead of hardcoding 10 MB, fails
+    fast on oversize with a precise message, and pre-empts the storage-full /
+    document-count 429s. Done.
+  - Host create/update return only the 202 (no resolved URLs); the form
+    navigates away after save, so no change needed.
 
-Frontend impact: NONE. The host form navigates back to the list after save, so
-it never needs the URLs in the write response. No change made.
+
+--------------------------------------------------------------------------------
+DECLINED (optional, revisit only if requirements change)
+--------------------------------------------------------------------------------
+  B. Enriching the create/update job result with resolved pictureUrl /
+     signatureUrl. Not needed — the host form navigates back to the list after
+     save, so a follow-up GET /v1/hosts/{id} is the consistent path. Revisit
+     only if we move to an inline "stay on page after save" flow.
 
 
-================================================================================
-DECISIONS ON THE TWO OPTIONAL BACKEND CHANGES
-================================================================================
-
-A. SERVER-SIDE IMAGE-MIME ENFORCEMENT on perform_upload — GREENLIT. Please add
-   it. Today the upload route accepts any content_type; `accept="image/*"` is
-   only a client hint and is trivially bypassable, so a non-image could be
-   stored and later render as a broken <img>. Add the image-MIME guard, gated
-   by `purpose` so kiosk id_document/file fields that legitimately take PDFs
-   aren't broken.
-
-   >>> ONE THING WE NEED BACK FROM YOU before the frontend can map it nicely:
-       the EXACT rejection contract — the HTTP status (415? 400?) and the
-       error `data.code` string the guard returns, plus which purposes are
-       exempt. We won't guess a status/code (house rule: never invent backend
-       codes). Once you confirm, ImageUploadField will catch that specific
-       status/code and show a precise inline "Please choose an image file."
-       error instead of the generic upload-failed toast.
-
-B. ENRICH THE WRITER JOB RESULT with resolved pictureUrl / signatureUrl —
-   DECLINED for now. The host form navigates back to the list after save, so
-   the follow-up GET /v1/hosts/{id} is the architecturally consistent path and
-   we don't need the URLs in the write response. Revisit only if we move to an
-   inline "stay on page after save" flow.
+--------------------------------------------------------------------------------
+MANUAL VERIFICATION STILL WORTH DOING (neither side has run it end-to-end)
+--------------------------------------------------------------------------------
+  1. Upload a PDF to the host Photo field → expect HTTP 415 with
+     code "UNSUPPORTED_MEDIA_TYPE"; confirm the inline error shows the
+     "Upload a JPEG, PNG, WebP, …" message.
+  2. Upload a valid image to Photo + Signature, save, RELOAD the edit page →
+     both previews render from pictureUrl / signatureUrl, no /v1/documents
+     call in the network tab.
+  3. (If a small-cap plan is handy) confirm an oversize file is rejected
+     client-side with the precise "limit is N MB" message before any request.

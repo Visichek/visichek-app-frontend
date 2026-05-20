@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
-import { AlarmClock, Loader2 } from "lucide-react";
+import { AlarmClock, Loader2, Search, X } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
 import { NavButton } from "@/components/recipes/nav-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -25,66 +26,181 @@ import {
 import { ErrorState } from "@/components/feedback/error-state";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useAdminSupportCases } from "@/features/support-cases/hooks/use-admin-support-cases";
+import { useTenantList } from "@/features/auth/hooks/use-admin-dashboard";
 import {
   CaseStatusBadge,
   CasePriorityBadge,
   CaseCategoryBadge,
-  SupportTierBadge,
   CASE_CATEGORY_LABELS,
 } from "@/features/support-cases/components";
 import { formatRelative } from "@/lib/utils/format-date";
-import type { SupportCase } from "@/types/support-case";
+import type { SupportCase, AdminSupportCaseSort } from "@/types/support-case";
 import type {
   SupportCaseStatus,
   SupportCasePriority,
   SupportCaseCategory,
-  SupportTier,
 } from "@/types/enums";
 
 type StatusFilter = SupportCaseStatus | "all";
 type PriorityFilter = SupportCasePriority | "all";
 type CategoryFilter = SupportCaseCategory | "all";
-type TierFilter = SupportTier | "all";
+
+const SUPPORT_CASES_PAGE_SIZE = 25;
+const DEFAULT_SORT: AdminSupportCaseSort = "-date_created";
+
+const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "All statuses" },
+  { value: "open", label: "Open" },
+  { value: "acknowledged", label: "Acknowledged" },
+  { value: "in_progress", label: "In progress" },
+  { value: "awaiting_tenant", label: "Awaiting tenant" },
+  { value: "resolved", label: "Resolved" },
+  { value: "closed", label: "Closed" },
+  { value: "reopened", label: "Reopened" },
+];
+
+const PRIORITY_OPTIONS: { value: PriorityFilter; label: string }[] = [
+  { value: "all", label: "All priorities" },
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "critical", label: "Critical" },
+];
+
+const SORT_OPTIONS: { value: AdminSupportCaseSort; label: string }[] = [
+  { value: "-date_created", label: "Newest first" },
+  { value: "date_created", label: "Oldest first" },
+  { value: "-last_updated", label: "Recently updated" },
+  { value: "sla_due_at", label: "SLA due soonest" },
+  { value: "-priority", label: "Priority (A–Z)" },
+  { value: "status", label: "Status (A–Z)" },
+];
+
+/** Local YYYY-MM-DD → unix epoch seconds at the start of that day. */
+function dateStringToEpoch(value: string, endOfDay = false): number | undefined {
+  if (!value) return undefined;
+  const [y, m, d] = value.split("-").map(Number);
+  if (!y || !m || !d) return undefined;
+  const date = endOfDay
+    ? new Date(y, m - 1, d, 23, 59, 59)
+    : new Date(y, m - 1, d, 0, 0, 0);
+  const ms = date.getTime();
+  return Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined;
+}
 
 export default function AdminSupportCasesPage() {
   const { loadingHref, handleNavClick, navigateFromOverlay } = useNavigationLoading();
 
+  // Filters
+  const [searchInput, setSearchInput] = useState("");
+  const [q, setQ] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [priority, setPriority] = useState<PriorityFilter>("all");
   const [category, setCategory] = useState<CategoryFilter>("all");
-  const [supportTier, setSupportTier] = useState<TierFilter>("all");
-  const [tenantId, setTenantId] = useState("");
-  const [assignedAdminId, setAssignedAdminId] = useState("");
+  const [tenantId, setTenantId] = useState("all");
+  const [createdFrom, setCreatedFrom] = useState("");
+  const [createdTo, setCreatedTo] = useState("");
+  const [sort, setSort] = useState<AdminSupportCaseSort>(DEFAULT_SORT);
 
-  const SUPPORT_CASES_PAGE_SIZE = 25;
   const [pageIndex, setPageIndex] = useState(0);
 
+  // Debounce the free-text search so each keystroke doesn't fire a request.
+  useEffect(() => {
+    const handle = setTimeout(() => setQ(searchInput.trim()), 300);
+    return () => clearTimeout(handle);
+  }, [searchInput]);
+
+  // Tenant dropdown options (names instead of raw ids).
+  const { data: tenantData } = useTenantList();
+  const tenantOptions = useMemo(
+    () =>
+      (tenantData?.items ?? [])
+        .map((t) => ({ value: t.id, label: t.companyName || t.id }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [tenantData],
+  );
+
+  // Reset to the first page whenever the result set changes.
   useEffect(() => {
     setPageIndex(0);
-  }, [status, priority, category, supportTier, tenantId, assignedAdminId]);
+  }, [q, status, priority, category, tenantId, createdFrom, createdTo, sort]);
 
   const params = useMemo(
     () => ({
+      q: q.length >= 2 ? q : undefined,
       status: status === "all" ? undefined : status,
       priority: priority === "all" ? undefined : priority,
       category: category === "all" ? undefined : category,
-      supportTier: supportTier === "all" ? undefined : supportTier,
-      tenantId: tenantId.trim() || undefined,
-      assignedAdminId: assignedAdminId.trim() || undefined,
+      tenantId: tenantId === "all" ? undefined : tenantId,
+      createdAtGte: dateStringToEpoch(createdFrom),
+      createdAtLte: dateStringToEpoch(createdTo, true),
+      // Only send `sort` when it differs from the backend default so the
+      // unfiltered first page keeps hitting the precompute cache fast-path.
+      sort: sort === DEFAULT_SORT ? undefined : sort,
       skip: pageIndex * SUPPORT_CASES_PAGE_SIZE,
       limit: SUPPORT_CASES_PAGE_SIZE,
     }),
-    [status, priority, category, supportTier, tenantId, assignedAdminId, pageIndex],
+    [q, status, priority, category, tenantId, createdFrom, createdTo, sort, pageIndex],
   );
 
-  const { data, isLoading, isError, refetch } = useAdminSupportCases(params);
+  const { data, isLoading, isFetching, isError, refetch } = useAdminSupportCases(params);
   const cases = data?.items ?? [];
   const meta = data?.meta;
+
+  // Active-filter chips (search + each non-default filter).
+  const activeChips = useMemo(() => {
+    const chips: { key: string; label: string; clear: () => void }[] = [];
+    if (q.length >= 2)
+      chips.push({ key: "q", label: `Search: “${q}”`, clear: () => setSearchInput("") });
+    if (status !== "all")
+      chips.push({
+        key: "status",
+        label: `Status: ${STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status}`,
+        clear: () => setStatus("all"),
+      });
+    if (priority !== "all")
+      chips.push({
+        key: "priority",
+        label: `Priority: ${PRIORITY_OPTIONS.find((o) => o.value === priority)?.label ?? priority}`,
+        clear: () => setPriority("all"),
+      });
+    if (category !== "all")
+      chips.push({
+        key: "category",
+        label: `Category: ${CASE_CATEGORY_LABELS[category] ?? category}`,
+        clear: () => setCategory("all"),
+      });
+    if (tenantId !== "all")
+      chips.push({
+        key: "tenant",
+        label: `Tenant: ${tenantOptions.find((o) => o.value === tenantId)?.label ?? tenantId}`,
+        clear: () => setTenantId("all"),
+      });
+    if (createdFrom)
+      chips.push({ key: "from", label: `From: ${createdFrom}`, clear: () => setCreatedFrom("") });
+    if (createdTo)
+      chips.push({ key: "to", label: `To: ${createdTo}`, clear: () => setCreatedTo("") });
+    return chips;
+  }, [q, status, priority, category, tenantId, createdFrom, createdTo, tenantOptions]);
+
+  const hasActiveFilters = activeChips.length > 0 || sort !== DEFAULT_SORT;
+
+  function clearAll() {
+    setSearchInput("");
+    setStatus("all");
+    setPriority("all");
+    setCategory("all");
+    setTenantId("all");
+    setCreatedFrom("");
+    setCreatedTo("");
+    setSort(DEFAULT_SORT);
+  }
 
   const columns: ColumnDef<SupportCase>[] = [
     {
       accessorKey: "subject",
       header: "Subject",
+      enableSorting: false,
       cell: ({ row }) => {
         const id = row.original.id ?? row.original._id ?? "";
         const href = `/admin/support-cases/${id}`;
@@ -129,46 +245,70 @@ export default function AdminSupportCasesPage() {
     {
       accessorKey: "tenantId",
       header: "Tenant",
-      cell: ({ row }) => (
-        <span className="font-mono text-xs text-muted-foreground">
-          {truncateId(row.original.tenantId)}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "supportTier",
-      header: "Tier",
-      cell: ({ row }) =>
-        row.original.supportTier ? (
-          <SupportTierBadge tier={row.original.supportTier} />
-        ) : (
-          <span className="text-xs text-muted-foreground">—</span>
-        ),
+      enableSorting: false,
+      cell: ({ row }) => {
+        const summary = row.original.tenantSummary;
+        const name = summary?.companyName?.trim();
+        const country = summary?.countryOfHosting;
+        return (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="block max-w-[180px] truncate text-sm">
+                {name || (
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {truncateId(row.original.tenantId)}
+                  </span>
+                )}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <span className="font-mono text-xs">{row.original.tenantId}</span>
+              {country ? ` · ${country}` : ""}
+            </TooltipContent>
+          </Tooltip>
+        );
+      },
     },
     {
       accessorKey: "priority",
       header: "Priority",
+      enableSorting: false,
       cell: ({ row }) => <CasePriorityBadge priority={row.original.priority} />,
     },
     {
       accessorKey: "status",
       header: "Status",
+      enableSorting: false,
       cell: ({ row }) => <CaseStatusBadge status={row.original.status} />,
     },
     {
       accessorKey: "category",
       header: "Category",
+      enableSorting: false,
       cell: ({ row }) => <CaseCategoryBadge category={row.original.category} />,
+    },
+    {
+      id: "assignedAdmin",
+      header: "Assigned",
+      enableSorting: false,
+      cell: ({ row }) => {
+        const name = row.original.assignedAdminSummary?.fullName?.trim();
+        return name ? (
+          <span className="text-sm">{name}</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">Unassigned</span>
+        );
+      },
     },
     {
       accessorKey: "lastMessageAt",
       header: "Last activity",
+      enableSorting: false,
       cell: ({ row }) => (
         <span className="text-muted-foreground text-sm">
           {formatRelative(row.original.lastMessageAt ?? row.original.lastUpdated)}
         </span>
       ),
-      enableSorting: true,
     },
   ];
 
@@ -176,6 +316,8 @@ export default function AdminSupportCasesPage() {
     const id = c.id ?? c._id ?? "";
     const href = `/admin/support-cases/${id}`;
     const isLoadingRow = loadingHref === href;
+    const tenantName = c.tenantSummary?.companyName?.trim() || truncateId(c.tenantId);
+    const assignee = c.assignedAdminSummary?.fullName?.trim();
     return (
       <Link
         href={href}
@@ -190,15 +332,15 @@ export default function AdminSupportCasesPage() {
               )}
               {c.subject}
             </p>
-            <p className="font-mono text-xs text-muted-foreground">
-              {truncateId(c.tenantId)}
-            </p>
+            <p className="text-xs text-muted-foreground">{tenantName}</p>
           </div>
           <CaseStatusBadge status={c.status} />
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <CasePriorityBadge priority={c.priority} />
-          {c.supportTier && <SupportTierBadge tier={c.supportTier} />}
+          <span className="text-xs text-muted-foreground">
+            {assignee ? `Assigned: ${assignee}` : "Unassigned"}
+          </span>
         </div>
       </Link>
     );
@@ -217,7 +359,7 @@ export default function AdminSupportCasesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Support Cases"
-        description="Every open case across all tenants. Use filters to narrow the queue."
+        description="Every case across all tenants. Search, filter, and sort to narrow the queue."
         actions={
           <Tooltip>
             <TooltipTrigger asChild>
@@ -241,36 +383,44 @@ export default function AdminSupportCasesPage() {
         }
       />
 
-      <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+      {/* Single search bar — matches subject + description server-side. */}
+      <div className="relative">
+        <Search
+          className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <Input
+          type="search"
+          placeholder="Search cases by subject or description…"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          className="min-h-[44px] pl-10 text-base md:text-sm"
+          aria-label="Search support cases"
+        />
+        {isFetching && searchInput && (
+          <Loader2
+            className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground"
+            aria-hidden="true"
+          />
+        )}
+      </div>
+
+      {/* Filters */}
+      <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-5">
         <FilterSelect
           id="admin-status"
           label="Status"
           value={status}
           onChange={(v) => setStatus(v as StatusFilter)}
-          options={[
-            { value: "all", label: "All" },
-            { value: "open", label: "Open" },
-            { value: "acknowledged", label: "Acknowledged" },
-            { value: "in_progress", label: "In progress" },
-            { value: "awaiting_tenant", label: "Awaiting tenant" },
-            { value: "resolved", label: "Resolved" },
-            { value: "closed", label: "Closed" },
-            { value: "reopened", label: "Reopened" },
-          ]}
-          tooltip="Filter by workflow status"
+          options={STATUS_OPTIONS}
+          tooltip="Filter by workflow status — e.g. show only Resolved or Awaiting tenant cases"
         />
         <FilterSelect
           id="admin-priority"
           label="Priority"
           value={priority}
           onChange={(v) => setPriority(v as PriorityFilter)}
-          options={[
-            { value: "all", label: "All" },
-            { value: "low", label: "Low" },
-            { value: "medium", label: "Medium" },
-            { value: "high", label: "High" },
-            { value: "critical", label: "Critical" },
-          ]}
+          options={PRIORITY_OPTIONS}
           tooltip="Filter by the tenant-declared priority of each case"
         />
         <FilterSelect
@@ -279,7 +429,7 @@ export default function AdminSupportCasesPage() {
           value={category}
           onChange={(v) => setCategory(v as CategoryFilter)}
           options={[
-            { value: "all", label: "All" },
+            { value: "all", label: "All categories" },
             ...Object.entries(CASE_CATEGORY_LABELS).map(([value, label]) => ({
               value,
               label,
@@ -288,53 +438,97 @@ export default function AdminSupportCasesPage() {
           tooltip="Filter by the tenant-declared subject area"
         />
         <FilterSelect
-          id="admin-tier"
-          label="Support tier"
-          value={supportTier}
-          onChange={(v) => setSupportTier(v as TierFilter)}
-          options={[
-            { value: "all", label: "All tiers" },
-            { value: "none", label: "Best-effort" },
-            { value: "standard", label: "Standard" },
-            { value: "priority", label: "Priority" },
-          ]}
-          tooltip="Filter by the tenant's plan-level support tier"
+          id="admin-tenant"
+          label="Tenant"
+          value={tenantId}
+          onChange={setTenantId}
+          options={[{ value: "all", label: "All tenants" }, ...tenantOptions]}
+          tooltip="Show only cases opened by a specific tenant company"
         />
+        <FilterSelect
+          id="admin-sort"
+          label="Sort by"
+          value={sort}
+          onChange={(v) => setSort(v as AdminSupportCaseSort)}
+          options={SORT_OPTIONS}
+          tooltip="Change the order cases are listed in"
+        />
+      </div>
+
+      {/* Created-date range */}
+      <div className="grid gap-3 md:grid-cols-2 lg:max-w-md">
         <div className="space-y-1.5">
-          <Label htmlFor="tenant-filter" className="text-xs font-medium text-muted-foreground">
-            Tenant ID
+          <Label htmlFor="created-from" className="text-xs font-medium text-muted-foreground">
+            Created from
           </Label>
           <Input
-            id="tenant-filter"
-            placeholder="Full tenant id"
-            value={tenantId}
-            onChange={(e) => setTenantId(e.target.value)}
-            className="min-h-[44px] font-mono text-xs"
+            id="created-from"
+            type="date"
+            value={createdFrom}
+            max={createdTo || undefined}
+            onChange={(e) => setCreatedFrom(e.target.value)}
+            className="min-h-[44px] text-base md:text-sm"
           />
         </div>
         <div className="space-y-1.5">
-          <Label
-            htmlFor="assigned-filter"
-            className="text-xs font-medium text-muted-foreground"
-          >
-            Assigned admin
+          <Label htmlFor="created-to" className="text-xs font-medium text-muted-foreground">
+            Created to
           </Label>
           <Input
-            id="assigned-filter"
-            placeholder="Admin id"
-            value={assignedAdminId}
-            onChange={(e) => setAssignedAdminId(e.target.value)}
-            className="min-h-[44px] font-mono text-xs"
+            id="created-to"
+            type="date"
+            value={createdTo}
+            min={createdFrom || undefined}
+            onChange={(e) => setCreatedTo(e.target.value)}
+            className="min-h-[44px] text-base md:text-sm"
           />
         </div>
       </div>
+
+      {/* Active filter chips + clear all */}
+      {hasActiveFilters && (
+        <div className="flex flex-wrap items-center gap-2">
+          {activeChips.map((chip) => (
+            <Badge key={chip.key} variant="secondary" className="gap-1 pr-1">
+              <span className="max-w-[200px] truncate">{chip.label}</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={chip.clear}
+                    aria-label={`Remove filter: ${chip.label}`}
+                    className="ml-0.5 rounded-sm p-0.5 hover:bg-muted-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <X className="h-3 w-3" aria-hidden="true" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Remove this filter</TooltipContent>
+              </Tooltip>
+            </Badge>
+          ))}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearAll}
+                className="h-8 gap-1.5"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+                Clear all
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              Reset search, every filter, and the sort order back to defaults
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      )}
 
       <DataTable
         columns={columns}
         data={cases}
         isLoading={isLoading}
-        searchKey="subject"
-        searchPlaceholder="Search by subject…"
         pagination
         serverPagination={{
           pageIndex,

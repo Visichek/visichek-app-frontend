@@ -11,6 +11,27 @@ import type {
 // call sites keep working. New code should import from `@/types/job` directly.
 export type { AsyncJobAck, JobRecord } from "./job";
 
+// ── Embedded summaries ────────────────────────────────────────────────
+// Snapshots the backend resolves alongside each foreign-key id so the list
+// can render a label (company name, assignee name) without a second
+// round-trip. Mirror of the backend `*BriefSummary` schemas.
+
+export interface TenantBriefSummary {
+  id: string;
+  companyName?: string | null;
+  isActive?: boolean | null;
+  countryOfHosting?: string | null;
+}
+
+export interface UserBriefSummary {
+  id: string;
+  fullName?: string | null;
+  email?: string | null;
+  role?: string | null;
+  /** "admin" or "system_user". */
+  userType?: string | null;
+}
+
 // ── Core Entities ─────────────────────────────────────────────────────
 
 export interface SupportCase {
@@ -36,6 +57,10 @@ export interface SupportCase {
   lastUpdated: number;
   /** Only populated on admin responses. */
   supportTier?: SupportTier;
+  /** Resolved foreign-key snapshots — present on admin list/detail reads. */
+  tenantSummary?: TenantBriefSummary | null;
+  openedBySummary?: UserBriefSummary | null;
+  assignedAdminSummary?: UserBriefSummary | null;
 }
 
 export interface SupportCaseAttachment {
@@ -112,9 +137,30 @@ export interface SupportCaseListParams {
   category?: SupportCaseCategory;
 }
 
+/**
+ * Server-side sort tokens accepted by the admin support-case list. A leading
+ * `-` means descending. These match `SUPPORT_CASES_LIST_SPEC.sortable_fields`
+ * on the backend — anything else returns a 400 INVALID_SORT_FIELD.
+ */
+export type AdminSupportCaseSort =
+  | "-date_created"
+  | "date_created"
+  | "-last_updated"
+  | "sla_due_at"
+  | "-priority"
+  | "status";
+
 export interface AdminSupportCaseListParams extends SupportCaseListParams {
+  /** Full-text search across subject + description (min 2 chars server-side). */
+  q?: string;
+  /** Sort token, e.g. `-date_created`. Defaults to `-date_created` server-side. */
+  sort?: AdminSupportCaseSort;
   tenantId?: string;
-  assignedAdminId?: string;
+  /** Backend filter key is `assigneeId` (maps to `assigned_admin_id`). */
+  assigneeId?: string;
   supportTier?: SupportTier;
+  /** Created-at range, unix epoch seconds. */
+  createdAtGte?: number;
+  createdAtLte?: number;
 }
 

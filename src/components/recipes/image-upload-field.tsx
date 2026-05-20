@@ -42,7 +42,10 @@ interface ImageUploadFieldProps {
   tenantId?: string | null;
   /** Storage purpose bucket. Leave unset to use the backend default. */
   purpose?: UploadPurpose;
-  /** Accepted file types. Defaults to any image. */
+  /**
+   * Accepted file types for the picker. Defaults to {@link IMAGE_FIELD_ACCEPT}
+   * (the backend's image allowlist, SVG excluded).
+   */
   accept?: string;
   /**
    * Hard override for the max file size in bytes. Leave unset to use the
@@ -67,6 +70,16 @@ interface ImageUploadFieldProps {
 }
 
 const DEFAULT_MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+
+/**
+ * MIME allowlist the backend enforces for image-only purposes
+ * (host_photo / host_signature) — JPEG/PNG/WebP/GIF/BMP/HEIC/HEIF. SVG is
+ * intentionally excluded (stored-XSS risk rendered into an <img>). Used as
+ * the default `accept` so the client picker and the server agree; a non-image
+ * still gets a 415 server-side, this just keeps it out of the file dialog.
+ */
+export const IMAGE_FIELD_ACCEPT =
+  "image/jpeg,image/png,image/webp,image/gif,image/bmp,image/heic,image/heif";
 
 /** Bytes → a tidy MB number (one decimal, no trailing ".0"). */
 function formatMb(bytes: number): string {
@@ -94,7 +107,7 @@ export function ImageUploadField({
   tenantId,
   purpose,
   previewUrl,
-  accept = "image/*",
+  accept = IMAGE_FIELD_ACCEPT,
   maxSize,
   alt,
   uploadLabel = "Upload image",
@@ -113,7 +126,11 @@ export function ImageUploadField({
   // hit the network. Upload-time errors are surfaced by useDocumentUpload.
   const [localError, setLocalError] = React.useState<string | null>(null);
 
-  const { upload, isUploading } = useDocumentUpload({
+  // `uploadError` carries server-side failures — notably the 415
+  // UNSUPPORTED_MEDIA_TYPE the backend returns for a non-image on the
+  // host_photo / host_signature purposes. Its message is already
+  // user-facing ("Upload a JPEG, PNG, WebP, …").
+  const { upload, isUploading, error: uploadError } = useDocumentUpload({
     visibility,
     tenantId,
     purpose,
@@ -274,9 +291,9 @@ export function ImageUploadField({
         </div>
       </div>
 
-      {(localError || budgetMessage) && (
+      {(localError || uploadError || budgetMessage) && (
         <p className="text-sm text-destructive" role="alert">
-          {localError ?? budgetMessage}
+          {localError ?? uploadError ?? budgetMessage}
         </p>
       )}
       {previewFailed && hasValue && (
