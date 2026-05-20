@@ -23,7 +23,7 @@
  * the widget config is provided whole by the backend on /kyc/initiate.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useParams, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -77,6 +77,8 @@ import {
 import type { KycStatusScreenState } from "@/features/checkins";
 import { ApiError } from "@/types/api";
 import { usePublicTenantBranding } from "@/hooks/use-public-tenant-branding";
+import { usePersistentState } from "@/hooks/use-persistent-state";
+import { useWizard } from "@/hooks/use-wizard";
 import { requestUserLocation } from "@/lib/geolocation/user-location";
 import type {
   CheckinOut,
@@ -150,6 +152,40 @@ const INITIAL_STATE: KioskState = {
   purposeDetails: "",
 };
 
+// ── Local persistence ────────────────────────────────────────────────
+// The kiosk persists collected details + step so a refresh resumes where the
+// visitor left off. This is intentional local-only state (localStorage):
+// no tokens, no server-side persistence, consistent with the auth-cookie
+// rules. We bump the version to drop stale drafts when the shape changes.
+const KIOSK_PERSIST_VERSION = 1;
+/** Form draft + wizard cursor — a kiosk session window. */
+const KIOSK_TTL_MS = 30 * 60 * 1000;
+/** KYC resume marker — shorter, since the verification window is brief. */
+const KYC_TTL_MS = 15 * 60 * 1000;
+/** On a terminal/wait screen, wipe everything after this much inactivity so a
+ *  shared kiosk doesn't leak one visitor's data to the next. */
+const IDLE_RESET_MS = 3 * 60 * 1000;
+
+/**
+ * Minimal, resumable snapshot of the post-submit KYC phase. We persist this
+ * — never the live `widgetConfig`, which is short-lived and re-minted via
+ * `/kyc/initiate` on resume. `fullName` / `email` are copied so the wait
+ * screen still renders after the form draft is cleared on terminal.
+ */
+interface KycMarker {
+  kind:
+    | "awaiting_kyc"
+    | "kyc_polling"
+    | "kyc_verifying"
+    | "kyc_failed"
+    | "awaiting_approval";
+  checkin: CheckinOut;
+  kycIntent: KycIntent | null;
+  reason?: string;
+  fullName?: string;
+  email?: string;
+}
+
 /**
  * Post-submit state machine. `idle` while collecting; transitions move
  * forward only — restart by reloading the kiosk.
@@ -204,11 +240,23 @@ export default function KioskCheckinPage() {
   const kycSkipMutation = useKycSkip();
   const queryClient = useQueryClient();
 
-  const [step, setStep] = useState(1);
-  const [completed, setCompleted] = useState<number[]>([]);
-  const [state, setState] = useState<KioskState>(INITIAL_STATE);
+  // Per-tenant persistence scope; a department-scoped QR link gets its own
+  // bucket so it doesn't collide with the generic kiosk on the same device.
+  const persistScope = `${tenantId}:${registrationToken ? "scoped" : "generic"}`;
+  const [state, setState, stateControls] = usePersistentState<KioskState>(
+    `visichek:kiosk:${persistScope}`,
+    INITIAL_STATE,
+    { ttlMs: KIOSK_TTL_MS, version: KIOSK_PERSIST_VERSION },
+  );
+  const [kycMarker, setKycMarker, kycMarkerControls] =
+    usePersistentState<KycMarker | null>(
+      `visichek:kiosk-kyc:${persistScope}`,
+      null,
+      { ttlMs: KYC_TTL_MS, version: KIOSK_PERSIST_VERSION },
+    );
   const [stepError, setStepError] = useState<string | null>(null);
   const [phase, setPhase] = useState<KycPhase>({ kind: "idle" });
+  const [refillDismissed, setRefillDismissed] = useState(false);
 
   usePublicTenantBranding(tenantId);
 
@@ -240,14 +288,38 @@ export default function KioskCheckinPage() {
     return Math.max(1, current - 1);
   }
 
+  const wizard = useWizard({
+    steps: kycAvailable ? [1, 2, 3, 4] : [1, 3, 4],
+    resolveNext: nextStep,
+    resolvePrev: prevStep,
+    persist: {
+      key: `visichek:kiosk-wizard:${persistScope}`,
+      ttlMs: KIOSK_TTL_MS,
+      version: KIOSK_PERSIST_VERSION,
+    },
+  });
+  const step = wizard.step;
+  const completed = wizard.completed;
+
   function advance() {
-    setCompleted((prev) => (prev.includes(step) ? prev : [...prev, step]));
-    setStep(nextStep(step));
     setStepError(null);
+    wizard.advance();
   }
   function retreat() {
-    setStep(prevStep(step));
     setStepError(null);
+    wizard.retreat();
+  }
+
+  /** Wipe every kiosk key and return to a clean step 1. */
+  function resetKiosk() {
+    stateControls.clear();
+    kycMarkerControls.clear();
+    setKycMarker(null);
+    setState(INITIAL_STATE);
+    setStepError(null);
+    setRefillDismissed(false);
+    setPhase({ kind: "idle" });
+    wizard.reset();
   }
 
   // ── Step 1: Identity ─────────────────────────────────────────────
@@ -515,6 +587,109 @@ export default function KioskCheckinPage() {
     }
   }, [statusQ.data, phase]);
 
+  // ── KYC resume marker persistence ─────────────────────────────────
+  // Mirror the post-submit phase to a minimal localStorage marker so a
+  // refresh resumes verification. Never persist `widgetConfig`.
+  useEffect(() => {
+    if (!stateControls.hydrated) return;
+    switch (phase.kind) {
+      case "idle":
+      case "submitting":
+        // Transient — nothing durable to resume. (A refresh mid-submit lands
+        // back on Review; see the submit-during-refresh note in the plan.)
+        break;
+      case "kyc_initiating":
+      case "kyc_running":
+      case "kyc_skipping":
+        setKycMarker({
+          kind: "awaiting_kyc",
+          checkin: phase.checkin,
+          kycIntent: state.kycIntent,
+          fullName: state.fullName,
+          email: state.email,
+        });
+        break;
+      case "kyc_polling":
+      case "kyc_verifying":
+        setKycMarker({
+          kind: phase.kind,
+          checkin: phase.checkin,
+          kycIntent: state.kycIntent,
+          fullName: state.fullName,
+          email: state.email,
+        });
+        break;
+      case "kyc_failed":
+        setKycMarker({
+          kind: "kyc_failed",
+          checkin: phase.checkin,
+          kycIntent: state.kycIntent,
+          reason: phase.reason,
+          fullName: state.fullName,
+          email: state.email,
+        });
+        break;
+      case "awaiting_approval":
+        setKycMarker({
+          kind: "awaiting_approval",
+          checkin: phase.checkin,
+          kycIntent: state.kycIntent,
+          fullName: state.fullName,
+          email: state.email,
+        });
+        // Terminal: drop the form draft + wizard cursor so a refresh resumes
+        // the wait screen (from the marker), not a pre-filled form.
+        stateControls.clear();
+        wizard.reset();
+        break;
+    }
+    // Intentionally keyed on `phase` only — `state` values are stable by the
+    // time we're in a KYC phase, and we don't want to rewrite on keystrokes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, stateControls.hydrated]);
+
+  // ── Resume on mount ───────────────────────────────────────────────
+  // Once the marker has hydrated, reconstruct the live phase and kick the
+  // matching action. Runs at most once.
+  const resumedRef = useRef(false);
+  useEffect(() => {
+    if (resumedRef.current) return;
+    if (!kycMarkerControls.hydrated) return;
+    resumedRef.current = true;
+    const marker = kycMarker;
+    if (!marker || phase.kind !== "idle") return;
+
+    if (marker.kind === "awaiting_kyc") {
+      if (marker.kycIntent === "skip") void runKycSkip(marker.checkin);
+      else void runKycInitiate(marker.checkin);
+    } else if (marker.kind === "kyc_polling") {
+      setPhase({ kind: "kyc_polling", checkin: marker.checkin });
+    } else if (marker.kind === "kyc_verifying") {
+      setPhase({ kind: "kyc_verifying", checkin: marker.checkin });
+    } else if (marker.kind === "kyc_failed") {
+      setPhase({
+        kind: "kyc_failed",
+        checkin: marker.checkin,
+        reason: marker.reason,
+      });
+    } else if (marker.kind === "awaiting_approval") {
+      setPhase({ kind: "awaiting_approval", checkin: marker.checkin });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kycMarkerControls.hydrated]);
+
+  // ── Idle hygiene on terminal screens ──────────────────────────────
+  // On a shared kiosk, wipe everything after a few minutes idle on the wait
+  // screen so the next visitor starts clean.
+  useEffect(() => {
+    if (phase.kind !== "awaiting_approval" && phase.kind !== "kyc_failed") {
+      return;
+    }
+    const timer = setTimeout(() => resetKiosk(), IDLE_RESET_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase.kind]);
+
   function retryKyc() {
     if (phase.kind !== "kyc_failed") return;
     void runKycInitiate(phase.checkin);
@@ -549,8 +724,8 @@ export default function KioskCheckinPage() {
           onKycEvent={onKycEvent}
           onRetry={retryKyc}
           retrying={kycInitiateMutation.isPending}
-          fullName={state.fullName}
-          email={state.email}
+          fullName={state.fullName || kycMarker?.fullName || ""}
+          email={state.email || kycMarker?.email || ""}
         />
       </KioskShell>
     );
@@ -625,6 +800,49 @@ export default function KioskCheckinPage() {
           </div>
         </div>
       )}
+
+      {/* Suggestive re-fill: a returning visitor on this device sees their
+          previously-entered identity as a suggestion they can keep or clear.
+          Local data is a typing shortcut only — never identity proof. */}
+      {stateControls.hydrated &&
+        step === 1 &&
+        !refillDismissed &&
+        (state.fullName.trim() !== "" || state.phone.trim() !== "") && (
+          <div
+            role="status"
+            className="flex items-center justify-between gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm"
+          >
+            <span className="min-w-0">
+              Welcome back
+              {state.fullName.trim() ? (
+                <>
+                  {" — continue as "}
+                  <span className="font-medium">{state.fullName.trim()}</span>?
+                </>
+              ) : (
+                <>? We restored your details.</>
+              )}
+            </span>
+            <div className="flex shrink-0 gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setRefillDismissed(true)}
+              >
+                Use these
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={resetKiosk}
+              >
+                Not me
+              </Button>
+            </div>
+          </div>
+        )}
 
       <StepIndicator
         steps={visibleSteps}

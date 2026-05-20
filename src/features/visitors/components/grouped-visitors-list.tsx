@@ -62,7 +62,7 @@ function buildBadgeData(
       awaiting.visitorProfileSummary?.company ||
       undefined,
     purpose: awaiting.purpose ?? undefined,
-    hostName: awaiting.hostSummary?.fullName,
+    hostName: awaiting.hostSummary?.name,
     departmentName: awaiting.departmentSummary?.name,
     statusLabel: "Approved",
     badgeQrToken: awaiting.badgeQrToken ?? "",

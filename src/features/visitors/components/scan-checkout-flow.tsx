@@ -62,7 +62,7 @@ function visitorPhoto(row: AwaitingCheckoutItem): string | undefined {
 }
 
 function hostName(row: AwaitingCheckoutItem): string | undefined {
-  return row.hostSummary?.fullName;
+  return row.hostSummary?.name;
 }
 
 function departmentName(row: AwaitingCheckoutItem): string | undefined {

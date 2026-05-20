@@ -49,10 +49,14 @@ export default function AuditPage() {
       cell: ({ row }) => {
         const log = row.original;
         const name = log.actorSummary?.fullName || log.actorId;
+        const email = log.actorSummary?.email;
         const role = log.actorSummary?.role || log.actorRole;
         return (
           <div className="flex flex-col">
             <span className="text-sm">{name}</span>
+            {email && (
+              <span className="text-xs text-muted-foreground">{email}</span>
+            )}
             {role && (
               <span className="text-xs text-muted-foreground">{role}</span>
             )}
@@ -80,12 +84,16 @@ export default function AuditPage() {
 
   const mobileCard = (log: AuditLog) => {
     const name = log.actorSummary?.fullName || log.actorId;
+    const email = log.actorSummary?.email;
     return (
       <div className="rounded-lg border p-4 space-y-1">
         <div className="font-mono text-sm">{log.action}</div>
         <div className="text-sm text-muted-foreground">
           {name} • {formatDateTime(log.timestamp)}
         </div>
+        {email && (
+          <div className="text-xs text-muted-foreground">{email}</div>
+        )}
         {log.resourceType && (
           <div className="text-xs text-muted-foreground">{log.resourceType}</div>
         )}

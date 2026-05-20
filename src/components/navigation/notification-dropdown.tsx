@@ -28,7 +28,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils/cn";
 import {
   useNotifications,
-  useUnreadCount,
+  useNotificationSummaryData,
   useMarkAsRead,
   useMarkAllAsRead,
   useDeleteNotification,
@@ -126,7 +126,12 @@ export function NotificationDropdown() {
     string | null
   >(null);
 
-  const { data: unreadData } = useUnreadCount();
+  // Bell badge reads `total` from the same `/summary` query the sidebar
+  // uses, so the two badges can never diverge. The SSE stream keeps it
+  // live; polling is the fallback.
+  const { total: unreadCount } = useNotificationSummaryData(
+    isAdmin ? "admin" : "tenant",
+  );
   const {
     data: notifications,
     isLoading,
@@ -140,8 +145,6 @@ export function NotificationDropdown() {
   const markAsRead = useMarkAsRead();
   const markAllAsRead = useMarkAllAsRead();
   const deleteNotification = useDeleteNotification();
-
-  const unreadCount = unreadData?.count ?? 0;
 
   useEffect(() => {
     if (!loadingHref && openingNotificationId) {

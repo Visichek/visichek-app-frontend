@@ -52,6 +52,13 @@ export const CAPABILITIES = {
   DEPARTMENT_EDIT: "department:edit",
   DEPARTMENT_DELETE: "department:delete",
 
+  // Hosts (appointment host roster). super_admin: full incl. delete;
+  // dept_admin: create/list/get/update (no delete). No plan cap.
+  HOST_CREATE: "host:create",
+  HOST_VIEW: "host:view",
+  HOST_EDIT: "host:edit",
+  HOST_DELETE: "host:delete",
+
   // Branches
   BRANCH_CREATE: "branch:create",
   BRANCH_VIEW: "branch:view",

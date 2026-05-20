@@ -38,6 +38,11 @@ const PUBLIC_PATH_PREFIXES = [
   "/login",
   "/admin/login",
   "/app/login",
+  // Forced change-password screens. The user holds a temp password and is
+  // gated out of every other endpoint, so there's nothing for bootstrap to
+  // hydrate — render the form immediately instead of behind the splash.
+  "/admin/change-password",
+  "/app/change-password",
   "/register",
   "/checkout",
   "/rights",

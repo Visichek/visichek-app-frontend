@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api/request";
 import { useAppSelector } from "@/lib/store/hooks";
 import { selectIsAuthenticated } from "@/lib/store/session-slice";
+import { POLLING_INTERVALS, pollWhenAuthenticated } from "@/lib/query/polling";
+import { isStreamConnected } from "../lib/stream-status";
 import { useNotifications, notificationKeys } from "./use-notifications";
 import {
   resolveNotificationBucket,
@@ -18,82 +20,96 @@ export type NotificationBucketCounts = Partial<
 
 /**
  * Server response shape for `GET /v1/notifications/summary`.
- * Buckets with zero unread items are omitted by the backend, so this
- * is a partial record — match that on the frontend type too.
+ *
+ * - `total` is the authoritative GLOBAL unread count (equals
+ *   `/notifications/unread-count`). It is NOT the sum of `counts` — a
+ *   notification whose link maps to no bucket counts toward `total` but
+ *   to no bucket — so never derive `total` by summing.
+ * - `counts` holds per-bucket unread counts; zero buckets are omitted.
  */
-interface NotificationSummaryResponse {
+export interface NotificationSummary {
+  total: number;
   counts: NotificationBucketCounts;
 }
 
 /**
- * Hook for the authoritative bucket counts. Hits the backend summary
- * endpoint and short-polls every 30s so the sidebar badge stays warm
- * without paying for the recent-notifications page load.
+ * Canonical unread-state query. Both the topbar bell (`total`) and the
+ * sidebar bucket badges (`counts`) read from this ONE query so they can
+ * never diverge.
  *
- * The query is wired with a tolerant fallback (see
- * `useNotificationBuckets`) so older backends without the endpoint
- * deployed don't break the sidebar.
+ * Polling is the fallback layer: while the SSE stream is connected we
+ * skip the timer entirely (the stream pushes absolute state in real
+ * time). When the stream drops, the stream hook invalidates this query,
+ * which re-evaluates `refetchInterval` and resumes the 30s poll.
  */
-function useNotificationSummary() {
+export function useNotificationSummary() {
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
-  return useQuery<NotificationSummaryResponse, Error>({
-    queryKey: [...notificationKeys.all, "summary"] as const,
-    queryFn: () =>
-      apiGet<NotificationSummaryResponse>("/notifications/summary"),
+  return useQuery<NotificationSummary, Error>({
+    queryKey: notificationKeys.summary,
+    queryFn: () => apiGet<NotificationSummary>("/notifications/summary"),
     enabled: isAuthenticated,
     staleTime: 15_000,
-    refetchInterval: 30_000,
+    refetchInterval: () =>
+      isStreamConnected()
+        ? false
+        : pollWhenAuthenticated(POLLING_INTERVALS.notifications),
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
-    // Don't surface a noisy error toast if the endpoint isn't
-    // deployed yet — the calling hook just falls back to the
-    // recent-notifications classification path.
+    // Don't surface a noisy error toast if the endpoint isn't deployed
+    // yet — consumers fall back to the recent-notifications path below.
     retry: false,
   });
 }
 
 /**
- * Derive per-bucket unread counts.
+ * Normalized unread state for consumers: `{ total, counts }`.
  *
- * Prefers the authoritative `/v1/notifications/summary` endpoint
- * (Issue 2 backend) when available. Falls back to classifying the
- * recent-notifications page when the summary query is empty, still
- * loading, or 404s (older backends that haven't deployed the
- * endpoint yet).
+ * Prefers the authoritative `/summary` response. Falls back to
+ * classifying the recent-notifications page when summary is empty,
+ * still loading, or 404s (older backends), so the badges stay correct
+ * during the gap.
  *
- * Both paths produce a `NotificationBucketCounts` map keyed by the
- * same bucket names the sidebar renders, so swapping between them
- * is invisible to consumers.
- *
- * @param audience Which shell the user is in. Drives the URL
- *                 rewrites used by the dropdown so the bucket count
- *                 corresponds to the shell-correct destination.
+ * @param audience Which shell the user is in — only used by the
+ *                 fallback to resolve shell-correct buckets.
  */
-export function useNotificationBuckets(
+export function useNotificationSummaryData(
   audience: "admin" | "tenant",
-): NotificationBucketCounts {
+): NotificationSummary {
   const summary = useNotificationSummary();
   const fallbackList = useNotifications({ limit: 50, read: false });
 
-  return useMemo<NotificationBucketCounts>(() => {
-    // Prefer the server summary — it's not bounded by page size and
-    // already classified against the canonical bucket patterns.
-    if (summary.data?.counts) {
-      return summary.data.counts;
+  return useMemo<NotificationSummary>(() => {
+    // Prefer the server summary — authoritative and unbounded by page size.
+    if (summary.data) {
+      return {
+        total: summary.data.total ?? 0,
+        counts: summary.data.counts ?? {},
+      };
     }
 
-    // Fallback: classify whatever notifications we have cached. Used
-    // when the summary endpoint isn't deployed or while the first
-    // request is in flight.
+    // Fallback: classify whatever unread notifications we have cached.
     const notifications = fallbackList.data;
-    if (!notifications?.length) return {};
+    if (!notifications?.length) return { total: 0, counts: {} };
     const counts: NotificationBucketCounts = {};
+    let total = 0;
     for (const n of notifications) {
       if (n.read) continue;
+      total += 1;
       const target = resolveNotificationRoute(n.link, audience);
       const bucket = resolveNotificationBucket(target);
       if (!bucket) continue;
       counts[bucket] = (counts[bucket] ?? 0) + 1;
     }
-    return counts;
+    return { total, counts };
   }, [summary.data, fallbackList.data, audience]);
+}
+
+/**
+ * Per-bucket unread counts for the sidebar badges. Thin wrapper over
+ * {@link useNotificationSummaryData} that returns just the `counts` map.
+ */
+export function useNotificationBuckets(
+  audience: "admin" | "tenant",
+): NotificationBucketCounts {
+  return useNotificationSummaryData(audience).counts;
 }

@@ -38,7 +38,9 @@ import type {
   SystemUserLoginResponse,
   SuperAdminGlobalLoginResponse,
   ForgotPasswordRequest,
-  ForgotPasswordResponse,
+  ForgotPasswordLookupResponse,
+  SendResetLinksRequest,
+  SendResetLinksResponse,
   ResetPasswordRequest,
   ResetPasswordResponse,
 } from "@/types/auth";
@@ -356,16 +358,43 @@ export function useAuth() {
   );
 
   /**
-   * Request a password-reset email.
+   * Step 1 of recovery: look up every account that shares an email.
    * POST /v1/auth/forgot-password
    *
-   * The endpoint always returns 202 — even for unknown emails — so the
-   * caller treats success and "unknown account" the same way (show the
-   * generic "check your inbox" screen). No enumeration leak.
+   * No email is sent here — the response carries the list of matching
+   * accounts plus a single-use `selectionToken` (15-min TTL). The caller
+   * shows the account picker, then calls `sendResetLinks` with the chosen
+   * `accountRef`s. An empty `accounts` array is a valid response (the email
+   * matched nothing) and must be handled with neutral copy, not an error.
    */
   const forgotPassword = useCallback(
-    async (request: ForgotPasswordRequest): Promise<ForgotPasswordResponse> => {
-      return apiPost<ForgotPasswordResponse>("/auth/forgot-password", request);
+    async (
+      request: ForgotPasswordRequest,
+    ): Promise<ForgotPasswordLookupResponse> => {
+      return apiPost<ForgotPasswordLookupResponse>(
+        "/auth/forgot-password",
+        request,
+      );
+    },
+    []
+  );
+
+  /**
+   * Step 2 of recovery: email reset link(s) for the picked account(s).
+   * POST /v1/auth/forgot-password/send
+   *
+   * The `selectionToken` from step 1 is single-use and consumed here; a
+   * 400 means it was invalid/used/expired and the caller should restart at
+   * step 1. Returns the count of emails actually dispatched.
+   */
+  const sendResetLinks = useCallback(
+    async (
+      request: SendResetLinksRequest,
+    ): Promise<SendResetLinksResponse> => {
+      return apiPost<SendResetLinksResponse>(
+        "/auth/forgot-password/send",
+        request,
+      );
     },
     []
   );
@@ -442,6 +471,7 @@ export function useAuth() {
     loginSuperAdminTenant,
     verifyOtp,
     forgotPassword,
+    sendResetLinks,
     resetPassword,
     logout,
   };

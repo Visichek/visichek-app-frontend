@@ -13,6 +13,7 @@ import {
   Building,
   GitBranch,
   UserCog,
+  UserRound,
   ShieldAlert,
   ScrollText,
   Shield,
@@ -51,7 +52,14 @@ import { useHideLocked } from "@/features/limitations/hooks/use-hide-locked";
 import { UpgradePromptProvider } from "@/features/limitations/components/upgrade-prompt-provider";
 import { HideLockedExpiryToast } from "@/features/limitations/components/hide-locked-expiry-toast";
 import { HideLockedMenuItem } from "@/features/limitations/components/hide-locked-menu-item";
-import { useNotificationBuckets } from "@/features/notifications/hooks";
+import {
+  useNotificationBuckets,
+  useNotificationStream,
+} from "@/features/notifications/hooks";
+import {
+  useTenantConfirmation,
+  usePendingOnboardingFields,
+} from "@/features/onboarding/hooks";
 import type { PlanFeatureKey } from "@/types/billing";
 
 // Roles that act as geofencing approvers in approver-proximity mode. When
@@ -123,6 +131,12 @@ const ALL_TENANT_NAV_ITEMS: (GatedNavItem | GatedNavGroup)[] = [
         href: "/app/departments",
         icon: Building,
         description: "Configure departments, assign managers, and set department-specific visitor rules",
+      },
+      {
+        label: "Hosts",
+        href: "/app/hosts",
+        icon: UserRound,
+        description: "Manage the roster of people visitors can be scheduled to see — including contractors and executives who don't have a login account",
       },
       {
         label: "Branches",
@@ -295,6 +309,41 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
   // bucket-classification path the admin shell uses so the topbar bell,
   // sidebar badges, and any page-level alerts stay in sync.
   const notificationCounts = useNotificationBuckets("tenant");
+  // Real-time unread updates over SSE; falls back to polling when down.
+  useNotificationStream();
+
+  // First-login tenant-info confirmation gate (super_admin only). The
+  // backend treats this as a soft prompt, but per product we make it a
+  // blocking gate: a super admin whose `onboardingInfoConfirmed` is still
+  // false is held on the confirmation screen until they submit. Existing
+  // tenants default to false, so they are prompted exactly once.
+  //
+  // A 403 (not super_admin) / 404 (tenant missing) throws and leaves
+  // `confirmation` undefined — we never block on an errored fetch, so the
+  // shell degrades gracefully.
+  const isSuperAdmin = currentRole === "super_admin";
+  const onOnboardingRoute = pathname.startsWith("/app/onboarding");
+  const { data: confirmation, isLoading: confirmationLoading } =
+    useTenantConfirmation(isSuperAdmin);
+  const needsConfirmation =
+    isSuperAdmin && confirmation?.onboardingInfoConfirmed === false;
+  // Pending onboarding fields (partial-accept) come first — only fetched
+  // once we know the tenant still needs confirming, to avoid an extra call
+  // for everyone else.
+  const { data: pendingFields } = usePendingOnboardingFields(needsConfirmation);
+  const hasPendingFields =
+    !!pendingFields && pendingFields.pendingFieldKeys.length > 0;
+
+  const onboardingRedirect =
+    needsConfirmation && !onOnboardingRoute
+      ? hasPendingFields
+        ? "/app/onboarding/complete"
+        : "/app/onboarding/confirm"
+      : null;
+
+  useEffect(() => {
+    if (onboardingRedirect) router.replace(onboardingRedirect);
+  }, [onboardingRedirect, router]);
 
   const visibleNavItems = useMemo<NavItem[]>(() => {
     if (!currentRole) return [];
@@ -400,7 +449,14 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
     if (isOnLockedPath) router.replace("/app/dashboard");
   }, [isOnLockedPath, router]);
 
-  const shouldBlockChildren = limitationsLoading || isOnLockedPath;
+  // Hold the page behind a skeleton while the confirmation gate resolves or
+  // a redirect is pending, so a super admin never sees the dashboard paint
+  // for a frame before being bounced to the confirmation screen. Routes
+  // under /app/onboarding render normally — that's where the gate sends them.
+  const onboardingGatePending =
+    isSuperAdmin && !onOnboardingRoute && (confirmationLoading || !!onboardingRedirect);
+  const shouldBlockChildren =
+    limitationsLoading || isOnLockedPath || onboardingGatePending;
 
   return (
     <UpgradePromptProvider>

@@ -5,11 +5,14 @@ import { apiGet, apiPost } from "@/lib/api/request";
 import type {
   OnboardingCompleteRequest,
   OnboardingPendingFields,
+  TenantConfirmation,
+  TenantConfirmationRequest,
 } from "@/types/onboarding";
 
 export const tenantOnboardingKeys = {
   all: ["tenant", "onboarding"] as const,
   pendingFields: ["tenant", "onboarding", "pending-fields"] as const,
+  confirmation: ["tenant", "onboarding", "confirmation"] as const,
 };
 
 /**
@@ -50,6 +53,56 @@ export function useCompleteOnboarding() {
       apiPost<OnboardingPendingFields>("/onboarding/me/complete", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: tenantOnboardingKeys.all });
+    },
+  });
+}
+
+/**
+ * `GET /v1/onboarding/me/tenant-confirmation` (super_admin only) — the
+ * first-login "review your company identity" payload. Drives the soft
+ * confirmation gate off `onboardingInfoConfirmed`.
+ *
+ * `403` here means the caller is not a super_admin and `404` means the
+ * tenant is missing (rare) — both surface as a thrown error, so callers
+ * should treat an error as "don't block / hide the screen" rather than a
+ * hard failure.
+ */
+export function useTenantConfirmation(enabled: boolean = true) {
+  return useQuery<TenantConfirmation>({
+    queryKey: tenantOnboardingKeys.confirmation,
+    queryFn: () =>
+      apiGet<TenantConfirmation>("/onboarding/me/tenant-confirmation"),
+    enabled,
+    retry: false,
+    staleTime: 60_000,
+  });
+}
+
+/**
+ * `POST /v1/onboarding/me/tenant-confirmation` — confirm (and optionally
+ * correct) the tenant's company identity. Every field is optional and an
+ * empty body acknowledges the details as-is. Edits apply synchronously
+ * (no async job) and the response is the refreshed payload with
+ * `onboardingInfoConfirmed = true`.
+ *
+ * We prime the confirmation cache with the response so the shell gate sees
+ * the confirmed flag immediately — without it, navigating to the dashboard
+ * could race the cache invalidation and bounce the user back to this screen.
+ */
+export function useConfirmTenantInfo() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    TenantConfirmation,
+    Error,
+    TenantConfirmationRequest
+  >({
+    mutationFn: (data) =>
+      apiPost<TenantConfirmation>("/onboarding/me/tenant-confirmation", data),
+    onSuccess: (data) => {
+      queryClient.setQueryData(tenantOnboardingKeys.confirmation, data);
+      // Company identity also lives on the tenant record / tenant-settings.
+      queryClient.invalidateQueries({ queryKey: ["tenant"] });
     },
   });
 }

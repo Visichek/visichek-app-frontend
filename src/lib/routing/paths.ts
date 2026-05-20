@@ -27,6 +27,12 @@ export const PATHS = {
   ADMIN_DISCOUNTS: "/admin/discounts",
   ADMIN_SETTINGS: "/admin/settings",
 
+  // First-login tenant-info confirmation (super_admin only). A soft gate
+  // the tenant shell routes super admins to until `onboardingInfoConfirmed`
+  // flips true via POST /v1/onboarding/me/tenant-confirmation.
+  APP_ONBOARDING_CONFIRM: "/app/onboarding/confirm",
+  APP_ONBOARDING_COMPLETE: "/app/onboarding/complete",
+
   // Tenant
   APP_DASHBOARD: "/app/dashboard",
   // Visitors landing is the Pending tab — there is no useful index at

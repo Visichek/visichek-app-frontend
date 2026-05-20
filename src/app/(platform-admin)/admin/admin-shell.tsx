@@ -29,7 +29,10 @@ import { MobileNavSheet } from "@/components/navigation/mobile-nav-sheet";
 import { Topbar } from "@/components/navigation/topbar";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useSession } from "@/hooks/use-session";
-import { useNotificationBuckets } from "@/features/notifications/hooks";
+import {
+  useNotificationBuckets,
+  useNotificationStream,
+} from "@/features/notifications/hooks";
 import { filterAdminNavByPreset } from "@/lib/permissions/admin-access";
 
 const CommandLauncher = dynamic(
@@ -205,6 +208,8 @@ function AdminShellInner({ children }: { children: React.ReactNode }) {
   // on its row and a pulsing dot on the parent group icon when the
   // rail is collapsed.
   const notificationCounts = useNotificationBuckets("admin");
+  // Real-time unread updates over SSE; falls back to polling when down.
+  useNotificationStream();
 
   // Issue 10: filter the static nav array by the admin's access
   // preset before handing it to the sidebar. The backend permission

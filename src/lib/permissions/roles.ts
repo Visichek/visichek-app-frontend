@@ -31,6 +31,10 @@ export const ROLE_CAPABILITIES: Record<SystemUserRole, Capability[]> = {
     C.APPOINTMENT_DELETE,
     C.DEPARTMENT_VIEW,
     C.DEPARTMENT_EDIT,
+    // Hosts — dept_admin can create/list/get/update but NOT delete.
+    C.HOST_CREATE,
+    C.HOST_VIEW,
+    C.HOST_EDIT,
     C.DASHBOARD_VIEW,
     C.SUPPORT_CASE_CREATE,
     C.SUPPORT_CASE_VIEW,

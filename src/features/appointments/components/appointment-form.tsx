@@ -1,13 +1,28 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Loader2,
+  RotateCcw,
+  UserCheck,
+  CalendarClock,
+  ClipboardList,
+  CheckCircle2,
+} from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
 import { NavButton } from "@/components/recipes/nav-button";
 import { FileUploadZone } from "@/components/recipes/file-upload-zone";
+import {
+  StepIndicator,
+  ReviewRow,
+  type StepDef,
+} from "@/components/recipes/step-indicator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { LoadingButton } from "@/components/feedback/loading-button";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
@@ -16,19 +31,41 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
+import { useWizard } from "@/hooks/use-wizard";
+import { usePersistentState } from "@/hooks/use-persistent-state";
+import { useSession } from "@/hooks/use-session";
 import {
   useAppointmentFormRequirements,
   useCreateAppointment,
   useUpdateAppointment,
 } from "@/features/appointments/hooks/use-appointments";
 import { useDepartments } from "@/features/departments/hooks/use-departments";
-import { useSystemUsers } from "@/features/users/hooks/use-users";
+import { useHosts } from "@/features/hosts/hooks/use-hosts";
 import { ApiError } from "@/types/api";
 import type {
   Appointment,
   AppointmentFormFieldRequirement,
   AppointmentRequest,
 } from "@/types/visitor";
+
+/** Wizard steps. Step 3 (Details) is skipped when the tenant published no fields. */
+const STEPS: StepDef[] = [
+  { id: 1, label: "Who", icon: UserCheck },
+  { id: 2, label: "When", icon: CalendarClock },
+  { id: 3, label: "Details", icon: ClipboardList },
+  { id: 4, label: "Review", icon: CheckCircle2 },
+];
+const STEPS_NO_DETAILS: StepDef[] = STEPS.filter((s) => s.id !== 3);
+
+const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+const DRAFT_VERSION = 1;
+
+interface AppointmentDraft {
+  hostId: string;
+  departmentId: string;
+  scheduledDatetime: string;
+  tenantFormData: Record<string, unknown>;
+}
 
 interface AppointmentFormProps {
   /** When set, the form is in edit mode. */
@@ -80,35 +117,77 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
   const updateMutation = useUpdateAppointment();
   const formRequirementsQuery = useAppointmentFormRequirements();
   const departmentsQuery = useDepartments();
-  // Hosts are tenant staff — every system_user is a candidate host.
-  // The backend reads role from the assigned record so we don't filter.
-  const hostsQuery = useSystemUsers({ limit: 200 });
+  // Hosts now come from the dedicated hosts roster (replacing the old
+  // system-user lookup). We submit the host record `id` directly — the
+  // backend resolves it through the roster, with a system_user fallback for
+  // legacy appointments, so both mirrored and dedicated hosts work.
+  const hostsQuery = useHosts({ isActive: true, limit: 200, sort: "name" });
+  const { tenantId } = useSession();
   const isEditing = !!appointment;
 
   const requirements = formRequirementsQuery.data;
   const systemRequired = requirements?.systemRequiredFields ?? [];
   const tenantRequired = requirements?.tenantRequiredFields ?? [];
+  const hasDetails = tenantRequired.length > 0;
 
-  // System fields (host_id, department_id, scheduled_datetime). The
-  // form-requirements endpoint only carries the keys; we pick the
-  // matching input by key here.
-  const [hostId, setHostId] = useState(appointment?.hostId ?? "");
-  const [departmentId, setDepartmentId] = useState(
-    appointment?.departmentId ?? "",
-  );
-  const [scheduledDatetime, setScheduledDatetime] = useState(
-    appointment ? unixToDatetimeLocal(appointment.scheduledDatetime) : "",
+  // Persisted draft — create mode only. Edit mode hydrates from the
+  // `appointment` prop and uses an empty key so it never reads/writes
+  // localStorage (a persisted edit draft could shadow server state).
+  const draftKey = isEditing ? "" : `visichek:appt-draft:${tenantId ?? "anon"}`;
+  const [draft, setDraft, draftControls] = usePersistentState<AppointmentDraft>(
+    draftKey,
+    {
+      hostId: appointment?.hostId ?? "",
+      departmentId: appointment?.departmentId ?? "",
+      scheduledDatetime: appointment
+        ? unixToDatetimeLocal(appointment.scheduledDatetime)
+        : "",
+      tenantFormData: { ...(appointment?.tenantFormData ?? {}) },
+    },
+    { ttlMs: DRAFT_TTL_MS, version: DRAFT_VERSION },
   );
 
-  // tenant_form_data keyed on the published form's field_id. Lives
-  // outside react-hook-form because the dynamic field set can grow /
-  // shrink without re-registering schemas.
-  const [tenantFormData, setTenantFormData] = useState<Record<string, unknown>>(
-    () => ({ ...(appointment?.tenantFormData ?? {}) }),
-  );
+  const { hostId, departmentId, scheduledDatetime, tenantFormData } = draft;
+  const setHostId = (v: string) => setDraft((d) => ({ ...d, hostId: v }));
+  const setDepartmentId = (v: string) =>
+    setDraft((d) => ({ ...d, departmentId: v }));
+  const setScheduledDatetime = (v: string) =>
+    setDraft((d) => ({ ...d, scheduledDatetime: v }));
+
+  const wizard = useWizard({
+    steps: hasDetails ? [1, 2, 3, 4] : [1, 2, 4],
+    resolveNext: (current) => {
+      if (current === 1) return 2;
+      if (current === 2) return hasDetails ? 3 : 4;
+      if (current === 3) return 4;
+      return current;
+    },
+    resolvePrev: (current) => {
+      if (current === 4) return hasDetails ? 3 : 2;
+      if (current === 3) return 2;
+      if (current === 2) return 1;
+      return 1;
+    },
+    persist: isEditing
+      ? undefined
+      : {
+          key: `visichek:appt-wizard:${tenantId ?? "anon"}`,
+          ttlMs: DRAFT_TTL_MS,
+          version: DRAFT_VERSION,
+        },
+  });
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const hasSavedDraft =
+    !isEditing &&
+    draftControls.hydrated &&
+    (!!draft.hostId ||
+      !!draft.departmentId ||
+      !!draft.scheduledDatetime ||
+      Object.keys(draft.tenantFormData).length > 0);
 
   const departmentOptions = useMemo(
     () =>
@@ -121,16 +200,19 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
   const hostOptions = useMemo(
     () =>
       hostsQuery.data?.items
-        ?.filter((u) => !!u?.id)
-        .map((u) => ({
-          value: u.id,
-          label: u.email ? `${u.fullName} (${u.email})` : u.fullName,
+        ?.filter((h) => !!h?.id)
+        .map((h) => ({
+          value: h.id,
+          label: h.email ? `${h.name} (${h.email})` : h.name,
         })) ?? [],
     [hostsQuery.data],
   );
 
   function setTenantFieldValue(key: string, value: unknown) {
-    setTenantFormData((prev) => ({ ...prev, [key]: value }));
+    setDraft((d) => ({
+      ...d,
+      tenantFormData: { ...d.tenantFormData, [key]: value },
+    }));
     if (fieldErrors[key]) {
       setFieldErrors((prev) => {
         const next = { ...prev };
@@ -206,6 +288,78 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
     return Object.keys(next).length === 0;
   }
 
+  /**
+   * Validate only the fields belonging to the given wizard step. Used as the
+   * gate before advancing; the full {@link validate} runs again on submit.
+   */
+  function validateStep(step: number): boolean {
+    const next: Record<string, string> = {};
+    if (step === 1) {
+      if (systemRequired.some((f) => f.key === SYSTEM_KEYS.hostId) && !hostId) {
+        next[SYSTEM_KEYS.hostId] = "Host is required";
+      }
+      if (
+        systemRequired.some((f) => f.key === SYSTEM_KEYS.departmentId) &&
+        !departmentId
+      ) {
+        next[SYSTEM_KEYS.departmentId] = "Department is required";
+      }
+    } else if (step === 2) {
+      if (
+        systemRequired.some((f) => f.key === SYSTEM_KEYS.scheduledDatetime) &&
+        !scheduledDatetime
+      ) {
+        next[SYSTEM_KEYS.scheduledDatetime] = "Date and time is required";
+      } else if (
+        !isEditing &&
+        scheduledDatetime &&
+        new Date(scheduledDatetime).getTime() <= Date.now()
+      ) {
+        next[SYSTEM_KEYS.scheduledDatetime] =
+          "Scheduled time must be in the future";
+      }
+    } else if (step === 3) {
+      for (const field of tenantRequired) {
+        if (!field.required) continue;
+        const value = tenantFormData[field.key];
+        const isEmpty =
+          value === undefined ||
+          value === null ||
+          (typeof value === "string" && value.trim() === "") ||
+          (Array.isArray(value) && value.length === 0);
+        if (isEmpty) {
+          next[field.key] = `${field.label || field.key} is required`;
+        }
+      }
+    }
+    setFieldErrors(next);
+    return Object.keys(next).length === 0;
+  }
+
+  function handleNext() {
+    if (!validateStep(wizard.step)) {
+      toast.error("Fill every required field before continuing.");
+      return;
+    }
+    startTransition(() => wizard.advance());
+  }
+
+  function handleBack() {
+    startTransition(() => wizard.retreat());
+  }
+
+  function startOver() {
+    setDraft({
+      hostId: "",
+      departmentId: "",
+      scheduledDatetime: "",
+      tenantFormData: {},
+    });
+    draftControls.clear();
+    setFieldErrors({});
+    wizard.reset();
+  }
+
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!validate()) {
@@ -240,6 +394,9 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
         await createMutation.mutateAsync(payload);
         toast.success("Appointment created");
       }
+      // Clear the persisted draft + wizard cursor now the work is committed.
+      draftControls.clear();
+      wizard.reset();
       navigate(LIST_HREF);
     } catch (err) {
       // 400 VALIDATION_FAILED with details.missing_fields = [...] →
@@ -264,6 +421,8 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
             next[key] = `${tenantField?.label || key} is required`;
           }
           setFieldErrors(next);
+          // Send the user back to the Details step where these live.
+          if (hasDetails) wizard.goTo(3);
           toast.error("Some required fields are missing.");
           return;
         }
@@ -280,6 +439,60 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
 
   const requirementsLoading = formRequirementsQuery.isLoading;
   const requirementsError = formRequirementsQuery.isError;
+  const visibleSteps = hasDetails ? STEPS : STEPS_NO_DETAILS;
+
+  function handleFormSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (wizard.step === 4) {
+      void onSubmit(event);
+    } else {
+      handleNext();
+    }
+  }
+
+  const renderSystemFields = (fields: AppointmentFormFieldRequirement[]) => (
+    <SystemFieldsSection
+      fields={fields}
+      hostId={hostId}
+      onHostIdChange={(v) => {
+        setHostId(v);
+        clearError(SYSTEM_KEYS.hostId);
+      }}
+      hostOptions={hostOptions}
+      hostsLoading={hostsQuery.isLoading}
+      departmentId={departmentId}
+      onDepartmentIdChange={(v) => {
+        setDepartmentId(v);
+        clearError(SYSTEM_KEYS.departmentId);
+      }}
+      departmentOptions={departmentOptions}
+      departmentsLoading={departmentsQuery.isLoading}
+      scheduledDatetime={scheduledDatetime}
+      onScheduledDatetimeChange={(v) => {
+        setScheduledDatetime(v);
+        clearError(SYSTEM_KEYS.scheduledDatetime);
+      }}
+      errors={fieldErrors}
+    />
+  );
+
+  const hostLabel =
+    hostOptions.find((o) => o.value === hostId)?.label || hostId || "—";
+  const departmentLabel =
+    departmentOptions.find((o) => o.value === departmentId)?.label ||
+    departmentId ||
+    "—";
+  const scheduledLabel = scheduledDatetime
+    ? new Date(scheduledDatetime).toLocaleString()
+    : "—";
+
+  const step1Fields = systemRequired.filter(
+    (f) =>
+      f.key === SYSTEM_KEYS.hostId || f.key === SYSTEM_KEYS.departmentId,
+  );
+  const step2Fields = systemRequired.filter(
+    (f) => f.key === SYSTEM_KEYS.scheduledDatetime,
+  );
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
@@ -329,32 +542,42 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
           again.
         </div>
       ) : (
-        <form onSubmit={onSubmit} className="space-y-6">
-          <SystemFieldsSection
-            fields={systemRequired}
-            hostId={hostId}
-            onHostIdChange={(v) => {
-              setHostId(v);
-              clearError(SYSTEM_KEYS.hostId);
-            }}
-            hostOptions={hostOptions}
-            hostsLoading={hostsQuery.isLoading}
-            departmentId={departmentId}
-            onDepartmentIdChange={(v) => {
-              setDepartmentId(v);
-              clearError(SYSTEM_KEYS.departmentId);
-            }}
-            departmentOptions={departmentOptions}
-            departmentsLoading={departmentsQuery.isLoading}
-            scheduledDatetime={scheduledDatetime}
-            onScheduledDatetimeChange={(v) => {
-              setScheduledDatetime(v);
-              clearError(SYSTEM_KEYS.scheduledDatetime);
-            }}
-            errors={fieldErrors}
+        <form onSubmit={handleFormSubmit} className="space-y-6">
+          <StepIndicator
+            steps={visibleSteps}
+            currentStep={wizard.step}
+            completedSteps={wizard.completed}
           />
 
-          {tenantRequired.length > 0 && (
+          {hasSavedDraft && (
+            <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-muted/30 p-3 text-sm">
+              <span className="text-muted-foreground">
+                We restored your unsaved appointment draft.
+              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={startOver}
+                    className="shrink-0"
+                  >
+                    <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Start over
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  Discard the restored draft and start a blank appointment
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          )}
+
+          {wizard.step === 1 && renderSystemFields(step1Fields)}
+          {wizard.step === 2 && renderSystemFields(step2Fields)}
+
+          {wizard.step === 3 && hasDetails && (
             <div className="space-y-4 rounded-lg border border-border bg-muted/20 p-4">
               <div className="space-y-1">
                 <h3 className="text-sm font-semibold">
@@ -381,46 +604,141 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
             </div>
           )}
 
-          <div className="flex flex-col gap-2 pt-2 md:flex-row md:justify-end">
+          {wizard.step === 4 && (
+            <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-4">
+              <h3 className="text-sm font-semibold">Review</h3>
+              <div>
+                <ReviewRow label="Host" value={hostLabel} />
+                <ReviewRow label="Department" value={departmentLabel} />
+                <ReviewRow label="Scheduled" value={scheduledLabel} />
+                {tenantRequired.map((field) => (
+                  <ReviewRow
+                    key={field.key}
+                    label={field.label || field.key}
+                    value={formatTenantReviewValue(
+                      field,
+                      tenantFormData[field.key],
+                    )}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Footer navigation */}
+          <div className="flex flex-col gap-2 pt-2 md:flex-row md:items-center md:justify-between">
             <Tooltip>
               <TooltipTrigger asChild>
-                <NavButton
-                  href={LIST_HREF}
-                  variant="outline"
-                  disabled={submitting}
-                  className="w-full min-h-[44px] md:w-auto"
-                >
-                  Cancel
-                </NavButton>
+                {wizard.isFirst ? (
+                  <NavButton
+                    href={LIST_HREF}
+                    variant="outline"
+                    disabled={submitting}
+                    className="w-full min-h-[44px] md:w-auto"
+                  >
+                    Cancel
+                  </NavButton>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleBack}
+                    disabled={submitting || isPending}
+                    className="w-full min-h-[44px] md:w-auto"
+                  >
+                    {isPending ? (
+                      <Loader2
+                        className="mr-2 h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+                    )}
+                    Back
+                  </Button>
+                )}
               </TooltipTrigger>
               <TooltipContent side="top">
-                Discard this draft and return to the appointments list
+                {wizard.isFirst
+                  ? "Discard this draft and return to the appointments list"
+                  : "Go back to the previous step"}
               </TooltipContent>
             </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span>
-                  <LoadingButton
+
+            {wizard.step === 4 ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <LoadingButton
+                      type="submit"
+                      isLoading={submitting}
+                      loadingText={isEditing ? "Saving…" : "Scheduling…"}
+                      className="w-full md:w-auto"
+                    >
+                      {isEditing ? "Save changes" : "Schedule appointment"}
+                    </LoadingButton>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  {isEditing
+                    ? "Save changes and return to the appointments list"
+                    : "Schedule this appointment and return to the list"}
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
                     type="submit"
-                    isLoading={submitting}
-                    loadingText={isEditing ? "Saving…" : "Scheduling…"}
+                    disabled={submitting || isPending}
                     className="w-full md:w-auto"
                   >
-                    {isEditing ? "Save changes" : "Schedule appointment"}
-                  </LoadingButton>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                {isEditing
-                  ? "Save changes and return to the appointments list"
-                  : "Schedule this appointment and return to the list"}
-              </TooltipContent>
-            </Tooltip>
+                    {isPending ? (
+                      <Loader2
+                        className="mr-2 h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                    Continue
+                    <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  Validate this step and continue to the next
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
         </form>
       )}
     </div>
   );
+}
+
+/**
+ * Render a tenant field's stored value as a human-readable string for the
+ * review step. Maps option keys back to their labels and renders booleans /
+ * multi-selects sensibly.
+ */
+function formatTenantReviewValue(
+  field: AppointmentFormFieldRequirement,
+  value: unknown,
+): string {
+  if (value === undefined || value === null || value === "") return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "—";
+    return value
+      .map(
+        (v) =>
+          field.options?.find((o) => o.key === v)?.label ?? String(v),
+      )
+      .join(", ");
+  }
+  if (field.options) {
+    return field.options.find((o) => o.key === value)?.label ?? String(value);
+  }
+  return String(value);
 }
 
 interface SystemFieldsSectionProps {

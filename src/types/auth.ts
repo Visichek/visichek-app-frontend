@@ -12,17 +12,66 @@ export interface RefreshTokenRequest {
 
 // ── Forgot / Reset Password ──────────────────────────────────────────
 //
-// The forgot/reset endpoints are unified across admin + system_user. The
-// server decides which kind of account the email belongs to and dispatches
-// the matching reset email. We never reveal whether the email exists — a
-// 202 is returned even for unknown addresses.
+// Recovery is a THREE-step flow because one email can map to many accounts
+// (at most one platform admin, plus one tenant login per tenant the person
+// belongs to):
+//
+//   1. POST /v1/auth/forgot-password        → look up all matching accounts
+//                                              (NO email sent here)
+//   2. POST /v1/auth/forgot-password/send   → email reset link(s) to the
+//                                              account(s) the user picked
+//   3. POST /v1/auth/reset-password         → the emailed link opens our
+//                                              /reset-password page, which
+//                                              sets the new password
+//
+// Step 1 reveals which accounts share the email — a deliberate product
+// decision so the multi-account picker is usable. Security still holds:
+// step 2 can only email accounts discovered in step 1, always to the
+// server-stored address, and step 3 requires the single-use emailed token.
 
 export interface ForgotPasswordRequest {
   email: string;
 }
 
-export interface ForgotPasswordResponse {
-  requested: true;
+/** One account that shares the looked-up email (a step 1 result row). */
+export interface ForgotPasswordAccount {
+  /** Opaque handle echoed back in step 2 to choose this account. */
+  accountRef: string;
+  type: "platform" | "tenant";
+  /** Primary display line — tenant company name, or "Platform Administrator". */
+  label: string;
+  email: string;
+  /** null for platform accounts. */
+  tenantId: string | null;
+  tenantName: string | null;
+  role: string;
+  /** Human-friendly role label, e.g. "Tenant Super Admin". */
+  roleLabel: string;
+}
+
+/**
+ * Step 1 result. No email is sent yet — the user picks which of these
+ * accounts to recover, then we call /forgot-password/send (step 2).
+ * `selectionToken` is single-use and expires after `expiresIn` seconds
+ * (currently 900 = 15 min). An empty `accounts` array is not an error —
+ * surface a neutral "check your email" message rather than confirming the
+ * address is unknown.
+ */
+export interface ForgotPasswordLookupResponse {
+  selectionToken: string;
+  expiresIn: number;
+  accounts: ForgotPasswordAccount[];
+}
+
+/** Step 2 request: which discovered accounts to email reset links to. */
+export interface SendResetLinksRequest {
+  selectionToken: string;
+  accountRefs: string[];
+}
+
+/** Step 2 result: how many reset emails were dispatched. */
+export interface SendResetLinksResponse {
+  sent: number;
 }
 
 export interface ResetPasswordRequest {

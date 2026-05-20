@@ -48,6 +48,17 @@ const sessionSlice = createSlice({
       state.adminProfile = null;
       state.systemUserProfile = null;
     },
+    /**
+     * Drop the temp-password flag after a successful forced change. The
+     * server-side gate is already lifted by the change-password call; this
+     * keeps the cached profile honest so nothing in the UI keeps treating
+     * the user as gated before the next /me re-hydrates them.
+     */
+    clearMustChangePassword(state) {
+      if (state.adminProfile) state.adminProfile.mustChangePassword = false;
+      if (state.systemUserProfile)
+        state.systemUserProfile.mustChangePassword = false;
+    },
     markBootstrapDone(state) {
       state.isBootstrapping = false;
     },
@@ -58,6 +69,7 @@ export const {
   setAdminSession,
   setSystemUserSession,
   clearSessionState,
+  clearMustChangePassword,
   markBootstrapDone,
 } = sessionSlice.actions;
 export const sessionReducer = sessionSlice.reducer;

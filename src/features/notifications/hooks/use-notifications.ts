@@ -3,6 +3,11 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiGet, apiPatch, apiPost, apiDelete, apiPut } from "@/lib/api/request";
 import { POLLING_INTERVALS, pollWhenAuthenticated } from "@/lib/query/polling";
+import { isStreamConnected } from "../lib/stream-status";
+import {
+  resolveNotificationBucket,
+  type NotificationBucket,
+} from "@/lib/notifications/route-resolver";
 import type {
   NotificationOut,
   NotificationListPage,
@@ -13,6 +18,18 @@ import type {
   NotificationPreferencesUpdate,
 } from "@/types/notification";
 
+/**
+ * Cached shape of `GET /v1/notifications/summary` — the single source
+ * of truth for BOTH the bell (`total`) and the sidebar (`counts`).
+ * Mirrors `NotificationSummary` in `use-notification-buckets.ts`; kept
+ * local here to avoid a circular import, since that module already
+ * depends on this one.
+ */
+type SummaryCache = {
+  total: number;
+  counts: Partial<Record<NotificationBucket, number>>;
+};
+
 // ── Query Keys ───────────────────────────────────────────────────────
 
 export const notificationKeys = {
@@ -20,6 +37,7 @@ export const notificationKeys = {
   list: (params?: { skip?: number; limit?: number; read?: boolean }) =>
     ["notifications", "list", params] as const,
   unreadCount: ["notifications", "unread-count"] as const,
+  summary: ["notifications", "summary"] as const,
   preferences: ["notifications", "preferences"] as const,
 };
 
@@ -64,8 +82,12 @@ export function useNotifications(params?: {
       return normalizeNotificationList(raw);
     },
     placeholderData: keepPreviousData,
+    // While the SSE stream is connected it invalidates this list on every
+    // event, so the 30s poll is redundant — skip it. Resumes on disconnect.
     refetchInterval: () =>
-      pollWhenAuthenticated(POLLING_INTERVALS.notifications),
+      isStreamConnected()
+        ? false
+        : pollWhenAuthenticated(POLLING_INTERVALS.notifications),
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     staleTime: 15_000,
@@ -124,6 +146,44 @@ function decrementUnreadCount(
   );
 }
 
+/**
+ * Optimistically apply a read/delete to the summary cache so the bell
+ * (`total`) and the sidebar (`counts`) both drop instantly — before the
+ * queued (202) write commits and the stream echoes back the absolute
+ * state, and as the fallback when the stream is down.
+ *
+ * We map the notification's `link` to its bucket; the raw link works for
+ * both shell forms (e.g. `/app/checkins/{id}` and `/app/visitors/{id}`
+ * both resolve to `visitors`), so no audience is needed. `total` always
+ * decrements (every unread notification counts toward it); the bucket
+ * only decrements when the link maps to one.
+ */
+function decrementSummary(
+  queryClient: ReturnType<typeof useQueryClient>,
+  link: string | null | undefined,
+  delta: number,
+) {
+  queryClient.setQueryData<SummaryCache>(notificationKeys.summary, (current) => {
+    if (!current) return current;
+    const total = Math.max(0, (current.total ?? 0) - delta);
+    const counts = { ...current.counts };
+    const bucket = resolveNotificationBucket(link);
+    if (bucket && typeof counts[bucket] === "number") {
+      const next = Math.max(0, counts[bucket]! - delta);
+      if (next === 0) delete counts[bucket];
+      else counts[bucket] = next;
+    }
+    return { ...current, total, counts };
+  });
+}
+
+/** Zero out the whole summary — used by "mark all as read". */
+function clearSummary(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.setQueryData<SummaryCache>(notificationKeys.summary, (current) =>
+    current ? { ...current, total: 0, counts: {} } : current,
+  );
+}
+
 // ── Mark Single as Read ──────────────────────────────────────────────
 
 export function useMarkAsRead() {
@@ -135,15 +195,23 @@ export function useMarkAsRead() {
     onSuccess: (_response, notificationId) => {
       // Find the row in any cached list to know whether it was unread —
       // we only decrement the badge in that case so a re-mark stays idempotent.
+      // Capture its link too, so we can decrement the matching sidebar bucket.
       let wasUnread = false;
+      let link: string | null | undefined;
       patchAllNotificationLists(queryClient, (list) =>
         list.map((n) => {
           if (n.id !== notificationId) return n;
-          if (!n.read) wasUnread = true;
+          if (!n.read) {
+            wasUnread = true;
+            link = n.link;
+          }
           return { ...n, read: true };
         }),
       );
-      if (wasUnread) decrementUnreadCount(queryClient, 1);
+      if (wasUnread) {
+        decrementUnreadCount(queryClient, 1);
+        decrementSummary(queryClient, link, 1);
+      }
     },
   });
 }
@@ -163,6 +231,7 @@ export function useMarkAllAsRead() {
         notificationKeys.unreadCount,
         (current) => (current ? { ...current, count: 0 } : { count: 0 }),
       );
+      clearSummary(queryClient);
     },
   });
 }
@@ -177,14 +246,21 @@ export function useDeleteNotification() {
       apiDelete<DeleteNotificationResponse>(`/notifications/${notificationId}`),
     onSuccess: (_response, notificationId) => {
       let wasUnread = false;
+      let link: string | null | undefined;
       patchAllNotificationLists(queryClient, (list) =>
         list.filter((n) => {
           if (n.id !== notificationId) return true;
-          if (!n.read) wasUnread = true;
+          if (!n.read) {
+            wasUnread = true;
+            link = n.link;
+          }
           return false;
         }),
       );
-      if (wasUnread) decrementUnreadCount(queryClient, 1);
+      if (wasUnread) {
+        decrementUnreadCount(queryClient, 1);
+        decrementSummary(queryClient, link, 1);
+      }
     },
   });
 }

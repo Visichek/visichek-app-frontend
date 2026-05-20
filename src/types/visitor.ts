@@ -114,11 +114,21 @@ export interface VisitorSummary {
   portraitUrl?: string | null;
 }
 
+/**
+ * Host snapshot embedded on appointment / visit-session reads. As of the
+ * 2026-05-20 backend rewire this is a HostBriefSummary (sourced from the
+ * hosts roster, with a system_user fallback for legacy rows) — NOT the old
+ * UserBriefSummary. Read `.name` (not `.fullName`); `.phone`,
+ * `.pictureImageUrl`, and `.departmentId` are now available too.
+ */
 export interface HostSummary {
   id: string;
-  fullName: string;
-  email?: string;
-  role?: SystemUserRole;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  departmentId?: string | null;
+  pictureImageUrl?: string | null;
+  isActive?: boolean;
 }
 
 export interface DepartmentSummary {
