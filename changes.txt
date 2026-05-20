@@ -1,0 +1,60 @@
+================================================================================
+OPEN BACKEND ASKS — Host photo / signature uploads
+Date: 2026-05-20
+================================================================================
+Both earlier questions have been ANSWERED by the backend. Q1 is now handled on
+the frontend; Q2 needs no frontend change. The only things left for the backend
+are TWO OPTIONAL changes that are waiting on our go-ahead.
+
+
+--------------------------------------------------------------------------------
+ANSWERED & DONE (frontend) — Q1: per-file size cap + MIME types
+--------------------------------------------------------------------------------
+Backend answer: size is plan-dependent (per-file `maxFileSizeMb`, default 10 MB,
+hard ceiling 50 MB), authoritative via GET /v1/storage/quota; there is NO
+server-side MIME allowlist (the route stores whatever content_type arrives).
+
+Frontend done: ImageUploadField now reads the live quota
+(useStorageQuota → maxFileSizeMb) to size the client guard per tenant instead
+of hardcoding 10 MB, shows a precise "that file is X MB, limit is Y MB" error
+before sending bytes, and pre-empts the two 429 cases (storage full via
+remainingMb, document-count cap via documentCount/maxDocuments) by disabling
+the picker with a message. `accept="image/*"` stays as a client convenience.
+
+
+--------------------------------------------------------------------------------
+ANSWERED — Q2: do host create/update echo pictureUrl / signatureUrl?
+--------------------------------------------------------------------------------
+Backend answer: NO. POST /v1/hosts and PATCH /v1/hosts/{id} are queued writes
+returning only the 202 { id, jobId, status }; the polled job result is minimal
+(create → {id,tenantId,name}, update → {id,changedFields}). The canonical way
+to get the resolved URLs is a follow-up GET /v1/hosts/{id} (runs _enrich_host).
+
+Frontend impact: NONE. The host form navigates back to the list after save, so
+it never needs the URLs in the write response. No change made.
+
+
+================================================================================
+DECISIONS ON THE TWO OPTIONAL BACKEND CHANGES
+================================================================================
+
+A. SERVER-SIDE IMAGE-MIME ENFORCEMENT on perform_upload — GREENLIT. Please add
+   it. Today the upload route accepts any content_type; `accept="image/*"` is
+   only a client hint and is trivially bypassable, so a non-image could be
+   stored and later render as a broken <img>. Add the image-MIME guard, gated
+   by `purpose` so kiosk id_document/file fields that legitimately take PDFs
+   aren't broken.
+
+   >>> ONE THING WE NEED BACK FROM YOU before the frontend can map it nicely:
+       the EXACT rejection contract — the HTTP status (415? 400?) and the
+       error `data.code` string the guard returns, plus which purposes are
+       exempt. We won't guess a status/code (house rule: never invent backend
+       codes). Once you confirm, ImageUploadField will catch that specific
+       status/code and show a precise inline "Please choose an image file."
+       error instead of the generic upload-failed toast.
+
+B. ENRICH THE WRITER JOB RESULT with resolved pictureUrl / signatureUrl —
+   DECLINED for now. The host form navigates back to the list after save, so
+   the follow-up GET /v1/hosts/{id} is the architecturally consistent path and
+   we don't need the URLs in the write response. Revisit only if we move to an
+   inline "stay on page after save" flow.

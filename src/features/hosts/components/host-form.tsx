@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
 import { NavButton } from "@/components/recipes/nav-button";
+import { ImageUploadField } from "@/components/recipes/image-upload-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -18,6 +19,7 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
+import { useSession } from "@/hooks/use-session";
 import { useDepartments } from "@/features/departments/hooks/use-departments";
 import { useSystemUsers } from "@/features/users/hooks/use-users";
 import { useCreateHost, useUpdateHost } from "@/features/hosts/hooks/use-hosts";
@@ -47,6 +49,7 @@ interface HostFormProps {
 export function HostForm({ host }: HostFormProps) {
   const router = useRouter();
   const { loadingHref } = useNavigationLoading();
+  const { tenantId } = useSession();
   const createMutation = useCreateHost();
   const updateMutation = useUpdateHost();
   const isEditing = !!host;
@@ -155,10 +158,9 @@ export function HostForm({ host }: HostFormProps) {
             : {}),
           ...(sourceSystemUserId ? { sourceSystemUserId } : {}),
         };
-        const ack = await createMutation.mutateAsync(payload);
+        await createMutation.mutateAsync(payload);
         toast.success("Host created");
-        // The 202 ack id is authoritative — route straight to the new host.
-        router.push(ack?.id ? `/app/hosts/${ack.id}/edit` : LIST_HREF);
+        router.push(LIST_HREF);
       }
     } catch (err) {
       // 409 duplicate name and 404 bad department / system user arrive
@@ -323,28 +325,42 @@ export function HostForm({ host }: HostFormProps) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="picture-url">Photo URL</Label>
-          <Input
+          <Label htmlFor="picture-url">Photo</Label>
+          {/* A host portrait is non-sensitive and embedded on badges /
+              appointment cards, so it goes to the public upload surface. */}
+          <ImageUploadField
             id="picture-url"
-            type="url"
-            inputMode="url"
             value={pictureImageUrl}
-            onChange={(e) => setPictureImageUrl(e.target.value)}
-            placeholder="https://…/portrait.jpg"
-            className="min-h-[44px] text-base md:text-sm"
+            onChange={setPictureImageUrl}
+            previewUrl={host?.pictureUrl}
+            visibility="public"
+            tenantId={tenantId}
+            alt={`${name || "Host"} photo`}
+            uploadLabel="Upload photo"
+            uploadTooltip="Upload a portrait image for this host; it can be shown on badges and appointment cards"
+            removeTooltip="Remove this host's photo"
+            helpText="JPG, PNG, GIF or WebP."
+            disabled={submitting}
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="signature-url">Signature image URL</Label>
-          <Input
+          <Label htmlFor="signature-url">Signature image</Label>
+          {/* A signature is sensitive, so it goes to the private,
+              access-controlled upload surface. */}
+          <ImageUploadField
             id="signature-url"
-            type="url"
-            inputMode="url"
             value={signatureImageUrl}
-            onChange={(e) => setSignatureImageUrl(e.target.value)}
-            placeholder="https://…/signature.png"
-            className="min-h-[44px] text-base md:text-sm"
+            onChange={setSignatureImageUrl}
+            previewUrl={host?.signatureUrl}
+            visibility="private"
+            purpose="system"
+            alt={`${name || "Host"} signature`}
+            uploadLabel="Upload signature"
+            uploadTooltip="Upload this host's signature image; stored privately and used when signing off visits"
+            removeTooltip="Remove this host's signature image"
+            helpText="JPG, PNG, GIF or WebP. Stored privately."
+            disabled={submitting}
           />
         </div>
 
@@ -409,7 +425,7 @@ export function HostForm({ host }: HostFormProps) {
             <TooltipContent side="top">
               {isEditing
                 ? "Save changes and return to the hosts list"
-                : "Create this host and open its detail page"}
+                : "Create this host and return to the hosts list"}
             </TooltipContent>
           </Tooltip>
         </div>

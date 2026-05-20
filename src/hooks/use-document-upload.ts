@@ -2,8 +2,22 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { uploadPrivate } from "@/lib/upload/unified-upload";
+import { uploadPrivate, uploadPublic } from "@/lib/upload/unified-upload";
 import { ApiError, type UploadPurpose } from "@/types/api";
+
+/**
+ * Where the uploaded object lives, and therefore how it's reached later:
+ *
+ *  - `"private"` → `POST /v1/uploads/private`. Access-controlled assets
+ *    (signatures, ID documents, anything sensitive). The presentation URL
+ *    is auth-gated.
+ *  - `"public"` → `POST /v1/public/tenants/{tenantId}/uploads`. Embeddable,
+ *    non-sensitive assets (host portraits, kiosk form images). Requires a
+ *    `tenantId`. From an authenticated tenant principal the call still
+ *    carries the session cookie, so it works even when the plan doesn't
+ *    grant the anonymous public surface.
+ */
+export type UploadVisibility = "public" | "private";
 
 export interface UploadResult {
   objectKey: string;
@@ -40,6 +54,16 @@ interface UseDocumentUploadOptions {
    * resulting Document row.
    */
   fieldId?: string;
+  /**
+   * Upload destination. Defaults to `"private"` to preserve the original
+   * behavior. Set `"public"` (with {@link tenantId}) for non-sensitive,
+   * embeddable assets.
+   */
+  visibility?: UploadVisibility;
+  /**
+   * Tenant id — required when `visibility === "public"`, ignored otherwise.
+   */
+  tenantId?: string | null;
 }
 
 /**
@@ -63,15 +87,34 @@ export function useDocumentUpload(
     error: null,
   });
 
+  const visibility = options.visibility ?? "private";
+
   const upload = async (file: File): Promise<UploadResult | null> => {
     try {
       setState({ isUploading: true, error: null });
 
-      const response = await uploadPrivate({
-        file,
-        purpose: options.purpose ?? "appointment_photo",
-        fieldId: options.fieldId,
-      });
+      let response;
+      if (visibility === "public") {
+        if (!options.tenantId) {
+          throw new Error(
+            "A tenant id is required for a public upload.",
+          );
+        }
+        // Let the backend apply its public default (`kiosk_form`) when no
+        // explicit purpose is given — `appointment_photo` is a private-only
+        // fallback and doesn't belong on the public surface.
+        response = await uploadPublic(options.tenantId, {
+          file,
+          purpose: options.purpose,
+          fieldId: options.fieldId,
+        });
+      } else {
+        response = await uploadPrivate({
+          file,
+          purpose: options.purpose ?? "appointment_photo",
+          fieldId: options.fieldId,
+        });
+      }
 
       toast.success(`File "${file.name}" uploaded successfully`);
       setState({ isUploading: false, error: null });

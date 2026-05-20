@@ -16,8 +16,19 @@ export interface Host {
   phone: string;
   email?: string | null;
   departmentId: string;
+  /** Stored object key (durable reference). Sent on create/update. */
   pictureImageUrl?: string | null;
+  /** Stored object key (durable reference). Sent on create/update. */
   signatureImageUrl?: string | null;
+  /**
+   * Read-only presigned/renderable URL the backend resolves from
+   * {@link pictureImageUrl} on every read (mirrors branding's
+   * `logoObjectKey` → `logoUrl`). Drop straight into <img src>. Not sent
+   * back on writes.
+   */
+  pictureUrl?: string | null;
+  /** Read-only presigned/renderable URL resolved from {@link signatureImageUrl}. */
+  signatureUrl?: string | null;
   /** null = dedicated host; set = mirrors a system user. Not updatable. */
   sourceSystemUserId?: string | null;
   isActive: boolean;

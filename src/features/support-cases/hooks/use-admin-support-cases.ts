@@ -9,6 +9,7 @@ import {
 import { apiGet, apiPost } from "@/lib/api/request";
 import { apiGetList } from "@/lib/api/list";
 import { bulkAction } from "@/lib/api/bulk";
+import { enqueueAndConfirm } from "@/lib/jobs/enqueue";
 import type {
   SupportCase,
   SupportCaseDetail,
@@ -170,12 +171,18 @@ export function useSearchAdmins(query: string) {
   });
 }
 
-/** Assign an admin to the case. */
+/**
+ * Assign an admin to the case. Like the transition, this is a queued write —
+ * we poll the job to completion before invalidating so the refetch reflects
+ * the new assignee instead of racing the worker.
+ */
 export function useAssignAdmin(caseId: string) {
   const queryClient = useQueryClient();
-  return useMutation<AsyncJobAck, Error, AssignAdminRequest>({
+  return useMutation<unknown, Error, AssignAdminRequest>({
     mutationFn: (data) =>
-      apiPost<AsyncJobAck>(`/admins/support-cases/${caseId}/assign`, data),
+      enqueueAndConfirm(() =>
+        apiPost<AsyncJobAck>(`/admins/support-cases/${caseId}/assign`, data),
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminSupportCaseKeys.detail(caseId) });
       queryClient.invalidateQueries({ queryKey: adminSupportCaseKeys.all });
@@ -183,17 +190,28 @@ export function useAssignAdmin(caseId: string) {
   });
 }
 
-/** Admin state-machine transition (acknowledge / progress / resolve / etc). */
+/**
+ * Admin state-machine transition (acknowledge / progress / resolve / etc).
+ *
+ * The transition is a queued write: the endpoint returns a 202 ack and the
+ * status change is applied by a worker. We poll the job to completion via
+ * `enqueueAndConfirm` BEFORE invalidating, otherwise the immediate refetch
+ * races the worker and re-reads the old status — leaving the UI stale despite
+ * the success toast.
+ */
 export function useAdminTransition(caseId: string) {
   const queryClient = useQueryClient();
-  return useMutation<AsyncJobAck, Error, SupportCaseTransitionRequest>({
+  return useMutation<unknown, Error, SupportCaseTransitionRequest>({
     mutationFn: (data) =>
-      apiPost<AsyncJobAck>(
-        `/admins/support-cases/${caseId}/transition`,
-        data,
+      enqueueAndConfirm(() =>
+        apiPost<AsyncJobAck>(
+          `/admins/support-cases/${caseId}/transition`,
+          data,
+        ),
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminSupportCaseKeys.detail(caseId) });
+      queryClient.invalidateQueries({ queryKey: adminSupportCaseKeys.messages(caseId) });
       queryClient.invalidateQueries({ queryKey: adminSupportCaseKeys.sla });
       queryClient.invalidateQueries({ queryKey: adminSupportCaseKeys.all });
     },
