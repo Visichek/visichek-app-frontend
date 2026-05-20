@@ -9,6 +9,7 @@ export {
   useTenantSettings,
   useUpdateTenantSettings,
   usePlatformSettings,
+  useRequestMaintenanceOtp,
   useUpdatePlatformSettings,
   settingsKeys,
 } from "./use-settings";

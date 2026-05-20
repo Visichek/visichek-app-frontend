@@ -43,6 +43,13 @@ export interface SettingsSection {
   /** Platform settings section */
   readonly?: boolean;
   isPrimaryAdmin?: boolean;
+  /**
+   * Platform settings section. When true, the only editable control
+   * (maintenance mode) is gated behind a two-step OTP flow: request a
+   * code via `endpoints.requestOtp`, then submit it with the new state
+   * to `endpoints.update`.
+   */
+  otpRequired?: boolean;
 }
 
 export interface SettingsManifestProfile {
@@ -145,7 +152,6 @@ export interface UserPreferenceUpdate {
 
 export type VisitorBadgeExpiry = "end_of_day" | "manual" | "hours";
 export type SsoProvider = "google" | "microsoft" | "okta" | "custom";
-export type SmtpEncryption = "tls" | "ssl" | "none";
 
 export interface TenantSettings {
   id: string;
@@ -200,58 +206,38 @@ export type TenantSettingsUpdate = Partial<
 
 // ── Platform Settings (admin) ────────────────────────────────────────
 
+/**
+ * Platform settings now expose a single runtime knob: maintenance mode.
+ * Every other field that used to live here (password policy, lockout,
+ * session timeout, 2FA enforcement, SMTP, tenant defaults, rate limits,
+ * signup/beta/onboarding flags) moved into version-controlled backend
+ * config and is changed by a deploy, not the UI — so it is no longer
+ * returned by GET /v1/platform-settings.
+ */
 export interface PlatformSettings {
   id: string;
-  platformName: string;
-  supportEmail: string;
-  supportPhone: string;
-  platformUrl: string;
-  // Security — password policy
-  passwordMinLength: number;
-  passwordMaxLength: number;
-  passwordRequireUppercase: boolean;
-  passwordRequireLowercase: boolean;
-  passwordRequireNumber: boolean;
-  passwordRequireSpecialChar: boolean;
-  passwordExpiryDays: number | null;
-  passwordHistoryCount: number;
-  // Security — account lockout
-  maxFailedLoginAttempts: number;
-  lockoutDurationMinutes: number;
-  // Security — session
-  sessionTimeoutMinutes: number;
-  // Security — two-factor authentication
-  enforceTotpForAdmins: boolean;
-  enforceTotpForTenantUsers: boolean;
-  maxAdminAccounts: number | null;
-  // Tenant defaults
-  defaultTrialDays: number;
-  defaultPlanId: string | null;
-  maxTenantsPerPlan: Record<string, number>;
-  // SMTP
-  smtpHost: string | null;
-  smtpPort: number | null;
-  smtpUser: string | null;
-  smtpFromEmail: string | null;
-  smtpFromName: string | null;
-  smtpEncryption: SmtpEncryption;
-  // Features
   maintenanceMode: boolean;
   maintenanceMessage: string | null;
-  signupsEnabled: boolean;
-  publicApiEnabled: boolean;
-  betaFeaturesEnabled: boolean;
-  // Public marketing-site self-onboarding form. When false, the public
-  // submission endpoint returns FEATURE_DISABLED but admins can still
-  // work the existing onboarding queue.
-  selfOnboardingEnabled: boolean;
-  // Rate limiting
-  globalRateLimitPerMinute: number;
-  globalRateLimitBurst: number;
   dateCreated: number;
   lastUpdated: number;
 }
 
-export type PlatformSettingsUpdate = Partial<
-  Omit<PlatformSettings, "id" | "dateCreated" | "lastUpdated">
->;
+/**
+ * Toggling maintenance mode is a two-step OTP flow. Step 1 requests a
+ * code (POST endpoints.requestOtp); step 2 PATCHes endpoints.update with
+ * the returned challenge id, the code, and the new maintenance state.
+ * PATCH accepts ONLY these four fields.
+ */
+export interface PlatformSettingsUpdate {
+  otpChallengeId: string;
+  otpCode: string;
+  maintenanceMode: boolean;
+  maintenanceMessage?: string;
+}
+
+/** Response from POST /v1/platform-settings/maintenance/request-otp. */
+export interface RequestMaintenanceOtpResponse {
+  otpRequired: boolean;
+  otpChallengeId: string;
+  message: string;
+}

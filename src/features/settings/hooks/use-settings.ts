@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
-import { apiGet, apiPatch } from "@/lib/api/request";
+import { apiGet, apiPatch, apiPost } from "@/lib/api/request";
 import { useAppSelector } from "@/lib/store/hooks";
 import {
   selectIsAuthenticated,
@@ -20,6 +20,7 @@ import type {
   TenantSettingsUpdate,
   PlatformSettings,
   PlatformSettingsUpdate,
+  RequestMaintenanceOtpResponse,
 } from "@/types/settings";
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -181,22 +182,59 @@ export function useUpdateTenantSettings(tenantId: string) {
 }
 
 // ── Platform Settings (admin only) ───────────────────────────────────
+//
+// The settings manifest hands us absolute endpoints (`/v1/...`), but the
+// axios client's baseURL already ends in `/v1`. Strip the prefix so the
+// path isn't doubled. Falls back to the documented defaults when the
+// manifest section omits an endpoint.
+
+const DEFAULT_PLATFORM_ENDPOINTS = {
+  get: "/platform-settings",
+  requestOtp: "/platform-settings/maintenance/request-otp",
+  update: "/platform-settings",
+} as const;
+
+function stripV1(path: string): string {
+  return path.replace(/^\/v1(?=\/)/, "");
+}
 
 export function usePlatformSettings() {
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
   return useQuery({
     queryKey: settingsKeys.platform,
-    queryFn: () => apiGet<PlatformSettings>("/admins/platform-settings"),
+    queryFn: () => apiGet<PlatformSettings>(DEFAULT_PLATFORM_ENDPOINTS.get),
     enabled: isAuthenticated,
   });
 }
 
-export function useUpdatePlatformSettings() {
+/**
+ * Step 1 of the maintenance-mode change: ask the backend to send a
+ * verification code to the admin's MFA channel. Returns the challenge id
+ * to submit alongside the new state in step 2.
+ */
+export function useRequestMaintenanceOtp(requestOtpPath?: string) {
+  const path = requestOtpPath
+    ? stripV1(requestOtpPath)
+    : DEFAULT_PLATFORM_ENDPOINTS.requestOtp;
+  return useMutation({
+    mutationFn: () => apiPost<RequestMaintenanceOtpResponse>(path),
+  });
+}
+
+/**
+ * Step 2: submit the OTP code and the new maintenance state. The backend
+ * accepts ONLY otpChallengeId, otpCode, maintenanceMode and (optional)
+ * maintenanceMessage — there is no partial update of other fields.
+ */
+export function useUpdatePlatformSettings(updatePath?: string) {
   const queryClient = useQueryClient();
+  const path = updatePath
+    ? stripV1(updatePath)
+    : DEFAULT_PLATFORM_ENDPOINTS.update;
 
   return useMutation({
     mutationFn: (data: PlatformSettingsUpdate) =>
-      apiPatch<PlatformSettings>("/admins/platform-settings", data),
+      apiPatch<PlatformSettings>(path, data),
     onSuccess: (data) => {
       if (data && typeof data === "object") {
         queryClient.setQueryData(settingsKeys.platform, data);
