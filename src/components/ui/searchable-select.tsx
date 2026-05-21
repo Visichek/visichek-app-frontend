@@ -50,7 +50,8 @@ export function SearchableSelect({
   const [query, setQuery] = React.useState("");
   const [activeIndex, setActiveIndex] = React.useState(0);
   const [position, setPosition] = React.useState<{
-    top: number;
+    top?: number;
+    bottom?: number;
     left: number;
     width: number;
     placement: "bottom" | "top";
@@ -99,7 +100,12 @@ export function SearchableSelect({
     const maxHeight = Math.max(160, Math.min(PANEL_MAX_HEIGHT, available));
 
     setPosition({
-      top: rect.bottom + 4,
+      // Anchor to the trigger edge: top placement pins the panel's bottom to
+      // the trigger top so it grows upward and hugs the trigger regardless of
+      // how tall the content actually is.
+      top: placement === "bottom" ? rect.bottom + 4 : undefined,
+      bottom:
+        placement === "top" ? viewportHeight - rect.top + 4 : undefined,
       left: rect.left,
       width: rect.width,
       placement,
@@ -205,10 +211,9 @@ export function SearchableSelect({
   const panelStyle: React.CSSProperties = position
     ? {
         position: "fixed",
-        top:
-          position.placement === "bottom"
-            ? position.top
-            : Math.max(8, position.top - 8 - position.maxHeight - 36),
+        ...(position.placement === "bottom"
+          ? { top: position.top }
+          : { bottom: position.bottom }),
         left: position.left,
         width: position.width,
         minWidth: "12rem",

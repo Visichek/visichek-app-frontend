@@ -230,6 +230,13 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const resolvedLogoUrl = logoUrl ?? DEFAULT_BRAND_LOGO;
   const resolvedBrandName = brandName ?? DEFAULT_BRAND_NAME;
+  // Bypass the next/image optimizer for tenant logos. They're presigned,
+  // expiring URLs on the storage host (not whitelisted in `remotePatterns`),
+  // so the optimizer 400s and the logo breaks — exactly why the raw <link>
+  // favicon renders but this <Image> didn't. SVGs also can't be optimized.
+  // A 28px brand mark gains nothing from optimization anyway.
+  const logoUnoptimized =
+    /^https?:/i.test(resolvedLogoUrl) || resolvedLogoUrl.endsWith(".svg");
   const pathname = usePathname() ?? "";
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
@@ -314,7 +321,7 @@ export function AppSidebar({
                     width={28}
                     height={28}
                     priority
-                    unoptimized={resolvedLogoUrl.endsWith(".svg")}
+                    unoptimized={logoUnoptimized}
                     className="h-7 w-7 shrink-0 rounded object-contain transition-opacity duration-150 group-hover:opacity-0"
                   />
                   <PanelLeft
@@ -340,7 +347,7 @@ export function AppSidebar({
                     width={28}
                     height={28}
                     priority
-                    unoptimized={resolvedLogoUrl.endsWith(".svg")}
+                    unoptimized={logoUnoptimized}
                     className="h-7 w-7 shrink-0 rounded object-contain"
                   />
                 </span>

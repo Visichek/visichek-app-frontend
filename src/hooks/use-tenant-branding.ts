@@ -1,10 +1,15 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { useAppDispatch, useAppSelector } from "@/lib/store/hooks";
 import { setBranding, selectBranding, selectIsBrandingLoaded } from "@/lib/store/branding-slice";
 import { selectTenantId } from "@/lib/store/session-slice";
-import { applyBranding, clearBrandingStyles } from "@/lib/branding/apply-branding";
+import {
+  applyBranding,
+  applyDocumentBranding,
+  clearBrandingStyles,
+} from "@/lib/branding/apply-branding";
 import { apiGet } from "@/lib/api/request";
 import { normalizeBranding } from "@/features/branding/hooks/use-branding";
 import type { TenantBranding } from "@/types/tenant";
@@ -25,6 +30,7 @@ export function useTenantBranding() {
   const tenantId = useAppSelector(selectTenantId);
   const branding = useAppSelector(selectBranding);
   const isLoaded = useAppSelector(selectIsBrandingLoaded);
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!tenantId || isLoaded) return;
@@ -66,6 +72,16 @@ export function useTenantBranding() {
       cancelled = true;
     };
   }, [tenantId, isLoaded, dispatch]);
+
+  // Re-assert the tenant title + favicon after every client navigation.
+  // Next.js re-injects its own `<link rel="icon">` metadata on each soft
+  // route change, which would otherwise clobber the tenant favicon and snap
+  // the tab back to the default VisiChek mark. `applyDocumentBranding` is
+  // idempotent and removes any non-tenant icon links Next re-added, so the
+  // tenant logo wins again. Keyed on `pathname` so it runs once per nav.
+  useEffect(() => {
+    if (branding) applyDocumentBranding(branding);
+  }, [pathname, branding]);
 
   useEffect(() => {
     return () => {

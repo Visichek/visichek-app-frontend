@@ -85,6 +85,11 @@ export function MobileNavSheet({
   const workspaceLogo = isAdmin
     ? "/visichek_logo.svg"
     : branding?.logoUrl ?? "/visichek_logo.svg";
+  // Tenant logos are presigned, expiring URLs on the storage host (not in
+  // next.config `remotePatterns`), so the next/image optimizer 400s on them.
+  // Bypass it for remote/SVG logos — same reason the raw <link> favicon works.
+  const logoUnoptimized =
+    /^https?:/i.test(workspaceLogo) || workspaceLogo.endsWith(".svg");
 
   const displayName = isAdmin
     ? adminProfile?.fullName
@@ -262,7 +267,7 @@ export function MobileNavSheet({
                 width={28}
                 height={28}
                 priority
-                unoptimized={workspaceLogo.endsWith(".svg")}
+                unoptimized={logoUnoptimized}
                 className="h-7 w-7 shrink-0 rounded object-contain"
               />
               <span className="truncate text-lg font-bold font-display tracking-tight">
