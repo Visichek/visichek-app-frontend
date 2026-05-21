@@ -1,4 +1,5 @@
 """Generate issues.pdf -- VisiChek frontend/backend issue tracker."""
+
 from fpdf import FPDF
 from pathlib import Path
 
@@ -99,7 +100,9 @@ class IssuesPDF(FPDF):
         usable = self.w - self.l_margin - self.r_margin - 4
         avg = 2.2
         chars_per_line = max(1, int(usable / avg))
-        lines = max(1, sum(max(1, len(p) // chars_per_line + 1) for p in text.split("\n")))
+        lines = max(
+            1, sum(max(1, len(p) // chars_per_line + 1) for p in text.split("\n"))
+        )
         return lines * 6 + 2
 
 
@@ -108,7 +111,7 @@ class IssuesPDF(FPDF):
 ISSUES = [
     {
         "num": 1,
-        "title": "Application admin dashboard -- \"your attention is needed\" widget",
+        "title": 'Application admin dashboard -- "your attention is needed" widget',
         "scope": "BOTH",
         "quote": (
             "the application admin, on the dahsboard things like your attention is needed here and "
@@ -118,21 +121,21 @@ ISSUES = [
         ),
         "analysis": [
             "Current dashboard at src/app/(platform-admin)/admin/dashboard/dashboard-page-client.tsx has 5 tabs (Overview, Tenants, Billing, Activity, Risk).",
-            "There is no \"attention needed\" surface anywhere on the page. The Quick Actions panel (src/components/platform-admin/quick-actions.tsx) only shows 4 hardcoded creation shortcuts -- no live backlog, no support cases, no content tasks.",
+            'There is no "attention needed" surface anywhere on the page. The Quick Actions panel (src/components/platform-admin/quick-actions.tsx) only shows 4 hardcoded creation shortcuts -- no live backlog, no support cases, no content tasks.',
             "There is no backend feed that aggregates open support cases, plan-update reminders, or content/blog TODOs. Each domain (support, plans, blog) lives in isolation, so the frontend has nothing to subscribe to.",
         ],
         "plan_backend": [
             "Add a new aggregated endpoint, e.g. GET /v1/admin/attention-feed, that returns a typed list of attention items across domains: { id, type, severity, title, summary, href, createdAt, sourceId }.",
             "Sources to wire in: open support cases (status != closed), plans flagged stale (no update in N days or pricing drift), missing/expired blog/content slots, failed payments, tenants stuck mid-onboarding, and outstanding admin tasks.",
             "Define a typed enum AttentionItemType: SUPPORT_CASE, PLAN_UPDATE, CONTENT_TASK, FAILED_PAYMENT, ONBOARDING_STUCK, MANUAL_TASK. Severity: info | warn | critical.",
-            "Add a manual-task table so admins can post their own \"add new blog content\" entries via POST /v1/admin/attention-feed/manual.",
+            'Add a manual-task table so admins can post their own "add new blog content" entries via POST /v1/admin/attention-feed/manual.',
             "Emit a header X-Attention-Count on every /v1/me response so the sidebar can badge without an extra round-trip.",
         ],
         "plan_frontend": [
             "Add an AttentionWidget component to the Overview tab that lists items grouped by severity with a click-through href per item.",
             "Hook it up via useAttentionFeed() (React Query, refetchInterval ~30s) so it stays live.",
             "Each row uses the standard tooltip rule and a Loader2 spinner on click per the navigation loading pattern in CLAUDE.md.",
-            "Empty state: \"You're all caught up\" -- never just a blank panel.",
+            'Empty state: "You\'re all caught up" -- never just a blank panel.',
         ],
     },
     {
@@ -152,16 +155,16 @@ ISSUES = [
             "useUnreadCount() and useNotifications() exist (src/features/notifications/hooks/) and feed the topbar bell, but the sidebar nav items themselves carry no per-section count.",
             "The sidebar has a collapsed mode but no pulsing-dot indicator on the parent icon when there are unread items in that section.",
             "normalizeNotificationTarget() in notification-dropdown.tsx already does some path rewriting (e.g. /app/checkins/ -> /app/visitors/) -- this proves the routing-from-notification problem is being patched ad-hoc per type instead of being driven by the backend.",
-            "The onboarding-queue link target is wrong (user-reported); the codebase has tenant onboarding detail at admin/tenants/onboarding/[id] but no canonical \"queue\" route mapped from the sidebar.",
+            'The onboarding-queue link target is wrong (user-reported); the codebase has tenant onboarding detail at admin/tenants/onboarding/[id] but no canonical "queue" route mapped from the sidebar.',
             "There is no per-section unread breakdown on the backend, so the sidebar cannot badge without computing categories on the client.",
         ],
         "plan_backend": [
             "Extend the notifications API with a categorized counts endpoint: GET /v1/notifications/counts -> { visitors: 3, onboarding: 1, supportCases: 0, incidents: 2, dsr: 0 } so each sidebar item can badge independently.",
-            "Every notification record must carry a canonical target: { route: \"/app/visitors\", entityId, entityType } so the frontend never has to re-map paths by string matching.",
+            'Every notification record must carry a canonical target: { route: "/app/visitors", entityId, entityType } so the frontend never has to re-map paths by string matching.',
             "Optionally push counts via SSE/WebSocket so badges update without polling; if not, recommend cache headers + 30s React Query refetch.",
         ],
         "plan_frontend": [
-            "Add an optional `badgeKey` to NavItem (e.g., \"visitors\", \"onboarding\", \"supportCases\"). The sidebar reads useNotificationCounts() and renders a count pill next to the label when expanded.",
+            'Add an optional `badgeKey` to NavItem (e.g., "visitors", "onboarding", "supportCases"). The sidebar reads useNotificationCounts() and renders a count pill next to the label when expanded.',
             "When collapsed, render a small pulsing red dot on the icon (animate-pulse + bg-destructive) when that key has > 0 unread.",
             "Centralize notification -> route mapping in lib/notifications/route-from-notification.ts. It must consume the backend-provided `target.route` and only fall back to type-based mapping if missing.",
             "Fix the onboarding-queue link: confirm the actual queue page (likely needs to be created if missing) and update the NavItem href + matching route guard.",
@@ -178,8 +181,8 @@ ISSUES = [
         ),
         "analysis": [
             "The kiosk page at src/app/(public)/register/[tenantId]/page.tsx loads useActiveCheckinConfigForTenant(tenantId) and reads config.requiredFields. It also hard-filters out IDENTITY_KEYS so name/phone/email aren't duplicated.",
-            "There is no dedicated admin \"form config\" page found in the tenant shell -- meaning either the editor lives buried in settings or it does not exist yet.",
-            "Because there's no editor surface, today there is no live round-trip between \"admin edits the config\" and \"kiosk reflects it\". Any sync issue is masked by the lack of an editor.",
+            'There is no dedicated admin "form config" page found in the tenant shell -- meaning either the editor lives buried in settings or it does not exist yet.',
+            'Because there\'s no editor surface, today there is no live round-trip between "admin edits the config" and "kiosk reflects it". Any sync issue is masked by the lack of an editor.',
             "config.requiredFields is a flat array; nothing today supports per-step ordering, conditional fields, or per-department config.",
         ],
         "plan_backend": [
@@ -190,7 +193,7 @@ ISSUES = [
         ],
         "plan_frontend": [
             "Build a tenant-shell page at src/app/(tenant)/app/forms/checkin/page.tsx that lets a super_admin reorder, add, remove, and toggle required state on fields.",
-            "Both the editor and the kiosk import a single shared renderer: components/checkin/FieldRenderer.tsx. This is the only way to guarantee parity -- no \"two render paths\".",
+            'Both the editor and the kiosk import a single shared renderer: components/checkin/FieldRenderer.tsx. This is the only way to guarantee parity -- no "two render paths".',
             "Editor preview should mount the kiosk renderer in a sandbox iframe or a phone-frame container so the admin literally sees what the visitor will see.",
             "After save, invalidate ['checkin-config', tenantId] which both the editor preview and kiosk subscribe to -- kiosk refetch interval should be ~60s so a long-running kiosk picks up new fields without restart.",
         ],
@@ -227,11 +230,11 @@ ISSUES = [
         ),
         "analysis": [
             "Frontend page src/app/(tenant)/app/visitors/qr/page.tsx already passes departmentId to useMintRegistrationQr() -- so the UI side is wired.",
-            "The kiosk reads departmentId from the QR payload and \"locks\" to it (line 207 comment). So the consumption path expects scoped tokens.",
+            'The kiosk reads departmentId from the QR payload and "locks" to it (line 207 comment). So the consumption path expects scoped tokens.',
             "If today's QR is generic (no real dept-bound signed token), then any QR works for any department -- defeating the lock. The fix lives in the backend's signing/verification path, not the form.",
         ],
         "plan_backend": [
-            "POST /v1/super-admin/registration-qr must produce a signed JWT (or HMAC token) whose claims include: tenantId, departmentId (nullable), expiresAt, scope=\"visitor_self_register\". Sign with a tenant-scoped key.",
+            'POST /v1/super-admin/registration-qr must produce a signed JWT (or HMAC token) whose claims include: tenantId, departmentId (nullable), expiresAt, scope="visitor_self_register". Sign with a tenant-scoped key.',
             "On public registration (POST /v1/public/register/{tenantId}) require a `qrToken` in the body or query and verify the signature, expiry, tenant, and (if present) department before creating the session.",
             "If the QR is department-scoped, force visit.departmentId to the token's value -- ignore any client-supplied override.",
             "Audit log every QR mint with adminId, departmentId, expiresAt so abuse is traceable.",
@@ -239,7 +242,7 @@ ISSUES = [
         "plan_frontend": [
             "Update the QR page to display the actual signed token's claims (department, expiry) for confirmation before printing.",
             "Kiosk should show the resolved department name read from the verified token, not from the URL -- so a tampered URL fails closed.",
-            "If verification fails on submit, show a clear \"This QR has expired or is invalid -- ask reception\" rather than a generic error.",
+            'If verification fails on submit, show a clear "This QR has expired or is invalid -- ask reception" rather than a generic error.',
         ],
     },
     {
@@ -258,13 +261,13 @@ ISSUES = [
         "plan_backend": [
             "Verify NotificationPreferencesUpdate persistence: confirm the columns exist on system_users (or a related table) and the PATCH actually writes them.",
             "Audit each event emitter (visitor check-in, incident raised, appointment created, DSR submitted, etc.). Every emitter must: load the recipient's prefs, check the matching boolean, and only enqueue an email if true.",
-            "Add a delivery audit table (notification_dispatch_log) capturing { userId, event, channel, decision: sent|skipped_pref|skipped_quota|failed, providerMessageId, createdAt } so future \"why didn't I get an email\" tickets are answerable in seconds.",
+            'Add a delivery audit table (notification_dispatch_log) capturing { userId, event, channel, decision: sent|skipped_pref|skipped_quota|failed, providerMessageId, createdAt } so future "why didn\'t I get an email" tickets are answerable in seconds.',
             "Smoke test: a per-environment cron that emails a synthetic admin every morning and alarms if delivery fails -- catches SMTP/SES outages before users do.",
-            "Confirm the From address, SPF, DKIM, and DMARC for the sending domain -- silent spam-folder routing looks identical to \"not sent\" from the user's side.",
+            'Confirm the From address, SPF, DKIM, and DMARC for the sending domain -- silent spam-folder routing looks identical to "not sent" from the user\'s side.',
         ],
         "plan_frontend": [
-            "On the notifications tab, add a \"Send a test email\" button next to the email toggle that calls a backend POST /v1/notifications/test endpoint and confirms delivery in a toast -- gives users a self-service way to verify.",
-            "Show last successful delivery timestamp under each channel: \"Last email sent 2h ago\".",
+            'On the notifications tab, add a "Send a test email" button next to the email toggle that calls a backend POST /v1/notifications/test endpoint and confirms delivery in a toast -- gives users a self-service way to verify.',
+            'Show last successful delivery timestamp under each channel: "Last email sent 2h ago".',
         ],
     },
     {
@@ -292,9 +295,9 @@ ISSUES = [
         ],
         "plan_frontend": [
             "Adopt react-joyride (or a thin custom Radix Popover-based spotlight) and wrap each interactive feature in a SpotlightTarget id that maps to a tutorial key.",
-            "Tutorials must NOT auto-trigger. Add a \"Start tour\" button (probably a help-icon button in the topbar). Clicking calls POST /v1/me/tutorials/start, then the spotlight runs.",
+            'Tutorials must NOT auto-trigger. Add a "Start tour" button (probably a help-icon button in the topbar). Clicking calls POST /v1/me/tutorials/start, then the spotlight runs.',
             "On step completion, POST .../complete so it doesn't replay on the next device.",
-            "Add a settings panel \"Reset tutorials\" so users can replay if they want.",
+            'Add a settings panel "Reset tutorials" so users can replay if they want.',
             "Spotlight overlay must respect prefers-reduced-motion (CLAUDE.md hard rule).",
         ],
     },
