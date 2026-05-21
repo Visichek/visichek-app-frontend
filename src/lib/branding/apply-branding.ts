@@ -39,17 +39,26 @@ export function applyDocumentBranding(branding: TenantBranding): void {
   }
 }
 
-function setTenantFavicon(href: string): void {
-  // Hide the default favicons so the tenant logo wins
+// The href the tenant favicon should currently hold, or `null` when tenant
+// branding is not active (platform-admin shell, logged out). The
+// head-watching observer reads this to decide whether to keep enforcing.
+let activeTenantFaviconHref: string | null = null;
+// Watches <head> so that any default `<link rel="icon">` Next.js re-injects on
+// a soft navigation is stripped again immediately — without it, the tab snaps
+// back to the default VisiChek mark and only a hard refresh (which re-runs
+// applyBranding) restores the tenant logo.
+let faviconObserver: MutationObserver | null = null;
+
+/** Drop every icon link that isn't ours, and ensure ours exists with `href`. */
+function enforceTenantFavicon(href: string): void {
   document.head
-    .querySelectorAll<HTMLLinkElement>('link[rel~="icon"]:not([' + TENANT_FAVICON_ATTR + "])")
-    .forEach((link) => {
-      link.dataset.tenantOriginal = link.dataset.tenantOriginal ?? link.href;
-      link.remove();
-    });
+    .querySelectorAll<HTMLLinkElement>(
+      `link[rel~="icon"]:not([${TENANT_FAVICON_ATTR}])`,
+    )
+    .forEach((link) => link.remove());
 
   let link = document.head.querySelector<HTMLLinkElement>(
-    `link[${TENANT_FAVICON_ATTR}]`
+    `link[${TENANT_FAVICON_ATTR}]`,
   );
   if (!link) {
     link = document.createElement("link");
@@ -57,7 +66,23 @@ function setTenantFavicon(href: string): void {
     link.setAttribute(TENANT_FAVICON_ATTR, "true");
     document.head.appendChild(link);
   }
-  link.href = href;
+  if (link.href !== href) link.href = href;
+}
+
+function setTenantFavicon(href: string): void {
+  activeTenantFaviconHref = href;
+  enforceTenantFavicon(href);
+
+  // Re-enforce whenever Next.js (or anything else) mutates <head>. childList
+  // is enough — we only care about link tags being added/removed. The
+  // callback is idempotent and never re-adds what it just removed, so it
+  // can't loop against the framework's own render cycle.
+  if (!faviconObserver) {
+    faviconObserver = new MutationObserver(() => {
+      if (activeTenantFaviconHref) enforceTenantFavicon(activeTenantFaviconHref);
+    });
+    faviconObserver.observe(document.head, { childList: true });
+  }
 }
 
 /**
@@ -77,6 +102,12 @@ export function clearDocumentBranding(): void {
   if (typeof document === "undefined") return;
 
   document.title = DEFAULT_TITLE;
+
+  // Stop enforcing before we remove our link, otherwise the observer would
+  // see the removal and try to re-add it.
+  activeTenantFaviconHref = null;
+  faviconObserver?.disconnect();
+  faviconObserver = null;
 
   document.head
     .querySelectorAll<HTMLLinkElement>(`link[${TENANT_FAVICON_ATTR}]`)

@@ -632,6 +632,7 @@ export function TenantsPageClient() {
         )}
       </div>
 
+      <div data-tutorial-anchor="tenants-table">
       <DataTable
         columns={columns}
         data={tenants}
@@ -668,6 +669,7 @@ export function TenantsPageClient() {
         getRowHref={(tenant) => tenantDetailHref(tenant.id)}
         rowClickAriaLabel={(tenant) => `View details for ${tenant.companyName}`}
       />
+      </div>
 
       <ConfirmDialog
         open={bulkOffboardIds !== null}

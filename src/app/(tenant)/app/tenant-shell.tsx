@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Headphones,
   GraduationCap,
+  BarChart3,
 } from "lucide-react";
 import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
 import { MobileNavSheet } from "@/components/navigation/mobile-nav-sheet";
@@ -99,6 +100,12 @@ const ALL_TENANT_NAV_ITEMS: (GatedNavItem | GatedNavGroup)[] = [
     href: "/app/dashboard",
     icon: LayoutDashboard,
     description: "Overview of today's visitors, appointments, and key metrics for your organization",
+  },
+  {
+    label: "Insights",
+    href: "/app/insights",
+    icon: BarChart3,
+    description: "Explore an interactive analytics demo with role-tailored charts, trends, and a live activity feed — all synthetic sample data",
   },
   {
     label: "Front Desk",

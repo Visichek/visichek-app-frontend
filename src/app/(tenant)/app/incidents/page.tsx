@@ -368,7 +368,11 @@ export default function IncidentsPage() {
           canCreate ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <NavButton href="/app/incidents/new" className="w-full md:w-auto min-h-[44px]">
+                <NavButton
+                  href="/app/incidents/new"
+                  className="w-full md:w-auto min-h-[44px]"
+                  data-tutorial-anchor="incidents-new-button"
+                >
                   {loadingHref === "/app/incidents/new" ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
                   ) : (
@@ -386,7 +390,10 @@ export default function IncidentsPage() {
       />
 
       {deadlineIncidents.length > 0 && (
-        <div className="rounded-lg border border-warning/50 bg-warning/10 p-4 flex items-start gap-3">
+        <div
+          data-tutorial-anchor="incidents-deadline-banner"
+          className="rounded-lg border border-warning/50 bg-warning/10 p-4 flex items-start gap-3"
+        >
           <AlertTriangle className="h-5 w-5 text-warning mt-0.5 shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-medium text-warning">

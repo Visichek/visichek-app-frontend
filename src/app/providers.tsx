@@ -15,6 +15,7 @@ import { ThemeProvider } from "@/components/theme/theme-provider";
 import { NavigationLoadingProvider } from "@/lib/routing/navigation-context";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import { BrandedSplash } from "@/components/auth/branded-splash";
+import { TutorialTourProvider } from "@/features/tutorials/tour-provider";
 
 interface ProvidersProps {
   children: ReactNode;
@@ -94,7 +95,9 @@ export function Providers({ children }: ProvidersProps) {
         <ThemeProvider>
           <TooltipProvider delayDuration={250} skipDelayDuration={150} disableHoverableContent>
             <NavigationLoadingProvider>
-              <BootstrapGate>{children}</BootstrapGate>
+              <TutorialTourProvider>
+                <BootstrapGate>{children}</BootstrapGate>
+              </TutorialTourProvider>
               <ServiceWorkerRegister />
               <Toaster
                 position="top-right"

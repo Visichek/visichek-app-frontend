@@ -455,6 +455,10 @@ export function UsersPageClient() {
         title="Users"
         description="Manage staff accounts, roles, and branch assignments"
         actions={
+          <span
+            data-tutorial-anchor="users-invite-button"
+            className="inline-flex w-full md:w-auto"
+          >
           <LockedOverlay
             locked={isInviteLocked}
             title="Invite User"
@@ -480,6 +484,7 @@ export function UsersPageClient() {
               </TooltipContent>
             </Tooltip>
           </LockedOverlay>
+          </span>
         }
       />
 

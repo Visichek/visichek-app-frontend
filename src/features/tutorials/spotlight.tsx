@@ -9,10 +9,19 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, ArrowRight, Check, X } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ExternalLink,
+  Loader2,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
 import type { TutorialType } from "@/types/tutorial";
+import type { PreviewSpec } from "./lib/preview-types";
+import { TutorialPreview } from "./components/tutorial-preview";
 import { useTutorialProgress } from "./use-tutorial-progress";
 
 /**
@@ -45,6 +54,17 @@ export interface TutorialStep {
   anchor?: string;
   title: string;
   body: ReactNode;
+  /**
+   * Mock-page preview shown in slideshow mode so the user sees the
+   * screen the step describes. Ignored in live mode (the real page is
+   * the preview).
+   */
+  preview?: PreviewSpec;
+  /**
+   * Real page this step describes. When present in slideshow mode, the
+   * step offers a "Try it live" jump that opens the actual page.
+   */
+  route?: string;
   /**
    * Optional callback fired when the user finishes this step. Use
    * for side effects like opening a panel before the next step.
@@ -83,6 +103,20 @@ interface TutorialSpotlightProps {
   onClose: () => void;
   /** True when on the final step — relabels "Next" → "Finish". */
   isFinal: boolean;
+  /**
+   * - `"slideshow"` (default): a centered card that shows the step's
+   *   mock-page `preview` and (when the step has a `route`) a
+   *   "Try it live" jump. Real on-page anchors are ignored.
+   * - `"live"`: pins the card to the step's real `data-tutorial-anchor`
+   *   with a cutout. No preview — the page underneath is the preview.
+   */
+  mode?: "slideshow" | "live";
+  /**
+   * Slideshow only — invoked when the user clicks "Try it live" on a
+   * step that has a `route`. Receives the current step index so the
+   * live tour can resume from here.
+   */
+  onTryLive?: (stepIndex: number) => void;
 }
 
 /**
@@ -96,10 +130,14 @@ export function TutorialSpotlight({
   onNext,
   onClose,
   isFinal,
+  mode = "slideshow",
+  onTryLive,
 }: TutorialSpotlightProps) {
   const step = steps[stepIndex];
+  const isLive = mode === "live";
   const [mounted, setMounted] = useState(false);
   const [rect, setRect] = useState<AnchorRect | null>(null);
+  const [launching, setLaunching] = useState(false);
   const reducedMotion = useRef(false);
 
   useEffect(() => {
@@ -108,23 +146,37 @@ export function TutorialSpotlight({
     reducedMotion.current = mq.matches;
   }, []);
 
-  // Re-measure on step change, scroll, and resize so the cutout
-  // follows the anchor when the page reflows.
+  // Re-measure on step change, scroll, and resize so the cutout follows
+  // the anchor when the page reflows. Only live mode tracks real anchors;
+  // slideshow mode is always a centered "slide" that shows the preview.
+  // After a live-mode navigation the anchor can mount a few frames late,
+  // so we retry a handful of times until it appears.
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !isLive) {
+      setRect(null);
+      return;
+    }
+    let cancelled = false;
+    const timers: number[] = [];
     function measure() {
+      if (cancelled) return;
       setRect(getAnchorRect(step?.anchor));
     }
     measure();
-    const t = window.setTimeout(measure, 50); // catch late layout
+    // Catch late layout / post-navigation mounting — the destination
+    // page (and its anchor) can take a moment to render after a jump.
+    for (const delay of [50, 150, 350, 700, 1200, 2000, 3000]) {
+      timers.push(window.setTimeout(measure, delay));
+    }
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
     return () => {
-      window.clearTimeout(t);
+      cancelled = true;
+      timers.forEach((t) => window.clearTimeout(t));
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure, true);
     };
-  }, [mounted, step?.anchor, stepIndex]);
+  }, [mounted, isLive, step?.anchor, stepIndex]);
 
   // Keyboard: ← / →, Esc.
   useEffect(() => {
@@ -146,15 +198,19 @@ export function TutorialSpotlight({
 
   if (!mounted || !step) return null;
 
-  // Card position: place near the anchor when we have one, fall back
-  // to centered when we don't.
-  const cardStyle = rect
-    ? cardStyleNearRect(rect)
-    : ({
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
-      } as const);
+  const showPreview = !isLive && !!step.preview;
+  const canTryLive = !isLive && !!step.route && !!onTryLive;
+
+  // Card position: pin near the anchor in live mode when we have a rect,
+  // otherwise center it.
+  const cardStyle =
+    isLive && rect
+      ? cardStyleNearRect(rect)
+      : ({
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+        } as const);
 
   return createPortal(
     <div
@@ -164,14 +220,17 @@ export function TutorialSpotlight({
       className="fixed inset-0 z-[60]"
     >
       {/* Backdrop. SVG mask cuts a rounded rect out of the dim layer
-          when an anchor is visible so the highlighted UI shows
-          through. */}
-      <Backdrop rect={rect} />
+          when an anchor is visible (live mode) so the highlighted UI
+          shows through. */}
+      <Backdrop rect={isLive ? rect : null} />
 
       <div
         style={cardStyle}
         className={cn(
-          "absolute max-w-sm w-[min(92vw,22rem)] rounded-xl border bg-popover text-popover-foreground p-4 shadow-2xl",
+          "absolute max-h-[90vh] overflow-y-auto rounded-xl border bg-popover text-popover-foreground p-4 shadow-2xl",
+          showPreview
+            ? "w-[min(94vw,30rem)] max-w-lg"
+            : "w-[min(92vw,22rem)] max-w-sm",
           !reducedMotion.current && "animate-in fade-in zoom-in-95",
         )}
       >
@@ -180,20 +239,50 @@ export function TutorialSpotlight({
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Step {stepIndex + 1} of {steps.length}
             </p>
-            <h3 className="text-sm font-semibold mt-1">{step.title}</h3>
+            <h3 className="mt-1 text-sm font-semibold">{step.title}</h3>
           </div>
           <button
             onClick={onClose}
             aria-label="Close tutorial"
-            className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 
-        <div className="mt-2 text-sm text-muted-foreground leading-relaxed">
+        {/* Mock-page preview (slideshow only). The page the step
+            describes, rendered with the relevant region highlighted. */}
+        {showPreview && step.preview && (
+          <div className="mt-3">
+            <TutorialPreview spec={step.preview} />
+          </div>
+        )}
+
+        <div className="mt-3 text-sm leading-relaxed text-muted-foreground">
           {step.body}
         </div>
+
+        {/* "Try it live" jump — opens the real page with the spotlight. */}
+        {canTryLive && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={launching}
+            onClick={() => {
+              setLaunching(true);
+              onTryLive?.(stepIndex);
+            }}
+            className="mt-3 h-8 w-full gap-1.5"
+          >
+            {launching ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+            ) : (
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
+            {launching ? "Opening the page…" : "Try it live on the real page"}
+          </Button>
+        )}
 
         <div className="mt-4 flex items-center justify-between gap-2">
           <Button
@@ -321,6 +410,18 @@ export interface TutorialRunnerProps {
   open: boolean;
   /** Called when the runner closes (Esc, X, or after Finish). */
   onClose: () => void;
+  /**
+   * Slideshow mode of the spotlight. Defaults to `"slideshow"`, which is
+   * what the Tutorials hub mounts. The cross-page live tour does not use
+   * the runner — it owns step state itself via the tour provider.
+   */
+  mode?: "slideshow" | "live";
+  /**
+   * Invoked when the user clicks "Try it live" on a step that has a
+   * `route`. The caller should hand off to the live tour and let the
+   * runner unmount (do NOT treat this as a dismissal).
+   */
+  onTryLive?: (stepIndex: number) => void;
 }
 
 export function TutorialRunner({
@@ -329,6 +430,8 @@ export function TutorialRunner({
   steps,
   open,
   onClose,
+  mode = "slideshow",
+  onTryLive,
 }: TutorialRunnerProps) {
   const progress = useTutorialProgress(name, version);
   const [stepIndex, setStepIndex] = useState(0);
@@ -385,6 +488,8 @@ export function TutorialRunner({
       onNext={onNext}
       onClose={handleClose}
       isFinal={isFinal}
+      mode={mode}
+      onTryLive={onTryLive}
     />
   );
 }

@@ -25,6 +25,7 @@ import {
   useTutorialStatusIndex,
 } from "../hooks/use-tutorials";
 import { TutorialRunner, type TutorialStep } from "../spotlight";
+import { useTutorialTour } from "../tour-provider";
 import { TutorialCard } from "./tutorial-card";
 
 /**
@@ -42,6 +43,7 @@ export function TutorialsHub() {
   const { sessionType, currentRole } = useSession();
   const { data: records, isLoading, isError, error, refetch } = useTutorials();
   const update = useUpdateTutorialProgress();
+  const { startLiveTour } = useTutorialTour();
 
   const tutorials = useMemo(
     () => resolveTutorialsForSession(sessionType, currentRole),
@@ -108,7 +110,14 @@ export function TutorialsHub() {
   }
 
   const runnerSteps: TutorialStep[] = active
-    ? active.steps.map((s) => ({ id: s.id, title: s.title, body: s.body }))
+    ? active.steps.map((s) => ({
+        id: s.id,
+        title: s.title,
+        body: s.body,
+        preview: s.preview,
+        route: s.route,
+        anchor: s.anchor,
+      }))
     : [];
 
   return (
@@ -195,7 +204,10 @@ export function TutorialsHub() {
         </div>
       )}
 
-      {/* Inline walkthrough overlay for the active tutorial. */}
+      {/* Inline walkthrough overlay for the active tutorial. Runs as a
+          slideshow with mock-page previews; each step with a real
+          `route` offers a "Try it live" jump that hands off to the
+          global live tour. */}
       {active && (
         <TutorialRunner
           key={`${active.type}.v${active.version}`}
@@ -204,6 +216,13 @@ export function TutorialsHub() {
           steps={runnerSteps}
           open
           onClose={() => setActive(null)}
+          onTryLive={(stepIndex) => {
+            const def = active;
+            // Close the slideshow without marking it dismissed, then hand
+            // off to the live tour starting at the same step.
+            setActive(null);
+            startLiveTour(def.type, stepIndex);
+          }}
         />
       )}
 

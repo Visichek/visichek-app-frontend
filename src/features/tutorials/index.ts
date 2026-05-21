@@ -30,6 +30,14 @@ export type {
   UseTutorialProgress,
 } from "./use-tutorial-progress";
 
+export { TutorialTourProvider, useTutorialTour } from "./tour-provider";
+export { TutorialPreview } from "./components/tutorial-preview";
+export type {
+  PreviewSpec,
+  PreviewKind,
+  PreviewHighlight,
+} from "./lib/preview-types";
+
 export {
   useTutorials,
   useUpdateTutorialProgress,

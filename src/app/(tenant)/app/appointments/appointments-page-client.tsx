@@ -295,7 +295,11 @@ export function AppointmentsPageClient() {
             {canCreate ? (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <NavButton href="/app/appointments/new" className="w-full md:w-auto min-h-[44px]">
+                  <NavButton
+                    href="/app/appointments/new"
+                    className="w-full md:w-auto min-h-[44px]"
+                    data-tutorial-anchor="appointments-new-button"
+                  >
                     {loadingHref === "/app/appointments/new" ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
                     ) : (

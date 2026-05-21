@@ -479,7 +479,11 @@ export function PlansPageClient() {
         actions={
           <Tooltip>
             <TooltipTrigger asChild>
-              <NavButton href={NEW_PLAN_HREF} className="w-full md:w-auto min-h-[44px]">
+              <NavButton
+                href={NEW_PLAN_HREF}
+                className="w-full md:w-auto min-h-[44px]"
+                data-tutorial-anchor="plans-new-button"
+              >
                 {isNavigatingToNew ? (
                   <Loader2
                     className="mr-2 h-4 w-4 animate-spin"

@@ -35,6 +35,7 @@ import {
 import type { ReactNode } from "react";
 import type { TutorialType } from "@/types/tutorial";
 import type { SystemUserRole } from "@/types/enums";
+import type { PreviewSpec } from "./preview-types";
 
 /**
  * Static catalog of every tutorial the engine can mount.
@@ -45,10 +46,15 @@ import type { SystemUserRole } from "@/types/enums";
  * catalog is the matching client-side DISPLAY filter that decides which
  * "Start tutorial" entry-points a given session sees.
  *
- * Each tutorial carries an anchorless content walkthrough (`steps`) so it
- * can run as a centered step-through directly from the Tutorials hub. The
- * spotlight renderer falls back to a centered card when a step has no DOM
- * anchor, so these read as a guided slideshow.
+ * Each step carries:
+ *   - a `preview` — a token-styled mock of the real screen shown inside
+ *     the step card so the user *sees the page* while they read. This is
+ *     the default experience and works everywhere, including mobile.
+ *   - an optional `route` (+ `anchor`) — when set, the step offers a
+ *     "Try it live" jump that navigates to the real page and pins the
+ *     spotlight to the actual UI element (`data-tutorial-anchor`). The
+ *     anchor is optional: a route with no tagged anchor still drops the
+ *     user on the live page with a centered step card.
  */
 
 export type TutorialShell = "platform" | "tenant" | "cross";
@@ -58,6 +64,12 @@ export interface TutorialStepContent {
   id: string;
   title: string;
   body: ReactNode;
+  /** Mock-page preview shown inside the step card. */
+  preview: PreviewSpec;
+  /** Real page this step describes — enables the "Try it live" jump. */
+  route?: string;
+  /** `data-tutorial-anchor` to spotlight on `route`'s page (optional). */
+  anchor?: string;
 }
 
 export interface TutorialDefinition {
@@ -80,9 +92,29 @@ export interface TutorialDefinition {
   steps: TutorialStepContent[];
 }
 
-/** Compact helper so the catalog stays readable. */
-function step(id: string, title: string, body: string): TutorialStepContent {
-  return { id, title, body };
+/**
+ * Compact step builder so the catalog stays readable.
+ *
+ * @param preview the mock-page spec — required so every step shows the page.
+ * @param live    optional `{ route, anchor? }` enabling the "Try it live"
+ *                jump. `anchor` is optional; omit it to land on the page
+ *                without a precise cutout.
+ */
+function step(
+  id: string,
+  title: string,
+  body: string,
+  preview: PreviewSpec,
+  live?: { route: string; anchor?: string },
+): TutorialStepContent {
+  return {
+    id,
+    title,
+    body,
+    preview,
+    route: live?.route,
+    anchor: live?.anchor,
+  };
 }
 
 export const TUTORIALS: TutorialDefinition[] = [
@@ -101,21 +133,25 @@ export const TUTORIALS: TutorialDefinition[] = [
         "welcome",
         "Welcome to VisiChek",
         "This short tour shows you the basics so you can get productive fast. You can leave at any time and your progress is saved.",
+        { kind: "shell", highlight: "none", label: "VisiChek" },
       ),
       step(
         "sidebar",
         "The sidebar",
         "Everything you can do lives in the left sidebar. Hover any item to read what it does; collapse the rail with the panel button to free up screen space.",
+        { kind: "shell", highlight: "sidebar", label: "Navigation" },
       ),
       step(
         "topbar",
         "Search and notifications",
         "Use the search button (or Ctrl/Cmd-K) to jump anywhere instantly. The bell shows unread alerts that need your attention.",
+        { kind: "shell", highlight: "topbar", label: "Topbar" },
       ),
       step(
         "help",
         "Coming back later",
         "You can re-run any tutorial from this Tutorials page whenever you like. Completed tutorials are marked so you always know what's left.",
+        { kind: "cards", highlight: "none", label: "Tutorials" },
       ),
     ],
   },
@@ -133,16 +169,19 @@ export const TUTORIALS: TutorialDefinition[] = [
         "bell",
         "The notification bell",
         "The bell in the topbar shows your total unread count. Open it to see recent alerts and mark them as read.",
+        { kind: "shell", highlight: "bell", label: "Alerts" },
       ),
       step(
         "badges",
         "Sidebar badges",
         "Sidebar items light up with a count when something there needs you — pending approvals, new support replies, failed jobs, and more.",
+        { kind: "shell", highlight: "sidebar", label: "Navigation" },
       ),
       step(
         "realtime",
         "Real-time updates",
         "Counts update live as events happen, so you don't need to refresh. If the live connection drops, VisiChek quietly falls back to polling.",
+        { kind: "shell", highlight: "bell", label: "Live" },
       ),
     ],
   },
@@ -160,16 +199,19 @@ export const TUTORIALS: TutorialDefinition[] = [
         "rows",
         "Open a row",
         "Click anywhere on a row to open its details. The action menu (⋯) on the right holds secondary actions like edit, archive, or delete.",
+        { kind: "table", highlight: "row", label: "Records" },
       ),
       step(
         "select",
         "Select many at once",
         "Use the checkboxes to select multiple rows, then use the bulk-action bar that appears to act on all of them at once.",
+        { kind: "table", highlight: "bulk-bar", label: "Records" },
       ),
       step(
         "filter",
         "Filter and sort",
         "Most tables can be filtered and sorted from their header. On phones, tables collapse into easy-to-read cards automatically.",
+        { kind: "table", highlight: "search", label: "Records" },
       ),
     ],
   },
@@ -187,16 +229,19 @@ export const TUTORIALS: TutorialDefinition[] = [
         "open",
         "Open settings",
         "Settings live at the bottom of the sidebar and in your user menu. They're organized into sections down the left side.",
+        { kind: "settings", highlight: "sidebar", label: "Settings" },
       ),
       step(
         "profile",
         "Profile & security",
         "Update your name, change your password, and manage two-factor authentication from the profile and security sections.",
+        { kind: "settings", highlight: "tab", label: "Profile & security" },
       ),
       step(
         "prefs",
         "Theme & notifications",
         "Switch between light and dark themes and choose which notifications reach you. Changes save as you make them.",
+        { kind: "settings", highlight: "field", label: "Preferences" },
       ),
     ],
   },
@@ -216,11 +261,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "metrics",
         "Top-line metrics",
         "The dashboard summarizes platform health — active tenants, subscriptions, and revenue — at a glance.",
+        { kind: "cards", highlight: "row", label: "Platform metrics" },
+        { route: "/admin/dashboard", anchor: "admin-dashboard-metrics" },
       ),
       step(
         "trends",
         "Trends & charts",
         "Charts show how key numbers move over time so you can spot growth or churn early.",
+        { kind: "chart", highlight: "chart", label: "Growth" },
+        { route: "/admin/dashboard" },
       ),
     ],
   },
@@ -238,11 +287,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "queue",
         "The onboarding queue",
         "New tenant sign-ups land in the onboarding queue. Open a submission to review the company's details and documents.",
+        { kind: "table", highlight: "row", label: "Onboarding queue" },
+        { route: "/admin/tenants/onboarding", anchor: "onboarding-queue" },
       ),
       step(
         "decision",
         "Approve or request changes",
         "Approve a submission to provision the tenant, or send it back with notes when something needs fixing.",
+        { kind: "detail", highlight: "primary-action", label: "Submission" },
+        { route: "/admin/tenants/onboarding" },
       ),
     ],
   },
@@ -260,11 +313,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "list",
         "The tenant list",
         "Every customer organization appears here. Click a tenant to open its detail page; use the checkboxes for bulk actions.",
+        { kind: "table", highlight: "row", label: "Tenants" },
+        { route: "/admin/tenants", anchor: "tenants-table" },
       ),
       step(
         "detail",
         "Tenant details",
         "From a tenant's page you can review its plan, status, and usage, and take administrative actions.",
+        { kind: "detail", highlight: "none", label: "Tenant" },
+        { route: "/admin/tenants" },
       ),
     ],
   },
@@ -282,11 +339,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "create",
         "Create a plan",
         "Plans define what a tier costs and what it unlocks. Start a draft, set the tier, price, and billing cycle.",
+        { kind: "form", highlight: "primary-action", label: "New plan" },
+        { route: "/admin/plans", anchor: "plans-new-button" },
       ),
       step(
         "features",
         "Features & quotas",
         "Attach feature flags and usage quotas to the plan, then publish it to make it available to subscriptions.",
+        { kind: "form", highlight: "field", label: "Features & quotas" },
+        { route: "/admin/plans" },
       ),
     ],
   },
@@ -304,11 +365,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "list",
         "Subscription list",
         "See every tenant subscription with its plan, status, and renewal date. Filter by status to find what needs attention.",
+        { kind: "table", highlight: "status", label: "Subscriptions" },
+        { route: "/admin/subscriptions", anchor: "subscriptions-table" },
       ),
       step(
         "lifecycle",
         "Lifecycle states",
         "Subscriptions move through trialing, active, past-due, and cancelled. Open one to inspect or adjust it.",
+        { kind: "detail", highlight: "status", label: "Subscription" },
+        { route: "/admin/subscriptions" },
       ),
     ],
   },
@@ -326,11 +391,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "type",
         "Discount type & scope",
         "Choose a percentage or fixed amount, then scope it globally, to a plan, or to a specific tenant.",
+        { kind: "form", highlight: "field", label: "New discount" },
+        { route: "/admin/discounts", anchor: "discounts-new-button" },
       ),
       step(
         "window",
         "Validity window",
         "Set when the discount is active. Expired or disabled discounts stop applying automatically.",
+        { kind: "form", highlight: "field", label: "Validity" },
+        { route: "/admin/discounts" },
       ),
     ],
   },
@@ -348,11 +417,13 @@ export const TUTORIALS: TutorialDefinition[] = [
         "invoices",
         "Invoices",
         "Review issued, paid, void, and refunded invoices. Open one to see its line items and status history.",
+        { kind: "table", highlight: "status", label: "Invoices" },
       ),
       step(
         "reconcile",
         "Reconciling",
         "Use filters to reconcile payments and spot anything that needs follow-up.",
+        { kind: "table", highlight: "search", label: "Invoices" },
       ),
     ],
   },
@@ -370,11 +441,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "content",
         "Content & pricing",
         "Edit blog posts, media, pricing display, and FAQs that power the public marketing site.",
+        { kind: "cards", highlight: "row", label: "Marketing" },
+        { route: "/admin/marketing" },
       ),
       step(
         "optins",
         "Marketing opt-ins",
         "Review who has opted in to marketing so you can plan campaigns within consent rules.",
+        { kind: "table", highlight: "row", label: "Opt-ins" },
+        { route: "/admin/marketing" },
       ),
     ],
   },
@@ -392,11 +467,13 @@ export const TUTORIALS: TutorialDefinition[] = [
         "model",
         "The billing model",
         "Plans define pricing, subscriptions attach a plan to a tenant, discounts adjust the price, and payments record what was billed.",
+        { kind: "cards", highlight: "none", label: "Billing model" },
       ),
       step(
         "flow",
         "Following the money",
         "Start from a tenant's subscription to trace its plan, any applied discounts, and its invoice history.",
+        { kind: "detail", highlight: "none", label: "Subscription" },
       ),
     ],
   },
@@ -417,16 +494,22 @@ export const TUTORIALS: TutorialDefinition[] = [
         "register",
         "Register a visitor",
         "Start a check-in to capture the visitor's name, phone, host, and purpose. The session is created in a registered state.",
+        { kind: "wizard", highlight: "primary-action", label: "Check in visitor" },
+        { route: "/app/visitors/pending", anchor: "visitor-pending-tab" },
       ),
       step(
         "verify",
         "Verify & approve",
         "Scan an ID or ask the host to approve. Pending visitors wait in the Pending tab until they're verified or denied.",
+        { kind: "wizard", highlight: "status", label: "Verify" },
+        { route: "/app/visitors/pending", anchor: "visitor-pending-tab" },
       ),
       step(
         "confirm",
         "Confirm check-in",
         "Confirming validates the details and generates a printable badge — the visitor is now checked in.",
+        { kind: "badge", highlight: "badge-doc", label: "Visitor badge" },
+        { route: "/app/visitors/pending" },
       ),
     ],
   },
@@ -444,11 +527,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "active",
         "Active visitors",
         "The active list shows everyone currently on-site. It refreshes on its own so you always see who's in the building.",
+        { kind: "table", highlight: "row", label: "On-site now" },
+        { route: "/app/visitors/approved" },
       ),
       step(
         "checkout",
         "Check out",
         "Scan the badge QR or pick the visitor from the list to check them out and free up the visit.",
+        { kind: "table", highlight: "primary-action", label: "On-site now" },
+        { route: "/app/visitors/pending", anchor: "visitor-checkout-button" },
       ),
     ],
   },
@@ -466,11 +553,13 @@ export const TUTORIALS: TutorialDefinition[] = [
         "format",
         "Pick a format",
         "When confirming a check-in, choose an A6 or A7 badge. A7 is the default and suits most label printers.",
+        { kind: "badge", highlight: "field", label: "Badge format" },
       ),
       step(
         "print",
         "Print or re-print",
         "The badge is produced as a PDF you can print immediately, and you can re-download it from the visit's details later.",
+        { kind: "badge", highlight: "badge-doc", label: "Visitor badge" },
       ),
     ],
   },
@@ -488,11 +577,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "today",
         "Today's list",
         "Scheduled appointments appear so you can greet expected visitors quickly and link their arrival to the booking.",
+        { kind: "table", highlight: "row", label: "Today's appointments" },
+        { route: "/app/appointments" },
       ),
       step(
         "convert",
         "Arrive a guest",
         "When a scheduled guest arrives, start their check-in from the appointment so their details carry over.",
+        { kind: "table", highlight: "primary-action", label: "Today's appointments" },
+        { route: "/app/appointments" },
       ),
     ],
   },
@@ -513,11 +606,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "create",
         "Book an appointment",
         "Schedule a visitor against a host, with date, time, and purpose. Statuses track scheduled, fulfilled, missed, and cancelled.",
+        { kind: "form", highlight: "primary-action", label: "New appointment" },
+        { route: "/app/appointments", anchor: "appointments-new-button" },
       ),
       step(
         "manage",
         "Keep it current",
         "Reschedule or cancel as plans change. Front-desk staff see today's appointments to greet guests on arrival.",
+        { kind: "table", highlight: "row", label: "Appointments" },
+        { route: "/app/appointments" },
       ),
     ],
   },
@@ -535,11 +632,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "details",
         "Department details",
         "Set your department's name, manager, and contact details so visitors are routed correctly.",
+        { kind: "form", highlight: "field", label: "Department" },
+        { route: "/app/departments" },
       ),
       step(
         "rules",
         "Visitor rules",
         "Tune department-specific visitor handling so check-ins follow your team's process.",
+        { kind: "form", highlight: "field", label: "Visitor rules" },
+        { route: "/app/departments" },
       ),
     ],
   },
@@ -558,11 +659,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "scope",
         "Your department's visitors",
         "You see visitors and appointments tied to your department, so you can keep an eye on who's expected and who's on-site.",
+        { kind: "table", highlight: "row", label: "Department visitors" },
+        { route: "/app/visitors/pending" },
       ),
       step(
         "act",
         "Take action",
         "Open any visitor to review details, and use the front-desk tools to approve or check guests in and out.",
+        { kind: "detail", highlight: "primary-action", label: "Visitor" },
+        { route: "/app/visitors/pending" },
       ),
     ],
   },
@@ -583,11 +688,14 @@ export const TUTORIALS: TutorialDefinition[] = [
         "confirm",
         "Confirm your details",
         "On first login you're asked to confirm your organization's information. Review each field and complete anything still pending.",
+        { kind: "form", highlight: "field", label: "Confirm details" },
+        { route: "/app/onboarding/confirm" },
       ),
       step(
         "next",
         "What comes next",
         "Once confirmed, set up branding, departments, branches, and staff to get your workspace ready.",
+        { kind: "cards", highlight: "none", label: "Next steps" },
       ),
     ],
   },
@@ -606,11 +714,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "logo",
         "Logo & colors",
         "Upload your logo and choose your brand colors. They apply across your workspace and visitor-facing screens.",
+        { kind: "form", highlight: "field", label: "Branding" },
+        { route: "/app/branding", anchor: "branding-logo-field" },
       ),
       step(
         "preview",
         "See it live",
         "Branding is applied immediately so you can preview how staff and visitors will experience your workspace.",
+        { kind: "shell", highlight: "sidebar", label: "Your brand" },
+        { route: "/app/branding" },
       ),
     ],
   },
@@ -628,11 +740,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "invite",
         "Invite staff",
         "Add teammates and pick a role — receptionist, department admin, auditor, security officer, or DPO — to scope what they can do.",
+        { kind: "form", highlight: "primary-action", label: "Invite staff" },
+        { route: "/app/users", anchor: "users-invite-button" },
       ),
       step(
         "manage",
         "Manage access",
         "Update roles or deactivate accounts as your team changes. Each role only sees the tools relevant to it.",
+        { kind: "table", highlight: "row", label: "Staff accounts" },
+        { route: "/app/users" },
       ),
     ],
   },
@@ -650,11 +766,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "add",
         "Add a branch",
         "Create a branch for each physical location so visitors and staff are organized by site.",
+        { kind: "form", highlight: "primary-action", label: "New branch" },
+        { route: "/app/branches", anchor: "branches-new-button" },
       ),
       step(
         "status",
         "Active vs inactive",
         "Mark branches active or inactive to control where check-ins can happen.",
+        { kind: "table", highlight: "status", label: "Branches" },
+        { route: "/app/branches" },
       ),
     ],
   },
@@ -672,11 +792,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "plan",
         "Your plan",
         "See your current plan and what it includes. Locked features show what upgrading would unlock.",
+        { kind: "cards", highlight: "row", label: "Your plan" },
+        { route: "/app/billing", anchor: "billing-plan-card" },
       ),
       step(
         "invoices",
         "Invoices & payment",
         "Review past invoices and keep your payment details up to date to avoid interruptions.",
+        { kind: "table", highlight: "row", label: "Invoices" },
+        { route: "/app/billing" },
       ),
     ],
   },
@@ -694,11 +818,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "create",
         "Create departments",
         "Departments organize hosts and visitors. Create one per team and assign a manager.",
+        { kind: "form", highlight: "primary-action", label: "New department" },
+        { route: "/app/departments", anchor: "departments-new-button" },
       ),
       step(
         "assign",
         "Assign staff",
         "Place staff into departments so visitor routing and oversight line up with your org structure.",
+        { kind: "table", highlight: "row", label: "Departments" },
+        { route: "/app/departments" },
       ),
     ],
   },
@@ -717,11 +845,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "generate",
         "Generate the QR",
         "Create a signed QR code visitors can scan to start their own registration before reaching the desk.",
+        { kind: "qr", highlight: "qr-code", label: "Registration QR" },
+        { route: "/app/visitors/pending", anchor: "visitor-registration-qr" },
       ),
       step(
         "display",
         "Put it to work",
         "Print or display the QR at your entrance. Scans create registered sessions your team can then verify.",
+        { kind: "qr", highlight: "none", label: "Display QR" },
+        { route: "/app/visitors/qr" },
       ),
     ],
   },
@@ -740,11 +872,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "log",
         "The full log",
         "As a super admin you can see visits company-wide, not just one department. Filter by date and status to find what you need.",
+        { kind: "log", highlight: "timeline", label: "Visitor log" },
+        { route: "/app/visitors/checked-out" },
       ),
       step(
         "export",
         "Reporting",
         "Use date filters to pull the records you need for reporting and audits.",
+        { kind: "log", highlight: "primary-action", label: "Export" },
+        { route: "/app/visitors/checked-out" },
       ),
     ],
   },
@@ -765,11 +901,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "trail",
         "The audit trail",
         "Every meaningful action is recorded here, read-only. Each row shows who did what, when, and to which record.",
+        { kind: "log", highlight: "timeline", label: "Audit trail" },
+        { route: "/app/audit" },
       ),
       step(
         "filter",
         "Find & export",
         "Filter by time and action to narrow the trail, then export it for compliance evidence.",
+        { kind: "log", highlight: "primary-action", label: "Export" },
+        { route: "/app/audit", anchor: "audit-export-button" },
       ),
     ],
   },
@@ -789,11 +929,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "create",
         "Open an incident",
         "Record what happened, its type, and the details. Each incident is timestamped the moment you create it.",
+        { kind: "form", highlight: "primary-action", label: "New incident" },
+        { route: "/app/incidents", anchor: "incidents-new-button" },
       ),
       step(
         "deadline",
         "The 72-hour clock",
         "A notification deadline is set 72 hours from creation, per NDPA Section 38. Watch for the warning banner as it approaches.",
+        { kind: "banner", highlight: "banner", label: "Incidents" },
+        { route: "/app/incidents", anchor: "incidents-deadline-banner" },
       ),
     ],
   },
@@ -812,11 +956,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "states",
         "Status flow",
         "Incidents move from open → investigating → contained → reported → closed. Update the status as you work the case.",
+        { kind: "detail", highlight: "status", label: "Incident" },
+        { route: "/app/incidents" },
       ),
       step(
         "escalate",
         "Escalate when needed",
         "Add findings and escalate where appropriate so the right people are looped in quickly.",
+        { kind: "detail", highlight: "primary-action", label: "Incident" },
+        { route: "/app/incidents" },
       ),
     ],
   },
@@ -835,11 +983,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "approaching",
         "Approaching deadlines",
         "Incidents within 24 hours of their deadline are highlighted so nothing slips. A banner warns you when any are close.",
+        { kind: "banner", highlight: "banner", label: "Deadlines" },
+        { route: "/app/incidents", anchor: "incidents-deadline-banner" },
       ),
       step(
         "notified",
         "Mark as notified",
         "Once you've notified the NDPC, record it on the incident with the time it was sent to stop the clock.",
+        { kind: "detail", highlight: "status", label: "Incident" },
+        { route: "/app/incidents" },
       ),
     ],
   },
@@ -860,11 +1012,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "intake",
         "Request types",
         "Data subjects can ask for access, correction, deletion, or to withdraw consent. Each request tracks its own status.",
+        { kind: "table", highlight: "row", label: "Data subject requests" },
+        { route: "/app/dpo" },
       ),
       step(
         "resolve",
         "Work the request",
         "Move a request through pending → in-progress → completed (or rejected), keeping a record of how it was handled.",
+        { kind: "detail", highlight: "status", label: "Request" },
+        { route: "/app/dpo" },
       ),
     ],
   },
@@ -883,11 +1039,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "policy",
         "Set a policy",
         "Define retention periods for the data you hold and choose whether expiry deletes or anonymizes records.",
+        { kind: "form", highlight: "field", label: "Retention policy" },
+        { route: "/app/dpo" },
       ),
       step(
         "audit",
         "Proof of deletion",
         "Deletion logs record what was removed and when, giving you evidence for NDPA reporting.",
+        { kind: "log", highlight: "timeline", label: "Deletion logs" },
+        { route: "/app/dpo" },
       ),
     ],
   },
@@ -906,11 +1066,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "entries",
         "Register entries",
         "Record each processing activity — its purpose, lawful basis, and data categories — to keep your register current.",
+        { kind: "table", highlight: "row", label: "Processing register" },
+        { route: "/app/dpo" },
       ),
       step(
         "maintain",
         "Keep it accurate",
         "Add entries as processing changes so your register always reflects reality at audit time.",
+        { kind: "form", highlight: "primary-action", label: "New entry" },
+        { route: "/app/dpo" },
       ),
     ],
   },
@@ -928,11 +1092,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "range",
         "Pick a date range",
         "Choose the start and end dates for the consent records you need.",
+        { kind: "form", highlight: "field", label: "Date range" },
+        { route: "/app/dpo" },
       ),
       step(
         "export",
         "Export for reporting",
         "Export the consent log to evidence lawful basis and consent capture for the period.",
+        { kind: "log", highlight: "primary-action", label: "Consent log" },
+        { route: "/app/dpo" },
       ),
     ],
   },
@@ -951,11 +1119,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "package",
         "What's included",
         "The export bundles your compliance records into one ZIP — handy for audits and regulator requests.",
+        { kind: "cards", highlight: "none", label: "Compliance package" },
+        { route: "/app/dpo" },
       ),
       step(
         "download",
         "Generate & download",
         "Trigger the export and download the archive when it's ready.",
+        { kind: "detail", highlight: "primary-action", label: "Export" },
+        { route: "/app/dpo" },
       ),
     ],
   },
@@ -974,11 +1146,15 @@ export const TUTORIALS: TutorialDefinition[] = [
         "write",
         "Write the notice",
         "Compose the privacy notice visitors are shown, setting the lawful basis and the language they'll read.",
+        { kind: "form", highlight: "field", label: "Privacy notice" },
+        { route: "/app/dpo" },
       ),
       step(
         "mode",
         "Display mode",
         "Choose passive display or active consent so capture matches your legal requirements.",
+        { kind: "form", highlight: "field", label: "Display mode" },
+        { route: "/app/dpo" },
       ),
     ],
   },

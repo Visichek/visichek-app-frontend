@@ -7,6 +7,7 @@ import type { SystemUserRole } from "@/types/enums";
 export const ROLE_ROUTES: Record<SystemUserRole, string[]> = {
   super_admin: [
     "/app/dashboard",
+    "/app/insights",
     "/app/visitors",
     "/app/appointments",
     "/app/departments",
@@ -28,6 +29,7 @@ export const ROLE_ROUTES: Record<SystemUserRole, string[]> = {
 
   dept_admin: [
     "/app/dashboard",
+    "/app/insights",
     "/app/visitors",
     "/app/appointments",
     "/app/departments",
@@ -41,6 +43,7 @@ export const ROLE_ROUTES: Record<SystemUserRole, string[]> = {
 
   receptionist: [
     "/app/dashboard",
+    "/app/insights",
     "/app/visitors",
     "/app/appointments",
     "/app/alerts",
@@ -52,6 +55,7 @@ export const ROLE_ROUTES: Record<SystemUserRole, string[]> = {
 
   auditor: [
     "/app/audit",
+    "/app/insights",
     "/app/alerts",
     "/app/support-cases",
     "/app/jobs",
@@ -61,6 +65,7 @@ export const ROLE_ROUTES: Record<SystemUserRole, string[]> = {
 
   security_officer: [
     "/app/incidents",
+    "/app/insights",
     "/app/alerts",
     "/app/support-cases",
     "/app/jobs",
@@ -70,6 +75,7 @@ export const ROLE_ROUTES: Record<SystemUserRole, string[]> = {
 
   dpo: [
     "/app/dpo",
+    "/app/insights",
     "/app/audit",
     "/app/alerts",
     "/app/support-cases",

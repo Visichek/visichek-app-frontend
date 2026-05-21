@@ -136,7 +136,9 @@ export function AdminDashboardPageClient() {
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
-          <AdminOverviewTab stats={stats} />
+          <div data-tutorial-anchor="admin-dashboard-metrics">
+            <AdminOverviewTab stats={stats} />
+          </div>
         </TabsContent>
         <TabsContent value="tenants" className="mt-6">
           <AdminTenantsTab stats={stats} />

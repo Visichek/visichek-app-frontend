@@ -10,7 +10,6 @@ import {
   Globe,
   Loader2,
   Mail,
-  ShieldAlert,
   ShieldCheck,
   ShieldOff,
   UserCircle,
@@ -21,8 +20,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NavButton } from "@/components/recipes/nav-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,12 +29,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ResponsiveModal } from "@/components/recipes/responsive-modal";
+import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { LoadingButton } from "@/components/feedback/loading-button";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { formatDateTime, formatRelative } from "@/lib/utils/format-date";
 import {
   useAcceptOnboarding,
-  usePartialAcceptOnboarding,
   useRejectOnboarding,
 } from "@/features/onboarding/hooks";
 import type {
@@ -97,7 +94,7 @@ function lookupField<T>(
 }
 
 interface ActionState {
-  mode: "accept" | "partial" | "reject" | null;
+  mode: "accept" | "reject" | null;
 }
 
 interface SubmissionDetailProps {
@@ -406,22 +403,6 @@ export function OnboardingSubmissionDetail({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant="outline"
-                  className="min-h-[44px]"
-                  onClick={() => setAction({ mode: "partial" })}
-                >
-                  <ShieldAlert className="mr-2 h-4 w-4" />
-                  Partial accept
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                Provision the tenant now but flag specific fields the new
-                super admin must complete on first login
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
                   className="min-h-[44px]"
                   onClick={() => setAction({ mode: "accept" })}
                 >
@@ -441,11 +422,6 @@ export function OnboardingSubmissionDetail({
       <AcceptDialog
         submission={submission}
         open={action.mode === "accept"}
-        onClose={() => setAction({ mode: null })}
-      />
-      <PartialAcceptDialog
-        submission={submission}
-        open={action.mode === "partial"}
         onClose={() => setAction({ mode: null })}
       />
       <RejectDialog
@@ -470,45 +446,21 @@ interface AcceptDialogProps {
 function AcceptDialog({ submission, open, onClose }: AcceptDialogProps) {
   const accept = useAcceptOnboarding();
   const { navigate } = useNavigationLoading();
-  const [companyName, setCompanyName] = useState("");
-  const [adminFullName, setAdminFullName] = useState("");
-  const [adminEmail, setAdminEmail] = useState("");
-  const [reviewNotes, setReviewNotes] = useState("");
 
-  const requiresCompany = !submission.organizationName;
-  const requiresName = !submission.fullName;
-  const requiresEmail = !submission.email;
+  const recipient = submission.email || "the admin";
 
-  function reset() {
-    setCompanyName("");
-    setAdminFullName("");
-    setAdminEmail("");
-    setReviewNotes("");
-  }
-
-  function handleClose() {
-    if (accept.isPending) return;
-    reset();
-    onClose();
-  }
-
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-
+  function handleConfirm() {
     toast.promise(
+      // Provision directly from the submission's extracted values — no
+      // reviewer overrides. The backend uses the org name, admin name, and
+      // email captured at submission time.
       accept.mutateAsync({
         submissionId: submission.id,
-        data: {
-          companyName: companyName.trim() || undefined,
-          adminFullName: adminFullName.trim() || undefined,
-          adminEmail: adminEmail.trim() || undefined,
-          reviewNotes: reviewNotes.trim() || undefined,
-        },
+        data: {},
       }),
       {
         loading: "Provisioning tenant…",
         success: (response) => {
-          reset();
           onClose();
           if (response?.tenantId) {
             navigate(`/admin/tenants/${response.tenantId}`);
@@ -522,373 +474,17 @@ function AcceptDialog({ submission, open, onClose }: AcceptDialogProps) {
   }
 
   return (
-    <ResponsiveModal
+    <ConfirmDialog
       open={open}
-      onOpenChange={(o) => (o ? null : handleClose())}
-      title="Accept & provision tenant"
-      description="Creates the tenant and first super admin in one step. Overrides apply only if you want to change the extracted values."
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="rounded-md border border-info/30 bg-info/5 p-3 text-sm">
-          <p className="font-medium">Temporary password handling</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            A temporary password is generated server-side and emailed to{" "}
-            <span className="font-mono">
-              {adminEmail.trim() || submission.email || "the admin"}
-            </span>
-            . They will be required to change it on first sign-in. The
-            reviewer never sees the cleartext value.
-          </p>
-        </div>
-
-        <Separator />
-
-        <div className="space-y-2">
-          <Label htmlFor="accept-company">
-            Company name {requiresCompany && <span aria-hidden="true">*</span>}
-          </Label>
-          <Input
-            id="accept-company"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            placeholder={
-              submission.organizationName ||
-              "Required — submission did not include an org name"
-            }
-            required={requiresCompany}
-            className="text-base md:text-sm"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="accept-admin-name">
-            Admin full name {requiresName && <span aria-hidden="true">*</span>}
-          </Label>
-          <Input
-            id="accept-admin-name"
-            value={adminFullName}
-            onChange={(e) => setAdminFullName(e.target.value)}
-            placeholder={
-              submission.fullName ||
-              "Required — submission did not include a name"
-            }
-            required={requiresName}
-            className="text-base md:text-sm"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="accept-admin-email">
-            Admin email {requiresEmail && <span aria-hidden="true">*</span>}
-          </Label>
-          <Input
-            id="accept-admin-email"
-            type="email"
-            inputMode="email"
-            value={adminEmail}
-            onChange={(e) => setAdminEmail(e.target.value)}
-            placeholder={
-              submission.email ||
-              "Required — submission did not include an email"
-            }
-            required={requiresEmail}
-            className="text-base md:text-sm"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="accept-notes">Reviewer notes (optional)</Label>
-          <Textarea
-            id="accept-notes"
-            value={reviewNotes}
-            onChange={(e) => setReviewNotes(e.target.value)}
-            placeholder="Recorded in the audit trail for this acceptance."
-            rows={3}
-          />
-        </div>
-
-        <div className="flex flex-col gap-2 pt-2 md:flex-row md:justify-end">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className="min-h-[44px]"
-                onClick={handleClose}
-                disabled={accept.isPending}
-              >
-                Cancel
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              Close without provisioning the tenant
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span>
-                <LoadingButton
-                  type="submit"
-                  isLoading={accept.isPending}
-                  loadingText="Provisioning…"
-                  className="min-h-[44px] w-full md:w-auto"
-                >
-                  Provision tenant
-                </LoadingButton>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>
-              Create the tenant + first super admin and queue the welcome email
-            </TooltipContent>
-          </Tooltip>
-        </div>
-      </form>
-    </ResponsiveModal>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Partial-accept dialog                                               */
-/* ------------------------------------------------------------------ */
-
-function PartialAcceptDialog({ submission, open, onClose }: AcceptDialogProps) {
-  const partialAccept = usePartialAcceptOnboarding();
-  const { navigate } = useNavigationLoading();
-  const [companyName, setCompanyName] = useState("");
-  const [adminFullName, setAdminFullName] = useState("");
-  const [adminEmail, setAdminEmail] = useState("");
-  const [reviewNotes, setReviewNotes] = useState("");
-  const [pending, setPending] = useState<Set<string>>(new Set());
-
-  const requiresCompany = !submission.organizationName;
-  const requiresName = !submission.fullName;
-  const requiresEmail = !submission.email;
-
-  function reset() {
-    setCompanyName("");
-    setAdminFullName("");
-    setAdminEmail("");
-    setReviewNotes("");
-    setPending(new Set());
-  }
-
-  function handleClose() {
-    if (partialAccept.isPending) return;
-    reset();
-    onClose();
-  }
-
-  function togglePending(key: string) {
-    setPending((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
-
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-
-    if (pending.size === 0) {
-      toast.error(
-        "Pick at least one field for the tenant to complete — otherwise use Accept.",
-      );
-      return;
-    }
-
-    toast.promise(
-      partialAccept.mutateAsync({
-        submissionId: submission.id,
-        data: {
-          companyName: companyName.trim() || undefined,
-          adminFullName: adminFullName.trim() || undefined,
-          adminEmail: adminEmail.trim() || undefined,
-          reviewNotes: reviewNotes.trim() || undefined,
-          pendingFieldKeys: Array.from(pending),
-        },
-      }),
-      {
-        loading: "Provisioning tenant…",
-        success: (response) => {
-          reset();
-          onClose();
-          if (response?.tenantId) {
-            navigate(`/admin/tenants/${response.tenantId}`);
-          }
-          return "Tenant provisioned. The super admin will see a completion task on first login.";
-        },
-        error: (err: Error) =>
-          err.message || "Failed to provision tenant.",
-      },
-    );
-  }
-
-  const candidateKeys = submission.fieldOrder?.length
-    ? submission.fieldOrder
-    : Object.keys(submission.fieldLabels ?? {});
-
-  return (
-    <ResponsiveModal
-      open={open}
-      onOpenChange={(o) => (o ? null : handleClose())}
-      title="Partial accept"
-      description="Provisions the tenant now and records which fields the new super admin must clarify on first login."
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="rounded-md border border-info/30 bg-info/5 p-3 text-sm">
-          <p className="font-medium">Temporary password handling</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            A temporary password is generated server-side and emailed to{" "}
-            <span className="font-mono">
-              {adminEmail.trim() || submission.email || "the admin"}
-            </span>
-            . They will be required to change it on first sign-in. The
-            reviewer never sees the cleartext value.
-          </p>
-        </div>
-
-        {(requiresCompany || requiresName || requiresEmail) && (
-          <>
-            <Separator />
-            {requiresCompany && (
-              <div className="space-y-2">
-                <Label htmlFor="partial-company">
-                  Company name <span aria-hidden="true">*</span>
-                </Label>
-                <Input
-                  id="partial-company"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  required
-                  className="text-base md:text-sm"
-                />
-              </div>
-            )}
-            {requiresName && (
-              <div className="space-y-2">
-                <Label htmlFor="partial-name">
-                  Admin full name <span aria-hidden="true">*</span>
-                </Label>
-                <Input
-                  id="partial-name"
-                  value={adminFullName}
-                  onChange={(e) => setAdminFullName(e.target.value)}
-                  required
-                  className="text-base md:text-sm"
-                />
-              </div>
-            )}
-            {requiresEmail && (
-              <div className="space-y-2">
-                <Label htmlFor="partial-email">
-                  Admin email <span aria-hidden="true">*</span>
-                </Label>
-                <Input
-                  id="partial-email"
-                  type="email"
-                  inputMode="email"
-                  value={adminEmail}
-                  onChange={(e) => setAdminEmail(e.target.value)}
-                  required
-                  className="text-base md:text-sm"
-                />
-              </div>
-            )}
-          </>
-        )}
-
-        <Separator />
-
-        <div className="space-y-2">
-          <Label>Fields the tenant must complete on first login</Label>
-          <p className="text-xs text-muted-foreground">
-            Tick every form field that needs clarification. The super admin
-            will land on a completion form for these on their first session.
-          </p>
-          <div className="max-h-56 space-y-1 overflow-y-auto rounded-md border p-2">
-            {candidateKeys.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                No fields available to flag.
-              </p>
-            )}
-            {candidateKeys.map((key) => {
-              const checked = pending.has(key);
-              const label = lookupField(submission.fieldLabels, key) ?? key;
-              return (
-                <label
-                  key={key}
-                  htmlFor={`pending-${key}`}
-                  className="flex cursor-pointer items-start gap-2 rounded p-2 hover:bg-muted/40"
-                >
-                  <Checkbox
-                    id={`pending-${key}`}
-                    checked={checked}
-                    onCheckedChange={() => togglePending(key)}
-                    className="mt-0.5"
-                  />
-                  <div className="space-y-0.5 text-sm">
-                    <div className="font-medium">{label}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {key}
-                    </div>
-                  </div>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="partial-notes">
-            Reviewer notes <span aria-hidden="true">*</span>
-          </Label>
-          <Textarea
-            id="partial-notes"
-            value={reviewNotes}
-            onChange={(e) => setReviewNotes(e.target.value)}
-            placeholder="Tell the new super admin what to clarify (shown to them when they complete)."
-            rows={3}
-          />
-        </div>
-
-        <div className="flex flex-col gap-2 pt-2 md:flex-row md:justify-end">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className="min-h-[44px]"
-                onClick={handleClose}
-                disabled={partialAccept.isPending}
-              >
-                Cancel
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              Close without provisioning the tenant
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span>
-                <LoadingButton
-                  type="submit"
-                  isLoading={partialAccept.isPending}
-                  loadingText="Provisioning…"
-                  className="min-h-[44px] w-full md:w-auto"
-                >
-                  Provision &amp; flag fields
-                </LoadingButton>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>
-              Create the tenant and queue the partial-acceptance email
-            </TooltipContent>
-          </Tooltip>
-        </div>
-      </form>
-    </ResponsiveModal>
+      onOpenChange={(o) => {
+        if (!o && !accept.isPending) onClose();
+      }}
+      title="Accept & provision tenant?"
+      description={`This creates the tenant and its first super admin from this submission in one step. A temporary password is generated server-side and emailed to ${recipient}; they must change it on first sign-in.`}
+      confirmLabel="Accept & provision"
+      isLoading={accept.isPending}
+      onConfirm={handleConfirm}
+    />
   );
 }
 
