@@ -256,15 +256,12 @@ interface StatItem {
   trend?: { value: number; isPositive: boolean };
 }
 
-type SpotlightKind = "hourly" | "incident" | "dsr" | "appointment" | "audit" | "newReturning";
-
 interface RoleView {
   label: string;
   icon: LucideIcon;
   accent: string;
   blurb: string;
   kpis: (d: DemoData) => StatItem[];
-  spotlight: SpotlightKind;
 }
 
 const ROLE_VIEWS: Record<SystemUserRole, RoleView> = {
@@ -273,7 +270,6 @@ const ROLE_VIEWS: Record<SystemUserRole, RoleView> = {
     icon: TrendingUp,
     accent: "hsl(262 83% 58%)",
     blurb: "Org-wide rollup across every branch, department, and compliance area.",
-    spotlight: "newReturning",
     kpis: (d) => [
       { title: "Total visits", value: d.totals.totalVisits.toLocaleString(), description: "across the selected window", icon: <Users className="h-4 w-4" />, trend: { value: 12.4, isPositive: true } },
       { title: "Currently active", value: d.totals.currentlyActive, description: "on-site right now", icon: <Activity className="h-4 w-4" /> },
@@ -286,7 +282,6 @@ const ROLE_VIEWS: Record<SystemUserRole, RoleView> = {
     icon: ClipboardCheck,
     accent: "hsl(217 91% 60%)",
     blurb: "Visitor and appointment activity scoped to your department.",
-    spotlight: "appointment",
     kpis: (d) => [
       { title: "Dept visitors today", value: d.totals.deptVisitorsToday, description: "checked into your department", icon: <Users className="h-4 w-4" />, trend: { value: 6.2, isPositive: true } },
       { title: "Appointments today", value: d.totals.appointmentsToday, description: "scheduled with your hosts", icon: <CalendarClock className="h-4 w-4" /> },
@@ -299,7 +294,6 @@ const ROLE_VIEWS: Record<SystemUserRole, RoleView> = {
     icon: ClipboardCheck,
     accent: "hsl(173 80% 40%)",
     blurb: "Live front-desk throughput — who's in, who's waiting, how fast.",
-    spotlight: "hourly",
     kpis: (d) => [
       { title: "Checked in today", value: d.totals.deptVisitorsToday * 3, description: "completed check-ins", icon: <ClipboardCheck className="h-4 w-4" />, trend: { value: 8.7, isPositive: true } },
       { title: "Awaiting checkout", value: d.totals.awaitingCheckout, description: "still on-site", icon: <Clock className="h-4 w-4" /> },
@@ -312,7 +306,6 @@ const ROLE_VIEWS: Record<SystemUserRole, RoleView> = {
     icon: ScrollText,
     accent: "hsl(38 92% 50%)",
     blurb: "Read-only system-activity trail and export volume.",
-    spotlight: "audit",
     kpis: (d) => [
       { title: "Audit events today", value: d.totals.auditToday, description: "actions recorded", icon: <ScrollText className="h-4 w-4" />, trend: { value: 14.2, isPositive: true } },
       { title: "Events (7d)", value: d.totals.audit7d.toLocaleString(), description: "rolling week", icon: <Activity className="h-4 w-4" /> },
@@ -325,7 +318,6 @@ const ROLE_VIEWS: Record<SystemUserRole, RoleView> = {
     icon: ShieldAlert,
     accent: "hsl(0 84% 60%)",
     blurb: "Incident posture and NDPC notification deadlines.",
-    spotlight: "incident",
     kpis: (d) => [
       { title: "Open incidents", value: d.totals.openIncidents, description: "not yet closed", icon: <ShieldAlert className="h-4 w-4" />, trend: { value: 5.0, isPositive: false } },
       { title: "Critical", value: d.totals.criticalIncidents, description: "highest severity", icon: <ShieldAlert className="h-4 w-4" /> },
@@ -338,7 +330,6 @@ const ROLE_VIEWS: Record<SystemUserRole, RoleView> = {
     icon: Shield,
     accent: "hsl(199 89% 48%)",
     blurb: "Data-subject requests, consent health, and NDPA register coverage.",
-    spotlight: "dsr",
     kpis: (d) => [
       { title: "Open DSRs", value: d.totals.openDsr, description: "awaiting fulfillment", icon: <Shield className="h-4 w-4" />, trend: { value: 3.4, isPositive: false } },
       { title: "Consent rate", value: `${d.totals.consentRate}%`, description: "visitors granting consent", icon: <BadgeCheck className="h-4 w-4" />, trend: { value: 1.2, isPositive: true } },
@@ -362,6 +353,177 @@ const RANGE_OPTIONS: Array<{ key: RangeKey; label: string }> = [
   { key: 30, label: "30 days" },
   { key: 90, label: "90 days" },
 ];
+
+// ──────────────────────────────────────────────────────────────────────
+// Tabbed sections — every role gets an Overview tab plus two tabs that
+// surface the metrics that role actually works with. Content is described
+// declaratively as rows of section kinds and rendered by `renderSection`.
+// ──────────────────────────────────────────────────────────────────────
+
+type SectionKind =
+  | "kpis"
+  | "traffic"
+  | "audit"
+  | "hourly"
+  | "hourlyTall"
+  | "visitStatus"
+  | "incident"
+  | "dsr"
+  | "appointment"
+  | "newReturning"
+  | "topDepartments"
+  | "feed";
+
+interface TabDef {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  /** Plain-language hover hint describing what the tab shows. */
+  description: string;
+  /** Each inner array is one layout row: 1 kind = full width, 2 = side-by-side. */
+  rows: SectionKind[][];
+}
+
+const ROLE_TABS: Record<SystemUserRole, TabDef[]> = {
+  super_admin: [
+    {
+      id: "overview",
+      label: "Overview",
+      icon: TrendingUp,
+      description: "Org-wide KPIs, daily traffic, and the headline visitor mix at a glance.",
+      rows: [["kpis"], ["traffic"], ["newReturning", "topDepartments"], ["hourly", "visitStatus"]],
+    },
+    {
+      id: "compliance",
+      label: "Compliance",
+      icon: Shield,
+      description: "Incident posture and data-subject requests across the whole organisation.",
+      rows: [["incident", "dsr"], ["audit"]],
+    },
+    {
+      id: "departments",
+      label: "Departments",
+      icon: Users,
+      description: "Which departments and which hours drive the most visitor volume.",
+      rows: [["topDepartments"], ["hourly", "appointment"]],
+    },
+  ],
+  dept_admin: [
+    {
+      id: "overview",
+      label: "Overview",
+      icon: ClipboardCheck,
+      description: "Department KPIs, traffic, and how today's appointments and visits are tracking.",
+      rows: [["kpis"], ["traffic"], ["appointment", "topDepartments"], ["hourly", "visitStatus"]],
+    },
+    {
+      id: "appointments",
+      label: "Appointments",
+      icon: CalendarClock,
+      description: "Appointment outcomes and the new-versus-returning split for your hosts.",
+      rows: [["appointment", "newReturning"], ["traffic"]],
+    },
+    {
+      id: "visitors",
+      label: "Visitors",
+      icon: Users,
+      description: "Hourly arrival patterns, current visit statuses, and busiest departments.",
+      rows: [["hourly", "visitStatus"], ["topDepartments"]],
+    },
+  ],
+  receptionist: [
+    {
+      id: "overview",
+      label: "Overview",
+      icon: ClipboardCheck,
+      description: "Front-desk KPIs, daily traffic, hourly load, and the live activity stream.",
+      rows: [["kpis"], ["traffic"], ["hourly", "visitStatus"], ["feed"]],
+    },
+    {
+      id: "live-desk",
+      label: "Live desk",
+      icon: Activity,
+      description: "The real-time check-in stream alongside current statuses and hourly load.",
+      rows: [["feed"], ["visitStatus", "hourly"]],
+    },
+    {
+      id: "hourly-flow",
+      label: "Hourly flow",
+      icon: Clock,
+      description: "A detailed view of how arrivals spread across the day to plan desk cover.",
+      rows: [["hourlyTall"], ["traffic"]],
+    },
+  ],
+  auditor: [
+    {
+      id: "overview",
+      label: "Overview",
+      icon: ScrollText,
+      description: "Audit-event KPIs, the activity timeline, and supporting visit context.",
+      rows: [["kpis"], ["audit"], ["hourly", "visitStatus"]],
+    },
+    {
+      id: "activity",
+      label: "Activity",
+      icon: Activity,
+      description: "System actions over time, hourly distribution, and the busiest departments.",
+      rows: [["audit"], ["hourly", "topDepartments"]],
+    },
+    {
+      id: "coverage",
+      label: "Coverage",
+      icon: FileCheck2,
+      description: "Read-only visit and incident status coverage and where activity concentrates.",
+      rows: [["visitStatus", "incident"], ["topDepartments"]],
+    },
+  ],
+  security_officer: [
+    {
+      id: "overview",
+      label: "Overview",
+      icon: ShieldAlert,
+      description: "Incident KPIs, current incident status, visit mix, and daily traffic.",
+      rows: [["kpis"], ["incident", "visitStatus"], ["traffic"]],
+    },
+    {
+      id: "incidents",
+      label: "Incidents",
+      icon: ShieldAlert,
+      description: "Incident workflow status next to data-subject requests, plus the action trail.",
+      rows: [["incident", "dsr"], ["audit"]],
+    },
+    {
+      id: "activity-trail",
+      label: "Activity trail",
+      icon: Activity,
+      description: "System actions over time with hourly load and the busiest departments.",
+      rows: [["audit"], ["hourly", "topDepartments"]],
+    },
+  ],
+  dpo: [
+    {
+      id: "overview",
+      label: "Overview",
+      icon: Shield,
+      description: "Privacy KPIs, the DSR mix, current visit statuses, and daily traffic.",
+      rows: [["kpis"], ["dsr", "visitStatus"], ["traffic"]],
+    },
+    {
+      id: "requests",
+      label: "Requests",
+      icon: FileCheck2,
+      description: "Data-subject requests by type, the visitor acquisition mix, and the action trail.",
+      rows: [["dsr", "newReturning"], ["audit"]],
+    },
+    {
+      id: "consent",
+      label: "Consent",
+      icon: BadgeCheck,
+      description: "Consent and visit-status health alongside where visitor volume concentrates.",
+      rows: [["newReturning", "visitStatus"], ["topDepartments"]],
+    },
+  ],
+};
 
 // ──────────────────────────────────────────────────────────────────────
 // Live activity feed (synthetic ticker)
@@ -427,6 +589,7 @@ export function InsightsDemoClient() {
   const [roleView, setRoleView] = useState<SystemUserRole>(
     currentRole && ROLE_VIEWS[currentRole] ? currentRole : "super_admin",
   );
+  const [activeTab, setActiveTab] = useState<string>("overview");
   const [nonce, setNonce] = useState(0);
   const [isPending, startTransition] = useTransition();
   const [pendingTarget, setPendingTarget] = useState<string | null>(null);
@@ -437,12 +600,17 @@ export function InsightsDemoClient() {
     if (!appliedRoleDefault.current && currentRole && ROLE_VIEWS[currentRole]) {
       appliedRoleDefault.current = true;
       setRoleView(currentRole);
+      setActiveTab("overview");
     }
   }, [currentRole]);
 
   const data = useMemo(() => generateDemoData(range, nonce), [range, nonce]);
   const view = ROLE_VIEWS[roleView];
   const kpis = useMemo(() => view.kpis(data), [view, data]);
+
+  const tabs = ROLE_TABS[roleView];
+  const activeTabDef = tabs.find((t) => t.id === activeTab) ?? tabs[0];
+  const ctx: TabCtx = { data, range, accent: view.accent, kpis };
 
   function switchRange(next: RangeKey) {
     if (next === range) return;
@@ -453,7 +621,17 @@ export function InsightsDemoClient() {
   function switchRole(next: SystemUserRole) {
     if (next === roleView) return;
     setPendingTarget(`role-${next}`);
-    startTransition(() => setRoleView(next));
+    // Every role's first tab is "overview", so resetting is always valid.
+    startTransition(() => {
+      setRoleView(next);
+      setActiveTab("overview");
+    });
+  }
+
+  function switchTab(next: string) {
+    if (next === activeTab) return;
+    setPendingTarget(`tab-${next}`);
+    startTransition(() => setActiveTab(next));
   }
 
   // Clear the spinner target once the transition settles.
@@ -465,7 +643,7 @@ export function InsightsDemoClient() {
     <div className="space-y-6">
       <PageHeader
         title="Visitor Insights"
-        description="An interactive demo of VisiChek analytics. All figures below are synthetic — switch roles and ranges to explore."
+        description="An interactive demo of VisiChek analytics. All figures below are synthetic — switch roles, tabs, and ranges to explore."
         actions={
           <div className="flex items-center gap-2">
             <span className="hidden items-center gap-1.5 rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground sm:inline-flex">
@@ -547,56 +725,195 @@ export function InsightsDemoClient() {
         </span>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {kpis.map((kpi) => (
-          <StatCard
-            key={kpi.title}
-            title={kpi.title}
-            value={kpi.value}
-            description={kpi.description}
-            icon={kpi.icon}
-            trend={kpi.trend}
-          />
-        ))}
+      {/* Per-role tab strip */}
+      <div
+        role="tablist"
+        aria-label={`${view.label} insight sections`}
+        className="flex flex-wrap items-center gap-1 border-b border-border"
+      >
+        {tabs.map((tab) => {
+          const TabIcon = tab.icon;
+          const active = tab.id === activeTabDef.id;
+          const loading = isPending && pendingTarget === `tab-${tab.id}`;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              // Native title (not Radix Tooltip) is deliberate: these tabs swap
+              // the chart subtree, and a portalled Radix Tooltip racing the
+              // React 19 reconciler on that swap can crash. `title` is safe.
+              title={tab.description}
+              onClick={() => switchTab(tab.id)}
+              className={cn(
+                "-mb-px inline-flex h-10 min-h-[40px] items-center gap-1.5 border-b-2 px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                active
+                  ? "text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+              style={active ? { borderBottomColor: view.accent } : undefined}
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <TabIcon className="h-4 w-4" aria-hidden="true" />
+              )}
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Hero traffic chart */}
-      <TimeSeriesChart
-        title="Visitor traffic"
-        description={`Daily check-ins over the last ${range} days`}
-        data={data.trafficSeries}
-        color={view.accent}
-        height={300}
-        valueLabel="Visits"
-      />
+      {/* Active tab content */}
+      <TabContent tab={activeTabDef} ctx={ctx} />
+    </div>
+  );
+}
 
-      {/* Spotlight + top departments */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Spotlight kind={view.spotlight} data={data} accent={view.accent} />
-        <TopDepartments departments={data.topDepartments} accent={view.accent} />
-      </div>
+// ──────────────────────────────────────────────────────────────────────
+// Tab content rendering
+// ──────────────────────────────────────────────────────────────────────
 
-      {/* Hourly heatmap + visit-status pie */}
-      <div className="grid gap-4 lg:grid-cols-2">
+interface TabCtx {
+  data: DemoData;
+  range: RangeKey;
+  accent: string;
+  kpis: StatItem[];
+}
+
+function TabContent({ tab, ctx }: { tab: TabDef; ctx: TabCtx }) {
+  return (
+    <div className="space-y-4">
+      {tab.rows.map((row, i) =>
+        row.length === 1 ? (
+          <div key={`${tab.id}-row-${i}`}>{renderSection(row[0], ctx)}</div>
+        ) : (
+          <div key={`${tab.id}-row-${i}`} className="grid gap-4 lg:grid-cols-2">
+            {row.map((kind) => (
+              <div key={kind}>{renderSection(kind, ctx)}</div>
+            ))}
+          </div>
+        ),
+      )}
+    </div>
+  );
+}
+
+function renderSection(kind: SectionKind, ctx: TabCtx): ReactNode {
+  const { data, range, accent } = ctx;
+  switch (kind) {
+    case "kpis":
+      return <KpiGrid kpis={ctx.kpis} />;
+    case "traffic":
+      return (
+        <TimeSeriesChart
+          title="Visitor traffic"
+          description={`Daily check-ins over the last ${range} days`}
+          data={data.trafficSeries}
+          color={accent}
+          height={300}
+          valueLabel="Visits"
+        />
+      );
+    case "audit":
+      return (
+        <TimeSeriesChart
+          title="Audit events"
+          description="System actions recorded over time"
+          data={data.auditSeries}
+          color={accent}
+          height={280}
+          valueLabel="Events"
+        />
+      );
+    case "hourly":
+      return (
         <HeatmapBars
           title="Check-ins by hour"
-          description="When your lobby is busiest (last 30 days)"
+          description="When your lobby is busiest"
           data={data.hourly}
-          color={view.accent}
+          color={accent}
           unit="check-ins"
           height={220}
         />
+      );
+    case "hourlyTall":
+      return (
+        <HeatmapBars
+          title="Check-ins by hour"
+          description="Hourly arrival pattern across the lobby"
+          data={data.hourly}
+          color={accent}
+          unit="check-ins"
+          height={340}
+        />
+      );
+    case "visitStatus":
+      return (
         <DistributionPie
           title="Visit status breakdown"
           description="Share of sessions by current status"
           data={data.visitStatus}
           height={220}
         />
-      </div>
+      );
+    case "incident":
+      return (
+        <DistributionPie
+          title="Incident status"
+          description="Where open incidents sit in your workflow"
+          data={data.incidentStatus}
+          height={220}
+        />
+      );
+    case "dsr":
+      return (
+        <DistributionPie
+          title="Data-subject requests"
+          description="DSRs by type under NDPA"
+          data={data.dsrType}
+          height={220}
+        />
+      );
+    case "appointment":
+      return (
+        <DistributionPie
+          title="Appointment outcomes"
+          description="Scheduled vs fulfilled, missed, and cancelled"
+          data={data.appointmentStatus}
+          height={220}
+        />
+      );
+    case "newReturning":
+      return (
+        <DistributionPie
+          title="New vs returning"
+          description="Acquisition mix of your visitor base"
+          data={data.newVsReturning}
+          height={220}
+        />
+      );
+    case "topDepartments":
+      return <TopDepartments departments={data.topDepartments} accent={accent} />;
+    case "feed":
+      return <LiveActivityFeed />;
+  }
+}
 
-      {/* Live activity feed */}
-      <LiveActivityFeed />
+function KpiGrid({ kpis }: { kpis: StatItem[] }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {kpis.map((kpi) => (
+        <StatCard
+          key={kpi.title}
+          title={kpi.title}
+          value={kpi.value}
+          description={kpi.description}
+          icon={kpi.icon}
+          trend={kpi.trend}
+        />
+      ))}
     </div>
   );
 }
@@ -664,77 +981,6 @@ function SegmentButton({
       {children}
     </button>
   );
-}
-
-function Spotlight({
-  kind,
-  data,
-  accent,
-}: {
-  kind: SpotlightKind;
-  data: DemoData;
-  accent: string;
-}) {
-  switch (kind) {
-    case "hourly":
-      return (
-        <HeatmapBars
-          title="Spotlight · Rush hours"
-          description="Peak check-in windows to staff the desk around"
-          data={data.hourly}
-          color={accent}
-          unit="check-ins"
-          height={240}
-        />
-      );
-    case "incident":
-      return (
-        <DistributionPie
-          title="Spotlight · Incident status"
-          description="Where open incidents sit in your workflow"
-          data={data.incidentStatus}
-          height={240}
-        />
-      );
-    case "dsr":
-      return (
-        <DistributionPie
-          title="Spotlight · Data-subject requests"
-          description="DSRs by type under NDPA"
-          data={data.dsrType}
-          height={240}
-        />
-      );
-    case "appointment":
-      return (
-        <DistributionPie
-          title="Spotlight · Appointment outcomes"
-          description="Scheduled vs fulfilled, missed, and cancelled"
-          data={data.appointmentStatus}
-          height={240}
-        />
-      );
-    case "audit":
-      return (
-        <TimeSeriesChart
-          title="Spotlight · Audit events"
-          description="System actions recorded over time"
-          data={data.auditSeries}
-          color={accent}
-          height={240}
-          valueLabel="Events"
-        />
-      );
-    case "newReturning":
-      return (
-        <DistributionPie
-          title="Spotlight · New vs returning"
-          description="Acquisition mix of your visitor base"
-          data={data.newVsReturning}
-          height={240}
-        />
-      );
-  }
 }
 
 function TopDepartments({
