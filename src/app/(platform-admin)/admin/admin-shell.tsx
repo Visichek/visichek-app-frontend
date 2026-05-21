@@ -23,6 +23,7 @@ import {
   Headphones,
   ShieldCheck,
   HelpCircle,
+  GraduationCap,
 } from "lucide-react";
 import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
 import { MobileNavSheet } from "@/components/navigation/mobile-nav-sheet";
@@ -175,6 +176,12 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     href: "/admin/admins",
     icon: ShieldCheck,
     description: "Invite new platform admins, re-scope their access preset, and review 2FA posture",
+  },
+  {
+    label: "Tutorials",
+    href: "/admin/tutorials",
+    icon: GraduationCap,
+    description: "Step-by-step walkthroughs for the platform-admin tools — start, resume, or replay them anytime",
   },
   {
     label: "Settings",

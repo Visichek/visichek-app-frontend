@@ -14,3 +14,4 @@ export * from "./notification";
 export * from "./settings";
 export * from "./account";
 export * from "./onboarding";
+export * from "./tutorial";

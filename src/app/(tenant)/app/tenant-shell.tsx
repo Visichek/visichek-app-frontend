@@ -25,6 +25,7 @@ import {
   Briefcase,
   ShieldCheck,
   Headphones,
+  GraduationCap,
 } from "lucide-react";
 import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
 import { MobileNavSheet } from "@/components/navigation/mobile-nav-sheet";
@@ -211,6 +212,12 @@ const ALL_TENANT_NAV_ITEMS: (GatedNavItem | GatedNavGroup)[] = [
         notificationBucket: "jobs",
       },
     ],
+  },
+  {
+    label: "Tutorials",
+    href: "/app/tutorials",
+    icon: GraduationCap,
+    description: "Step-by-step walkthroughs for the tools available to your role — start, resume, or replay them anytime",
   },
   {
     label: "Settings",

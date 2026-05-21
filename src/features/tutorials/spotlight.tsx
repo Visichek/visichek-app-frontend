@@ -12,10 +12,8 @@ import { createPortal } from "react-dom";
 import { ArrowLeft, ArrowRight, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
-import {
-  useTutorialProgress,
-  type UseTutorialProgress,
-} from "./use-tutorial-progress";
+import type { TutorialType } from "@/types/tutorial";
+import { useTutorialProgress } from "./use-tutorial-progress";
 
 /**
  * Lightweight spotlight overlay used for the visitor tutorial
@@ -315,7 +313,7 @@ function Backdrop({ rect }: { rect: AnchorRect | null }) {
 
 export interface TutorialRunnerProps {
   /** Stable tutorial id (e.g. "visitor_workflow"). */
-  name: string;
+  name: TutorialType;
   /** Bump when the step list changes meaningfully. */
   version?: number;
   steps: TutorialStep[];
@@ -395,7 +393,6 @@ export function TutorialRunner({
 // module.
 export { useTutorialProgress } from "./use-tutorial-progress";
 export type {
-  TutorialState,
   TutorialStatus,
   UseTutorialProgress,
 } from "./use-tutorial-progress";
