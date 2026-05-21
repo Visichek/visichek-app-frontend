@@ -19,6 +19,19 @@ const nextConfig: NextConfig = {
         hostname: "api.visichek.app",
         pathname: "/**",
       },
+      // Presigned storage URLs. Since the presigned-upload migration, the
+      // backend returns `download_url`s that point straight at the Cloudflare
+      // R2 bucket (`<bucket>.<account>.r2.cloudflarestorage.com`), NOT the API
+      // host — branding logos, visitor portraits, ID images, badges, etc. The
+      // optimizer rejects any host not listed here with a 400
+      // INVALID_IMAGE_OPTIMIZE_REQUEST, so the `**` wildcard covers every
+      // bucket/account. The presigned query string is allowed (no `search`
+      // restriction), and each fresh signature is just a new cache key.
+      {
+        protocol: "https",
+        hostname: "**.r2.cloudflarestorage.com",
+        pathname: "/**",
+      },
       // Local dev sometimes proxies through the frontend origin via
       // `next.config rewrites`. Allow that path so logos render in dev too.
       {
