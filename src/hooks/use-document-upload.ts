@@ -8,14 +8,14 @@ import { ApiError, type UploadPurpose } from "@/types/api";
 /**
  * Where the uploaded object lives, and therefore how it's reached later:
  *
- *  - `"private"` → `POST /v1/uploads/private`. Access-controlled assets
- *    (signatures, ID documents, anything sensitive). The presentation URL
- *    is auth-gated.
- *  - `"public"` → `POST /v1/public/tenants/{tenantId}/uploads`. Embeddable,
- *    non-sensitive assets (host portraits, kiosk form images). Requires a
- *    `tenantId`. From an authenticated tenant principal the call still
- *    carries the session cookie, so it works even when the plan doesn't
- *    grant the anonymous public surface.
+ *  - `"private"` → presigned flow on `/v1/uploads/intent` + `/confirm`.
+ *    Access-controlled assets (signatures, ID documents, anything
+ *    sensitive). The presentation URL is auth-gated.
+ *  - `"public"` → presigned flow on `/v1/public/tenants/{tenantId}/uploads/
+ *    intent` + `/confirm`. Embeddable, non-sensitive assets (host portraits,
+ *    kiosk form images). Requires a `tenantId`. From an authenticated tenant
+ *    principal the call still carries the session cookie, so it works even
+ *    when the plan doesn't grant the anonymous public surface.
  */
 export type UploadVisibility = "public" | "private";
 
@@ -69,15 +69,15 @@ interface UseDocumentUploadOptions {
 /**
  * Hook for tenant-side file uploads.
  *
- * Posts directly to `POST /v1/uploads/private` (the unified upload
- * pipeline). The legacy two-step `/v1/documents/upload-intents` →
- * presigned PUT → `/v1/documents/complete` flow is no longer used here
- * because the local-storage backend returns a `client.visichek.app`
- * presigned URL that 404s outside the API origin.
+ * Runs the presigned pipeline (intent → direct-to-storage PUT → confirm)
+ * via `uploadPrivate` / `uploadPublic`. Bytes go browser → storage, never
+ * through the API server.
  *
  * Every authenticated tenant principal can hit the private upload; the
- * backend enforces plan storage limits and per-file size caps before
- * the bytes hit disk, so 413 / 429 can fire before we resolve.
+ * backend enforces plan storage limits and per-file size caps. The per-file
+ * cap (413) and image-only checks (415) fire at intent, and quota (429) is
+ * re-checked at confirm against the true stored size, so any of these can
+ * surface as the rejection here.
  */
 export function useDocumentUpload(
   options: UseDocumentUploadOptions = {},

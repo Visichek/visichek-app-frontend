@@ -44,7 +44,7 @@ Additional observations on `src/lib/api/client.ts`:
 ## 3. Missing pieces (whole things that simply aren't there)
 
 1. **`/v1/checkin-configs/{id}` query hook, types, and route.** Needs a new feature module — proposed `src/features/checkin/`.
-2. **`POST /v1/id-extractions` hook.** Needs to be layered on top of the existing document-upload pattern documented in `CLAUDE.md` (`POST /v1/documents/upload-intents` → upload → `POST /v1/documents/complete`). Confirm with backend that the public kiosk can use that existing endpoint unauthenticated, or whether there's a public variant.
+2. **`POST /v1/id-extractions` hook.** Needs to be layered on top of the presigned upload flow (`POST /v1/public/tenants/{tenant_id}/uploads/intent` → PUT to the presigned URL → `POST /v1/public/tenants/{tenant_id}/uploads/confirm`). The public kiosk variant is anonymous when the tenant's plan grants public uploads; otherwise it needs a staff Bearer cookie.
 3. **"Waiting for approval" screen + `GET /v1/checkins/{id}` poll.** Replaces the current "receptionist code" modal.
 4. **Badge-validation scanner route** under `(public)/` — e.g. `/scan-badge` or `/validate` — with camera/QR scan and the `valid`/`invalid` UX (red X + reason).
 5. **Notification hooks** (`/v1/me/notifications`) for receptionists are a tenant-shell concern, but if any realtime push reaches the kiosk, it's not wired up today.
@@ -107,6 +107,6 @@ All open questions have been answered. Captured here as implementation constrain
 
 - **Error envelope shape**: old shape (`data.code` nested) is correct. Interceptor and types stay as-is.
 - **Receptionist realtime**: polling is the only option right now. When the receptionist dashboard is built, use React Query `refetchInterval` (~5s) against `GET /v1/tenants/{tenant_id}/checkins?state=pending_approval` rather than waiting on a push channel.
-- **Document upload auth scope**: the existing `/v1/documents/upload-intents` → upload → `/v1/documents/complete` flow is callable **unauthenticated** from the kiosk. No public variant needed — reuse the same endpoints for the ID scan step, just without an `Authorization` header.
+- **Document upload auth scope**: the kiosk uses the public presigned flow `/v1/public/tenants/{tenant_id}/uploads/intent` → PUT → `/confirm`. It is anonymous when the tenant's plan grants public uploads; otherwise the intent/confirm calls need a staff Bearer cookie. The PUT to the presigned URL never carries an `Authorization` header.
 - **Old `/register/{tenantId}` deep-links**: **hard cut, not supported** during or after migration. The new kiosk lives only at `/checkin/{configId}`. Retire the old route, hooks, and types in the same pass. The `scan/page.tsx` QR parser drops URL parsing entirely — it only accepts JSON payloads (or a bare `cfg_...` id as a typed-in fallback).
 - **`expected_duration_minutes`**: optional on the wire but the kiosk **must send a default**. Use `60` (one hour) as the fallback when the user does not specify a duration. Only omit the field entirely if the form explicitly collects a value and the user leaves it blank — in that case still send `60`. Never send `null` or `0`.

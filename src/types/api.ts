@@ -32,34 +32,62 @@ export interface PaginatedMeta {
   limit?: number;
 }
 
-// ── Upload Flow ───────────────────────────────────────────────────────
+// ── Presigned Upload Flow (intent → PUT → confirm) ────────────────────
+//
+// Uploads are presigned and two-step: bytes go browser → storage (S3)
+// directly, never through the API.
+//   1. POST /v1/uploads/intent (or the public tenant variant) → presigned PUT
+//   2. PUT the raw file to `uploadUrl` with the exact `headers` returned, NO
+//      Authorization header (the URL carries its own signature)
+//   3. POST /v1/uploads/confirm with the `objectKey` → authoritative metadata
+
+/** Step 1 body — `fileName`/`mimeType`/`size` are advisory; `size` is the file's. */
 export interface UploadIntentRequest {
   fileName: string;
   mimeType: string;
   size: number;
+  /** Storage bucket + plan accounting. Defaults to `system` server-side. */
+  purpose?: UploadPurpose;
+  /** Tenant-form field this upload satisfies. */
+  fieldId?: string;
 }
 
+/** Step 1 response — the presigned PUT target. */
 export interface UploadIntentResponse {
   objectKey: string;
   uploadUrl: string;
-  expiresIn: number;
+  /** Always "PUT" today; honor it verbatim. */
   method: string;
+  /**
+   * Headers to send on the PUT VERBATIM. Includes `Content-Type`, which is
+   * part of the S3 signature — sending anything else gets the PUT rejected.
+   */
   headers?: Record<string, string>;
+  expiresIn: number;
+  backend?: "s3" | "local";
+  purpose?: UploadPurpose;
+  fieldId?: string | null;
 }
 
-export interface CompleteUploadRequest {
+/** Step 3 body. The server reads the true stored size for quota enforcement. */
+export interface UploadConfirmRequest {
   objectKey: string;
-  fileName: string;
-  mimeType: string;
-  size: number;
-  checksum?: string;
+}
+
+/**
+ * Response of `GET /v1/uploads/url?object_key=...` — mints a fresh presigned
+ * download URL for an object you own without refetching the parent record.
+ */
+export interface RefreshDownloadUrlResponse {
+  objectKey: string;
+  downloadUrl: string;
+  expiresInSeconds: number;
 }
 
 // ── Unified Upload Pipeline (private + public) ────────────────────────
 //
-// Both `POST /v1/uploads/private` (authenticated, every plan) and
-// `POST /v1/public/tenants/{tenant_id}/uploads` (plan-gated, anonymous
-// when granted) return this shape.
+// `confirm` (both `POST /v1/uploads/confirm` and the public tenant variant)
+// returns this shape. The `size` is the AUTHORITATIVE size read from storage.
 
 export type UploadPurpose =
   | "kiosk_form"

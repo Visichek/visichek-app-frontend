@@ -847,9 +847,9 @@ interface TenantFormFieldProps {
 /**
  * Renders one tenant-required field from the published appointment
  * form. Switches on `field.type` to pick the right input. File-bearing
- * fields go through {@link FileUploadZone}, which posts to the unified
- * `/v1/uploads/private` endpoint and stores the returned `object_key`
- * in the tenant_form_data slot keyed on the field's `key`.
+ * fields go through {@link FileUploadZone}, which runs the presigned upload
+ * flow (`/v1/uploads/intent` → PUT → `/confirm`) and stores the returned
+ * `object_key` in the tenant_form_data slot keyed on the field's `key`.
  */
 function TenantFormField({
   field,
