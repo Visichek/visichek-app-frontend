@@ -29,7 +29,8 @@ export function HeatmapBarsBody({
           dataKey="label"
           stroke="hsl(var(--muted-foreground))"
           fontSize={11}
-          interval={0}
+          interval="preserveStartEnd"
+          minTickGap={16}
           tickLine={false}
           axisLine={false}
         />
