@@ -410,7 +410,17 @@ export type PlanFeatureKey =
   // matching block in the Advanced settings tab.
   | "email_preferences"
   | "visitor_policies"
-  | "geofencing";
+  | "geofencing"
+  // Insights analytics gates — backend ships these inside `deniedFeatures`
+  // on Free so the Insights page can pre-lock controls without a round-trip
+  // (see stats.txt § 7 and the backend insights notes § 6).
+  | "analytics.customRange"
+  | "analytics.roleTabs"
+  | "analytics.hourly"
+  | "analytics.compliance"
+  | "analytics.audit"
+  | "analytics.export"
+  | "analytics.trends";
 
 export interface LimitationsPlanSummary {
   id: string;
@@ -434,6 +444,10 @@ export interface LimitationsCaps {
   maxSystemUsers: number | null;
   maxVisitorsPerMonth: number | null;
   maxAppointmentsPerMonth: number | null;
+  /** Insights range ceiling in days (Free = 7). Absent/null => unlimited. */
+  analyticsMaxRangeDays?: number | null;
+  /** Insights top-list cap (Free = 3). Absent/null => unlimited (server caps at 10). */
+  topListMax?: number | null;
 }
 
 export interface DeniedEndpoint {

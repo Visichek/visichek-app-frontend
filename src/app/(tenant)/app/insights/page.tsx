@@ -1,9 +1,9 @@
-import { InsightsDemoClient } from "./insights-demo-client";
+import { InsightsClient } from "./insights-client";
 
 export const metadata = {
-  title: "Insights Demo · VisiChek",
+  title: "Insights · VisiChek",
 };
 
-export default function InsightsDemoPage() {
-  return <InsightsDemoClient />;
+export default function InsightsPage() {
+  return <InsightsClient />;
 }

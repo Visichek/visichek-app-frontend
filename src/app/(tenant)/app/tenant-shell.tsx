@@ -58,6 +58,7 @@ import {
   useNotificationBuckets,
   useNotificationStream,
 } from "@/features/notifications/hooks";
+import { useDashboardLiveStream } from "@/features/dashboard/hooks/use-dashboard-live-stream";
 import {
   useTenantConfirmation,
   usePendingOnboardingFields,
@@ -325,6 +326,9 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
   const notificationCounts = useNotificationBuckets("tenant");
   // Real-time unread updates over SSE; falls back to polling when down.
   useNotificationStream();
+  // Real-time dashboard/insights counters over SSE (best-effort; the strip
+  // stays hidden until the first frame arrives).
+  useDashboardLiveStream();
 
   // First-login tenant-info confirmation gate (super_admin only). The
   // backend treats this as a soft prompt, but per product we make it a
