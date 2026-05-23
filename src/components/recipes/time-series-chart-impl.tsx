@@ -5,11 +5,13 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import type { TimeSeriesPoint } from "@/types/dashboard";
 import type { TimeSeriesChartBodyProps } from "./time-series-chart";
 
 export function TimeSeriesChartBody({
@@ -19,16 +21,28 @@ export function TimeSeriesChartBody({
   xAxisFormat,
   valueLabel,
   valueFormatter,
+  onPointSelect,
+  selectedLabels,
 }: TimeSeriesChartBodyProps) {
   const id = useId();
   const gradientId = `ts-grad-${id}`;
   const formatX = xAxisFormat === "short" ? toShortDate : (l: string) => l;
+  const interactive = typeof onPointSelect === "function";
 
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart
         data={data}
         margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+        style={interactive ? { cursor: "pointer" } : undefined}
+        onClick={
+          interactive
+            ? (state: { activePayload?: Array<{ payload: TimeSeriesPoint }> }) => {
+                const point = state?.activePayload?.[0]?.payload;
+                if (point) onPointSelect?.(point);
+              }
+            : undefined
+        }
       >
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -68,14 +82,21 @@ export function TimeSeriesChartBody({
             fontSize: 12,
           }}
           labelStyle={{ color: "hsl(var(--muted-foreground))" }}
+          // Force readable value text on the dark popover (recharts otherwise
+          // tints it with the series colour).
+          itemStyle={{ color: "hsl(var(--popover-foreground))" }}
           formatter={(value: number) => [valueFormatter(value), valueLabel]}
         />
+        {selectedLabels?.map((label) => (
+          <ReferenceLine key={label} x={label} stroke={color} strokeDasharray="4 2" />
+        ))}
         <Area
           type="monotone"
           dataKey="value"
           stroke={color}
           strokeWidth={2}
           fill={`url(#${gradientId})`}
+          activeDot={interactive ? { r: 5 } : undefined}
         />
       </AreaChart>
     </ResponsiveContainer>

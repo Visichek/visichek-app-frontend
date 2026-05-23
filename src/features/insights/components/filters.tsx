@@ -36,6 +36,47 @@ function humanize(value: string): string {
     .join(" ");
 }
 
+/** Short field labels for the active-filter chips. */
+const FIELD_LABELS: Record<keyof InsightsFilterValues, string> = {
+  departmentId: "Department",
+  branchId: "Branch",
+  hostId: "Host",
+  operationType: "Operation",
+  incidentType: "Incident type",
+  incidentStatus: "Incident status",
+  severity: "Severity",
+  dsrType: "Request type",
+  dsrStatus: "Request status",
+  lawfulBasis: "Lawful basis",
+  statusFilter: "Status",
+};
+
+interface Chip {
+  key: string;
+  text: string;
+}
+
+/**
+ * Fallback chips built purely from the raw filter values (entity ids show as
+ * ids). Used only until the server populates `meta.appliedFilters`.
+ */
+export function activeFilterChips(values: InsightsFilterValues): Chip[] {
+  return (Object.entries(values) as Array<[keyof InsightsFilterValues, string | undefined]>)
+    .filter(([, v]) => Boolean(v))
+    .map(([key, v]) => ({ key, text: `${FIELD_LABELS[key]}: ${humanize(v as string)}` }));
+}
+
+/**
+ * Server-resolved chips from `meta.appliedFilters` — entity ids already
+ * resolved to names by the backend. The FE adds the field-label prefix.
+ */
+export function chipsFromApplied(applied: Array<{ key: string; label: string }>): Chip[] {
+  return applied.map(({ key, label }) => ({
+    key,
+    text: `${FIELD_LABELS[key as keyof InsightsFilterValues] ?? key}: ${label}`,
+  }));
+}
+
 type Option = { value: string; label: string };
 const opts = (values: readonly string[]): Option[] =>
   values.map((v) => ({ value: v, label: humanize(v) }));

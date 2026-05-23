@@ -51,6 +51,8 @@ export function HeatmapBarsBody({
             borderRadius: 8,
             fontSize: 12,
           }}
+          itemStyle={{ color: "hsl(var(--popover-foreground))" }}
+          labelStyle={{ color: "hsl(var(--popover-foreground))" }}
           formatter={(value: number) => [
             `${value.toLocaleString()}${unit ? ` ${unit}` : ""}`,
             "",

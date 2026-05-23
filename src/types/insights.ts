@@ -19,6 +19,17 @@ import type { SystemUserRole } from "./enums";
 
 export type Granularity = "hour" | "day" | "week" | "month";
 
+/**
+ * A single active filter, resolved server-side for display as a chip. `key` is
+ * the camelCase filter field (e.g. "branchId", "subscriptionStatus") so the FE
+ * can drop it from its filter state on removal; `label` is the resolved value
+ * label (entity name or humanised enum).
+ */
+export interface AppliedFilter {
+  key: string;
+  label: string;
+}
+
 /** Section identifiers the Insights tabs reference. */
 export type SectionId =
   | "traffic"
@@ -48,6 +59,8 @@ export interface InsightsMeta {
   availableSections: SectionId[];
   /** Sections gated behind an upgrade — no data is sent for these. */
   lockedSections: SectionId[];
+  /** Active filters resolved to display labels (chips). */
+  appliedFilters?: AppliedFilter[];
   lastUpdated: number;
 }
 
@@ -78,6 +91,11 @@ export interface TimeSeriesSection extends SectionBase {
   type: "timeSeries";
   points: TimeSeriesPoint[];
   valueLabel: string;
+  /** NDPC deadline counters — drives the red banner (admin Risk `incidents`). */
+  meta?: {
+    pastDeadline?: number;
+    approachingDeadline?: number;
+  };
 }
 
 export interface DistributionSection extends SectionBase {
@@ -105,13 +123,30 @@ export interface FeedSection extends SectionBase {
   events: RecentCheckIn[];
 }
 
+/**
+ * Tabular section — admin-only (top-revenue tenants, recent signups, etc.).
+ * Rows are flat camelCase objects; `columns` is the ordered list of keys to
+ * render. The renderer formats money/date columns heuristically by key name.
+ */
+export interface TableSection extends SectionBase {
+  type: "table";
+  rows: Array<Record<string, string | number | null>>;
+  columns: string[];
+  /** NDPC deadline counters — drives the red banner (admin incident table). */
+  meta?: {
+    pastDeadline?: number;
+    approachingDeadline?: number;
+  };
+}
+
 /** Discriminated by `type`. */
 export type Section =
   | TimeSeriesSection
   | DistributionSection
   | HourlySection
   | TopListSection
-  | FeedSection;
+  | FeedSection
+  | TableSection;
 
 export interface InsightsResponse {
   meta: InsightsMeta;
@@ -147,4 +182,43 @@ export interface DashboardLiveFrame {
     isFreeFallback: boolean;
   };
   lastUpdated: number;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Platform-admin insights (GET /v1/admins/dashboard/insights)
+// Same engine as the tenant contract; platform-wide lower bound; no plan
+// gating. Reuses Kpi / Section shapes above.
+// ──────────────────────────────────────────────────────────────────────
+
+export type AdminTabId = "overview" | "tenants" | "billing" | "activity" | "risk";
+
+export interface AdminInsightsMeta {
+  /** First tenant's creation date — the range-picker lower bound. */
+  platformLaunchAt: number;
+  /** First day with platform data (>= platformLaunchAt). */
+  earliestData: number;
+  appliedRange: { start: number; stop: number };
+  granularity: Granularity;
+  tab: AdminTabId;
+  /** Active filters resolved to display labels (chips). */
+  appliedFilters?: AppliedFilter[];
+  lastUpdated: number;
+}
+
+export interface AdminInsightsResponse {
+  meta: AdminInsightsMeta;
+  kpis: Kpi[];
+  /** Keyed by admin section id (strings — see admin-stats.txt § 6). */
+  sections: Record<string, Section>;
+}
+
+/** Admin live SSE counters (scope === "admin"). */
+export interface AdminDashboardLiveCounters {
+  openIncidents: number;
+  criticalIncidents: number;
+  incidentsToday: number;
+  visitorCheckInsToday: number;
+  newTenantsToday: number;
+  supportCasesOpen: number;
+  dsrOpen: number;
 }

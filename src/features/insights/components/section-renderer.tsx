@@ -7,22 +7,32 @@ import { DistributionPie } from "@/components/recipes/distribution-pie";
 import { HeatmapBars } from "@/components/recipes/heatmap-bars";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { cn } from "@/lib/utils/cn";
-import { formatRelative } from "@/lib/utils/format-date";
-import type { Section, SectionId } from "@/types/insights";
+import { formatDate, formatRelative } from "@/lib/utils/format-date";
+import type { Section } from "@/types/insights";
 import type { VisitStatus } from "@/types/enums";
 import type { TopItem, RecentCheckIn } from "@/types/dashboard";
 
 /** Per-section chart heights, so the grid stays visually balanced. */
-const SECTION_HEIGHT: Partial<Record<SectionId, number>> = {
+const SECTION_HEIGHT: Record<string, number> = {
   traffic: 300,
   audit: 280,
+  revenue: 280,
+  tenantSignups: 280,
+  visitorCheckIns: 280,
+  visitorSignups: 280,
+  newSubscriptions: 280,
+  incidents: 280,
   hourly: 220,
-  visitStatus: 220,
-  incident: 220,
-  dsr: 220,
-  appointment: 220,
-  newReturning: 220,
 };
+
+/** Fired when a chart element is clicked for drill-down. */
+export interface SectionSelectPayload {
+  sectionId: string;
+  sectionTitle: string;
+  kind: "point" | "slice";
+  key: string;
+  label: string;
+}
 
 export function SectionRenderer({
   id,
@@ -30,32 +40,67 @@ export function SectionRenderer({
   accent,
   /** Taller hourly variant for the receptionist "Hourly flow" tab. */
   tall = false,
+  onSelect,
+  selectedKeys,
 }: {
-  id: SectionId;
+  id: string;
   section: Section;
   accent: string;
   tall?: boolean;
+  /** When provided, time-series points and pie slices become clickable. */
+  onSelect?: (payload: SectionSelectPayload) => void;
+  /** Highlight the currently-selected point labels / slice keys. */
+  selectedKeys?: string[];
 }) {
   switch (section.type) {
     case "timeSeries":
       return (
-        <TimeSeriesChart
-          title={section.title}
-          data={section.points}
-          color={accent}
-          height={SECTION_HEIGHT[id] ?? 280}
-          valueLabel={section.valueLabel}
-        />
+        <div className="space-y-2">
+          <IncidentDeadlineBanner meta={section.meta} />
+          <TimeSeriesChart
+            title={section.title}
+            data={section.points}
+            color={accent}
+            height={SECTION_HEIGHT[id] ?? 280}
+            valueLabel={section.valueLabel}
+            selectedLabels={selectedKeys}
+            onPointSelect={
+              onSelect
+                ? (p) =>
+                    onSelect({
+                      sectionId: id,
+                      sectionTitle: section.title,
+                      kind: "point",
+                      key: p.label,
+                      label: p.label,
+                    })
+                : undefined
+            }
+          />
+        </div>
       );
 
     case "distribution":
       return (
         <div className="space-y-2">
-          {id === "incident" && <IncidentDeadlineBanner meta={section.meta} />}
+          <IncidentDeadlineBanner meta={section.meta} />
           <DistributionPie
             title={section.title}
             data={section.slices}
             height={SECTION_HEIGHT[id] ?? 220}
+            selectedKeys={selectedKeys}
+            onSliceSelect={
+              onSelect
+                ? (s) =>
+                    onSelect({
+                      sectionId: id,
+                      sectionTitle: section.title,
+                      kind: "slice",
+                      key: s.key,
+                      label: s.label,
+                    })
+                : undefined
+            }
           />
         </div>
       );
@@ -76,6 +121,16 @@ export function SectionRenderer({
 
     case "feed":
       return <FeedCard title={section.title} events={section.events} />;
+
+    case "table":
+      return (
+        <AdminTableCard
+          title={section.title}
+          rows={section.rows}
+          columns={section.columns}
+          meta={section.meta}
+        />
+      );
   }
 }
 
@@ -240,5 +295,114 @@ function FeedCard({ title, events }: { title: string; events: RecentCheckIn[] })
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Tabular section (admin) — read-only aggregate, exempt from the
+// multi-select / clickable-row rules.
+// ──────────────────────────────────────────────────────────────────────
+
+function columnLabel(key: string): string {
+  return key
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_]+/g, " ")
+    .replace(/^./, (c) => c.toUpperCase());
+}
+
+const MONEY_KEY = /(revenue|price|mrr|arr|invoice)/i;
+const DATE_KEY = /(date|deadline|created|^.*At$)/i;
+const NUMERIC_KEY = /(count|visitors|cases|incidents)/i;
+
+function humanizeValue(value: string): string {
+  // Turn enum-ish snake_case ("data_breach") into "Data breach" while leaving
+  // already-spaced labels (company names) intact.
+  if (!/[_]/.test(value)) return value;
+  return value
+    .split(/[_]+/)
+    .map((w, i) => (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
+function formatCell(key: string, value: string | number | null): string {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "number") {
+    if (MONEY_KEY.test(key)) {
+      return `₦${value.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+    }
+    if (DATE_KEY.test(key)) return formatDate(value);
+    return value.toLocaleString();
+  }
+  return humanizeValue(value);
+}
+
+function isRightAligned(key: string): boolean {
+  return MONEY_KEY.test(key) || NUMERIC_KEY.test(key);
+}
+
+function AdminTableCard({
+  title,
+  rows,
+  columns,
+  meta,
+}: {
+  title: string;
+  rows: Array<Record<string, string | number | null>>;
+  columns: string[];
+  meta?: { pastDeadline?: number; approachingDeadline?: number };
+}) {
+  return (
+    <Card>
+      <CardHeader className="space-y-2">
+        <CardTitle className="text-base">{title}</CardTitle>
+        <IncidentDeadlineBanner meta={meta} />
+      </CardHeader>
+      <CardContent>
+        <InsightsMiniTable columns={columns} rows={rows} />
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Bare read-only table (no Card) — reused by the selection drill-down panel. */
+export function InsightsMiniTable({
+  columns,
+  rows,
+}: {
+  columns: string[];
+  rows: Array<Record<string, string | number | null>>;
+}) {
+  if (rows.length === 0) return <EmptyState title="No data yet" />;
+  return (
+    <div className="w-full overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+            {columns.map((col) => (
+              <th key={col} className={cn("py-2 pr-4 font-medium", isRightAligned(col) && "text-right")}>
+                {columnLabel(col)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={i} className="border-b border-border/60 last:border-0">
+              {columns.map((col) => (
+                <td
+                  key={col}
+                  className={cn("py-2.5 pr-4", isRightAligned(col) && "text-right tabular-nums")}
+                >
+                  {formatCell(col, row[col] ?? null)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

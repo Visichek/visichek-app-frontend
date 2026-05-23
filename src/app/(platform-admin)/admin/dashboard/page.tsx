@@ -1,32 +1,12 @@
-import { getServerAdminSession } from "@/lib/auth/server-session";
-import { serverApiGet } from "@/lib/api/server-client";
-import {
-  createServerQueryClient,
-  dehydrateState,
-  ssrPrefetch,
-} from "@/lib/api/server-prefetch";
-import { HydrationBoundary } from "@/components/hydration-boundary";
-import type { AdminDashboardStats } from "@/types/admin";
-import { AdminDashboardPageClient } from "./dashboard-page-client";
+import { AdminInsightsClient } from "@/features/dashboard/components/admin/admin-insights-client";
 
-export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Platform Dashboard · VisiChek",
+};
 
-export default async function AdminDashboardPage() {
-  const session = await getServerAdminSession();
-  const qc = createServerQueryClient();
-
-  if (session) {
-    await ssrPrefetch(qc, ["admin", "dashboard", "stats"], () =>
-      serverApiGet<AdminDashboardStats>("/admins/dashboard/stats", {
-        accessToken: session.accessToken,
-        cookieHeader: session.cookieHeader,
-      })
-    );
-  }
-
-  return (
-    <HydrationBoundary state={dehydrateState(qc)}>
-      <AdminDashboardPageClient />
-    </HydrationBoundary>
-  );
+// The dashboard IS the Insights surface — range-aware, tabbed, interactive,
+// with a live counter strip, backed by GET /v1/admins/dashboard/insights
+// (+ /insights/drill) and the live SSE stream.
+export default function AdminDashboardPage() {
+  return <AdminInsightsClient />;
 }

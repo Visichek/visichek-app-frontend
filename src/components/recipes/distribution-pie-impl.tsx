@@ -10,12 +10,18 @@ import {
   Tooltip,
 } from "recharts";
 import { CHART_PALETTE, type DistributionPieBodyProps } from "./distribution-pie";
+import type { DistributionSlice } from "@/types/dashboard";
 
 export function DistributionPieBody({
   data,
   height,
+  onSliceSelect,
+  selectedKeys,
 }: DistributionPieBodyProps) {
   const id = useId();
+  const interactive = typeof onSliceSelect === "function";
+  const hasSelection = Array.isArray(selectedKeys) && selectedKeys.length > 0;
+  const isSelected = (key: string) => Boolean(selectedKeys?.includes(key));
 
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -31,11 +37,23 @@ export function DistributionPieBody({
           paddingAngle={data.length > 1 ? 2 : 0}
           stroke="hsl(var(--card))"
           strokeWidth={2}
+          style={interactive ? { cursor: "pointer", outline: "none" } : undefined}
+          onClick={
+            interactive
+              ? (entry: { payload?: DistributionSlice } & DistributionSlice) => {
+                  const slice = entry?.payload ?? entry;
+                  if (slice?.key) onSliceSelect?.(slice);
+                }
+              : undefined
+          }
         >
           {data.map((slice, idx) => (
             <Cell
               key={`${id}-${slice.key}`}
               fill={CHART_PALETTE[idx % CHART_PALETTE.length]}
+              fillOpacity={hasSelection && !isSelected(slice.key) ? 0.35 : 1}
+              stroke={isSelected(slice.key) ? "hsl(var(--foreground))" : "hsl(var(--card))"}
+              strokeWidth={isSelected(slice.key) ? 2.5 : 2}
             />
           ))}
         </Pie>
@@ -51,6 +69,10 @@ export function DistributionPieBody({
             borderRadius: 8,
             fontSize: 12,
           }}
+          // Recharts colours item text with the slice colour by default, which
+          // is unreadable on the dark popover — force the popover foreground.
+          itemStyle={{ color: "hsl(var(--popover-foreground))" }}
+          labelStyle={{ color: "hsl(var(--popover-foreground))" }}
         />
         <Legend
           verticalAlign="bottom"

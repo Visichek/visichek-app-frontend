@@ -5,10 +5,18 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAppSelector } from "@/lib/store/hooks";
 import { selectIsAuthenticated } from "@/lib/store/session-slice";
 import { API_BASE_URL } from "@/lib/api/client";
-import type { DashboardLiveFrame } from "@/types/insights";
+import type { AdminDashboardLiveCounters, DashboardLiveFrame } from "@/types/insights";
 
-/** Cache key the SSE frame is written to and the strip observes. */
+/** Cache keys the SSE frames are written to and the strips observe. */
 export const dashboardLiveKey = ["tenant", "dashboard", "live"] as const;
+export const adminDashboardLiveKey = ["admin", "dashboard", "live"] as const;
+
+/** The admin scope frame (scope === "admin"). */
+export interface AdminDashboardLiveFrame {
+  counters: AdminDashboardLiveCounters;
+  meta: { scope: "admin"; role: string };
+  lastUpdated: number;
+}
 
 /**
  * Subscribe to the real-time dashboard stream
@@ -38,15 +46,19 @@ export function useDashboardLiveStream() {
     });
 
     const onLive = (event: MessageEvent) => {
-      let frame: DashboardLiveFrame;
+      let frame: DashboardLiveFrame | AdminDashboardLiveFrame;
       try {
-        frame = JSON.parse(event.data) as DashboardLiveFrame;
+        frame = JSON.parse(event.data) as DashboardLiveFrame | AdminDashboardLiveFrame;
       } catch {
         return; // ignore malformed payloads rather than crash the stream
       }
-      // The tenant shell only renders the tenant slice; ignore other scopes.
-      if (frame?.meta?.scope !== "tenant" || !frame.counters) return;
-      queryClient.setQueryData(dashboardLiveKey, frame);
+      if (!frame?.counters || !frame.meta) return;
+      // One role-agnostic endpoint; route the frame to the matching cache key.
+      if (frame.meta.scope === "admin") {
+        queryClient.setQueryData(adminDashboardLiveKey, frame);
+      } else if (frame.meta.scope === "tenant") {
+        queryClient.setQueryData(dashboardLiveKey, frame);
+      }
     };
 
     source.addEventListener("dashboard.live", onLive);
@@ -58,12 +70,26 @@ export function useDashboardLiveStream() {
   }, [isAuthenticated, queryClient]);
 }
 
-/** Read the latest live frame from cache (updated by the stream). */
+/** Read the latest tenant live frame from cache (updated by the stream). */
 export function useDashboardLive(): DashboardLiveFrame | undefined {
   const { data } = useQuery<DashboardLiveFrame>({
     queryKey: dashboardLiveKey,
-    // No queryFn / disabled: this is a pure cache observer. The stream writes
-    // the data via setQueryData; this hook just re-renders when it changes.
+    // Pure cache observer: the SSE stream writes the data via setQueryData and
+    // this hook just re-renders when it changes. The query never fetches
+    // (`enabled: false`), but React Query still requires a queryFn to be
+    // present, so we hand it a never-resolving placeholder that is never run.
+    queryFn: () => new Promise<DashboardLiveFrame>(() => {}),
+    enabled: false,
+  });
+  return data;
+}
+
+/** Read the latest admin live frame from cache (updated by the stream). */
+export function useAdminDashboardLive(): AdminDashboardLiveFrame | undefined {
+  const { data } = useQuery<AdminDashboardLiveFrame>({
+    queryKey: adminDashboardLiveKey,
+    // See useDashboardLive: pure cache observer fed by the SSE stream.
+    queryFn: () => new Promise<AdminDashboardLiveFrame>(() => {}),
     enabled: false,
   });
   return data;

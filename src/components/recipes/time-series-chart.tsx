@@ -32,6 +32,13 @@ interface TimeSeriesChartProps {
   valueFormatter?: (value: number) => string;
   /** Copy shown in the empty state when `data` is null/empty. */
   emptyTitle?: string;
+  /**
+   * When provided, points become clickable for drill-down: clicking a point
+   * fires this with the underlying `TimeSeriesPoint`. Omitted → static chart.
+   */
+  onPointSelect?: (point: TimeSeriesPoint) => void;
+  /** Highlight the currently-selected point labels (drill-down affordance). */
+  selectedLabels?: string[];
 }
 
 /** Internal props consumed by the recharts-using body. Lives in the
@@ -44,6 +51,8 @@ export interface TimeSeriesChartBodyProps {
   xAxisFormat: "short" | "full";
   valueLabel: string;
   valueFormatter: (value: number) => string;
+  onPointSelect?: (point: TimeSeriesPoint) => void;
+  selectedLabels?: string[];
 }
 
 const DEFAULT_COLOR = "hsl(217 91% 60%)";
@@ -79,6 +88,8 @@ export function TimeSeriesChart({
   valueLabel = "Value",
   valueFormatter = (value: number) => value.toLocaleString(),
   emptyTitle = "No data yet",
+  onPointSelect,
+  selectedLabels,
 }: TimeSeriesChartProps) {
   return (
     <Card>
@@ -97,6 +108,8 @@ export function TimeSeriesChart({
             xAxisFormat={xAxisFormat}
             valueLabel={valueLabel}
             valueFormatter={valueFormatter}
+            onPointSelect={onPointSelect}
+            selectedLabels={selectedLabels}
           />
         )}
       </CardContent>

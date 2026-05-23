@@ -20,6 +20,11 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { ApiError } from "@/types/api";
 import {
+  readPendingAutoLogin,
+  clearPendingAutoLogin,
+  type AutoLoginAccountType,
+} from "@/lib/auth/pending-auto-login";
+import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
@@ -33,7 +38,12 @@ type ViewState =
   | { kind: "missing_token" }
   | { kind: "form" }
   | { kind: "expired"; message: string }
-  | { kind: "done" };
+  // Password saved, attempting the silent auto-login. The login hook
+  // navigates away on success; this state only shows while that resolves.
+  | { kind: "signing_in" }
+  // `autoLoginType` (when present) means we tried to auto-login but couldn't
+  // finish it here (2FA / multi-tenant), so we tailor the sign-in CTA.
+  | { kind: "done"; autoLoginType?: AutoLoginAccountType };
 
 export default function ResetPasswordPage() {
   return (
@@ -54,7 +64,7 @@ function PageLoadingFallback() {
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token") ?? "";
-  const { resetPassword } = useAuth();
+  const { resetPassword, loginAdmin, loginSystemUser } = useAuth();
 
   const initialView: ViewState = token ? { kind: "form" } : { kind: "missing_token" };
   const [view, setView] = useState<ViewState>(initialView);
@@ -75,6 +85,51 @@ function ResetPasswordContent() {
   const matchesConfirm = confirm.length > 0 && confirm === password;
   const canSubmit = allPassed && matchesConfirm && !isSubmitting;
 
+  /**
+   * Right after a successful reset, try to log the user straight in using
+   * the password they just typed (still in state) plus the single-account
+   * hint left by the forgot-password flow. The hint holds only the email and
+   * shell type — never a stored password.
+   *
+   * The hint is single-use: we clear it the moment we read it, before any
+   * network call, so a failed attempt can't be replayed and nothing lingers
+   * in localStorage.
+   *
+   * Best-effort by design: a tenant single-account with no MFA logs in fully
+   * (the login hook redirects to the dashboard). Platform admins (2FA is
+   * mandatory) and multi-tenant logins can't finish silently here, so we
+   * fall back to the success screen with a tailored sign-in CTA. No hint
+   * (e.g. the link was opened on another device) → plain success screen.
+   */
+  async function attemptAutoLogin() {
+    const pending = readPendingAutoLogin();
+    clearPendingAutoLogin();
+
+    if (!pending) {
+      setView({ kind: "done" });
+      return;
+    }
+
+    setView({ kind: "signing_in" });
+    try {
+      const result =
+        pending.type === "platform"
+          ? await loginAdmin({ email: pending.email, password })
+          : await loginSystemUser({ email: pending.email, password });
+
+      // On "complete" the login hook has already navigated to the dashboard;
+      // leave the spinner up until the route swaps. "otp"/"tenant_selection"
+      // can't be completed on this page, so drop to the manual sign-in CTA.
+      if (result.kind !== "complete") {
+        setView({ kind: "done", autoLoginType: pending.type });
+      }
+    } catch {
+      // The new password is valid even if the auto-login failed (network,
+      // rate limit, locked account, ...). Send them to sign in manually.
+      setView({ kind: "done", autoLoginType: pending.type });
+    }
+  }
+
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!canSubmit || !token) return;
@@ -82,7 +137,7 @@ function ResetPasswordContent() {
     setIsSubmitting(true);
     try {
       await resetPassword({ token, newPassword: password });
-      setView({ kind: "done" });
+      await attemptAutoLogin();
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 400) {
@@ -120,20 +175,24 @@ function ResetPasswordContent() {
   const heading =
     view.kind === "done"
       ? "Password updated"
-      : view.kind === "expired"
-        ? "Link no longer valid"
-        : view.kind === "missing_token"
-          ? "Reset link required"
-          : "Choose a new password";
+      : view.kind === "signing_in"
+        ? "Signing you in"
+        : view.kind === "expired"
+          ? "Link no longer valid"
+          : view.kind === "missing_token"
+            ? "Reset link required"
+            : "Choose a new password";
 
   const subheading =
     view.kind === "done"
       ? "You can now sign in with your new password."
-      : view.kind === "expired"
-        ? "Request a new reset link to continue."
-        : view.kind === "missing_token"
-          ? "Open the link in the reset email we sent you."
-          : "Pick something you haven't used here before.";
+      : view.kind === "signing_in"
+        ? "Your password is set — taking you to your workspace."
+        : view.kind === "expired"
+          ? "Request a new reset link to continue."
+          : view.kind === "missing_token"
+            ? "Open the link in the reset email we sent you."
+            : "Pick something you haven't used here before.";
 
   return (
     <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center relative overflow-hidden font-sans selection:bg-[#00D287]/20">
@@ -170,7 +229,10 @@ function ResetPasswordContent() {
 
           {view.kind === "missing_token" && <MissingTokenView />}
           {view.kind === "expired" && <ExpiredTokenView message={view.message} />}
-          {view.kind === "done" && <SuccessView />}
+          {view.kind === "signing_in" && <SigningInView />}
+          {view.kind === "done" && (
+            <SuccessView autoLoginType={view.autoLoginType} />
+          )}
           {view.kind === "form" && (
             <form onSubmit={onSubmit} className="space-y-6" noValidate>
               <PasswordField
@@ -388,7 +450,91 @@ function ExpiredTokenView({ message }: { message: string }) {
   );
 }
 
-function SuccessView() {
+function SigningInView() {
+  return (
+    <div className="space-y-6 text-center" role="status" aria-live="polite">
+      <div className="flex justify-center">
+        <div className="rounded-full bg-[#00D287]/10 p-4">
+          <Loader2
+            className="h-8 w-8 animate-spin text-[#00D287]"
+            aria-hidden="true"
+          />
+        </div>
+      </div>
+
+      <p className="text-sm text-gray-700">
+        Your password is set. Signing you in&hellip;
+      </p>
+    </div>
+  );
+}
+
+function SuccessView({
+  autoLoginType,
+}: {
+  autoLoginType?: AutoLoginAccountType;
+}) {
+  // When we attempted (but couldn't silently complete) an auto-login —
+  // platform admins need 2FA, multi-tenant logins need a workspace pick —
+  // lead with the sign-in destination that matches their account so they
+  // land in the right place in one tap.
+  const platformPrimary = autoLoginType === "platform";
+
+  const workspaceLink = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          href="/app/login"
+          className={
+            platformPrimary
+              ? "w-full inline-flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors py-2"
+              : "w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-[#00D287] hover:bg-[#00bd78] text-white font-semibold rounded-xl py-3 px-4 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(0,210,135,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(0,210,135,0.6)] text-base md:text-sm"
+          }
+        >
+          {platformPrimary ? (
+            "Tenant staff? Sign in here"
+          ) : (
+            <>
+              Sign in to your workspace
+              <ArrowRight size={18} className="opacity-90" />
+            </>
+          )}
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent side="top">
+        Go to the workspace sign-in page for tenant staff
+        (super admin, receptionist, DPO, and others)
+      </TooltipContent>
+    </Tooltip>
+  );
+
+  const adminLink = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          href="/admin/login"
+          className={
+            platformPrimary
+              ? "w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-[#00D287] hover:bg-[#00bd78] text-white font-semibold rounded-xl py-3 px-4 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(0,210,135,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(0,210,135,0.6)] text-base md:text-sm"
+              : "w-full inline-flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors py-2"
+          }
+        >
+          {platformPrimary ? (
+            <>
+              Sign in to the admin console
+              <ArrowRight size={18} className="opacity-90" />
+            </>
+          ) : (
+            "Platform admin? Sign in here"
+          )}
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent side="top">
+        Go to the VisiChek platform admin console sign-in page
+      </TooltipContent>
+    </Tooltip>
+  );
+
   return (
     <div className="space-y-6 text-center">
       <div className="flex justify-center">
@@ -405,35 +551,17 @@ function SuccessView() {
       </p>
 
       <div className="space-y-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Link
-              href="/app/login"
-              className="w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-[#00D287] hover:bg-[#00bd78] text-white font-semibold rounded-xl py-3 px-4 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(0,210,135,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(0,210,135,0.6)] text-base md:text-sm"
-            >
-              Sign in to your workspace
-              <ArrowRight size={18} className="opacity-90" />
-            </Link>
-          </TooltipTrigger>
-          <TooltipContent side="top">
-            Go to the workspace sign-in page for tenant staff
-            (super admin, receptionist, DPO, and others)
-          </TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Link
-              href="/admin/login"
-              className="w-full inline-flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors py-2"
-            >
-              Platform admin? Sign in here
-            </Link>
-          </TooltipTrigger>
-          <TooltipContent side="top">
-            Go to the VisiChek platform admin console sign-in page
-          </TooltipContent>
-        </Tooltip>
+        {platformPrimary ? (
+          <>
+            {adminLink}
+            {workspaceLink}
+          </>
+        ) : (
+          <>
+            {workspaceLink}
+            {adminLink}
+          </>
+        )}
       </div>
     </div>
   );

@@ -38,11 +38,20 @@ interface DistributionPieProps {
   data: DistributionSlice[] | null | undefined;
   height?: number;
   emptyTitle?: string;
+  /**
+   * When provided, slices become clickable for drill-down: clicking a slice
+   * fires this with the underlying `DistributionSlice`. Omitted → static.
+   */
+  onSliceSelect?: (slice: DistributionSlice) => void;
+  /** Highlight the currently-selected slice keys (drill-down affordance). */
+  selectedKeys?: string[];
 }
 
 export interface DistributionPieBodyProps {
   data: DistributionSlice[];
   height: number;
+  onSliceSelect?: (slice: DistributionSlice) => void;
+  selectedKeys?: string[];
 }
 
 // Shared dynamic specifier — see comment in `time-series-chart.tsx` for why
@@ -65,6 +74,8 @@ export function DistributionPie({
   data,
   height = 240,
   emptyTitle = "No data yet",
+  onSliceSelect,
+  selectedKeys,
 }: DistributionPieProps) {
   return (
     <Card>
@@ -76,7 +87,12 @@ export function DistributionPie({
         {!data || data.length === 0 ? (
           <EmptyState title={emptyTitle} />
         ) : (
-          <DistributionPieBody data={data} height={height} />
+          <DistributionPieBody
+            data={data}
+            height={height}
+            onSliceSelect={onSliceSelect}
+            selectedKeys={selectedKeys}
+          />
         )}
       </CardContent>
     </Card>

@@ -18,6 +18,10 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { ApiError } from "@/types/api";
+import {
+  savePendingAutoLogin,
+  clearPendingAutoLogin,
+} from "@/lib/auth/pending-auto-login";
 import type { ForgotPasswordAccount } from "@/types/auth";
 import {
   Tooltip,
@@ -335,6 +339,25 @@ function PickStep({
     setIsSubmitting(true);
     try {
       const result = await sendResetLinks(Array.from(selected));
+
+      // When exactly one account is being recovered, leave a single-use hint
+      // so the /reset-password page can log this user straight in once they
+      // set the new password (same browser only). For multi-account picks we
+      // can't know which link the user will open, so drop any stale hint and
+      // let them sign in manually. Only the email + shell type is stored —
+      // never the password.
+      if (selected.size === 1) {
+        const ref = Array.from(selected)[0];
+        const account = accounts.find((a) => a.accountRef === ref);
+        if (account) {
+          savePendingAutoLogin({ email: account.email, type: account.type });
+        } else {
+          clearPendingAutoLogin();
+        }
+      } else {
+        clearPendingAutoLogin();
+      }
+
       onSent(result.sent);
     } catch (err) {
       // A 400 means the selection token expired / was already used — the

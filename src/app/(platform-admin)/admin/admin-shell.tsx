@@ -34,6 +34,7 @@ import {
   useNotificationBuckets,
   useNotificationStream,
 } from "@/features/notifications/hooks";
+import { useDashboardLiveStream } from "@/features/dashboard/hooks/use-dashboard-live-stream";
 import { filterAdminNavByPreset } from "@/lib/permissions/admin-access";
 
 const CommandLauncher = dynamic(
@@ -54,7 +55,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     label: "Dashboard",
     href: "/admin/dashboard",
     icon: LayoutDashboard,
-    description: "Platform overview with tenant metrics, revenue, and growth trends",
+    description: "Range-aware, interactive platform analytics — tenants, revenue, risk, and live counters",
   },
   {
     label: "Customers",
@@ -217,6 +218,8 @@ function AdminShellInner({ children }: { children: React.ReactNode }) {
   const notificationCounts = useNotificationBuckets("admin");
   // Real-time unread updates over SSE; falls back to polling when down.
   useNotificationStream();
+  // Real-time platform dashboard counters over SSE (admin slice).
+  useDashboardLiveStream();
 
   // Issue 10: filter the static nav array by the admin's access
   // preset before handing it to the sidebar. The backend permission

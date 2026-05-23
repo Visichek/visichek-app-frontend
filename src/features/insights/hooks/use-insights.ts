@@ -15,6 +15,8 @@ const STALE_TIME_MS = 30_000;
 
 export interface InsightsParams {
   roleView: SystemUserRole;
+  /** Which tab's sections to compute. */
+  tab?: string;
   /** Window bounds in unix seconds. Omit for the default now-anchored view. */
   start?: number;
   stop?: number;
@@ -48,6 +50,7 @@ const insightsKeys = {
 /** camelCase param -> snake_case query key. */
 const PARAM_TO_QUERY: Record<keyof InsightsParams, string> = {
   roleView: "role_view",
+  tab: "tab",
   start: "start",
   stop: "stop",
   granularity: "granularity",
@@ -83,8 +86,9 @@ export function toInsightsQueryParams(
  * historical result the server computes on demand, so polling is wasteful.
  */
 function isNowAnchored(params: InsightsParams): boolean {
-  const { roleView, ...rest } = params;
+  const { roleView, tab, ...rest } = params;
   void roleView;
+  void tab;
   return Object.values(rest).every((v) => v === undefined || v === null || v === "");
 }
 

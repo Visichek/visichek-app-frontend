@@ -41,6 +41,10 @@ export interface RangePickerProps {
   onPreset: (key: Exclude<RangePresetKey, "custom">) => void;
   onCustomRange: (range: DateRange) => void;
   onGranularity: (g: Granularity | "auto") => void;
+  /** Restrict which presets show (in order). Defaults to all. */
+  presets?: RangePresetKey[];
+  /** Show the granularity override row. Defaults to true. */
+  showGranularity?: boolean;
 }
 
 /**
@@ -62,8 +66,13 @@ export function RangePicker({
   onPreset,
   onCustomRange,
   onGranularity,
+  presets,
+  showGranularity = true,
 }: RangePickerProps) {
   const { promptUpgrade } = useUpgradePrompt();
+  const visiblePresets = presets
+    ? RANGE_PRESETS.filter((p) => presets.includes(p.key))
+    : RANGE_PRESETS;
 
   // ── Free: locked to a fixed 7-day window ────────────────────────────
   if (!canCustomRange) {
@@ -116,7 +125,7 @@ export function RangePicker({
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-end gap-4">
         <SegmentedControl label="Time range" className="flex-wrap">
-          {RANGE_PRESETS.map((p) => (
+          {visiblePresets.map((p) => (
             <SegmentButton
               key={p.key}
               active={presetKey === p.key}
@@ -133,19 +142,21 @@ export function RangePicker({
           ))}
         </SegmentedControl>
 
-        <SegmentedControl label="Granularity" className="flex-wrap">
-          {GRANULARITY_OPTIONS.map((g) => (
-            <SegmentButton
-              key={g.key}
-              active={granularity === g.key}
-              loading={pendingKey === `gran-${g.key}`}
-              title={g.hint}
-              onClick={() => onGranularity(g.key)}
-            >
-              {g.label}
-            </SegmentButton>
-          ))}
-        </SegmentedControl>
+        {showGranularity && (
+          <SegmentedControl label="Granularity" className="flex-wrap">
+            {GRANULARITY_OPTIONS.map((g) => (
+              <SegmentButton
+                key={g.key}
+                active={granularity === g.key}
+                loading={pendingKey === `gran-${g.key}`}
+                title={g.hint}
+                onClick={() => onGranularity(g.key)}
+              >
+                {g.label}
+              </SegmentButton>
+            ))}
+          </SegmentedControl>
+        )}
       </div>
 
       {isCustom && (
