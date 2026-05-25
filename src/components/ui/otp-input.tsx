@@ -182,18 +182,18 @@ export function OtpInput({
             className={cn(
               "w-10 h-12 sm:w-12 sm:h-14 text-center text-xl sm:text-2xl font-mono font-semibold",
               "bg-white border rounded-xl text-gray-900",
-              "focus:outline-none focus:ring-2 focus:ring-[#00D287]/30 focus:border-[#00D287]",
+              "focus:outline-none focus:ring-2 focus:ring-[#3A9615]/30 focus:border-[#3A9615]",
               "transition-all duration-150",
               "disabled:opacity-50 disabled:cursor-not-allowed",
               "placeholder:text-gray-300",
               "shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
               focusedIndex === index
-                ? "border-[#00D287] ring-2 ring-[#00D287]/20 scale-105 shadow-[0_4px_14px_-6px_rgba(0,210,135,0.35)]"
+                ? "border-[#3A9615] ring-2 ring-[#3A9615]/20 scale-105 shadow-[0_4px_14px_-6px_rgba(58,150,21,0.35)]"
                 : digits[index]
                   ? "border-gray-300"
                   : "border-gray-200",
               // Caret color
-              "caret-[#00D287]"
+              "caret-[#3A9615]"
             )}
           />
         </div>

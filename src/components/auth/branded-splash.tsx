@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Lightbulb } from "lucide-react";
 
-const BRAND_GREEN = "#359300";
+const BRAND_GREEN = "#3A9615";
 const TIP_ROTATE_MS = 6000;
 
 interface SplashTip {

@@ -32,7 +32,7 @@ export default function manifest(): MetadataRoute.Manifest {
     display_override: ["window-controls-overlay", "standalone", "minimal-ui"],
     orientation: "any",
     background_color: "#ffffff",
-    theme_color: "#359300",
+    theme_color: "#3A9615",
     categories: ["business", "productivity"],
     // Tell the OS to re-focus an existing window instead of spawning a
     // second one when the app is launched via a shortcut or share target.

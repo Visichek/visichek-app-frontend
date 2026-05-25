@@ -195,7 +195,7 @@ function ResetPasswordContent() {
             : "Pick something you haven't used here before.";
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center relative overflow-hidden font-sans selection:bg-[#00D287]/20">
+    <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center relative overflow-hidden font-sans selection:bg-[#3A9615]/20">
       <div className="w-full max-w-[440px] px-6 relative z-base">
         {/* Logo Area */}
         <div className="flex flex-col items-center mb-8">
@@ -312,7 +312,7 @@ function ResetPasswordContent() {
                   <button
                     type="submit"
                     disabled={!canSubmit}
-                    className="w-full min-h-[48px] bg-[#00D287] hover:bg-[#00bd78] disabled:opacity-60 disabled:pointer-events-none text-white font-semibold rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(0,210,135,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(0,210,135,0.6)] text-base md:text-sm"
+                    className="w-full min-h-[48px] bg-[#3A9615] hover:bg-[#2e7a11] disabled:opacity-60 disabled:pointer-events-none text-white font-semibold rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(58,150,21,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(58,150,21,0.6)] text-base md:text-sm"
                   >
                     {isSubmitting ? (
                       <>
@@ -341,7 +341,7 @@ function ResetPasswordContent() {
                 <TooltipTrigger asChild>
                   <Link
                     href="/login"
-                    className="w-full flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors py-2"
+                    className="w-full flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#3A9615] transition-colors py-2"
                   >
                     <ArrowLeft size={14} />
                     Back to sign in
@@ -359,7 +359,7 @@ function ResetPasswordContent() {
         <div className="mt-8 flex flex-col items-center space-y-4">
           <Link
             href="/support"
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors"
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#3A9615] transition-colors"
           >
             <HelpCircle size={16} aria-hidden="true" />
             Get Help & Support
@@ -368,7 +368,7 @@ function ResetPasswordContent() {
           <div className="flex items-center gap-2 text-[11px] text-gray-400">
             <ShieldCheck
               size={14}
-              className="text-[#00D287]"
+              className="text-[#3A9615]"
               aria-hidden="true"
             />
             <span>Protected by VisiChek. Your data stays secure.</span>
@@ -402,7 +402,7 @@ function MissingTokenView() {
         <TooltipTrigger asChild>
           <Link
             href="/forgot-password"
-            className="w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-[#00D287] hover:bg-[#00bd78] text-white font-semibold rounded-xl py-3 px-4 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(0,210,135,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(0,210,135,0.6)] text-base md:text-sm"
+            className="w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-[#3A9615] hover:bg-[#2e7a11] text-white font-semibold rounded-xl py-3 px-4 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(58,150,21,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(58,150,21,0.6)] text-base md:text-sm"
           >
             Request a new link
             <ArrowRight size={18} className="opacity-90" />
@@ -435,7 +435,7 @@ function ExpiredTokenView({ message }: { message: string }) {
         <TooltipTrigger asChild>
           <Link
             href="/forgot-password"
-            className="w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-[#00D287] hover:bg-[#00bd78] text-white font-semibold rounded-xl py-3 px-4 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(0,210,135,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(0,210,135,0.6)] text-base md:text-sm"
+            className="w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-[#3A9615] hover:bg-[#2e7a11] text-white font-semibold rounded-xl py-3 px-4 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(58,150,21,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(58,150,21,0.6)] text-base md:text-sm"
           >
             Request a new link
             <ArrowRight size={18} className="opacity-90" />
@@ -454,9 +454,9 @@ function SigningInView() {
   return (
     <div className="space-y-6 text-center" role="status" aria-live="polite">
       <div className="flex justify-center">
-        <div className="rounded-full bg-[#00D287]/10 p-4">
+        <div className="rounded-full bg-[#3A9615]/10 p-4">
           <Loader2
-            className="h-8 w-8 animate-spin text-[#00D287]"
+            className="h-8 w-8 animate-spin text-[#3A9615]"
             aria-hidden="true"
           />
         </div>
@@ -487,8 +487,8 @@ function SuccessView({
           href="/app/login"
           className={
             platformPrimary
-              ? "w-full inline-flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors py-2"
-              : "w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-[#00D287] hover:bg-[#00bd78] text-white font-semibold rounded-xl py-3 px-4 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(0,210,135,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(0,210,135,0.6)] text-base md:text-sm"
+              ? "w-full inline-flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#3A9615] transition-colors py-2"
+              : "w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-[#3A9615] hover:bg-[#2e7a11] text-white font-semibold rounded-xl py-3 px-4 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(58,150,21,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(58,150,21,0.6)] text-base md:text-sm"
           }
         >
           {platformPrimary ? (
@@ -515,8 +515,8 @@ function SuccessView({
           href="/admin/login"
           className={
             platformPrimary
-              ? "w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-[#00D287] hover:bg-[#00bd78] text-white font-semibold rounded-xl py-3 px-4 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(0,210,135,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(0,210,135,0.6)] text-base md:text-sm"
-              : "w-full inline-flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors py-2"
+              ? "w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-[#3A9615] hover:bg-[#2e7a11] text-white font-semibold rounded-xl py-3 px-4 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(58,150,21,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(58,150,21,0.6)] text-base md:text-sm"
+              : "w-full inline-flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#3A9615] transition-colors py-2"
           }
         >
           {platformPrimary ? (
@@ -538,9 +538,9 @@ function SuccessView({
   return (
     <div className="space-y-6 text-center">
       <div className="flex justify-center">
-        <div className="rounded-full bg-[#00D287]/10 p-4">
+        <div className="rounded-full bg-[#3A9615]/10 p-4">
           <CheckCircle2
-            className="h-8 w-8 text-[#00D287]"
+            className="h-8 w-8 text-[#3A9615]"
             aria-hidden="true"
           />
         </div>
@@ -596,7 +596,7 @@ function PasswordField({
         {label}
       </label>
       <div className="relative group">
-        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[#00D287] transition-colors">
+        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[#3A9615] transition-colors">
           <Lock size={18} aria-hidden="true" />
         </div>
         <input
@@ -607,7 +607,7 @@ function PasswordField({
           onChange={(e) => onChange(e.target.value)}
           autoFocus={autoFocus}
           autoComplete={autoComplete}
-          className="login-input w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-12 text-base md:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#00D287]/25 focus:border-[#00D287] transition-all shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+          className="login-input w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-12 text-base md:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3A9615]/25 focus:border-[#3A9615] transition-all shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
         />
         <Tooltip>
           <TooltipTrigger asChild>

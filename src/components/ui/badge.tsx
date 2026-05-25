@@ -14,12 +14,10 @@ const badgeVariants = cva(
         destructive:
           "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
         outline: "text-foreground",
-        success:
-          "border-transparent bg-success text-success-foreground",
-        warning:
-          "border-transparent bg-warning text-warning-foreground",
-        info:
-          "border-transparent bg-info text-info-foreground",
+        // Soft tinted status accents (website "small status accents" guidance)
+        success: "border-success/20 bg-success/10 text-success",
+        warning: "border-warning/20 bg-warning/10 text-warning",
+        info: "border-info/20 bg-info/10 text-info",
       },
     },
     defaultVariants: {

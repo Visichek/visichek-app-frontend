@@ -8,7 +8,7 @@ import { AuthenticatedRedirect } from "@/components/auth/authenticated-redirect"
 
 export default function LoginChooserPage() {
   return (
-    <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center relative overflow-hidden font-sans selection:bg-[#00D287]/20">
+    <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center relative overflow-hidden font-sans selection:bg-[#3A9615]/20">
       <AuthenticatedRedirect />
 
       <div className="w-full max-w-[440px] px-6 relative z-10">
@@ -24,7 +24,7 @@ export default function LoginChooserPage() {
         <div className="space-y-4">
           <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-[0_12px_40px_-12px_rgba(15,23,42,0.08)]">
             <div className="flex items-start gap-4 mb-5">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#00D287]/10 text-[#00D287]">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#3A9615]/10 text-[#3A9615]">
                 <ShieldCheck size={20} aria-hidden="true" />
               </div>
               <div>
@@ -38,7 +38,7 @@ export default function LoginChooserPage() {
             </div>
             <Link
               href="/admin/login"
-              className="w-full min-h-[44px] bg-[#00D287] hover:bg-[#00bd78] text-white font-semibold rounded-xl py-2.5 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(0,210,135,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(0,210,135,0.6)] text-sm"
+              className="w-full min-h-[44px] bg-[#3A9615] hover:bg-[#2e7a11] text-white font-semibold rounded-xl py-2.5 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(58,150,21,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(58,150,21,0.6)] text-sm"
             >
               Admin Login
               <ArrowRight size={16} className="opacity-90" />
@@ -47,7 +47,7 @@ export default function LoginChooserPage() {
 
           <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-[0_12px_40px_-12px_rgba(15,23,42,0.08)]">
             <div className="flex items-start gap-4 mb-5">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#00D287]/10 text-[#00D287]">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#3A9615]/10 text-[#3A9615]">
                 <Building2 size={20} aria-hidden="true" />
               </div>
               <div>
@@ -73,7 +73,7 @@ export default function LoginChooserPage() {
           <div className="flex items-center gap-2 text-[11px] text-gray-400">
             <ShieldCheck
               size={14}
-              className="text-[#00D287]"
+              className="text-[#3A9615]"
               aria-hidden="true"
             />
             <span>Protected by VisiChek. Your data stays secure.</span>

@@ -84,7 +84,7 @@ export function PwaSplash() {
       aria-label="Loading VisiChek"
     >
       <div className="flex flex-col items-center gap-6 relative z-10 px-6">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#00D287]/10 text-[#00D287]">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#3A9615]/10 text-[#3A9615]">
           <ShieldCheck size={32} aria-hidden="true" />
         </div>
         <div className="flex flex-col items-center gap-1">

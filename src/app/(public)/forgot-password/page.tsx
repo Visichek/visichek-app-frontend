@@ -76,7 +76,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center relative overflow-hidden font-sans selection:bg-[#00D287]/20">
+    <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center relative overflow-hidden font-sans selection:bg-[#3A9615]/20">
       <div className="w-full max-w-[440px] px-6 relative z-base">
         {/* Logo Area */}
         <div className="flex flex-col items-center mb-8">
@@ -166,7 +166,7 @@ export default function ForgotPasswordPage() {
         <div className="mt-8 flex flex-col items-center space-y-4">
           <Link
             href="/support"
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors"
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#3A9615] transition-colors"
           >
             <HelpCircle size={16} aria-hidden="true" />
             Get Help & Support
@@ -175,7 +175,7 @@ export default function ForgotPasswordPage() {
           <div className="flex items-center gap-2 text-[11px] text-gray-400">
             <ShieldCheck
               size={14}
-              className="text-[#00D287]"
+              className="text-[#3A9615]"
               aria-hidden="true"
             />
             <span>Protected by VisiChek. Your data stays secure.</span>
@@ -236,7 +236,7 @@ function EmailStep({
           Email
         </label>
         <div className="relative group">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[#00D287] transition-colors">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[#3A9615] transition-colors">
             <Mail size={18} aria-hidden="true" />
           </div>
           <input
@@ -246,7 +246,7 @@ function EmailStep({
             autoComplete="email"
             autoFocus
             inputMode="email"
-            className="login-input w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-base md:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#00D287]/25 focus:border-[#00D287] transition-all shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+            className="login-input w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-base md:text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#3A9615]/25 focus:border-[#3A9615] transition-all shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
             {...register("email")}
           />
         </div>
@@ -260,7 +260,7 @@ function EmailStep({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full min-h-[48px] bg-[#00D287] hover:bg-[#00bd78] disabled:opacity-60 disabled:pointer-events-none text-white font-semibold rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(0,210,135,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(0,210,135,0.6)] text-base md:text-sm"
+            className="w-full min-h-[48px] bg-[#3A9615] hover:bg-[#2e7a11] disabled:opacity-60 disabled:pointer-events-none text-white font-semibold rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(58,150,21,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(58,150,21,0.6)] text-base md:text-sm"
           >
             {isSubmitting ? (
               <>
@@ -285,7 +285,7 @@ function EmailStep({
         <TooltipTrigger asChild>
           <Link
             href="/login"
-            className="w-full flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors py-2"
+            className="w-full flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#3A9615] transition-colors py-2"
           >
             <ArrowLeft size={14} />
             Back to sign in
@@ -398,7 +398,7 @@ function PickStep({
               key={account.accountRef}
               className={`flex items-start gap-3 rounded-2xl border p-4 cursor-pointer transition-all ${
                 isChecked
-                  ? "border-[#00D287] bg-[#00D287]/5 shadow-[0_1px_2px_rgba(0,210,135,0.12)]"
+                  ? "border-[#3A9615] bg-[#3A9615]/5 shadow-[0_1px_2px_rgba(58,150,21,0.12)]"
                   : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
               }`}
             >
@@ -406,7 +406,7 @@ function PickStep({
                 type="checkbox"
                 checked={isChecked}
                 onChange={() => toggle(account.accountRef)}
-                className="mt-0.5 h-5 w-5 shrink-0 rounded border-gray-300 text-[#00D287] focus:ring-2 focus:ring-[#00D287]/40 focus:ring-offset-0"
+                className="mt-0.5 h-5 w-5 shrink-0 rounded border-gray-300 text-[#3A9615] focus:ring-2 focus:ring-[#3A9615]/40 focus:ring-offset-0"
                 aria-label={`Send a reset link to your ${account.roleLabel} login${
                   account.type === "tenant" && account.tenantName
                     ? ` for ${account.tenantName}`
@@ -421,7 +421,7 @@ function PickStep({
                       VisiChek Platform
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#00D287]/10 px-2 py-0.5 text-[10px] font-medium text-[#00845a]">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#3A9615]/10 px-2 py-0.5 text-[10px] font-medium text-[#00845a]">
                       <Building2 size={11} aria-hidden="true" />
                       Workspace
                     </span>
@@ -447,7 +447,7 @@ function PickStep({
             type="button"
             onClick={onSend}
             disabled={selected.size === 0 || isSubmitting}
-            className="w-full min-h-[48px] bg-[#00D287] hover:bg-[#00bd78] disabled:opacity-60 disabled:pointer-events-none text-white font-semibold rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(0,210,135,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(0,210,135,0.6)] text-base md:text-sm"
+            className="w-full min-h-[48px] bg-[#3A9615] hover:bg-[#2e7a11] disabled:opacity-60 disabled:pointer-events-none text-white font-semibold rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(58,150,21,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(58,150,21,0.6)] text-base md:text-sm"
           >
             {isSubmitting ? (
               <>
@@ -475,7 +475,7 @@ function PickStep({
           <button
             type="button"
             onClick={onBack}
-            className="w-full flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors py-2"
+            className="w-full flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#3A9615] transition-colors py-2"
           >
             <ArrowLeft size={14} />
             Use a different email
@@ -503,8 +503,8 @@ function SentConfirmation({
   return (
     <div className="space-y-6 text-center">
       <div className="flex justify-center">
-        <div className="rounded-full bg-[#00D287]/10 p-4">
-          <MailCheck className="h-8 w-8 text-[#00D287]" aria-hidden="true" />
+        <div className="rounded-full bg-[#3A9615]/10 p-4">
+          <MailCheck className="h-8 w-8 text-[#3A9615]" aria-hidden="true" />
         </div>
       </div>
 
@@ -546,7 +546,7 @@ function SentConfirmation({
         <TooltipTrigger asChild>
           <Link
             href="/login"
-            className="w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-[#00D287] hover:bg-[#00bd78] text-white font-semibold rounded-xl py-3 px-4 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(0,210,135,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(0,210,135,0.6)] text-base md:text-sm"
+            className="w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-[#3A9615] hover:bg-[#2e7a11] text-white font-semibold rounded-xl py-3 px-4 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(58,150,21,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(58,150,21,0.6)] text-base md:text-sm"
           >
             Return to sign in
             <ArrowRight size={18} className="opacity-90" />
@@ -563,7 +563,7 @@ function SentConfirmation({
           <button
             type="button"
             onClick={onResend}
-            className="w-full flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors py-2"
+            className="w-full flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#3A9615] transition-colors py-2"
           >
             <ArrowLeft size={14} />
             Use a different email

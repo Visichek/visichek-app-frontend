@@ -12,12 +12,12 @@ import {
 
 export default function SupportPage() {
   return (
-    <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center relative overflow-hidden font-sans selection:bg-[#00D287]/20">
+    <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center relative overflow-hidden font-sans selection:bg-[#3A9615]/20">
       <div className="w-full max-w-lg px-6 py-12 relative z-10">
         {/* Back link */}
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#00D287] transition-colors mb-8"
+          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#3A9615] transition-colors mb-8"
         >
           <ArrowLeft size={16} aria-hidden="true" />
           Back to login
@@ -25,7 +25,7 @@ export default function SupportPage() {
 
         {/* Header */}
         <div className="flex flex-col items-center mb-10 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#00D287]/10 text-[#00D287] mb-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#3A9615]/10 text-[#3A9615] mb-4">
             <LifeBuoy size={24} aria-hidden="true" />
           </div>
           <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
@@ -42,9 +42,9 @@ export default function SupportPage() {
           {/* Email */}
           <a
             href="mailto:support@visichek.com"
-            className="flex items-start gap-4 bg-white border border-gray-100 rounded-2xl p-5 shadow-[0_6px_20px_-12px_rgba(15,23,42,0.08)] hover:border-[#00D287]/40 hover:shadow-[0_10px_28px_-12px_rgba(0,210,135,0.25)] transition-all group"
+            className="flex items-start gap-4 bg-white border border-gray-100 rounded-2xl p-5 shadow-[0_6px_20px_-12px_rgba(15,23,42,0.08)] hover:border-[#3A9615]/40 hover:shadow-[0_10px_28px_-12px_rgba(58,150,21,0.25)] transition-all group"
           >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#00D287]/10 text-[#00D287] group-hover:bg-[#00D287]/15 transition-colors">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#3A9615]/10 text-[#3A9615] group-hover:bg-[#3A9615]/15 transition-colors">
               <Mail size={20} aria-hidden="true" />
             </div>
             <div>
@@ -63,9 +63,9 @@ export default function SupportPage() {
           {/* Phone */}
           <a
             href="tel:+2341234567890"
-            className="flex items-start gap-4 bg-white border border-gray-100 rounded-2xl p-5 shadow-[0_6px_20px_-12px_rgba(15,23,42,0.08)] hover:border-[#00D287]/40 hover:shadow-[0_10px_28px_-12px_rgba(0,210,135,0.25)] transition-all group"
+            className="flex items-start gap-4 bg-white border border-gray-100 rounded-2xl p-5 shadow-[0_6px_20px_-12px_rgba(15,23,42,0.08)] hover:border-[#3A9615]/40 hover:shadow-[0_10px_28px_-12px_rgba(58,150,21,0.25)] transition-all group"
           >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#00D287]/10 text-[#00D287] group-hover:bg-[#00D287]/15 transition-colors">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#3A9615]/10 text-[#3A9615] group-hover:bg-[#3A9615]/15 transition-colors">
               <Phone size={20} aria-hidden="true" />
             </div>
             <div>
@@ -81,7 +81,7 @@ export default function SupportPage() {
 
           {/* Live Chat */}
           <div className="flex items-start gap-4 bg-white border border-gray-100 rounded-2xl p-5 shadow-[0_6px_20px_-12px_rgba(15,23,42,0.08)]">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#00D287]/10 text-[#00D287]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#3A9615]/10 text-[#3A9615]">
               <MessageCircle size={20} aria-hidden="true" />
             </div>
             <div>
@@ -97,7 +97,7 @@ export default function SupportPage() {
 
           {/* Documentation */}
           <div className="flex items-start gap-4 bg-white border border-gray-100 rounded-2xl p-5 shadow-[0_6px_20px_-12px_rgba(15,23,42,0.08)]">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#00D287]/10 text-[#00D287]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#3A9615]/10 text-[#3A9615]">
               <BookOpen size={20} aria-hidden="true" />
             </div>
             <div>
@@ -124,7 +124,7 @@ export default function SupportPage() {
               <summary className="flex items-center gap-3 cursor-pointer px-5 py-3.5 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors list-none">
                 <HelpCircle
                   size={16}
-                  className="shrink-0 text-[#00D287]"
+                  className="shrink-0 text-[#3A9615]"
                   aria-hidden="true"
                 />
                 Where do I find my Workspace ID?
@@ -141,7 +141,7 @@ export default function SupportPage() {
               <summary className="flex items-center gap-3 cursor-pointer px-5 py-3.5 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors list-none">
                 <HelpCircle
                   size={16}
-                  className="shrink-0 text-[#00D287]"
+                  className="shrink-0 text-[#3A9615]"
                   aria-hidden="true"
                 />
                 I forgot my password
@@ -157,7 +157,7 @@ export default function SupportPage() {
               <summary className="flex items-center gap-3 cursor-pointer px-5 py-3.5 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors list-none">
                 <HelpCircle
                   size={16}
-                  className="shrink-0 text-[#00D287]"
+                  className="shrink-0 text-[#3A9615]"
                   aria-hidden="true"
                 />
                 My account is locked
@@ -176,7 +176,7 @@ export default function SupportPage() {
           <div className="flex items-center gap-2 text-[11px] text-gray-400">
             <ShieldCheck
               size={14}
-              className="text-[#00D287]"
+              className="text-[#3A9615]"
               aria-hidden="true"
             />
             <span>Protected by VisiChek. Your data stays secure.</span>

@@ -471,7 +471,7 @@ export function CommandLauncher({ externalOpen, onExternalOpenChange }: CommandL
         <DialogPortal>
           <DialogOverlay className="z-modal" onClick={() => setOpen(false)} />
           <div className="fixed inset-0 z-modal flex items-start justify-center pt-[20vh] pointer-events-none">
-            <div className="w-full max-w-2xl mx-4 rounded-lg border bg-background shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-top-10 pointer-events-auto">
+            <div className="glass-strong w-full max-w-2xl mx-4 rounded-lg border shadow-2xl animate-in fade-in zoom-in-95 slide-in-from-top-10 pointer-events-auto">
               {/* Input Section */}
               <div className="flex items-center gap-3 border-b px-4 py-3">
                 <Search className="h-4 w-4 text-muted-foreground shrink-0" />
