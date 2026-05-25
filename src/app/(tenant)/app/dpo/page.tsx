@@ -38,6 +38,7 @@ import { GeofencingComplianceCard } from "@/features/dpo/components/geofencing-c
 import { useCapabilities } from "@/hooks/use-capabilities";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
+import { PATHS } from "@/lib/routing/paths";
 import type { DataSubjectRequest } from "@/types/dpo";
 import type { DSRStatus } from "@/types/enums";
 
@@ -67,7 +68,12 @@ const DSR_STATUS_TABS: { value: DSRStatusTab; label: string; description: string
 export default function DPOPage() {
   const { hasCapability } = useCapabilities();
   const canCreate = hasCapability(CAPABILITIES.DSR_CREATE);
-  const { loadingHref } = useNavigationLoading();
+  const canViewPrivacyNotices = hasCapability(CAPABILITIES.PRIVACY_NOTICE_VIEW);
+  // navigateFromOverlay (not navigate): this card is wrapped in a Radix
+  // Tooltip, and a plain router.push from inside a portal races the
+  // page-tree swap against the tooltip unmount and crashes the React 19
+  // reconciler (removeChild on null). navigateFromOverlay defers the push.
+  const { loadingHref, navigateFromOverlay } = useNavigationLoading();
 
   const [statusTab, setStatusTab] = useState<DSRStatusTab>("all");
   const [pageIndex, setPageIndex] = useState(0);
@@ -236,18 +242,55 @@ export default function DPOPage() {
             </p>
           </CardContent>
         </Card>
-        <Card className="cursor-pointer hover:bg-accent/50 transition-colors">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              Privacy Notices
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Manage consent notices
-            </p>
-          </CardContent>
-        </Card>
+        {canViewPrivacyNotices ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Card
+                role="button"
+                tabIndex={0}
+                onClick={() => navigateFromOverlay(PATHS.APP_DPO_PRIVACY_NOTICES)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    navigateFromOverlay(PATHS.APP_DPO_PRIVACY_NOTICES);
+                  }
+                }}
+                className="cursor-pointer transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    {loadingHref === PATHS.APP_DPO_PRIVACY_NOTICES && (
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    )}
+                    Privacy Notices
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    Edit the privacy notice visitors accept at check-in
+                  </p>
+                </CardContent>
+              </Card>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              Open the visitor privacy notice editor — the policy and terms
+              shown at your QR / kiosk check-in
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">
+                Privacy Notices
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Manage consent notices
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <GeofencingComplianceCard />

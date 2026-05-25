@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   HelpCircle,
   GraduationCap,
+  ScrollText,
 } from "lucide-react";
 import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
 import { MobileNavSheet } from "@/components/navigation/mobile-nav-sheet";
@@ -142,6 +143,12 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
         href: "/admin/content/faqs",
         icon: HelpCircle,
         description: "Manage the public FAQ page: questions, answers, section grouping, ordering, and footer copy.",
+      },
+      {
+        label: "Legal Documents",
+        href: "/admin/legal-documents",
+        icon: ScrollText,
+        description: "Author, version, and publish Visichek's own public legal copy — privacy policy, terms of service, cookie policy, and more — with an immutable version history.",
       },
     ],
   },

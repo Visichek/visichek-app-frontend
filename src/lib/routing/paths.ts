@@ -25,6 +25,7 @@ export const PATHS = {
   ADMIN_PLANS: "/admin/plans",
   ADMIN_SUBSCRIPTIONS: "/admin/subscriptions",
   ADMIN_DISCOUNTS: "/admin/discounts",
+  ADMIN_LEGAL_DOCUMENTS: "/admin/legal-documents",
   ADMIN_SETTINGS: "/admin/settings",
 
   // First-login tenant-info confirmation (super_admin only). A soft gate
@@ -46,6 +47,9 @@ export const PATHS = {
   APP_INCIDENTS: "/app/incidents",
   APP_AUDIT: "/app/audit",
   APP_DPO: "/app/dpo",
+  // Visitor-facing privacy notice shown at kiosk / QR check-in. Managed by
+  // super_admin + dpo (PRIVACY_NOTICE_EDIT).
+  APP_DPO_PRIVACY_NOTICES: "/app/dpo/privacy-notices",
   APP_BILLING: "/app/billing",
   APP_ALERTS: "/app/alerts",
   APP_SETTINGS: "/app/settings",

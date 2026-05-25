@@ -163,6 +163,19 @@ export interface TenantConfirmationRequest {
   dpoContactEmail?: string;
   privacyPolicyUrl?: string;
   countryOfHosting?: string;
+  /**
+   * Tenant's acceptance of the VisiChek Data Processing Agreement, captured
+   * on the first-login confirm screen. `dpaAcceptedAt` is the Unix epoch
+   * (seconds) at the moment the super admin checked the box.
+   *
+   * NOTE: these two fields depend on backend support. The onboarding
+   * accept/partial-accept endpoints reject unexpected fields with a 422, so
+   * if the confirm endpoint behaves the same way the backend must whitelist
+   * `dpaAccepted` / `dpaAcceptedAt` before this ships. Confirm with the
+   * backend team.
+   */
+  dpaAccepted?: boolean;
+  dpaAcceptedAt?: number;
 }
 
 /**

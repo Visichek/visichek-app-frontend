@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BadgeCheck, Building2, FileText, Info } from "lucide-react";
+import { BadgeCheck, Building2, FileText, Info, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -70,6 +71,10 @@ export function ConfirmTenantClient() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [fieldErrors, setFieldErrors] = useState<Partial<FormState>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // The Data Processing Agreement must be accepted before the tenant can
+  // finish onboarding. We capture it here on the first-login confirm step.
+  const [dpaAccepted, setDpaAccepted] = useState(false);
+  const [dpaError, setDpaError] = useState<string | null>(null);
 
   // Prefill once the review payload arrives.
   useEffect(() => {
@@ -218,13 +223,22 @@ export function ConfirmTenantClient() {
     if (trimmed.countryOfHosting !== (confirmation.countryOfHosting ?? "")) {
       payload.countryOfHosting = trimmed.countryOfHosting;
     }
+    // DPA acceptance is the gate for finishing onboarding — always record it
+    // (the submit is blocked until the box is checked) with the moment of
+    // acceptance as a Unix timestamp.
+    payload.dpaAccepted = true;
+    payload.dpaAcceptedAt = Math.floor(Date.now() / 1000);
     return payload;
   }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setSubmitError(null);
-    if (!validate()) return;
+    const fieldsValid = validate();
+    if (!dpaAccepted) {
+      setDpaError("You must accept the Data Processing Agreement to continue.");
+    }
+    if (!fieldsValid || !dpaAccepted) return;
 
     try {
       await confirm.mutateAsync(buildPayload());
@@ -307,6 +321,54 @@ export function ConfirmTenantClient() {
               onChange={(v) => setField("countryOfHosting", v)}
               placeholder="e.g. NG"
             />
+
+            {/* Data Processing Agreement acceptance — required to finish
+                onboarding. */}
+            <div className="rounded-md border border-border bg-muted/30 p-4">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="confirm-dpaAccepted"
+                  checked={dpaAccepted}
+                  onCheckedChange={(checked) => {
+                    setDpaAccepted(checked === true);
+                    if (checked === true) setDpaError(null);
+                  }}
+                  className="mt-0.5 h-5 w-5"
+                  aria-invalid={!!dpaError}
+                  aria-describedby={dpaError ? "confirm-dpaAccepted-error" : undefined}
+                />
+                <div className="space-y-1">
+                  <Label
+                    htmlFor="confirm-dpaAccepted"
+                    className="flex items-center gap-1.5 text-sm font-medium cursor-pointer"
+                  >
+                    <ShieldCheck className="h-4 w-4 text-primary" aria-hidden="true" />
+                    I accept the Data Processing Agreement
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    On behalf of your organization, you agree to VisiChek&apos;s{" "}
+                    <a
+                      href="https://www.visichek.app/legal/dpa"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-primary underline underline-offset-2"
+                    >
+                      Data Processing Agreement
+                    </a>{" "}
+                    governing how visitor personal data is processed under the NDPA.
+                  </p>
+                </div>
+              </div>
+              {dpaError && (
+                <p
+                  id="confirm-dpaAccepted-error"
+                  className="mt-2 text-xs text-destructive"
+                  role="alert"
+                >
+                  {dpaError}
+                </p>
+              )}
+            </div>
 
             <div className="flex justify-end pt-2">
               <Tooltip>

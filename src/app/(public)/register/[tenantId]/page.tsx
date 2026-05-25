@@ -47,6 +47,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -86,6 +87,9 @@ import type {
   RequiredField,
 } from "@/types/checkin";
 import type { KycWidgetConfig } from "@/types/kyc";
+import type { PublicPrivacyNotice } from "@/types/public";
+import { usePublicPrivacyNotice } from "@/features/public-registration/hooks/use-public-registration";
+import { PrivacyNoticeDisplay } from "@/features/public-registration/components/privacy-notice-display";
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -141,6 +145,12 @@ interface KioskState {
   fieldValues: Record<string, unknown>;
   /** Free-text notes attached to the structured `purpose` payload. */
   purposeDetails: string;
+  /**
+   * Whether the visitor accepted the tenant's privacy notice / terms. Only
+   * meaningful when the active notice's `displayMode` is `active_consent`;
+   * gates entry to the wizard in that case.
+   */
+  consentAccepted: boolean;
 }
 
 const INITIAL_STATE: KioskState = {
@@ -150,6 +160,7 @@ const INITIAL_STATE: KioskState = {
   kycIntent: null,
   fieldValues: {},
   purposeDetails: "",
+  consentAccepted: false,
 };
 
 // ── Local persistence ────────────────────────────────────────────────
@@ -157,7 +168,8 @@ const INITIAL_STATE: KioskState = {
 // visitor left off. This is intentional local-only state (localStorage):
 // no tokens, no server-side persistence, consistent with the auth-cookie
 // rules. We bump the version to drop stale drafts when the shape changes.
-const KIOSK_PERSIST_VERSION = 1;
+// v2 adds `consentAccepted` to the persisted kiosk state.
+const KIOSK_PERSIST_VERSION = 2;
 /** Form draft + wizard cursor — a kiosk session window. */
 const KIOSK_TTL_MS = 30 * 60 * 1000;
 /** KYC resume marker — shorter, since the verification window is brief. */
@@ -234,6 +246,9 @@ export default function KioskCheckinPage() {
 
   const configQ = useActiveCheckinConfigForTenant(tenantId);
   const enumsQ = useCheckinEnumsForTenant(tenantId);
+  // Tenant's visitor-facing privacy notice. When its displayMode is
+  // `active_consent`, the visitor must accept it before the wizard opens.
+  const privacyNoticeQ = usePublicPrivacyNotice(tenantId);
 
   const submitMutation = useSubmitCheckin({ configId: undefined, tenantId });
   const kycInitiateMutation = useKycInitiate();
@@ -265,6 +280,17 @@ export default function KioskCheckinPage() {
   const config = configQ.data;
   const enums = enumsQ.data;
   const kycAvailable = !!config?.idUploadEnabled;
+
+  const privacyNotice = privacyNoticeQ.data ?? null;
+  /** Notice requires an explicit "I accept" before the visitor may proceed. */
+  const consentRequired = privacyNotice?.displayMode === "active_consent";
+  /** Show the gate until the visitor accepts (only when required). */
+  const consentGateOpen = consentRequired && !state.consentAccepted;
+
+  function acceptConsent() {
+    setStepError(null);
+    setState((s) => ({ ...s, consentAccepted: true }));
+  }
 
   const detailsFields = useMemo<RequiredField[]>(() => {
     if (!config) return [];
@@ -697,7 +723,10 @@ export default function KioskCheckinPage() {
 
   // ── Gates ─────────────────────────────────────────────────────────
 
-  if (configQ.isLoading) return <LoadingShell />;
+  // Wait for the privacy notice too so we never flash the wizard and then
+  // snap to the consent gate. On error it resolves to "no notice" and the
+  // flow proceeds (fail-open) rather than blocking check-in on a fetch hiccup.
+  if (configQ.isLoading || privacyNoticeQ.isLoading) return <LoadingShell />;
 
   if (configQ.isError || !config) {
     const info = describeCheckinError(configQ.error);
@@ -731,8 +760,26 @@ export default function KioskCheckinPage() {
     );
   }
 
+  // Consent gate: when the tenant's privacy notice requires explicit
+  // consent, the visitor must accept it before any data is collected.
+  if (consentGateOpen && privacyNotice) {
+    return (
+      <KioskShell config={config}>
+        <PrivacyConsentGate
+          notice={privacyNotice}
+          onAccept={acceptConsent}
+        />
+      </KioskShell>
+    );
+  }
+
   return (
     <KioskShell config={config}>
+      {/* Passive notice: shown for information only (no acceptance needed). */}
+      {privacyNotice && !consentRequired && step === 1 && (
+        <PrivacyNoticeDisplay notice={privacyNotice} />
+      )}
+
       {/* Issue 5: scoped QR banner — confirms which department's QR
           the visitor scanned so they can tell they're in the right
           flow. Renders only when the backend confirmed the token. */}
@@ -905,6 +952,89 @@ export default function KioskCheckinPage() {
         </CardContent>
       </Card>
     </KioskShell>
+  );
+}
+
+// ── Privacy consent gate ─────────────────────────────────────────────
+
+/**
+ * Blocking consent screen shown before the check-in wizard when the
+ * tenant's active privacy notice has `displayMode: "active_consent"`. The
+ * visitor reads the notice and must tick the acceptance box before the
+ * Continue button unlocks.
+ */
+function PrivacyConsentGate({
+  notice,
+  onAccept,
+}: {
+  notice: PublicPrivacyNotice;
+  onAccept: () => void;
+}) {
+  const [checked, setChecked] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function handleContinue() {
+    if (!checked) {
+      setError("Please accept the privacy policy and terms to continue.");
+      return;
+    }
+    onAccept();
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Before you check in</CardTitle>
+        <CardDescription>
+          Please review and accept our privacy policy and terms to continue.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <PrivacyNoticeDisplay notice={notice} />
+
+        <div className="rounded-md border border-border bg-muted/30 p-4">
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="kiosk-consent"
+              checked={checked}
+              onCheckedChange={(value) => {
+                const next = value === true;
+                setChecked(next);
+                if (next) setError(null);
+              }}
+              className="mt-0.5 h-5 w-5"
+              aria-invalid={!!error}
+              aria-describedby={error ? "kiosk-consent-error" : undefined}
+            />
+            <Label
+              htmlFor="kiosk-consent"
+              className="text-sm font-medium leading-relaxed cursor-pointer"
+            >
+              I have read and accept the privacy policy and terms above.
+            </Label>
+          </div>
+          {error && (
+            <p
+              id="kiosk-consent-error"
+              className="mt-2 text-xs text-destructive"
+              role="alert"
+            >
+              {error}
+            </p>
+          )}
+        </div>
+
+        <Button
+          type="button"
+          onClick={handleContinue}
+          disabled={!checked}
+          className="min-h-[44px] w-full"
+        >
+          Accept &amp; continue
+          <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 

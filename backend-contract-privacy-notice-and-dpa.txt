@@ -1,0 +1,494 @@
+================================================================================
+VISICHEK — BACKEND CONTRACT
+Visitor Privacy Notice + Consent  AND  Tenant Data Processing Agreement (DPA)
+================================================================================
+
+Author:        Frontend team (Claude)
+Date:          2026-05-25
+Status:        SPEC — frontend is implemented; backend support required to ship.
+Audience:      Backend engineers implementing/aligning the endpoints below.
+
+This document describes exactly what the frontend now sends and expects so the
+backend can be aligned. It covers TWO features:
+
+  PART A — Visitor-facing privacy notice that visitors must accept at QR/kiosk
+           check-in, with the acceptance recorded. Tenants get a sensible
+           VisiChek-style DEFAULT notice they can edit.
+
+  PART B — Tenant Data Processing Agreement (DPA) acceptance captured during
+           onboarding (first-login "Confirm company details" screen).
+
+--------------------------------------------------------------------------------
+0. GROUND RULES (apply to everything below)
+--------------------------------------------------------------------------------
+
+- Response envelope: every JSON response uses the standard envelope
+    success:true  -> { success, message, data, meta?, requestId? }
+    success:false -> { success, message, data?: { code, details? }, requestId? }
+  The frontend unwraps `data`. Document the `data.code` for each error path.
+
+- Field casing: responses default to camelCase. Request bodies may be camelCase
+  OR snake_case. The MULTIPART check-in submit uses snake_case FORM FIELD names
+  (see A.5) — keep those exact.
+
+- Timestamps: Unix epoch SECONDS (integers), not milliseconds, not ISO.
+
+- Pagination: privacy-notice list uses skip/limit (NOT start/stop).
+
+- Auth: tenant privacy-notice management is cookie-authenticated (httpOnly).
+  Public endpoints are unauthenticated. DPA confirm is cookie-authenticated.
+
+- Capabilities already defined on the frontend role map:
+    privacyNotice:view   -> super_admin, dpo
+    privacyNotice:edit    -> super_admin, dpo
+  The backend MUST enforce the equivalent server-side; the FE gate is cosmetic.
+
+
+================================================================================
+PART A — VISITOR PRIVACY NOTICE + CONSENT
+================================================================================
+
+GOAL
+  At QR / kiosk check-in, the visitor is shown the tenant's privacy notice.
+  When the notice is set to require explicit consent, the visitor MUST tick an
+  "I accept the privacy policy and terms" checkbox before they can proceed, and
+  that acceptance is RECORDED against the resulting check-in (who/what version/
+  when/how). Tenants start with a VisiChek-style default notice they can edit.
+
+FRONTEND PIECES ALREADY BUILT (for reference)
+  - Tenant editor page:   src/app/(tenant)/app/dpo/privacy-notices/page.tsx
+       -> create/edit notice (title, summary, fullText, displayMode,
+          effectiveDate, isActive) using the hooks below.
+  - Tenant hooks:         src/features/privacy/hooks/use-privacy-notices.ts
+  - Public hook:          src/features/public-registration/hooks/
+                          use-public-registration.ts  (usePublicPrivacyNotice)
+  - Kiosk consent gate:   src/app/(public)/register/[tenantId]/page.tsx
+       -> fetches the public notice; if displayMode === "active_consent" it
+          blocks the wizard behind an accept checkbox.
+  - Types:                src/types/dpo.ts (PrivacyNotice),
+                          src/types/public.ts (PublicPrivacyNotice,
+                          PublicRegistrationRequest), src/types/enums.ts
+                          (NoticeDisplayMode).
+
+
+--------------------------------------------------------------------------------
+A.1  DATA MODEL — PrivacyNotice
+--------------------------------------------------------------------------------
+
+A privacy notice is tenant-scoped and versioned. Frontend type (camelCase):
+
+  PrivacyNotice {
+    id:           string         // notice id
+    tenantId:     string
+    title:        string         // required, 1..200 chars
+    summary?:     string         // short plain-language blurb shown up front
+    fullText?:    string         // the complete policy/terms, shown expandable
+    displayMode:  "passive" | "active_consent"   // enum NoticeDisplayMode
+    isActive:     boolean        // only the active notice is shown to visitors
+    effectiveDate?: number       // unix seconds, optional
+    createdAt:    number         // unix seconds
+    updatedAt:    number         // unix seconds
+  }
+
+  ENUM NoticeDisplayMode:
+    "passive"        -> notice is DISPLAYED to the visitor, no acceptance asked.
+    "active_consent" -> visitor MUST explicitly accept (checkbox) before
+                        proceeding. THIS IS THE DEFAULT for new tenants.
+
+VERSIONING (IMPORTANT for compliance):
+  - Each notice needs a stable VERSION IDENTIFIER that the public endpoint
+    exposes as `versionId` (see A.4). Acceptance records pin to this value so
+    we can prove WHICH text a visitor agreed to.
+  - Recommended rule: changing `title`, `summary`, `fullText`, or `displayMode`
+    mints a NEW version (new `versionId`). Toggling `isActive` or editing
+    `effectiveDate` alone need not bump it (your call, but document it).
+  - `versionId` may be the notice `id` if you treat each edit as a new row, OR a
+    separate monotonic version string (e.g. "2026-05-25T10:00:00Z" or "v3").
+    The frontend treats it as an opaque string.
+
+  Only ONE notice per tenant should be `isActive: true` at a time. When a new
+  notice is created or activated, deactivate the previously active one.
+
+
+--------------------------------------------------------------------------------
+A.2  DEFAULT NOTICE SEEDED ON TENANT CREATION
+--------------------------------------------------------------------------------
+
+REQUIREMENT: every tenant must have a usable visitor privacy notice out of the
+box — the frontend editor will "create if none / edit if exists". To make the
+feature work on day one WITHOUT the tenant having to author anything, the
+backend SHOULD seed a default active notice when a tenant is provisioned
+(onboarding accept / partial-accept, or first time the active notice is
+requested if none exists).
+
+  Default notice values:
+    title:        "Visitor Privacy Notice"
+    displayMode:  "active_consent"     // visitors must accept by default
+    isActive:     true
+    effectiveDate: <tenant creation time, unix seconds>
+    summary + fullText:  the VisiChek-style template in APPENDIX 1 below,
+                         with {{COMPANY_NAME}} substituted to the tenant's name
+                         (and {{DPO_CONTACT_EMAIL}} if available, else omit the
+                         line).
+
+The tenant can then edit ANY of these fields via the management endpoints.
+Editing replaces the default with their own text (and mints a new version).
+
+
+--------------------------------------------------------------------------------
+A.3  TENANT MANAGEMENT ENDPOINTS (cookie-auth; privacyNotice:view/edit)
+--------------------------------------------------------------------------------
+
+These already exist in the frontend hooks. Confirm/implement to match.
+
+(1) LIST
+    GET /v1/privacy-notices?skip=<n>&limit=<n>
+    Auth: privacyNotice:view
+    200 -> data: PrivacyNotice[]   (envelope `data` is the ARRAY)
+           meta: { total?, skip?, limit? }
+    NOTE: The frontend reads the list as { data: PrivacyNotice[], meta }.
+          Ensure the array is in `data` and counts in `meta`.
+
+(2) ACTIVE
+    GET /v1/privacy-notices/active
+    Auth: privacyNotice:view
+    200 -> data: PrivacyNotice            (the single active notice)
+    If none exists: prefer to AUTO-SEED the default (A.2) and return it 200.
+    (The current FE editor lists via (1) and picks the active row, so a 404
+     here is tolerable, but seeding-on-read is cleaner and is recommended.)
+
+(3) CREATE
+    POST /v1/privacy-notices
+    Auth: privacyNotice:edit
+    Body (camelCase or snake_case):
+      {
+        title:        string,      // required 1..200
+        summary?:     string,
+        fullText?:    string,
+        displayMode:  "passive" | "active_consent",   // required
+        effectiveDate?: number     // unix seconds
+      }
+    Behavior: creates a notice for the caller's tenant. If `isActive` is not in
+      the body, default the new notice to active and deactivate the prior active
+      one. Mint a fresh version.
+    201/200 -> data: PrivacyNotice
+    422 VALIDATION_ERROR -> data.details maps field -> message (title length etc.)
+
+(4) UPDATE
+    PATCH /v1/privacy-notices/{noticeId}
+    Auth: privacyNotice:edit
+    Body (all optional):
+      {
+        title?:       string,
+        summary?:     string,
+        fullText?:    string,
+        displayMode?: "passive" | "active_consent",
+        isActive?:    boolean,
+        effectiveDate?: number
+      }
+    Behavior: updates the notice. If content changed, mint a new version (A.1).
+      If isActive flips to true, deactivate the previously active notice.
+    200 -> data: PrivacyNotice
+    404 RESOURCE_NOT_FOUND if the id is not the caller's tenant's notice.
+
+  (No DELETE endpoint is used by the frontend. Tenants "take down" a notice by
+   setting isActive:false. Do not require a delete.)
+
+
+--------------------------------------------------------------------------------
+A.4  PUBLIC ENDPOINT — what the kiosk fetches (NO AUTH)
+--------------------------------------------------------------------------------
+
+    GET /v1/public/register/{tenantId}/privacy-notice
+    Auth: none (public, rate-limited with the rest of /public/register/*)
+
+    Returns the tenant's ACTIVE notice as a PublicPrivacyNotice, or null.
+
+    PublicPrivacyNotice {
+      id:            string
+      title:         string
+      summary?:      string
+      fullText?:     string
+      displayMode:   "passive" | "active_consent"
+      versionId?:    string     // <-- the version the visitor will accept
+      effectiveDate?: number    // unix seconds
+    }
+
+    200 with the notice when an active notice exists.
+    200 with body `null` (data: null) OR 404 when the tenant has no active
+        notice. The frontend treats both as "no notice -> no gate". Prefer
+        seeding the default (A.2) so this effectively always returns a notice.
+
+    IMPORTANT: include `versionId`. The kiosk does not send it back today (see
+    A.5 gap), but you need it server-side to stamp the acceptance with the exact
+    version, and we will start echoing it once the submit contract supports it.
+
+
+--------------------------------------------------------------------------------
+A.5  RECORDING VISITOR ACCEPTANCE  (THE KEY MISSING PIECE)
+--------------------------------------------------------------------------------
+
+CURRENT STATE / GAP
+  The live kiosk submit is multipart to:
+      POST /v1/checkin-configs/{configId}/submit          (custom config)
+      POST /v1/public/tenants/{tenantId}/submit           (tenant default)
+  and the returning-visitor path:
+      POST /v1/public/tenants/{tenantId}/submit-by-visitor-id   (JSON)
+  NONE of these currently carry consent fields. The frontend gates the visitor
+  (blocks "continue" until the box is ticked) but does NOT yet persist the
+  acceptance, because there are no agreed fields to send. THIS SECTION DEFINES
+  THOSE FIELDS so we can wire persistence.
+
+REQUEST — add these to the MULTIPART submit endpoints (snake_case form fields):
+    consent_granted            : "true" | "false"   (string in multipart)
+    consent_method             : string             // e.g. "kiosk_checkbox"
+    privacy_notice_id          : string             // the notice id shown
+    privacy_notice_version_id  : string             // versionId shown/accepted
+    consent_accepted_at        : integer (unix sec) // when the box was ticked
+
+REQUEST — add the same to the JSON endpoints
+  (/public/tenants/{tenantId}/submit-by-visitor-id  AND
+   /public/register/{tenantId}, which already TYPES three of these):
+    {
+      consentGranted:          boolean,
+      consentMethod:           string,   // "kiosk_checkbox"
+      privacyNoticeId:         string,
+      privacyNoticeVersionId:  string,
+      consentAcceptedAt:       number    // unix seconds
+    }
+  NOTE: src/types/public.ts PublicRegistrationRequest already declares
+        consentGranted, consentMethod, privacyNoticeVersionId. Add
+        privacyNoticeId + consentAcceptedAt to round it out, or derive
+        acceptedAt server-side from receipt time.
+
+SERVER BEHAVIOR
+  - Persist a CONSENT RECORD tied to the resulting check-in / visit session and
+    the visitor profile. Suggested stored shape:
+        {
+          tenant_id, checkin_id (or session_id), visitor_id (if known),
+          privacy_notice_id, privacy_notice_version_id,
+          consent_granted (bool), consent_method,
+          accepted_at (unix), client_ip, user_agent
+        }
+    client_ip / user_agent come from the request, not the body.
+  - Make the consent record queryable via the existing compliance endpoint:
+        GET /v1/compliance/consent-log?start_date&end_date&skip&limit
+    (already referenced in the product docs) so DPO/auditor can export proof.
+
+ENFORCEMENT (defense in depth — recommended)
+  The frontend already blocks submit when displayMode === "active_consent".
+  The backend SHOULD ALSO reject a submit that lacks consent when the tenant's
+  active notice requires it:
+        consent_granted missing/false + active notice is "active_consent"
+        -> 422 (or 403) with data.code = "CONSENT_REQUIRED"
+           message: "Visitor must accept the privacy notice to check in."
+  For "passive" notices, consent fields are optional and informational.
+
+  Do NOT hard-fail when the tenant has no active notice — that path has no
+  consent to require.
+
+
+--------------------------------------------------------------------------------
+A.6  ACCEPTANCE CHECKLIST — PART A
+--------------------------------------------------------------------------------
+  [ ] New tenants are seeded with the default active notice (A.2 / APPENDIX 1).
+  [ ] GET /v1/privacy-notices returns { data: [...], meta } (skip/limit).
+  [ ] GET /v1/privacy-notices/active returns the active notice (seed if none).
+  [ ] POST/PATCH create/update, enforce single-active, mint versions, 422 on
+      bad title length.
+  [ ] GET /v1/public/register/{tenantId}/privacy-notice returns
+      PublicPrivacyNotice incl. versionId (or null).
+  [ ] Submit endpoints accept the consent fields (A.5) and persist a consent
+      record with notice id + versionId + accepted_at + ip + user_agent.
+  [ ] GET /v1/compliance/consent-log surfaces those records.
+  [ ] active_consent notice + missing consent on submit -> CONSENT_REQUIRED.
+  [ ] privacyNotice:view / privacyNotice:edit enforced server-side.
+
+
+================================================================================
+PART B — TENANT DATA PROCESSING AGREEMENT (DPA) ACCEPTANCE
+================================================================================
+
+GOAL
+  During onboarding, a tenant must accept VisiChek's Data Processing Agreement.
+  We capture this on the FIRST-LOGIN "Confirm company details" screen (the only
+  tenant-facing onboarding step in the frontend app; there is no public tenant
+  sign-up form in this codebase). Acceptance must be RECORDED on the tenant.
+
+FRONTEND PIECES ALREADY BUILT (for reference)
+  - Screen:  src/app/(tenant)/app/onboarding/confirm/confirm-tenant-client.tsx
+       -> required "I accept the Data Processing Agreement" checkbox; blocks
+          "Confirm details" until ticked.
+  - Type:    src/types/onboarding.ts  (TenantConfirmationRequest)
+  - Gate:    only super_admin reaches this screen (TENANT_CONFIG_EDIT), once,
+             until onboardingInfoConfirmed flips true.
+
+
+--------------------------------------------------------------------------------
+B.1  THE ENDPOINT THAT MUST ACCEPT DPA FIELDS
+--------------------------------------------------------------------------------
+
+    POST /v1/onboarding/me/tenant-confirmation
+    Auth: cookie (super_admin; TENANT_CONFIG_EDIT)
+
+  The frontend now sends these fields IN ADDITION to the existing ones:
+
+    TenantConfirmationRequest {
+      companyName?:     string,   // existing
+      dpoContactEmail?: string,   // existing
+      privacyPolicyUrl?:string,   // existing
+      countryOfHosting?:string,   // existing
+      dpaAccepted?:     boolean,  // NEW — always true when the box is ticked
+      dpaAcceptedAt?:   number    // NEW — unix seconds at moment of acceptance
+    }
+
+  >>> CRITICAL COMPATIBILITY NOTE <<<
+  The sibling onboarding endpoints (accept / partial-accept) REJECT unexpected
+  fields with 422 "extra fields not permitted" (e.g. adminPassword). If this
+  confirm endpoint shares that strict schema, it will 422 on `dpaAccepted` /
+  `dpaAcceptedAt` and BREAK the whole confirm flow. The backend MUST WHITELIST
+  these two fields on this endpoint.
+
+  If for any reason the backend cannot store them yet, it must at minimum ACCEPT
+  and IGNORE them (no 422) so the confirm flow keeps working while persistence
+  is added. Tell the frontend which of these two behaviors ships.
+
+
+--------------------------------------------------------------------------------
+B.2  READ-BACK SO WE DON'T RE-PROMPT
+--------------------------------------------------------------------------------
+
+    GET /v1/onboarding/me/tenant-confirmation
+    Auth: cookie (super_admin)
+
+  Current response type (TenantConfirmation) already returns
+  `onboardingInfoConfirmed` / `onboardingInfoConfirmedAt`. ADD the DPA status so
+  the frontend can show "accepted on <date>" and avoid re-asking:
+
+    TenantConfirmation {
+      ...existing fields...,
+      dpaAccepted?:    boolean,   // NEW
+      dpaAcceptedAt?:  number,    // NEW, unix seconds
+      dpaVersion?:     string     // NEW, optional — which DPA version accepted
+    }
+
+  Because acceptance is gated together with the confirm step, once
+  `onboardingInfoConfirmed === true` the DPA was accepted in the same submit;
+  still, returning explicit DPA fields is cleaner for audit and for any future
+  re-acceptance flow (e.g. when the DPA version changes).
+
+
+--------------------------------------------------------------------------------
+B.3  STORAGE ON THE TENANT
+--------------------------------------------------------------------------------
+
+  Persist on the tenant record:
+      dpa_accepted        : bool
+      dpa_accepted_at     : unix seconds
+      dpa_accepted_by     : user id of the super_admin who accepted
+      dpa_version         : string   // the DPA doc version in force at accept
+                                      // time (so re-acceptance can be required
+                                      // when the agreement changes)
+
+  VALIDATION
+    - If `dpaAccepted` is present it should be `true` (the FE only sends true).
+      A `false`/missing value while finishing onboarding is a client bug; you
+      may accept the rest of the confirm payload but should NOT mark DPA
+      accepted.
+    - `dpaAcceptedAt` should be a sane unix-seconds timestamp; if absent but
+      `dpaAccepted` is true, default to server receipt time.
+
+  OPTIONAL POLICY (product decision)
+    - You MAY require dpa_accepted === true before the tenant can perform
+      privileged actions, surfacing 403 with data.code = "DPA_REQUIRED" until
+      accepted. If you do, tell the frontend so we can route the super_admin
+      back to the confirm screen. Today the FE simply blocks the confirm submit
+      button until the box is ticked.
+
+
+--------------------------------------------------------------------------------
+B.4  ACCEPTANCE CHECKLIST — PART B
+--------------------------------------------------------------------------------
+  [ ] POST /v1/onboarding/me/tenant-confirmation accepts dpaAccepted +
+      dpaAcceptedAt WITHOUT 422 (whitelisted), and persists them.
+  [ ] Tenant record stores dpa_accepted / dpa_accepted_at / dpa_accepted_by /
+      dpa_version.
+  [ ] GET /v1/onboarding/me/tenant-confirmation returns dpaAccepted +
+      dpaAcceptedAt (+ dpaVersion).
+  [ ] (Optional) DPA_REQUIRED gate documented and returned where enforced.
+  [ ] Confirm with FE which behavior shipped (store vs accept-and-ignore).
+
+
+================================================================================
+APPENDIX 1 — DEFAULT VISITOR PRIVACY NOTICE TEMPLATE (seed content)
+================================================================================
+Use this as the seeded default (A.2). Substitute {{COMPANY_NAME}} with the
+tenant's company name. Include the DPO line only if a DPO contact email exists.
+This is a STARTING TEMPLATE the tenant can fully edit — it is modelled on
+VisiChek's own visitor privacy notice and aligned to the Nigeria Data
+Protection Act (NDPA).
+
+--- title ---
+Visitor Privacy Notice
+
+--- summary ---
+{{COMPANY_NAME}} uses VisiChek to manage visitor check-in. We collect the
+personal details you provide here (such as your name, phone number, and the
+purpose of your visit) only to register your visit, keep our premises secure,
+and meet our legal and safety obligations. By continuing, you confirm you have
+read this notice and consent to your information being processed for these
+purposes.
+
+--- fullText ---
+WHO PROCESSES YOUR DATA
+{{COMPANY_NAME}} is the data controller for the information collected during
+visitor check-in. VisiChek acts as a data processor on {{COMPANY_NAME}}'s behalf
+and processes your data only on its documented instructions.
+
+WHAT WE COLLECT
+- Identity and contact details you enter (e.g. full name, phone number, email,
+  company/organisation).
+- Visit details (host, department, purpose of visit, time of arrival and
+  departure).
+- Where enabled by {{COMPANY_NAME}}: a photograph, a scan of a government-issued
+  ID for verification, and your approximate location at check-in for site
+  safety/geofencing.
+
+WHY WE COLLECT IT (PURPOSE)
+- To register and manage your visit and produce a visitor badge.
+- To maintain a secure record of who is on the premises for safety, security,
+  and emergency/evacuation purposes.
+- To comply with legal, regulatory, and health-and-safety obligations.
+
+LAWFUL BASIS
+We rely on your consent for this check-in and, where applicable, on our
+legitimate interest in keeping our premises and people safe, in line with the
+Nigeria Data Protection Act (NDPA).
+
+HOW LONG WE KEEP IT
+Your visit records are retained only as long as necessary for the purposes
+above and in accordance with {{COMPANY_NAME}}'s retention policy, after which
+they are deleted or anonymised.
+
+WHO WE SHARE IT WITH
+We do not sell your data. It may be shared with {{COMPANY_NAME}} staff who need
+it to host or approve your visit, and with service providers (such as VisiChek)
+under appropriate data-protection terms. We disclose data to authorities only
+where required by law.
+
+YOUR RIGHTS
+Under the NDPA you have the right to access, correct, or request deletion of
+your personal data, and to withdraw consent. To exercise these rights, contact
+{{COMPANY_NAME}}{{DPO_CONTACT_LINE}}.
+
+YOUR CHOICE
+Providing this information is voluntary, but we may be unable to authorise your
+visit without it. By ticking "I accept" you confirm you have read and understood
+this notice.
+
+  ({{DPO_CONTACT_LINE}} = " at {{DPO_CONTACT_EMAIL}}" when a DPO email exists,
+   otherwise an empty string.)
+
+================================================================================
+END OF DOCUMENT
+================================================================================
