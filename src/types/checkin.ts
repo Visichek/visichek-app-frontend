@@ -301,6 +301,21 @@ export interface CheckinSubmitMultipartRequest {
    * on the wire.
    */
   registrationToken?: string;
+  /**
+   * Privacy-notice consent. Required when the tenant's active notice has
+   * `displayMode: "active_consent"` — the backend rejects the submit with
+   * 422 `CONSENT_REQUIRED` otherwise. The kiosk sets `consentGranted: true`
+   * once the visitor accepts the notice at the consent gate; the remaining
+   * fields populate the consent audit record. Sent as snake_case
+   * (`consent_granted`, `consent_method`, `privacy_notice_id`,
+   * `privacy_notice_version_id`, `consent_accepted_at`) on the wire.
+   * `consentAcceptedAt` is Unix epoch seconds.
+   */
+  consentGranted?: boolean;
+  consentMethod?: string;
+  privacyNoticeId?: string;
+  privacyNoticeVersionId?: string;
+  consentAcceptedAt?: number;
 }
 
 /** Legacy JSON submit payload (kept for backend parity; not used by the kiosk UI). */

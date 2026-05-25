@@ -200,6 +200,29 @@ export function useSubmitCheckin(args: {
         form.append("registration_token", request.registrationToken);
       }
 
+      // Privacy-notice consent. Only attached when the visitor accepted
+      // the notice at the consent gate — for `active_consent` notices the
+      // backend rejects the submit with 422 CONSENT_REQUIRED without it.
+      // The remaining fields populate the consent audit record.
+      if (request.consentGranted) {
+        form.append("consent_granted", "true");
+        if (request.consentMethod) {
+          form.append("consent_method", request.consentMethod);
+        }
+        if (request.privacyNoticeId) {
+          form.append("privacy_notice_id", request.privacyNoticeId);
+        }
+        if (request.privacyNoticeVersionId) {
+          form.append(
+            "privacy_notice_version_id",
+            request.privacyNoticeVersionId
+          );
+        }
+        if (typeof request.consentAcceptedAt === "number") {
+          form.append("consent_accepted_at", String(request.consentAcceptedAt));
+        }
+      }
+
       return apiPost<CheckinOut>(path, form);
     },
   });

@@ -5,13 +5,15 @@
  *
  * Steps:
  *   1. Identity   — full_name (req), phone (req), email (opt)
- *   2. KYC option — "Verify with Dojah" or "Skip" (visible only when the
- *                   tenant's plan grants KYC, i.e. `idUploadEnabled` on
- *                   the public config)
- *   3. Details    — config-driven bio + tenant_specific fields, including
- *                   the `purpose_of_visit` enum picker, plus an optional
- *                   "additional notes" textarea
- *   4. Review     — final summary
+ *   2. Details    — config-driven bio + tenant_specific fields, including
+ *                   the `purpose_of_visit` enum picker. Notes are not a
+ *                   built-in field; a tenant collects them by adding a
+ *                   text/long_text field to their check-in config.
+ *   3. Review     — final summary
+ *   4. KYC option — "Verify with Dojah" or "Skip" (the last step, shown only
+ *                   when the tenant's plan grants KYC, i.e. `idUploadEnabled`
+ *                   on the public config). Submitting happens here; on the
+ *                   Review step when KYC is unavailable.
  *   5. Post-submit — submit; switch on response.state:
  *        - pending_approval → wait-for-receptionist screen
  *        - pending_verification + intent="verify" → POST /v1/kyc/initiate, render
@@ -52,7 +54,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { parsePhone } from "@/lib/constants/countries";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
   TooltipContent,
@@ -105,16 +106,16 @@ const PURPOSE_KEY = "purpose";
 
 const STEPS: StepDef[] = [
   { id: 1, label: "Identity", icon: UserCheck },
-  { id: 2, label: "Verify", icon: ShieldCheck },
-  { id: 3, label: "Details", icon: ClipboardList },
-  { id: 4, label: "Review", icon: CheckCircle2 },
+  { id: 2, label: "Details", icon: ClipboardList },
+  { id: 3, label: "Review", icon: CheckCircle2 },
+  { id: 4, label: "Verify", icon: ShieldCheck },
 ];
 
 /** Step indicator without the Verify step (when KYC isn't available). */
 const STEPS_NO_KYC: StepDef[] = [
   { id: 1, label: "Identity", icon: UserCheck },
-  { id: 3, label: "Details", icon: ClipboardList },
-  { id: 4, label: "Review", icon: CheckCircle2 },
+  { id: 2, label: "Details", icon: ClipboardList },
+  { id: 3, label: "Review", icon: CheckCircle2 },
 ];
 
 // ── Validation helpers ──────────────────────────────────────────────
@@ -139,18 +140,22 @@ interface KioskState {
   fullName: string;
   phone: string;
   email: string;
-  /** Set on step 2; null if KYC isn't available on this tenant. */
+  /** Set on the final Verify step; null if KYC isn't available on this tenant. */
   kycIntent: KycIntent | null;
   /** Config-driven field values keyed by field.key. */
   fieldValues: Record<string, unknown>;
-  /** Free-text notes attached to the structured `purpose` payload. */
-  purposeDetails: string;
   /**
    * Whether the visitor accepted the tenant's privacy notice / terms. Only
    * meaningful when the active notice's `displayMode` is `active_consent`;
    * gates entry to the wizard in that case.
    */
   consentAccepted: boolean;
+  /**
+   * Unix epoch seconds at which the visitor accepted the privacy notice.
+   * Sent as `consent_accepted_at` on submit to populate the consent audit
+   * record; null until accepted.
+   */
+  consentAcceptedAt: number | null;
 }
 
 const INITIAL_STATE: KioskState = {
@@ -159,8 +164,8 @@ const INITIAL_STATE: KioskState = {
   email: "",
   kycIntent: null,
   fieldValues: {},
-  purposeDetails: "",
   consentAccepted: false,
+  consentAcceptedAt: null,
 };
 
 // ── Local persistence ────────────────────────────────────────────────
@@ -169,7 +174,10 @@ const INITIAL_STATE: KioskState = {
 // no tokens, no server-side persistence, consistent with the auth-cookie
 // rules. We bump the version to drop stale drafts when the shape changes.
 // v2 adds `consentAccepted` to the persisted kiosk state.
-const KIOSK_PERSIST_VERSION = 2;
+// v3 drops the freeform `purposeDetails` notes field, adds
+// `consentAcceptedAt`, and reorders the wizard (Verify is now the last step
+// after Review) — bump so stale cursors/drafts from the old order are dropped.
+const KIOSK_PERSIST_VERSION = 3;
 /** Form draft + wizard cursor — a kiosk session window. */
 const KIOSK_TTL_MS = 30 * 60 * 1000;
 /** KYC resume marker — shorter, since the verification window is brief. */
@@ -289,7 +297,11 @@ export default function KioskCheckinPage() {
 
   function acceptConsent() {
     setStepError(null);
-    setState((s) => ({ ...s, consentAccepted: true }));
+    setState((s) => ({
+      ...s,
+      consentAccepted: true,
+      consentAcceptedAt: Math.floor(Date.now() / 1000),
+    }));
   }
 
   const detailsFields = useMemo<RequiredField[]>(() => {
@@ -300,24 +312,12 @@ export default function KioskCheckinPage() {
   const visibleSteps = kycAvailable ? STEPS : STEPS_NO_KYC;
 
   // ── Step navigation ──────────────────────────────────────────────
-
-  function nextStep(current: number): number {
-    if (current === 1 && !kycAvailable) return 3;
-    if (current === 2) return 3;
-    if (current === 3) return 4;
-    return current + 1;
-  }
-  function prevStep(current: number): number {
-    if (current === 3 && !kycAvailable) return 1;
-    if (current === 3) return 2;
-    if (current === 4) return 3;
-    return Math.max(1, current - 1);
-  }
+  // Steps are contiguous (1=Identity, 2=Details, 3=Review, and 4=Verify
+  // only when KYC is available), so the wizard's default index-based
+  // advance/retreat handles ordering — no custom resolvers needed.
 
   const wizard = useWizard({
-    steps: kycAvailable ? [1, 2, 3, 4] : [1, 3, 4],
-    resolveNext: nextStep,
-    resolvePrev: prevStep,
+    steps: kycAvailable ? [1, 2, 3, 4] : [1, 2, 3],
     persist: {
       key: `visichek:kiosk-wizard:${persistScope}`,
       ttlMs: KIOSK_TTL_MS,
@@ -375,20 +375,20 @@ export default function KioskCheckinPage() {
     advance();
   }
 
-  // ── Step 2: KYC option ───────────────────────────────────────────
+  // ── Step 4: KYC option (final step) ──────────────────────────────
 
   /**
    * Record the visitor's choice without advancing — the choice surfaces a
-   * confirmation message and unlocks the explicit Continue button. We do
-   * not auto-advance because both options would otherwise look identical
-   * (instant jump to step 3) and the visitor can't tell their click landed.
+   * confirmation message and unlocks the explicit Submit button. We do not
+   * auto-submit because both options would otherwise look identical and the
+   * visitor can't tell their click landed.
    */
   function chooseIntent(intent: KycIntent) {
     setState((s) => ({ ...s, kycIntent: intent }));
     setStepError(null);
   }
 
-  // ── Step 3: Details ──────────────────────────────────────────────
+  // ── Step 2: Details ──────────────────────────────────────────────
 
   function setFieldValue(key: string, value: unknown) {
     setState((s) => ({
@@ -414,12 +414,14 @@ export default function KioskCheckinPage() {
     advance();
   }
 
-  // ── Step 4 + 5: Review and submit ────────────────────────────────
+  // ── Step 3 + post-submit: Review and submit ──────────────────────
 
   /**
    * Build the multipart payload from state. The kiosk collects identity
    * fields on step 1 and merges them into `bio_data`; the structured
-   * `purpose` field carries both the picker value and the notes.
+   * `purpose` field carries the picker value. Any free-text notes are a
+   * tenant-configured `tenant_specific` field, so they ride in
+   * `tenant_specific_data` rather than on `purpose`.
    */
   function buildSubmitPayload(location: { lat: number; lng: number; accuracyM: number | null } | null) {
     const purposeValue =
@@ -428,7 +430,6 @@ export default function KioskCheckinPage() {
         : "";
     const purpose: PurposeInfo = {
       purpose: purposeValue.trim(),
-      purposeDetails: state.purposeDetails.trim() || undefined,
     };
 
     const bioData: Record<string, unknown> = {
@@ -467,6 +468,20 @@ export default function KioskCheckinPage() {
       // token would just produce a SCOPE_MISMATCH on submit.
       registrationToken:
         registrationToken && tokenScope?.valid ? registrationToken : undefined,
+      // Privacy-notice consent. We only attach it when the visitor actually
+      // accepted (the consent gate enforces this for `active_consent`
+      // notices); the notice id/version + timestamp populate the consent
+      // audit record. Without this an `active_consent` tenant rejects the
+      // submit with 422 CONSENT_REQUIRED.
+      consentGranted: state.consentAccepted || undefined,
+      consentMethod: state.consentAccepted ? "kiosk_checkbox" : undefined,
+      privacyNoticeId: state.consentAccepted ? privacyNotice?.id : undefined,
+      privacyNoticeVersionId: state.consentAccepted
+        ? privacyNotice?.versionId
+        : undefined,
+      consentAcceptedAt: state.consentAccepted
+        ? state.consentAcceptedAt ?? undefined
+        : undefined,
     };
   }
 
@@ -921,37 +936,39 @@ export default function KioskCheckinPage() {
             />
           )}
 
-          {step === 2 && kycAvailable && (
-            <KycOptionStep
-              intent={state.kycIntent}
-              onChoose={chooseIntent}
-              onBack={retreat}
-              onNext={advance}
-            />
-          )}
-
-          {step === 3 && (
+          {step === 2 && (
             <DetailsStep
               fields={detailsFields}
               enums={enumsQ.data}
               fieldValues={state.fieldValues}
               setFieldValue={setFieldValue}
-              purposeDetails={state.purposeDetails}
-              onPurposeDetailsChange={(v) =>
-                setState((s) => ({ ...s, purposeDetails: v }))
-              }
               onBack={retreat}
               onNext={handleDetailsNext}
               error={stepError}
             />
           )}
 
-          {step === 4 && (
+          {step === 3 && (
             <ReviewStep
               state={state}
               fields={detailsFields}
               enums={enums}
+              // When KYC is available, Review hands off to the final Verify
+              // step (Continue); otherwise Review is the last step and
+              // submits directly.
               kycAvailable={kycAvailable}
+              onBack={retreat}
+              onContinue={advance}
+              onSubmit={handleSubmit}
+              submitting={phase.kind === "submitting"}
+              error={stepError}
+            />
+          )}
+
+          {step === 4 && kycAvailable && (
+            <KycOptionStep
+              intent={state.kycIntent}
+              onChoose={chooseIntent}
               onBack={retreat}
               onSubmit={handleSubmit}
               submitting={phase.kind === "submitting"}
@@ -1102,19 +1119,22 @@ function LoadingShell() {
 
 function titleForStep(step: number, kycAvailable: boolean): string {
   if (step === 1) return "Identity";
-  if (step === 2 && kycAvailable) return "Verify your ID";
-  if (step === 3) return "Details";
-  if (step === 4) return "Review";
+  if (step === 2) return "Details";
+  if (step === 3) return "Review";
+  if (step === 4 && kycAvailable) return "Verify your ID";
   return "";
 }
 
 function descriptionForStep(step: number, kycAvailable: boolean): string {
   if (step === 1)
     return "Tell us your name and how to reach you so we can find or create your visitor record.";
-  if (step === 2 && kycAvailable)
+  if (step === 2) return "A few more details about your visit.";
+  if (step === 3)
+    return kycAvailable
+      ? "Please review your details, then choose how to verify your ID."
+      : "Please review and submit.";
+  if (step === 4 && kycAvailable)
     return "Verify your identity instantly with Dojah, or skip and a receptionist will verify you manually.";
-  if (step === 3) return "A few more details about your visit.";
-  if (step === 4) return "Please review and submit.";
   return "";
 }
 
@@ -1231,26 +1251,30 @@ function IdentityStep({
   );
 }
 
-// ── Step 2: KYC option ──────────────────────────────────────────────
+// ── Step 4: KYC option (final step) ─────────────────────────────────
 
 function KycOptionStep({
   intent,
   onChoose,
   onBack,
-  onNext,
+  onSubmit,
+  submitting,
+  error,
 }: {
   intent: KycIntent | null;
   onChoose: (intent: KycIntent) => void;
   onBack: () => void;
-  onNext: () => void;
+  onSubmit: () => void;
+  submitting: boolean;
+  error: string | null;
 }) {
   return (
     <div className="space-y-4">
       <p className="text-sm">
         Verifying your ID with Dojah lets the receptionist approve you faster.
-        You can also skip and have your identity confirmed manually. Either
-        way, you continue to the next step now — the verification widget
-        opens after you submit on the Review step.
+        You can also skip and have your identity confirmed manually. Choose an
+        option, then submit — if you pick Dojah, the verification widget opens
+        right after you submit.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -1309,7 +1333,7 @@ function KycOptionStep({
               />
               <span>
                 Got it. We&apos;ll open the Dojah verification widget right
-                after you submit on the Review step.
+                after you submit.
               </span>
             </>
           ) : (
@@ -1327,28 +1351,45 @@ function KycOptionStep({
         </div>
       )}
 
+      {error && (
+        <p
+          role="alert"
+          className="flex items-start gap-2 text-sm text-destructive"
+        >
+          <AlertTriangle
+            className="h-4 w-4 mt-0.5 flex-shrink-0"
+            aria-hidden="true"
+          />
+          <span>{error}</span>
+        </p>
+      )}
+
       <div className="flex justify-between pt-2 border-t">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="outline" onClick={onBack}>
+            <Button variant="outline" onClick={onBack} disabled={submitting}>
               <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
               Back
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="top">Edit your identity details</TooltipContent>
+          <TooltipContent side="top">Return to review your details</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
             <span>
-              <Button onClick={onNext} disabled={!intent}>
-                Continue
-                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-              </Button>
+              <LoadingButton
+                onClick={onSubmit}
+                isLoading={submitting}
+                loadingText="Submitting…"
+                disabled={!intent || submitting}
+              >
+                Submit check-in
+              </LoadingButton>
             </span>
           </TooltipTrigger>
           <TooltipContent side="top">
             {intent
-              ? "Continue to add your visit details"
+              ? "Send your check-in to the receptionist for approval"
               : "Pick verify or skip first"}
           </TooltipContent>
         </Tooltip>
@@ -1357,15 +1398,13 @@ function KycOptionStep({
   );
 }
 
-// ── Step 3: Details ─────────────────────────────────────────────────
+// ── Step 2: Details ─────────────────────────────────────────────────
 
 function DetailsStep({
   fields,
   enums,
   fieldValues,
   setFieldValue,
-  purposeDetails,
-  onPurposeDetailsChange,
   onBack,
   onNext,
   error,
@@ -1374,8 +1413,6 @@ function DetailsStep({
   enums: ReturnType<typeof useCheckinEnumsForTenant>["data"];
   fieldValues: Record<string, unknown>;
   setFieldValue: (key: string, value: unknown) => void;
-  purposeDetails: string;
-  onPurposeDetailsChange: (value: string) => void;
   onBack: () => void;
   onNext: () => void;
   error: string | null;
@@ -1390,22 +1427,6 @@ function DetailsStep({
           enums={enums}
         />
       )}
-
-      <section className="space-y-3">
-        <h3 className="text-sm font-medium">Anything else?</h3>
-        <div className="space-y-1.5">
-          <Label htmlFor="kiosk-purpose-details" className="text-sm">
-            Notes for the receptionist (optional)
-          </Label>
-          <Textarea
-            id="kiosk-purpose-details"
-            value={purposeDetails}
-            onChange={(e) => onPurposeDetailsChange(e.target.value)}
-            className="text-base md:text-sm min-h-[80px]"
-            placeholder="Anything the receptionist should know"
-          />
-        </div>
-      </section>
 
       {error && (
         <p
@@ -1446,7 +1467,7 @@ function DetailsStep({
   );
 }
 
-// ── Step 4: Review ──────────────────────────────────────────────────
+// ── Step 3: Review ──────────────────────────────────────────────────
 
 function ReviewStep({
   state,
@@ -1454,6 +1475,7 @@ function ReviewStep({
   enums,
   kycAvailable,
   onBack,
+  onContinue,
   onSubmit,
   submitting,
   error,
@@ -1461,8 +1483,14 @@ function ReviewStep({
   state: KioskState;
   fields: RequiredField[];
   enums: ReturnType<typeof useCheckinEnumsForTenant>["data"];
+  /**
+   * When true a final Verify step follows, so Review advances to it
+   * (`onContinue`) instead of submitting. When false Review is the last
+   * step and submits directly (`onSubmit`).
+   */
   kycAvailable: boolean;
   onBack: () => void;
+  onContinue: () => void;
   onSubmit: () => void;
   submitting: boolean;
   error: string | null;
@@ -1473,18 +1501,6 @@ function ReviewStep({
         <ReviewItem label="Name" value={state.fullName} />
         <ReviewItem label="Phone" value={state.phone} />
         {state.email && <ReviewItem label="Email" value={state.email} />}
-        {kycAvailable && (
-          <ReviewItem
-            label="Verification"
-            value={
-              state.kycIntent === "verify"
-                ? "Will verify with Dojah after submit"
-                : state.kycIntent === "skip"
-                  ? "Skipping — a receptionist will verify manually"
-                  : "Not chosen"
-            }
-          />
-        )}
         {fields.map((f) => {
           const v = state.fieldValues[f.key];
           if (v == null || v === "") return null;
@@ -1496,14 +1512,12 @@ function ReviewStep({
             />
           );
         })}
-        {state.purposeDetails && (
-          <ReviewItem label="Notes" value={state.purposeDetails} />
-        )}
       </dl>
 
       <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-        Your check-in will be sent for receptionist approval. If you chose
-        to verify, the verification widget opens right after you submit.
+        {kycAvailable
+          ? "Next you'll choose how to verify your ID, then submit. Your check-in is sent for receptionist approval."
+          : "Your check-in will be sent for receptionist approval."}
       </div>
 
       {error && (
@@ -1529,22 +1543,36 @@ function ReviewStep({
           </TooltipTrigger>
           <TooltipContent side="top">Make edits before submitting</TooltipContent>
         </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <LoadingButton
-                onClick={onSubmit}
-                isLoading={submitting}
-                loadingText="Submitting…"
-              >
-                Submit check-in
-              </LoadingButton>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="top">
-            Send your check-in to the receptionist for approval
-          </TooltipContent>
-        </Tooltip>
+        {kycAvailable ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button onClick={onContinue}>
+                Continue
+                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              Continue to choose how to verify your ID
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <LoadingButton
+                  onClick={onSubmit}
+                  isLoading={submitting}
+                  loadingText="Submitting…"
+                >
+                  Submit check-in
+                </LoadingButton>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              Send your check-in to the receptionist for approval
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
     </div>
   );
