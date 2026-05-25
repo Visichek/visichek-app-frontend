@@ -139,7 +139,7 @@ export const PhoneInput = React.forwardRef<HTMLInputElement, PhoneInputProps>(
       >
         <div
           className={cn(
-            "flex w-full rounded-md border border-input bg-background ring-offset-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+            "flex w-full rounded-md border border-input bg-muted ring-offset-background transition-[colors,box-shadow] hover:bg-background focus-within:bg-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:shadow-[var(--ring-glow)]",
             disabled && "opacity-50 cursor-not-allowed",
             ariaInvalid &&
               "border-destructive focus-within:ring-destructive"

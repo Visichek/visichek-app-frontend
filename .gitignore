@@ -42,6 +42,9 @@ COMPONENT_GUIDE.md
 
 AGENTS.md
 
+# local design workspace (plans, decisions, answered questions)
+design/
+
 .claude
 *.tsbuildinfo
 next-env.d.ts

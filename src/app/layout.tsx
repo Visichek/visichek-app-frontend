@@ -1,27 +1,38 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Plus_Jakarta_Sans, IBM_Plex_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import Script from "next/script";
 import { Providers } from "./providers";
 import "./globals.css";
 
-// Self-hosted via next/font — no render-blocking external request
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  axes: ["opsz"],
-  variable: "--font-fraunces",
+// Self-hosted local fonts matching the marketing website — no render-blocking
+// external request. Files live in public/fonts (see design/02-typography-and-fonts.md).
+const lausanne = localFont({
+  src: "../../public/fonts/twk-lausanne.woff2",
+  variable: "--font-sans",
+  weight: "400",
   display: "swap",
 });
 
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  variable: "--font-plus-jakarta-sans",
+const moderat = localFont({
+  src: [
+    { path: "../../public/fonts/moderat-serif-light.woff2", weight: "300" },
+    { path: "../../public/fonts/moderat-serif-regular.woff2", weight: "400" },
+  ],
+  variable: "--font-display",
   display: "swap",
 });
 
-const ibmPlexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-ibm-plex-mono",
+const sfMono = localFont({
+  src: "../../public/fonts/sf-mono.woff2",
+  variable: "--font-mono",
+  weight: "400",
+  display: "swap",
+});
+
+const rockSalt = localFont({
+  src: "../../public/fonts/rock-salt.woff2",
+  variable: "--font-handwritten",
+  weight: "400",
   display: "swap",
 });
 
@@ -53,7 +64,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#359300" },
+    { media: "(prefers-color-scheme: light)", color: "#3A9615" },
     { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
   ],
 };
@@ -100,7 +111,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${fraunces.variable} ${plusJakartaSans.variable} ${ibmPlexMono.variable}`}
+      className={`${lausanne.variable} ${moderat.variable} ${sfMono.variable} ${rockSalt.variable}`}
     >
       <body
         className="min-h-screen bg-background font-sans antialiased"

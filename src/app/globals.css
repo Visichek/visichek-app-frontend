@@ -4,42 +4,71 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 0 0% 100%;        /* #ffffff */
+    --foreground: 0 0% 16%;         /* #2a2a2a main charcoal */
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 0 0% 16%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --success: 142 71% 29%;
-    --success-foreground: 210 40% 98%;
+    --popover-foreground: 0 0% 16%;
+
+    /* Brand green is the primary action color (#3A9615) */
+    --primary: 103 76% 34%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary / muted = soft neutral panel (#fafafa), not blue */
+    --secondary: 0 0% 98%;
+    --secondary-foreground: 0 0% 16%;
+    --muted: 0 0% 98%;
+    --muted-foreground: 0 0% 42%;   /* #6a6a6a */
+
+    /* Accent = pale green tint for hover/active surfaces (#f2f8f0) */
+    --accent: 100 33% 96%;
+    --accent-foreground: 103 76% 27%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 103 76% 34%;         /* aligned to brand green */
+    --success-foreground: 0 0% 100%;
     --warning: 32 95% 44%;
-    --warning-foreground: 210 40% 98%;
+    --warning-foreground: 0 0% 100%;
     --info: 221 83% 53%;
-    --info-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 0 0% 91%;             /* #e8e8e8 neutral */
+    --input: 0 0% 91%;
+    --ring: 103 76% 34%;            /* green focus ring */
     --radius: 0.75rem;
 
-    /* Sidebar tokens — warm, clean light palette */
-    --sidebar-background: 40 20% 97%;
-    --sidebar-foreground: 30 10% 18%;
-    --sidebar-primary: 30 10% 18%;
-    --sidebar-primary-foreground: 40 20% 97%;
-    --sidebar-accent: 35 15% 93%;
-    --sidebar-accent-foreground: 30 10% 18%;
-    --sidebar-border: 35 12% 90%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Brand ramp */
+    --brand-200: 141 73% 85%;
+    --brand-500: 142 71% 45%;
+    --brand-600: 142 76% 36%;
+    /* CTA gradient stops (#43aa1a -> #2e7a11) */
+    --cta-from: 103 73% 38%;
+    --cta-to: 103 76% 27%;
+    /* Pale green editorial surfaces */
+    --surface-pale-green: 100 33% 96%;   /* #f2f8f0 */
+    --surface-pale-green-2: 120 25% 98%; /* #f8fbf8 */
+    /* Signature green focus ring glow (website 3px @ 0.1 alpha) */
+    --ring-glow: 0 0 0 3px hsl(103 76% 34% / 0.12);
+
+    /* Glass surface tokens (rgb channels for alpha compositing) */
+    --glass-bg: 255 255 255;
+    --glass-fill: rgb(var(--glass-bg) / 0.55);
+    --glass-fill-strong: rgb(var(--glass-bg) / 0.85);
+    --glass-border: rgb(var(--glass-bg) / 0.6);
+    --glass-blur: 12px;
+    --glass-saturate: 1.8;
+
+    /* Sidebar — warm near-white with green active accent */
+    --sidebar-background: 0 0% 98%;     /* #fafafa */
+    --sidebar-foreground: 0 0% 16%;
+    --sidebar-primary: 103 76% 34%;     /* active item green */
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 100 33% 96%;      /* hover #f2f8f0 */
+    --sidebar-accent-foreground: 103 76% 27%;
+    --sidebar-border: 0 0% 91%;
+    --sidebar-ring: 103 76% 34%;
 
     /* Tenant branding overrides — set dynamically via JS */
     --tenant-primary: var(--primary);
@@ -48,40 +77,50 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --success: 142 71% 29%;
-    --success-foreground: 210 40% 98%;
-    --warning: 32 95% 44%;
-    --warning-foreground: 210 40% 98%;
-    --info: 221 83% 53%;
-    --info-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --background: 0 0% 7%;          /* near-black neutral */
+    --foreground: 0 0% 96%;
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 96%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 96%;
 
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --primary: 103 64% 46%;         /* brighter green for dark contrast */
+    --primary-foreground: 0 0% 8%;
+
+    --secondary: 0 0% 14%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 0 0% 14%;
+    --muted-foreground: 0 0% 64%;
+    --accent: 103 30% 16%;          /* desaturated green tint */
+    --accent-foreground: 103 64% 70%;
+
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 96%;
+    --success: 103 64% 46%;
+    --success-foreground: 0 0% 8%;
+    --warning: 32 95% 50%;
+    --warning-foreground: 0 0% 8%;
+    --info: 221 83% 60%;
+    --info-foreground: 0 0% 8%;
+
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 103 64% 46%;
+
+    /* Brand ramp + CTA + glass (dark) */
+    --cta-from: 103 64% 42%;
+    --cta-to: 103 70% 30%;
+    --ring-glow: 0 0 0 3px hsl(103 64% 46% / 0.18);
+    --glass-bg: 20 20 20;
+
+    --sidebar-background: 0 0% 9%;
+    --sidebar-foreground: 0 0% 92%;
+    --sidebar-primary: 103 64% 46%;
+    --sidebar-primary-foreground: 0 0% 8%;
+    --sidebar-accent: 0 0% 14%;
+    --sidebar-accent-foreground: 0 0% 92%;
+    --sidebar-border: 0 0% 18%;
+    --sidebar-ring: 103 64% 46%;
   }
 }
 
@@ -99,6 +138,55 @@
   }
 }
 
+/* Brand surface utilities — drive everything from tokens, never hardcode hex */
+.cta-gradient {
+  background-image: linear-gradient(135deg, hsl(var(--cta-from)), hsl(var(--cta-to)));
+}
+.cta-shadow {
+  box-shadow: 0 6px 20px -6px hsl(103 76% 34% / 0.45);
+}
+
+/* Glass surface — chrome only (topbar, command bar, modal backdrops). See design/03. */
+.glass {
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.glass-strong {
+  background: var(--glass-fill-strong);
+}
+@supports (backdrop-filter: blur(2px)) {
+  .glass,
+  .glass-strong {
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  }
+}
+@media (max-width: 768px) {
+  .glass,
+  .glass-strong {
+    background: hsl(var(--background));
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+}
+
+/* Reveal-on-scroll — public/auth/empty-state surfaces only, never on data lists */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes reveal-up {
+    from {
+      opacity: 0;
+      transform: translateY(22px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .reveal-up {
+    animation: reveal-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+
 /* Login page styles — light, calm auth aesthetic */
 .login-input {
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -107,10 +195,10 @@
 .login-input:-webkit-autofill,
 .login-input:-webkit-autofill:hover,
 .login-input:-webkit-autofill:focus {
-  -webkit-text-fill-color: #0f172a;
+  -webkit-text-fill-color: #2a2a2a;
   -webkit-box-shadow: 0 0 0 40px #ffffff inset;
   border-color: #e5e7eb;
-  caret-color: #00d287;
+  caret-color: hsl(103 76% 34%);
   transition: background-color 5000s ease-in-out 0s;
 }
 

@@ -16,9 +16,10 @@ const config: Config = {
     },
     extend: {
       fontFamily: {
-        display: ["var(--font-fraunces)", "serif"],
-        sans: ["var(--font-plus-jakarta-sans)", "Arial", "Helvetica", "system-ui", "sans-serif"],
-        mono: ["var(--font-ibm-plex-mono)", "monospace"],
+        display: ["var(--font-display)", "Georgia", "serif"],          // Moderat Serif
+        sans: ["var(--font-sans)", "system-ui", "Arial", "Helvetica", "sans-serif"], // TWK Lausanne
+        mono: ["var(--font-mono)", "ui-monospace", "monospace"],        // SF Mono
+        handwritten: ["var(--font-handwritten)", "cursive"],            // Rock Salt
       },
       spacing: {
         "space-1": "4px",
@@ -104,6 +105,18 @@ const config: Config = {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        brand: {
+          200: "hsl(var(--brand-200))",
+          500: "hsl(var(--brand-500))",
+          600: "hsl(var(--brand-600))",
+        },
+      },
+      transitionTimingFunction: {
+        glass: "cubic-bezier(0.16, 1, 0.3, 1)",  // website nav resize / reveal
+        snap: "cubic-bezier(0.22, 1, 0.36, 1)",
+      },
+      transitionDuration: {
+        button: "180ms",  // website button 150-200ms
       },
       keyframes: {
         "accordion-down": {

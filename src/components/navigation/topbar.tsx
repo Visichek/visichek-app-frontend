@@ -18,7 +18,7 @@ interface TopbarProps {
 
 export function Topbar({ onMenuClick, onSearchClick, title }: TopbarProps) {
   return (
-    <header className="sticky top-0 z-sticky flex h-14 items-center gap-4 border-b bg-background px-4 lg:px-6">
+    <header className="sticky top-0 z-sticky flex h-14 items-center gap-4 border-b border-border/70 bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/75 px-4 lg:px-6">
       {/* Mobile hamburger */}
       <Tooltip>
         <TooltipTrigger asChild>
@@ -39,7 +39,7 @@ export function Topbar({ onMenuClick, onSearchClick, title }: TopbarProps) {
 
       {/* Page title */}
       {title && (
-        <h2 className="text-lg font-semibold tracking-tight hidden md:block">
+        <h2 className="font-display text-lg font-semibold tracking-tight hidden md:block">
           {title}
         </h2>
       )}
