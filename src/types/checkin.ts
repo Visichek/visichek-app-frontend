@@ -398,6 +398,17 @@ export interface CheckinOut {
    * row is still returned so the approver can reject the stale entry.
    */
   visitor?: VisitorOut | null;
+  /**
+   * Short-lived signed capability token, bound to this exact `id` and tenant,
+   * that authorizes the public KYC follow-up calls (`/v1/kyc/initiate`,
+   * `/v1/kyc/skip`, `/v1/kyc/status/{id}`). Present ONLY on the creation
+   * response (the public check-in submit endpoints) — a bare check-in id no
+   * longer authorizes those calls. Expires ~30 min after creation; a
+   * missing/invalid/mismatched token returns 403 AUTH_PERMISSION_DENIED.
+   * Hold it in component state / the kiosk resume marker only long enough to
+   * complete KYC — never treat it as a session token.
+   */
+  capabilityToken?: string;
 }
 
 /** Confirm response when the receptionist approves a check-in. */

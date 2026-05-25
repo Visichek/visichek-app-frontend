@@ -74,6 +74,13 @@ export interface KycWidgetConfig {
 
 export interface KycInitiateRequest {
   checkinId: string;
+  /**
+   * Capability token from the check-in creation response
+   * (`CheckinOut.capabilityToken`). Required — the backend rejects the call
+   * with 403 AUTH_PERMISSION_DENIED (audited `kyc.capability_rejected`) when
+   * it's missing, expired, or bound to a different check-in/tenant.
+   */
+  capabilityToken: string;
 }
 
 export interface KycInitiateResponse {
@@ -85,6 +92,12 @@ export interface KycInitiateResponse {
 export interface KycSkipRequest {
   checkinId: string;
   reason?: string;
+  /**
+   * Capability token from the check-in creation response
+   * (`CheckinOut.capabilityToken`). Required — same 403 rejection as
+   * `KycInitiateRequest.capabilityToken` when missing/invalid/mismatched.
+   */
+  capabilityToken: string;
 }
 
 export interface KycSkipResponse {

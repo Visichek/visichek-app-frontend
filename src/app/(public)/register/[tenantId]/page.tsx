@@ -519,7 +519,10 @@ export default function KioskCheckinPage() {
     queryClient.removeQueries({ queryKey: checkinKeys.kycStatus(checkin.id) });
     setPhase({ kind: "kyc_initiating", checkin });
     try {
-      const result = await kycInitiateMutation.mutateAsync(checkin.id);
+      const result = await kycInitiateMutation.mutateAsync({
+        checkinId: checkin.id,
+        capabilityToken: checkin.capabilityToken ?? "",
+      });
       setPhase({
         kind: "kyc_running",
         checkin,
@@ -551,6 +554,7 @@ export default function KioskCheckinPage() {
       await kycSkipMutation.mutateAsync({
         checkinId: checkin.id,
         reason: "visitor declined",
+        capabilityToken: checkin.capabilityToken ?? "",
       });
       setPhase({ kind: "awaiting_approval", checkin });
     } catch (err) {
@@ -590,11 +594,16 @@ export default function KioskCheckinPage() {
 
   // ── Status polling ───────────────────────────────────────────────
 
-  const pollingCheckinId =
+  const pollingCheckin =
     phase.kind === "kyc_polling" || phase.kind === "kyc_verifying"
-      ? phase.checkin.id
+      ? phase.checkin
       : undefined;
-  const statusQ = useKycStatus(pollingCheckinId, { enabled: !!pollingCheckinId });
+  const pollingCheckinId = pollingCheckin?.id;
+  const statusQ = useKycStatus(
+    pollingCheckinId,
+    pollingCheckin?.capabilityToken,
+    { enabled: !!pollingCheckinId },
+  );
 
   useEffect(() => {
     if (!statusQ.data) return;

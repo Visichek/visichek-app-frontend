@@ -24,6 +24,7 @@ import type {
   EnumsResponse,
 } from "@/types/checkin";
 import type {
+  KycInitiateRequest,
   KycInitiateResponse,
   KycSkipRequest,
   KycSkipResponse,
@@ -374,11 +375,17 @@ export function useCheckinEnums(configId: string | undefined) {
  * a `widgetConfig` payload the kiosk hands directly to the Dojah React
  * widget; the frontend never reads Dojah credentials from env. On retry
  * the same `checkinId` is sent again — the endpoint is idempotent.
+ *
+ * Requires the `capabilityToken` minted on the check-in creation response;
+ * the backend 403s (`kyc.capability_rejected`) without a valid, matching one.
  */
 export function useKycInitiate() {
   return useMutation({
-    mutationFn: (checkinId: string) =>
-      apiPost<KycInitiateResponse>(kycInitiatePath(), { checkinId }),
+    mutationFn: ({ checkinId, capabilityToken }: KycInitiateRequest) =>
+      apiPost<KycInitiateResponse>(kycInitiatePath(), {
+        checkinId,
+        capabilityToken,
+      }),
   });
 }
 
@@ -393,6 +400,7 @@ export function useKycSkip() {
       apiPost<KycSkipResponse>(kycSkipPath(), {
         checkinId: request.checkinId,
         reason: request.reason,
+        capabilityToken: request.capabilityToken,
       }),
   });
 }
@@ -402,15 +410,24 @@ export function useKycSkip() {
  * Disabled by default — pass `enabled: true` once the widget has closed
  * with an indeterminate result, then drive a 3–5s `refetchInterval`
  * until status is no longer `ongoing`.
+ *
+ * The check-in's `capabilityToken` is sent as the `token` query param; the
+ * query stays disabled until one is supplied, since the backend 403s the
+ * status read without it.
  */
 export function useKycStatus(
   checkinId: string | undefined,
+  capabilityToken: string | undefined,
   options?: { enabled?: boolean; pollMs?: number },
 ) {
-  const enabled = (options?.enabled ?? false) && !!checkinId;
+  const enabled =
+    (options?.enabled ?? false) && !!checkinId && !!capabilityToken;
   return useQuery({
     queryKey: checkinKeys.kycStatus(checkinId ?? ""),
-    queryFn: () => apiGet<KycStatusResponse>(kycStatusPath(checkinId!)),
+    queryFn: () =>
+      apiGet<KycStatusResponse>(kycStatusPath(checkinId!), {
+        token: capabilityToken!,
+      }),
     enabled,
     // Default 4s poll: middle of the doc's recommended 3–5s window.
     refetchInterval: (query) => {

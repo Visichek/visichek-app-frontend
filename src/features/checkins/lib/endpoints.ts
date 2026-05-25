@@ -49,19 +49,24 @@ export const checkinConfigEnumsByTenantPath = (tenantId: string) =>
  * Start a KYC verification for a check-in in `pending_verification` state. Returns
  * a `widgetConfig` payload the kiosk hands to the Dojah React widget; the
  * webhook (not the frontend) reports the verification result back.
+ *
+ * Body must carry the `capabilityToken` minted on the check-in creation
+ * response — a bare check-in id no longer authorizes this call.
  */
 export const kycInitiatePath = () => `/kyc/initiate`;
 
 /**
  * Skip the KYC step for a check-in. Returns 403 when the tenant has
  * `kycRequired: true` — the kiosk should hide the skip CTA in that case.
+ * Body must carry the check-in's `capabilityToken`.
  */
 export const kycSkipPath = () => `/kyc/skip`;
 
 /**
  * Polling fallback for when the Dojah widget closes inconclusively. The
  * kiosk should poll every 3–5s for at most 60s, then surface a retry CTA
- * if the status still isn't terminal.
+ * if the status still isn't terminal. The check-in's `capabilityToken` must
+ * be passed as the `token` query param.
  */
 export const kycStatusPath = (checkinId: string) =>
   `/kyc/status/${checkinId}`;
