@@ -57,6 +57,12 @@ export interface AdminRangeBarProps {
   range: DateRange;
   /** Platform launch (admin) or tenant creation date (tenant) — lower bound. */
   platformLaunchAt: number;
+  /**
+   * Whether the real launch date is known yet. Until it is, the longer presets
+   * stay hidden so they don't flash in and out while the first fetch resolves
+   * (the lower bound otherwise defaults to a far-back fallback).
+   */
+  historyKnown?: boolean;
   effectiveGranularity?: string;
   onPreset: (key: AdminRangeKey) => void;
   onCustomRange: (range: DateRange) => void;
@@ -72,6 +78,7 @@ export function AdminRangeBar({
   activeKey,
   range,
   platformLaunchAt,
+  historyKnown = true,
   effectiveGranularity,
   onPreset,
   onCustomRange,
@@ -82,11 +89,15 @@ export function AdminRangeBar({
   const today = epochToDateInput(now);
   const isCustom = activeKey === "custom";
 
-  // Hide rolling presets that exceed the available history; Today and All
-  // time always show.
-  const visiblePresets = PRESETS.filter(
-    (p) => p.days == null || p.days === 0 || p.days <= maxDays,
-  );
+  // Today and All time always show; the active preset always shows (so it's
+  // never hidden out from under the user). Rolling presets show only once we
+  // know the history is long enough — which also prevents them flashing in
+  // before the real launch date has loaded.
+  const visiblePresets = PRESETS.filter((p) => {
+    if (p.key === activeKey) return true;
+    if (p.days == null || p.days === 0) return true;
+    return historyKnown && p.days <= maxDays;
+  });
 
   return (
     <div className="flex flex-col gap-2">

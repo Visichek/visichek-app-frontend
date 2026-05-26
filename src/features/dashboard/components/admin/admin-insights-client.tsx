@@ -165,7 +165,14 @@ export function AdminInsightsClient() {
   const { data: attentionStats } = useAdminDashboardStats();
   const data = query.data;
   const meta = data?.meta;
-  const launch = meta?.platformLaunchAt ?? FALLBACK_LAUNCH;
+  // Sticky launch date: `data` becomes undefined on every tab/range/filter
+  // change (new query key), which would otherwise drop us back to the far-back
+  // fallback and flash the longer presets in and out. The ref retains the last
+  // real value across those gaps.
+  const launchRef = useRef<number | null>(null);
+  if (meta?.platformLaunchAt != null) launchRef.current = meta.platformLaunchAt;
+  const launch = launchRef.current ?? FALLBACK_LAUNCH;
+  const historyKnown = launchRef.current != null;
   const activeTabDef = TABS.find((t) => t.id === activeTab) ?? TABS[0];
   // Server-resolved chips (entity ids → names) when present; raw fallback else.
   const chips = meta?.appliedFilters
@@ -275,7 +282,8 @@ export function AdminInsightsClient() {
       <AdminRangeBar
         activeKey={rangeKey}
         range={range}
-        platformLaunchAt={meta?.platformLaunchAt ?? launch}
+        platformLaunchAt={launch}
+        historyKnown={historyKnown}
         effectiveGranularity={meta?.granularity}
         onPreset={changePreset}
         onCustomRange={setRange}

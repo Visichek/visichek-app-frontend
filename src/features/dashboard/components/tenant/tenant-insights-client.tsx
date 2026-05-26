@@ -183,7 +183,13 @@ export function TenantInsightsClient() {
   const chips = meta?.appliedFilters
     ? chipsFromApplied(meta.appliedFilters)
     : activeFilterChips(filters);
-  const createdAt = meta?.tenantCreatedAt ?? FALLBACK_CREATED_AT;
+  // Sticky creation date: `data` goes undefined on every tab/range/filter
+  // change, which would otherwise drop us to the fallback and flash the longer
+  // presets in and out. The ref retains the last real value across those gaps.
+  const createdAtRef = useRef<number | null>(null);
+  if (meta?.tenantCreatedAt != null) createdAtRef.current = meta.tenantCreatedAt;
+  const createdAt = createdAtRef.current ?? FALLBACK_CREATED_AT;
+  const historyKnown = createdAtRef.current != null;
   const availableSet = useMemo(
     () => new Set<string>(meta?.availableSections ?? []),
     [meta],
@@ -263,6 +269,7 @@ export function TenantInsightsClient() {
           activeKey={rangeKey}
           range={range}
           platformLaunchAt={createdAt}
+          historyKnown={historyKnown}
           effectiveGranularity={meta?.granularity}
           onPreset={changePreset}
           onCustomRange={setRange}
