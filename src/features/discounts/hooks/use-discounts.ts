@@ -39,6 +39,7 @@ interface CreateDiscountRequest {
   value: number;
   description?: string;
   targetTenantId?: string;
+  targetPlanIds?: string[];
   maxRedemptions?: number;
   validFrom?: number;
   validUntil?: number;

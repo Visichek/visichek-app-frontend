@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
   TooltipContent,
@@ -39,6 +40,8 @@ import {
 } from "@/components/ui/tooltip";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useCreateDiscount } from "@/features/discounts/hooks/use-discounts";
+import { useTenantList } from "@/features/auth/hooks/use-admin-dashboard";
+import { usePlans } from "@/features/plans/hooks/use-plans";
 
 /* ------------------------------------------------------------------ */
 /* Schema                                                               */
@@ -60,6 +63,7 @@ const discountSchema = z
       .min(0, "Value cannot be negative"),
     scope: z.enum(["global", "tenant", "plan"]),
     targetTenantId: z.string().optional(),
+    targetPlanIds: z.array(z.string()).optional(),
     description: z.string().optional(),
     maxRedemptions: z.coerce
       .number()
@@ -85,7 +89,14 @@ const discountSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["targetTenantId"],
-        message: "Tenant ID is required for tenant-scoped discounts",
+        message: "Select a tenant for tenant-scoped discounts",
+      });
+    }
+    if (data.scope === "plan" && !(data.targetPlanIds?.length)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["targetPlanIds"],
+        message: "Select at least one plan for plan-scoped discounts",
       });
     }
   });
@@ -105,7 +116,7 @@ const STEPS: StepDef[] = [
 
 const STEP_FIELDS: Record<number, (keyof DiscountFormData)[]> = {
   1: ["code", "name", "type", "value"],
-  2: ["scope", "targetTenantId"],
+  2: ["scope", "targetTenantId", "targetPlanIds"],
   3: [],
   4: [],
 };
@@ -134,6 +145,20 @@ export function DiscountForm() {
   const { loadingHref, navigate } = useNavigationLoading();
   const createMutation = useCreateDiscount();
 
+  // Active tenants/plans populate the targeting dropdowns so the admin selects
+  // a real resource instead of pasting an opaque ID.
+  const { data: tenantList, isLoading: tenantsLoading } = useTenantList({
+    limit: 200,
+    sort: "companyName",
+  });
+  const tenants = (tenantList?.items ?? []).filter((t) => t.isActive !== false);
+
+  const { data: plansList, isLoading: plansLoading } = usePlans({
+    status: "active",
+    limit: 100,
+  });
+  const plans = plansList?.items ?? [];
+
   const {
     register,
     handleSubmit,
@@ -150,6 +175,7 @@ export function DiscountForm() {
       value: 0,
       scope: "global",
       targetTenantId: "",
+      targetPlanIds: [],
       description: "",
       maxRedemptions: "",
       validFrom: "",
@@ -180,6 +206,8 @@ export function DiscountForm() {
         scope: data.scope,
         targetTenantId:
           data.scope === "tenant" ? data.targetTenantId : undefined,
+        targetPlanIds:
+          data.scope === "plan" ? data.targetPlanIds : undefined,
         description: data.description || undefined,
         maxRedemptions:
           data.maxRedemptions !== "" && data.maxRedemptions !== undefined
@@ -379,20 +407,47 @@ export function DiscountForm() {
             {values.scope === "tenant" && (
               <div className="space-y-2">
                 <Label htmlFor="discount-tenantId">
-                  Target Tenant ID <span aria-hidden="true">*</span>
+                  Target Tenant <span aria-hidden="true">*</span>
                 </Label>
-                <Input
-                  id="discount-tenantId"
-                  placeholder="Tenant ID"
-                  autoFocus
-                  {...register("targetTenantId")}
-                  aria-invalid={!!errors.targetTenantId}
-                  aria-describedby={
-                    errors.targetTenantId
-                      ? "discount-tenantId-error"
-                      : undefined
+                <Select
+                  value={values.targetTenantId || ""}
+                  onValueChange={(v) =>
+                    setValue("targetTenantId", v, { shouldValidate: true })
                   }
-                />
+                  disabled={tenantsLoading}
+                >
+                  <SelectTrigger
+                    id="discount-tenantId"
+                    className="min-h-[44px]"
+                    aria-invalid={!!errors.targetTenantId}
+                    aria-describedby={
+                      errors.targetTenantId
+                        ? "discount-tenantId-error"
+                        : undefined
+                    }
+                  >
+                    <SelectValue
+                      placeholder={
+                        tenantsLoading
+                          ? "Loading tenants…"
+                          : "Select a tenant"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tenants.length === 0 && !tenantsLoading ? (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                        No active tenants found
+                      </div>
+                    ) : (
+                      tenants.map((tenant) => (
+                        <SelectItem key={tenant.id} value={tenant.id}>
+                          {tenant.companyName}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
                 {errors.targetTenantId && (
                   <p
                     id="discount-tenantId-error"
@@ -403,6 +458,73 @@ export function DiscountForm() {
                   </p>
                 )}
               </div>
+            )}
+
+            {values.scope === "plan" && (
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium">
+                  Target Plans <span aria-hidden="true">*</span>
+                </legend>
+                <p className="text-sm text-muted-foreground">
+                  Select the plans this discount can be applied to.
+                </p>
+                {plansLoading ? (
+                  <div className="flex items-center gap-2 px-1 py-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    Loading plans…
+                  </div>
+                ) : plans.length === 0 ? (
+                  <p className="px-1 py-2 text-sm text-muted-foreground">
+                    No active plans found.
+                  </p>
+                ) : (
+                  <div
+                    className="space-y-1 rounded-lg border border-border p-1"
+                    aria-describedby={
+                      errors.targetPlanIds
+                        ? "discount-planIds-error"
+                        : undefined
+                    }
+                  >
+                    {plans.map((plan) => {
+                      const selected = values.targetPlanIds ?? [];
+                      const checked = selected.includes(plan.id);
+                      return (
+                        <label
+                          key={plan.id}
+                          htmlFor={`discount-plan-${plan.id}`}
+                          className="flex min-h-[44px] cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/60"
+                        >
+                          <Checkbox
+                            id={`discount-plan-${plan.id}`}
+                            checked={checked}
+                            onCheckedChange={(value) => {
+                              const next = value === true
+                                ? [...selected, plan.id]
+                                : selected.filter((id) => id !== plan.id);
+                              setValue("targetPlanIds", next, {
+                                shouldValidate: true,
+                              });
+                            }}
+                          />
+                          <span className="text-sm">
+                            {plan.displayName || plan.name}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+                {errors.targetPlanIds && (
+                  <p
+                    id="discount-planIds-error"
+                    className="text-sm text-destructive"
+                    role="alert"
+                  >
+                    {errors.targetPlanIds.message}
+                  </p>
+                )}
+              </fieldset>
             )}
           </div>
         )}
@@ -493,8 +615,26 @@ export function DiscountForm() {
             <ReviewRow label="Scope" value={scopeLabel[values.scope]} />
             {values.scope === "tenant" && (
               <ReviewRow
-                label="Target Tenant ID"
-                value={values.targetTenantId || "—"}
+                label="Target Tenant"
+                value={
+                  tenants.find((t) => t.id === values.targetTenantId)
+                    ?.companyName ||
+                  values.targetTenantId ||
+                  "—"
+                }
+              />
+            )}
+            {values.scope === "plan" && (
+              <ReviewRow
+                label="Target Plans"
+                value={
+                  values.targetPlanIds?.length
+                    ? plans
+                        .filter((p) => values.targetPlanIds?.includes(p.id))
+                        .map((p) => p.displayName || p.name)
+                        .join(", ") || `${values.targetPlanIds.length} selected`
+                    : "—"
+                }
               />
             )}
             <ReviewRow
