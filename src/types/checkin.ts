@@ -10,6 +10,8 @@
  * Endpoints are documented in src/features/checkins/lib/endpoints.ts.
  */
 
+import type { SystemUserRole, VerificationMethod } from "@/types/enums";
+
 // ── Enums ────────────────────────────────────────────────────────────
 
 /**
@@ -250,6 +252,38 @@ export interface VisitorOut {
   bioData?: Record<string, string>;
   lastVisitAt?: number;
   createdAt?: number;
+  /**
+   * Set when a staff member vouched for this visitor's identity manually
+   * (no automated ID scan). Lets the UI render "Verified by <name>"
+   * attribution. Null / absent when the visitor was never manually
+   * verified (e.g. verified via the Dojah ID scan, or not verified at all).
+   * See {@link ManualVerificationInfo}.
+   */
+  manualVerification?: ManualVerificationInfo | null;
+}
+
+/**
+ * Attribution recorded when a receptionist / admin manually marks a
+ * visitor as identity-verified instead of relying on the automated ID
+ * scan. The verifier identity is derived server-side from the auth token
+ * — the frontend never sends it — and denormalized here so list views can
+ * show "Verified by <name>" without a second fetch.
+ */
+export interface ManualVerificationInfo {
+  /** Always `true` once a manual verification has been recorded. */
+  manual: boolean;
+  /** System-user id of the staff member who verified (from the auth token). */
+  verifiedByUserId?: string;
+  /** Display name of the verifier, denormalized for rendering. */
+  verifiedByName?: string;
+  /** Role of the verifier (receptionist, dept_admin, super_admin, …). */
+  verifiedByRole?: SystemUserRole;
+  /** Unix epoch seconds when the verification was recorded. */
+  verifiedAt?: number;
+  /** Verification method recorded on the audit trail. */
+  method?: VerificationMethod;
+  /** Optional free-text note the verifier added. */
+  notes?: string;
 }
 
 /** Nested purpose payload for both submit variants. */
@@ -381,6 +415,34 @@ export interface CheckinConfirmRequest {
   notes?: string;
 }
 
+/**
+ * PATCH body for editing a visitor's profile from the receptionist /
+ * admin UI (the "Edit details" action on the visitors list).
+ *
+ * Every field is optional — only the keys present are updated. The
+ * backend should treat an absent key as "leave unchanged" and an explicit
+ * `null` on the nullable fields (`email`, `company`) as "clear it". At
+ * least one field must be present or the backend returns
+ * `422 VALIDATION_ERROR`.
+ */
+export interface VisitorProfileUpdateRequest {
+  fullName?: string;
+  email?: string | null;
+  phone?: string;
+  company?: string | null;
+}
+
+/**
+ * POST body for the manual-verify action. The verifier's identity
+ * (user id, name, role) is taken server-side from the auth token and
+ * MUST NOT be sent from the frontend. Only an optional note travels in
+ * the body.
+ */
+export interface CheckinManualVerifyRequest {
+  /** Optional reason / note recorded on the audit trail and shown in the UI. */
+  notes?: string;
+}
+
 // ── Responses ────────────────────────────────────────────────────────
 
 /** Canonical check-in record surfaced by the API. */
@@ -394,6 +456,13 @@ export interface CheckinOut {
   purpose: PurposeInfo;
   state: CheckinState;
   verified: boolean;
+  /**
+   * Attribution for a manual (staff-vouched) verification of this
+   * check-in's visitor. Present only when `verified === true` AND the
+   * verification came from the manual-verify action rather than an
+   * automated ID scan. See {@link ManualVerificationInfo}.
+   */
+  manualVerification?: ManualVerificationInfo | null;
   approvedByUserId?: string;
   approvedAt?: number;
   rejectionReason?: string;

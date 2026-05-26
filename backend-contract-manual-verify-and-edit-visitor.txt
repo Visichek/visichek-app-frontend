@@ -1,0 +1,304 @@
+================================================================================
+VISICHEK — BACKEND CONTRACT
+Edit Visitor Details  AND  Manual Visitor Verification (staff-vouched)
+================================================================================
+
+Author:        Frontend team (Claude)
+Date:          2026-05-26
+Status:        SPEC — FRONTEND IS ALREADY IMPLEMENTED AND MERGED.
+               Backend endpoints below DO NOT EXIST YET and must be built.
+Audience:      Backend engineers.
+
+READ THIS FIRST
+  The frontend for BOTH features below is already written, type-checked, and
+  shipped. It calls two endpoints that DO NOT EXIST on the backend yet, so the
+  buttons currently fail at runtime. Your job is narrow and specific:
+
+      1. Implement   PATCH /v1/visitors/{visitor_id}
+      2. Implement   POST  /v1/checkins/{checkin_id}/manual-verify
+      3. Add the enum value  "manual"  to VerificationMethod
+      4. Add the  manualVerification  block to the visitor + check-in reads
+
+  Do NOT redesign the visitor or check-in models. Do NOT rename fields. Match
+  the exact request/response shapes in this document — the frontend is already
+  coded against them and will not be changed to accommodate a different shape.
+  If a field name here disagrees with something you already have, talk to the
+  frontend team before diverging; do not silently rename.
+
+WHERE THIS SHOWS UP IN THE PRODUCT
+  Tenant shell → Visitors page → Approved / Rejected / Checked-out tabs.
+  Each visitor row expands into their visit history. In the expanded panel:
+    - "Edit details"  button  → opens a modal → PATCH /v1/visitors/{id}
+    - "Verify"        button  → opens a confirm dialog → POST .../manual-verify
+    - once verified manually, the row shows "Verified by <name> (<role>) · <ago>"
+
+--------------------------------------------------------------------------------
+0. GROUND RULES (apply to everything below)
+--------------------------------------------------------------------------------
+
+- Response envelope: every JSON response uses the standard envelope
+    success:true  -> { success, message, data, meta?, requestId? }
+    success:false -> { success, message, data?: { code, details? }, requestId? }
+  The frontend unwraps `data`. Document the `data.code` for each error path.
+
+- Field casing: responses default to camelCase. Request bodies may be camelCase
+  OR snake_case (frontend sends camelCase here). Honor X-Response-Case: snake
+  if a caller asks, but default camelCase.
+
+- Timestamps: Unix epoch SECONDS (integers), not milliseconds, not ISO.
+
+- Auth: both endpoints are cookie-authenticated (httpOnly) tenant-staff
+  sessions. The auth identity (system-user id, full name, role, tenant id) is
+  taken FROM THE SESSION/TOKEN. The frontend NEVER sends the verifier identity —
+  do not read it from the body even if present.
+
+- Capabilities already defined on the frontend role map (src/lib/permissions):
+      visitor:edit_profile  -> super_admin, dept_admin, receptionist
+      checkin:approve       -> super_admin, dept_admin, receptionist
+  The frontend gate is COSMETIC. The backend MUST enforce the equivalent
+  server-side permission on each write, scoped to the tenant (and branch, for
+  branch-scoped roles: dept_admin / receptionist).
+
+- Tenant + branch isolation: a staff member may only edit/verify visitors and
+  check-ins that belong to their tenant (and, for branch-scoped roles, their
+  branch). Cross-tenant access returns 404 (not 403) so ids don't leak.
+
+- Audit: both actions MUST write an audit-log row (who, what, when, tenant,
+  before/after for the edit; verifier + note for the verify). These are
+  identity / PII mutations and are reportable under NDPA.
+
+
+================================================================================
+PART A — EDIT VISITOR DETAILS
+================================================================================
+
+GOAL
+  Let authorized staff correct a visitor's identity fields (name, email,
+  phone, company) after the visitor record already exists — e.g. fix a typo
+  from a kiosk self-registration, add a missing email, update a phone number.
+
+ENDPOINT
+  PATCH /v1/visitors/{visitor_id}
+
+  `visitor_id` is the canonical `visitors` collection id. On the frontend it is
+  `checkin.visitorId` (falling back to the embedded `checkin.visitor.id`).
+  This is the SAME id already returned today on CheckinOut.visitorId and on the
+  embedded VisitorOut.id — no new id space.
+
+REQUEST BODY (camelCase; all fields OPTIONAL; PARTIAL update)
+  {
+    "fullName": "Nathaniel Uriri",      // optional; non-empty string when present
+    "email":    "nathaniel@doux.finance",// optional; string OR null to CLEAR
+    "phone":    "+2348052964826",        // optional; string when present
+    "company":  "Visichek"               // optional; string OR null to CLEAR
+  }
+
+  SEMANTICS — important, the frontend relies on this:
+    - Only the keys PRESENT in the body are updated. An ABSENT key means
+      "leave this field unchanged". The frontend computes a diff and sends only
+      changed fields, so e.g. a name-only edit sends just { "fullName": ... }.
+    - For the nullable fields (email, company): an explicit  null  means
+      "clear this field". The frontend sends null when the user blanks the
+      input. (phone and fullName are not sent as null; fullName is required to
+      be non-empty.)
+    - At least one editable field is always present (frontend guarantees it,
+      but validate anyway — empty body => 422, see below).
+
+  DO NOT accept `verified`, `verificationMethod`, role, tenantId, or any
+  identity/permission field on this endpoint. Ignore them if sent.
+
+VALIDATION
+    - fullName, when present, must be a non-empty trimmed string.
+    - email, when a non-null string, must be a valid email address.
+    - phone, when present, must be a plausible phone (frontend pattern:
+      /^\+?[0-9\s\-()]{7,}$/). Normalize/store as you see fit.
+    - Empty body (no editable field) => 422 VALIDATION_ERROR.
+
+RESPONSE (200) — the updated visitor
+  Return the canonical visitor as `VisitorOut` (the SAME shape already embedded
+  as `checkin.visitor` today), reflecting the edits:
+  {
+    "id": "665f...",
+    "tenantId": "...",
+    "fullName": "Nathaniel Uriri",
+    "email": "nathaniel@doux.finance",
+    "phone": "+2348052964826",
+    "company": "Visichek",
+    "verified": true,
+    "verificationMethod": "manual",       // see Part B
+    "portraitUrl": "...",
+    "manualVerification": { ... },         // see Part B (null if never manual)
+    "lastVisitAt": 1748200000,
+    "createdAt": 1747000000
+  }
+
+PROPAGATION (required)
+  The visitor snapshot is denormalized onto check-in rows (`checkin.visitor`),
+  the awaiting-checkout feed, and visitor-profile reads. After this PATCH, those
+  reads MUST reflect the new identity on next fetch. The frontend invalidates
+  its caches for ["checkins"], ["visitors"], and ["visitor-profiles"] after a
+  successful edit and re-fetches — so whatever you must do server-side to make
+  the next GET return fresh values (live join, or fan-out denormalization
+  update), please do it.
+
+ERRORS
+    404 RESOURCE_NOT_FOUND   — visitor_id unknown, or not in caller's tenant/branch
+    403 AUTH_PERMISSION_DENIED — caller lacks visitor:edit_profile
+    422 VALIDATION_ERROR     — empty body / invalid email / invalid phone
+                               (details should map to field names for inline
+                                form errors: { details: { email: "…" } })
+
+
+================================================================================
+PART B — MANUAL VISITOR VERIFICATION (staff-vouched)
+================================================================================
+
+GOAL
+  Today a visitor's `verified` flag is set only by the automated ID-scan / KYC
+  pipeline (Dojah). But reception frequently checks a physical ID by hand
+  (walk-ins, scan skipped, OCR failed). They need to mark the visitor as
+  verified and have the system RECORD WHO VOUCHED for them — name + role + time —
+  for the audit trail and to display "Verified by <name>" on the visitor row.
+
+ENDPOINT
+  POST /v1/checkins/{checkin_id}/manual-verify
+
+  `checkin_id` is the existing check-in id (CheckinOut.id). Verification is
+  actioned per check-in; it also flips the underlying visitor profile (below).
+
+REQUEST BODY (camelCase)
+  {
+    "notes": "Checked national ID card against the visitor in person"  // optional
+  }
+
+  THE VERIFIER IS NOT IN THE BODY. Take the verifying user's id, full name, and
+  role from the authenticated session/token. Ignore any verifier fields in the
+  body if present.
+
+BEHAVIOUR (200)
+  On success the backend MUST:
+    1. Set `verified = true` on the check-in (`checkins` row {checkin_id}).
+    2. Set `verified = true` on the linked visitor profile (`visitors` row).
+    3. Set `verificationMethod = "manual"` on both (NEW enum value — section C).
+    4. Record the manual-verification attribution block (section D) on both
+       the check-in and the visitor, populated from the session:
+         verifiedByUserId  = session user id
+         verifiedByName    = session user full name
+         verifiedByRole    = session user role (SystemUserRole)
+         verifiedAt        = now (unix seconds)
+         method            = "manual"
+         notes             = body.notes (or omit)
+    5. Write an audit-log row (actor = verifier, action = manual_verify,
+       target = visitor/check-in, tenant, note).
+
+  This does NOT change the check-in's `state` (approved stays approved, etc.).
+  Verification and approval are independent axes. Do not auto-approve here.
+
+RESPONSE (200) — the updated check-in
+  Return the check-in as `CheckinOut` (existing shape) with the new fields set:
+  {
+    "id": "checkin_…",
+    "tenantId": "...",
+    "visitorId": "665f...",
+    "state": "approved",
+    "verified": true,
+    "verificationMethod": "manual",
+    "manualVerification": {
+      "manual": true,
+      "verifiedByUserId": "su_123",
+      "verifiedByName": "Ada Receptionist",
+      "verifiedByRole": "receptionist",
+      "verifiedAt": 1748250000,
+      "method": "manual",
+      "notes": "Checked national ID card against the visitor in person"
+    },
+    "visitor": { ...VisitorOut with verified:true and the same manualVerification... },
+    ...rest of CheckinOut unchanged...
+  }
+
+ERRORS
+    404 RESOURCE_NOT_FOUND   — checkin_id unknown, or not in caller's tenant/branch
+    403 AUTH_PERMISSION_DENIED — caller lacks checkin:approve
+    409 CONFLICT             — check-in is already verified
+                               (frontend hides the Verify button once verified;
+                                this guards a double-submit race)
+
+
+================================================================================
+PART C — ENUM CHANGE:  VerificationMethod += "manual"
+================================================================================
+
+  VerificationMethod today (api-docs/06-enums-reference.md, schemas):
+      id_scan | qr_upload | host_approval
+
+  ADD a fourth value:
+      manual          — a staff member vouched for the visitor's identity
+                        from the receptionist UI without an automated scan.
+
+  The frontend enum (src/types/enums.ts) already includes "manual". Update the
+  backend enum + any DB-level validators + the enum reference doc to match.
+  Existing rows are unaffected.
+
+
+================================================================================
+PART D — SHARED SHAPE:  manualVerification  block
+================================================================================
+
+  A new OPTIONAL/NULLABLE object added to BOTH the visitor read (`VisitorOut`)
+  and the check-in read (`CheckinOut`). Present only when a manual verification
+  has happened; null/absent otherwise (e.g. id_scan-verified or unverified).
+
+  manualVerification: {
+    manual:           boolean        // always true when the object is present
+    verifiedByUserId: string         // system-user id of the verifier
+    verifiedByName:   string         // denormalized for list rendering
+    verifiedByRole:   SystemUserRole // "receptionist" | "dept_admin" | ...
+    verifiedAt:       number         // unix epoch seconds
+    method:           "manual"       // VerificationMethod
+    notes?:           string         // optional, the verifier's note
+  }
+
+  Denormalizing verifiedByName/Role onto the row is intentional: the visitors
+  list renders "Verified by Ada Receptionist (Receptionist) · 2h ago" without a
+  second lookup per row. Keep the denormalized name in sync only at write time;
+  it is a point-in-time attribution snapshot and does NOT need to track later
+  renames of the staff member.
+
+
+================================================================================
+PART E — FRONTEND PIECES ALREADY BUILT (for your reference / parity testing)
+================================================================================
+
+  Types:
+    src/types/checkin.ts
+      - VisitorOut.manualVerification?         (ManualVerificationInfo | null)
+      - CheckinOut.manualVerification?         (ManualVerificationInfo | null)
+      - ManualVerificationInfo                 (the Part D shape)
+      - VisitorProfileUpdateRequest            (the Part A body)
+      - CheckinManualVerifyRequest             (the Part B body: { notes? })
+    src/types/enums.ts
+      - VerificationMethod                     ("manual" added)
+
+  Endpoints (path builders + the contract notes that mirror this doc):
+    src/features/checkins/lib/endpoints.ts
+      - visitorProfileUpdatePath(visitorId)    -> /visitors/{id}        (PATCH)
+      - checkinManualVerifyPath(checkinId)     -> /checkins/{id}/manual-verify (POST)
+
+  Data hooks (React Query; show how the FE calls + invalidates):
+    src/features/checkins/hooks/use-checkins.ts
+      - useUpdateVisitorProfile()              (PATCH; invalidates checkins/visitors/visitor-profiles)
+      - useManuallyVerifyCheckin()             (POST;  same invalidation)
+
+  UI:
+    src/features/visitors/components/edit-visitor-modal.tsx     (the edit form)
+    src/features/visitors/components/manual-verify-dialog.tsx   (the verify confirm)
+    src/features/visitors/components/grouped-visitors-list.tsx  (Edit + Verify buttons,
+                                                                 "Verified by" line)
+
+  To smoke-test the FE against a stub: have the two endpoints echo back the
+  updated CheckinOut/VisitorOut with the fields above set, and the buttons +
+  attribution line will light up end-to-end.
+
+================================================================================
+END
+================================================================================

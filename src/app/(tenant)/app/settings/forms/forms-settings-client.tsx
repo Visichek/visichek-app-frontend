@@ -34,11 +34,20 @@ export function FormsSettingsClient() {
     );
   }
 
+  // The builder is reached from different surfaces depending on the target:
+  // the appointments page links here for `appointment`, while check-in /
+  // visit-session configs come from settings. Send the user back where they
+  // came from instead of always to settings.
+  const back =
+    target === "appointment"
+      ? { href: "/app/appointments", label: "Back to appointments" }
+      : { href: "/app/settings", label: "Back to settings" };
+
   return (
     <FormBuilder
       defaultTarget={target}
-      backHref="/app/settings"
-      backLabel="Back to settings"
+      backHref={back.href}
+      backLabel={back.label}
     />
   );
 }

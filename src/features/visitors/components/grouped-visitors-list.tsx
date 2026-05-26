@@ -3,9 +3,11 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import {
+  BadgeCheck,
   ChevronRight,
   Eye,
   Loader2,
+  Pencil,
   Printer,
   Search,
   ShieldCheck,
@@ -22,13 +24,35 @@ import {
 } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { CheckinStateBadge } from "@/features/checkins";
+import { useCapabilities } from "@/hooks/use-capabilities";
+import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { cn } from "@/lib/utils/cn";
 import { formatDateTime, formatRelative } from "@/lib/utils/format-date";
 import type { CheckinOut } from "@/types/checkin";
 import type { AwaitingCheckoutItem } from "@/types/visitor";
+import { EditVisitorModal, type EditVisitorTarget } from "./edit-visitor-modal";
+import {
+  ManualVerifyDialog,
+  type ManualVerifyTarget,
+} from "./manual-verify-dialog";
 import { PrintBadgeModal } from "./print-badge-modal";
 import type { VisitorBadgeData } from "./visitor-badge";
+
+/** Human label for the verifier's role on the manual-verify attribution line. */
+const ROLE_LABELS: Record<string, string> = {
+  super_admin: "Super admin",
+  dept_admin: "Department admin",
+  receptionist: "Receptionist",
+  auditor: "Auditor",
+  security_officer: "Security officer",
+  dpo: "DPO",
+};
+
+function roleLabel(role: string | undefined): string | undefined {
+  if (!role) return undefined;
+  return ROLE_LABELS[role] ?? role.replace(/_/g, " ");
+}
 
 export interface GroupedVisitorsListProps {
   checkins: CheckinOut[];
@@ -74,6 +98,13 @@ function buildBadgeData(
 
 interface VisitorGroup {
   key: string;
+  /**
+   * Canonical `visitors` record id, needed to PATCH the profile on edit.
+   * Absent only when the embedded `visitor` snapshot was null on every
+   * check-in in the group (hard-deleted visitor) — the Edit action hides
+   * in that case.
+   */
+  visitorId?: string;
   name: string;
   email?: string;
   phone?: string;
@@ -106,10 +137,14 @@ function buildGroups(checkins: CheckinOut[]): VisitorGroup[] {
         existing.lastVisitAt = checkin.dateCreated;
       }
       if (checkin.verified) existing.verified = true;
+      if (!existing.visitorId) {
+        existing.visitorId = checkin.visitor?.id ?? checkin.visitorId;
+      }
       continue;
     }
     map.set(key, {
       key,
+      visitorId: checkin.visitor?.id ?? checkin.visitorId,
       name: checkin.visitor?.fullName || "Unnamed visitor",
       email: checkin.visitor?.email,
       phone: checkin.visitor?.phone,
@@ -141,7 +176,14 @@ export function GroupedVisitorsList({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [badgePrintTarget, setBadgePrintTarget] =
     useState<AwaitingCheckoutItem | null>(null);
+  const [editTarget, setEditTarget] = useState<EditVisitorTarget | null>(null);
+  const [verifyTarget, setVerifyTarget] = useState<ManualVerifyTarget | null>(
+    null,
+  );
   const { loadingHref } = useNavigationLoading();
+  const { hasCapability } = useCapabilities();
+  const canEditProfile = hasCapability(CAPABILITIES.VISITOR_EDIT_PROFILE);
+  const canVerify = hasCapability(CAPABILITIES.CHECKIN_APPROVE);
 
   const groups = useMemo(() => buildGroups(checkins), [checkins]);
 
@@ -276,92 +318,171 @@ export function GroupedVisitorsList({
                 </Tooltip>
 
                 {isOpen && (
-                  <ul
-                    className="border-t divide-y bg-muted/20"
-                    role="list"
-                    aria-label={`Visit history for ${group.name}`}
-                  >
-                    {group.history.map((checkin) => {
-                      const viewHref = `/app/visitors/${checkin.id}`;
-                      const isLoadingRow = loadingHref === viewHref;
-                      const printable = badgeByCheckinId?.get(checkin.id);
-                      const canPrintBadge = !!printable?.badgeQrToken;
-                      return (
-                        <li
-                          key={checkin.id}
-                          className="flex flex-col gap-2 p-3 md:p-4 md:flex-row md:items-center md:justify-between"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium truncate">
-                              {checkin.purpose.purpose ||
-                                "No purpose recorded"}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              Submitted {formatDateTime(checkin.dateCreated)}
-                            </p>
-                            {checkin.rejectionReason && (
-                              <p className="text-xs text-destructive mt-1">
-                                Reason: {checkin.rejectionReason}
+                  <div className="border-t bg-muted/20">
+                    {canEditProfile && group.visitorId && (
+                      <div className="flex justify-end px-3 pt-3 md:px-4">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                setEditTarget({
+                                  visitorId: group.visitorId!,
+                                  fullName: group.name,
+                                  email: group.email,
+                                  phone: group.phone,
+                                  company: group.company,
+                                })
+                              }
+                              className="min-h-[44px]"
+                            >
+                              <Pencil
+                                className="mr-1 h-3.5 w-3.5"
+                                aria-hidden="true"
+                              />
+                              Edit details
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="left">
+                            Edit this visitor&apos;s name, contact details, and
+                            company. Changes apply to their profile.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    )}
+                    <ul
+                      className="divide-y"
+                      role="list"
+                      aria-label={`Visit history for ${group.name}`}
+                    >
+                      {group.history.map((checkin) => {
+                        const viewHref = `/app/visitors/${checkin.id}`;
+                        const isLoadingRow = loadingHref === viewHref;
+                        const printable = badgeByCheckinId?.get(checkin.id);
+                        const canPrintBadge = !!printable?.badgeQrToken;
+                        const manual = checkin.manualVerification;
+                        const verifierRole = roleLabel(manual?.verifiedByRole);
+                        return (
+                          <li
+                            key={checkin.id}
+                            className="flex flex-col gap-2 p-3 md:p-4 md:flex-row md:items-center md:justify-between"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium truncate">
+                                {checkin.purpose.purpose ||
+                                  "No purpose recorded"}
                               </p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 md:gap-3 md:justify-end flex-wrap">
-                            <CheckinStateBadge state={checkin.state} />
-                            {canPrintBadge && printable && (
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                Submitted {formatDateTime(checkin.dateCreated)}
+                              </p>
+                              {manual?.manual && (
+                                <p className="text-xs text-success mt-1 inline-flex items-center gap-1">
+                                  <BadgeCheck
+                                    className="h-3.5 w-3.5 shrink-0"
+                                    aria-hidden="true"
+                                  />
+                                  <span>
+                                    Verified by{" "}
+                                    {manual.verifiedByName || "staff"}
+                                    {verifierRole ? ` (${verifierRole})` : ""}
+                                    {manual.verifiedAt
+                                      ? ` · ${formatRelative(manual.verifiedAt)}`
+                                      : ""}
+                                  </span>
+                                </p>
+                              )}
+                              {checkin.rejectionReason && (
+                                <p className="text-xs text-destructive mt-1">
+                                  Reason: {checkin.rejectionReason}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 md:gap-3 md:justify-end flex-wrap">
+                              <CheckinStateBadge state={checkin.state} />
+                              {!checkin.verified && canVerify && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() =>
+                                        setVerifyTarget({
+                                          checkinId: checkin.id,
+                                          visitorName: group.name,
+                                        })
+                                      }
+                                      className="min-h-[44px]"
+                                    >
+                                      <ShieldCheck
+                                        className="mr-1 h-3.5 w-3.5"
+                                        aria-hidden="true"
+                                      />
+                                      Verify
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    Confirm you&apos;ve checked this visitor&apos;s
+                                    ID and mark them as verified
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                              {canPrintBadge && printable && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() =>
+                                        setBadgePrintTarget(printable)
+                                      }
+                                      className="min-h-[44px]"
+                                    >
+                                      <Printer
+                                        className="mr-1 h-3.5 w-3.5"
+                                        aria-hidden="true"
+                                      />
+                                      Print badge
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    Print or save this visitor&apos;s badge with
+                                    the QR code reception scans at checkout
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button
+                                  <NavButton
+                                    href={viewHref}
                                     size="sm"
                                     variant="outline"
-                                    onClick={() =>
-                                      setBadgePrintTarget(printable)
-                                    }
                                     className="min-h-[44px]"
                                   >
-                                    <Printer
-                                      className="mr-1 h-3.5 w-3.5"
-                                      aria-hidden="true"
-                                    />
-                                    Print badge
-                                  </Button>
+                                    {isLoadingRow ? (
+                                      <Loader2
+                                        className="mr-1 h-3.5 w-3.5 animate-spin"
+                                        aria-hidden="true"
+                                      />
+                                    ) : (
+                                      <Eye
+                                        className="mr-1 h-3.5 w-3.5"
+                                        aria-hidden="true"
+                                      />
+                                    )}
+                                    Details
+                                  </NavButton>
                                 </TooltipTrigger>
-                                <TooltipContent side="top">
-                                  Print or save this visitor&apos;s badge with
-                                  the QR code reception scans at checkout
+                                <TooltipContent side="left">
+                                  Open the full details for this check-in
                                 </TooltipContent>
                               </Tooltip>
-                            )}
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <NavButton
-                                  href={viewHref}
-                                  size="sm"
-                                  variant="outline"
-                                  className="min-h-[44px]"
-                                >
-                                  {isLoadingRow ? (
-                                    <Loader2
-                                      className="mr-1 h-3.5 w-3.5 animate-spin"
-                                      aria-hidden="true"
-                                    />
-                                  ) : (
-                                    <Eye
-                                      className="mr-1 h-3.5 w-3.5"
-                                      aria-hidden="true"
-                                    />
-                                  )}
-                                  Details
-                                </NavButton>
-                              </TooltipTrigger>
-                              <TooltipContent side="left">
-                                Open the full details for this check-in
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
                 )}
               </li>
             );
@@ -383,6 +504,22 @@ export function GroupedVisitorsList({
                 badgeQrToken: "",
               }
         }
+      />
+
+      <EditVisitorModal
+        open={editTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditTarget(null);
+        }}
+        visitor={editTarget}
+      />
+
+      <ManualVerifyDialog
+        open={verifyTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setVerifyTarget(null);
+        }}
+        target={verifyTarget}
       />
     </div>
   );

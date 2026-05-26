@@ -348,6 +348,14 @@ export interface Appointment {
   /** Phase 4 — see VisitSession. May be null for branch-scoped viewers. */
   branchSummary?: { id: string; name: string; isActive?: boolean } | null;
   visitorNameSnapshot?: string;
+  /**
+   * Visitor phone captured at schedule time. The backend promoted this to a
+   * first-class system-required field (`visitor_phone`) so appointment-driven
+   * check-in never has to prompt for it. `visitorPhoneSnapshot` is the older
+   * alias kept for backward compatibility with responses that predate the
+   * rename.
+   */
+  visitorPhone?: string | null;
   visitorPhoneSnapshot?: string;
   hostNameSnapshot?: string;
   scheduledDatetime: number;
@@ -397,10 +405,13 @@ export interface AppointmentRequest {
   departmentId: string;
   visitorNameSnapshot?: string;
   /**
-   * Phone number captured at scheduling time. Strongly recommended: the
-   * backend uses it at check-in to look up or create the visitor profile,
-   * so collecting it here avoids a missing-phone prompt at the desk.
+   * Phone number captured at scheduling time. Now a system-required field
+   * (`visitor_phone`) unless a `visitorProfileId` is linked: the backend uses
+   * it at check-in to look up or create the visitor profile, so collecting it
+   * here avoids a missing-phone prompt at the desk.
    */
+  visitorPhone?: string;
+  /** @deprecated Older alias for {@link visitorPhone}; send `visitorPhone`. */
   visitorPhoneSnapshot?: string;
   hostNameSnapshot?: string;
   scheduledDatetime: number;

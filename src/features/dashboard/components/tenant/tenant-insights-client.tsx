@@ -36,7 +36,11 @@ import type { Kpi, Section, SectionId } from "@/types/insights";
 import { useInsights, toInsightsQueryParams, type InsightsParams } from "@/features/insights/hooks/use-insights";
 import { useAnalyticsGates, ANALYTICS_FEATURES } from "@/features/insights/lib/analytics-gates";
 import { type DateRange } from "@/features/insights/lib/ranges";
-import { AdminRangeBar, type RangeMode } from "@/features/insights/components/admin-range-bar";
+import {
+  AdminRangeBar,
+  resolveAdminRange,
+  type AdminRangeKey,
+} from "@/features/insights/components/admin-range-bar";
 import { FilterOverlay } from "@/features/insights/components/filter-overlay";
 import {
   InsightsFilters,
@@ -55,7 +59,7 @@ import { LiveStrip } from "@/features/insights/components/live-strip";
 import { QuickActions } from "@/components/tenant/quick-actions";
 
 const ONE_DAY = 86_400;
-const DEFAULT_ROLLING_DAYS = 30;
+const DEFAULT_RANGE_KEY = "7d" as const;
 const FALLBACK_CREATED_AT = Math.floor(Date.now() / 1000) - ONE_DAY * 365;
 
 interface RoleView {
@@ -134,12 +138,10 @@ export function TenantInsightsClient() {
     currentRole && ROLE_VIEWS[currentRole] ? currentRole : "super_admin",
   );
   const [activeTab, setActiveTab] = useState("overview");
-  const [rangeMode, setRangeMode] = useState<RangeMode>("recent");
-  const [rollingDays, setRollingDays] = useState(DEFAULT_ROLLING_DAYS);
-  const [range, setRange] = useState<DateRange>(() => ({
-    start: Math.floor(Date.now() / 1000) - DEFAULT_ROLLING_DAYS * ONE_DAY,
-    stop: Math.floor(Date.now() / 1000),
-  }));
+  const [rangeKey, setRangeKey] = useState<AdminRangeKey>(DEFAULT_RANGE_KEY);
+  const [range, setRange] = useState<DateRange>(() =>
+    resolveAdminRange(DEFAULT_RANGE_KEY, FALLBACK_CREATED_AT),
+  );
   const [filters, setFilters] = useState<InsightsFilterValues>({});
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selections, setSelections] = useState<SelectionEntry[]>([]);
@@ -169,7 +171,7 @@ export function TenantInsightsClient() {
   }, [gates.isFreePlan, roleView, activeTab, range, filters]);
 
   const filtersEmpty = Object.values(filters).every((v) => !v);
-  const pollLive = gates.isFreePlan || (rangeMode !== "custom" && filtersEmpty);
+  const pollLive = gates.isFreePlan || (rangeKey !== "custom" && filtersEmpty);
 
   const query = useInsights(params, { pollLive });
   const data = query.data;
@@ -220,17 +222,10 @@ export function TenantInsightsClient() {
     });
   }
 
-  function changeMode(next: RangeMode) {
-    const now = Math.floor(Date.now() / 1000);
-    setRangeMode(next);
-    if (next === "recent") setRange({ start: now - rollingDays * ONE_DAY, stop: now });
-    else if (next === "all") setRange({ start: createdAt, stop: now });
-  }
-
-  function changeRollingDays(days: number) {
-    const now = Math.floor(Date.now() / 1000);
-    setRollingDays(days);
-    setRange({ start: now - days * ONE_DAY, stop: now });
+  function changePreset(key: AdminRangeKey) {
+    setRangeKey(key);
+    // "custom" keeps the current range and reveals the date inputs.
+    if (key !== "custom") setRange(resolveAdminRange(key, createdAt));
   }
 
   useEffect(() => {
@@ -265,13 +260,11 @@ export function TenantInsightsClient() {
 
       {gates.canCustomRange ? (
         <AdminRangeBar
-          mode={rangeMode}
-          rollingDays={rollingDays}
+          activeKey={rangeKey}
           range={range}
           platformLaunchAt={createdAt}
           effectiveGranularity={meta?.granularity}
-          onMode={changeMode}
-          onRollingDays={changeRollingDays}
+          onPreset={changePreset}
           onCustomRange={setRange}
         />
       ) : (

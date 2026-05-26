@@ -1543,6 +1543,19 @@ function PreviewAppointmentShell({
             placeholder="Select a department"
           />
           <PreviewSystemField
+            id="preview-visitor-name"
+            icon={<UserCircle2 className="h-4 w-4" aria-hidden="true" />}
+            label="Visitor full name *"
+            placeholder="e.g. Ada Lovelace"
+          />
+          <PreviewSystemField
+            id="preview-visitor-phone"
+            icon={<UserCircle2 className="h-4 w-4" aria-hidden="true" />}
+            label="Visitor phone number *"
+            placeholder="e.g. +2348012345678"
+            inputType="tel"
+          />
+          <PreviewSystemField
             id="preview-scheduled"
             icon={<Calendar className="h-4 w-4" aria-hidden="true" />}
             label="Scheduled date & time *"

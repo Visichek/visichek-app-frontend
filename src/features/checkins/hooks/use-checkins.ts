@@ -8,7 +8,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiGet, apiPost } from "@/lib/api/request";
+import { apiGet, apiPatch, apiPost } from "@/lib/api/request";
 import { bulkAction } from "@/lib/api/bulk";
 import type { BulkJobResult } from "@/types/list";
 import type {
@@ -16,8 +16,11 @@ import type {
   CheckinListParams,
   CheckinConfirmRequest,
   CheckinConfirmResponse,
+  CheckinManualVerifyRequest,
   PendingApprovalItem,
   PendingApprovalsParams,
+  VisitorOut,
+  VisitorProfileUpdateRequest,
 } from "@/types/checkin";
 import {
   checkinBulkApprovePath,
@@ -27,7 +30,9 @@ import {
   checkinDetailPath,
   checkinForceApprovePendingPath,
   checkinListPath,
+  checkinManualVerifyPath,
   pendingApprovalsPath,
+  visitorProfileUpdatePath,
 } from "../lib/endpoints";
 import { checkinKeys } from "../lib/query-keys";
 
@@ -255,6 +260,71 @@ export function useConfirmCheckin() {
       queryClient.invalidateQueries({
         queryKey: checkinKeys.detail(checkinId),
       });
+    },
+  });
+}
+
+/**
+ * Edit a visitor's profile identity fields (name, email, phone, company)
+ * from the receptionist / admin UI.
+ *
+ * Wraps `PATCH /v1/visitors/{visitorId}` (see endpoints.ts — PROPOSED).
+ * On success every check-in cache is invalidated so the edited identity
+ * re-renders on the visitors list and detail, and the visitor-profile /
+ * awaiting-checkout caches refresh too (the embedded `visitor` snapshot
+ * is denormalized across those collections).
+ *
+ * Gated in the UI by `CAPABILITIES.VISITOR_EDIT_PROFILE`; the backend
+ * re-enforces the same permission on write.
+ */
+export function useUpdateVisitorProfile() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (args: {
+      visitorId: string;
+      body: VisitorProfileUpdateRequest;
+    }) => apiPatch<VisitorOut>(visitorProfileUpdatePath(args.visitorId), args.body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: checkinKeys.all });
+      // Embedded visitor snapshots are denormalized onto these collections
+      // too, so refresh them to avoid showing the pre-edit identity.
+      queryClient.invalidateQueries({ queryKey: ["visitors"] });
+      queryClient.invalidateQueries({ queryKey: ["visitor-profiles"] });
+    },
+  });
+}
+
+/**
+ * Manually mark a check-in's visitor as identity-verified by staff.
+ *
+ * Wraps `POST /v1/checkins/{checkinId}/manual-verify` (see endpoints.ts —
+ * PROPOSED). The verifier identity is recorded server-side from the auth
+ * token; the frontend only passes an optional note. On success the
+ * `verified` flag flips and a `manualVerification` attribution block lands
+ * on the row, so the list switches from the "Verify" CTA to a
+ * "Verified by <name>" line on the next read.
+ *
+ * Gated in the UI by `CAPABILITIES.CHECKIN_APPROVE`; the backend
+ * re-enforces the same permission on write.
+ */
+export function useManuallyVerifyCheckin() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (
+      args: { checkinId: string } & CheckinManualVerifyRequest,
+    ) =>
+      apiPost<CheckinOut>(checkinManualVerifyPath(args.checkinId), {
+        notes: args.notes,
+      }),
+    onSuccess: (_response, { checkinId }) => {
+      queryClient.invalidateQueries({ queryKey: checkinKeys.all });
+      queryClient.invalidateQueries({
+        queryKey: checkinKeys.detail(checkinId),
+      });
+      queryClient.invalidateQueries({ queryKey: ["visitors"] });
+      queryClient.invalidateQueries({ queryKey: ["visitor-profiles"] });
     },
   });
 }

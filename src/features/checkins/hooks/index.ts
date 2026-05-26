@@ -21,6 +21,8 @@ export {
   useConfirmCheckin,
   useForceApprovePendingCheckin,
   usePendingApprovals,
+  useUpdateVisitorProfile,
+  useManuallyVerifyCheckin,
   useBulkApproveCheckins,
   useBulkRejectCheckins,
   useBulkForceApprovePendingCheckins,

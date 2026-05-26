@@ -44,7 +44,8 @@ import { AttentionPanel } from "@/features/dashboard/components/admin/attention-
 import { useAdminDashboardStats } from "@/features/auth/hooks/use-admin-dashboard";
 import {
   AdminRangeBar,
-  type RangeMode,
+  resolveAdminRange,
+  type AdminRangeKey,
 } from "@/features/insights/components/admin-range-bar";
 import { FilterOverlay } from "@/features/insights/components/filter-overlay";
 import {
@@ -56,9 +57,18 @@ import {
 
 const ACCENT = "hsl(262 83% 58%)";
 const ONE_DAY = 86_400;
-const DEFAULT_ROLLING_DAYS = 30;
+const DEFAULT_RANGE_KEY = "7d" as const;
 /** Fallback lower bound before meta.platformLaunchAt arrives (~2 years). */
 const FALLBACK_LAUNCH = Math.floor(Date.now() / 1000) - ONE_DAY * 730;
+
+/**
+ * Platform admins don't need billing or visitor figures on this dashboard, so
+ * we drop those KPIs (MRR, ARR, revenue, invoices, visitors) client-side.
+ */
+const HIDDEN_KPI = /revenue|\bmrr\b|\barr\b|invoice|visitor/i;
+function isHiddenKpi(kpi: Kpi): boolean {
+  return HIDDEN_KPI.test(kpi.key) || HIDDEN_KPI.test(kpi.label);
+}
 
 const naira = (n: number) =>
   `₦${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -120,12 +130,10 @@ const TABS: TabDef[] = [
 
 export function AdminInsightsClient() {
   const [activeTab, setActiveTab] = useState<AdminTabId>("overview");
-  const [rangeMode, setRangeMode] = useState<RangeMode>("recent");
-  const [rollingDays, setRollingDays] = useState(DEFAULT_ROLLING_DAYS);
-  const [range, setRange] = useState<DateRange>(() => ({
-    start: Math.floor(Date.now() / 1000) - DEFAULT_ROLLING_DAYS * ONE_DAY,
-    stop: Math.floor(Date.now() / 1000),
-  }));
+  const [rangeKey, setRangeKey] = useState<AdminRangeKey>(DEFAULT_RANGE_KEY);
+  const [range, setRange] = useState<DateRange>(() =>
+    resolveAdminRange(DEFAULT_RANGE_KEY, FALLBACK_LAUNCH),
+  );
   const [filters, setFilters] = useState<AdminFilterValues>({});
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selections, setSelections] = useState<SelectionEntry[]>([]);
@@ -150,7 +158,7 @@ export function AdminInsightsClient() {
 
   // A relative window (not custom) with no filters is now-anchored → poll it.
   const filtersEmpty = Object.values(filters).every((v) => !v);
-  const pollLive = rangeMode !== "custom" && filtersEmpty;
+  const pollLive = rangeKey !== "custom" && filtersEmpty;
 
   const query = useAdminInsights(params, { pollLive });
   // Operational queue + quick actions still read the classic stats payload.
@@ -205,21 +213,10 @@ export function AdminInsightsClient() {
     });
   }
 
-  function changeMode(next: RangeMode) {
-    const now = Math.floor(Date.now() / 1000);
-    setRangeMode(next);
-    if (next === "recent") {
-      setRange({ start: now - rollingDays * ONE_DAY, stop: now });
-    } else if (next === "all") {
-      setRange({ start: launch, stop: now });
-    }
+  function changePreset(key: AdminRangeKey) {
+    setRangeKey(key);
     // "custom" keeps the current range and reveals the date inputs.
-  }
-
-  function changeRollingDays(days: number) {
-    const now = Math.floor(Date.now() / 1000);
-    setRollingDays(days);
-    setRange({ start: now - days * ONE_DAY, stop: now });
+    if (key !== "custom") setRange(resolveAdminRange(key, launch));
   }
 
   function clearFilter(key: keyof AdminFilterValues) {
@@ -274,15 +271,13 @@ export function AdminInsightsClient() {
 
       <AdminLiveStrip />
 
-      {/* Range slider + All time + Custom on one line */}
+      {/* Date presets (Today / 7d / 60d / 90d / All time) + Custom */}
       <AdminRangeBar
-        mode={rangeMode}
-        rollingDays={rollingDays}
+        activeKey={rangeKey}
         range={range}
         platformLaunchAt={meta?.platformLaunchAt ?? launch}
         effectiveGranularity={meta?.granularity}
-        onMode={changeMode}
-        onRollingDays={changeRollingDays}
+        onPreset={changePreset}
         onCustomRange={setRange}
       />
 
@@ -383,7 +378,7 @@ export function AdminInsightsClient() {
       ) : (
         <TabContent
           rows={activeTabDef.rows}
-          kpis={(data?.kpis ?? []).map(withCurrency)}
+          kpis={(data?.kpis ?? []).filter((k) => !isHiddenKpi(k)).map(withCurrency)}
           sections={data?.sections ?? {}}
           isLoading={query.isLoading}
           tabId={activeTabDef.id}

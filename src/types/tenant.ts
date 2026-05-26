@@ -19,6 +19,14 @@ export interface Tenant {
   stripeCustomerId?: string | null;
   flutterwaveCustomerId?: string | null;
   defaultPaymentProvider?: string | null;
+  /** True once the tenant has confirmed their onboarding info. May be absent on tenants created before the flag existed — treat missing as not confirmed. */
+  onboardingInfoConfirmed?: boolean;
+  onboardingInfoConfirmedAt?: number | null;
+  /** True once the tenant accepted the Data Processing Agreement. May be absent on older tenants — treat missing as not accepted. */
+  dpaAccepted?: boolean;
+  dpaAcceptedAt?: number | null;
+  dpaAcceptedBy?: string | null;
+  dpaVersion?: string | null;
   dateCreated: number;
   lastUpdated: number;
 }

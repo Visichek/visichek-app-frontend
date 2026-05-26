@@ -58,12 +58,16 @@ const STEPS: StepDef[] = [
 const STEPS_NO_DETAILS: StepDef[] = STEPS.filter((s) => s.id !== 3);
 
 const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
-const DRAFT_VERSION = 1;
+// Bumped to 2 when visitor name + phone joined the draft shape so stale
+// persisted drafts from the previous shape are discarded on read.
+const DRAFT_VERSION = 2;
 
 interface AppointmentDraft {
   hostId: string;
   departmentId: string;
   scheduledDatetime: string;
+  visitorNameSnapshot: string;
+  visitorPhone: string;
   tenantFormData: Record<string, unknown>;
 }
 
@@ -78,6 +82,8 @@ const SYSTEM_KEYS = {
   hostId: "host_id",
   departmentId: "department_id",
   scheduledDatetime: "scheduled_datetime",
+  visitorNameSnapshot: "visitor_name_snapshot",
+  visitorPhone: "visitor_phone",
 } as const;
 
 function unixToDatetimeLocal(timestamp: number): string {
@@ -142,17 +148,31 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
       scheduledDatetime: appointment
         ? unixToDatetimeLocal(appointment.scheduledDatetime)
         : "",
+      visitorNameSnapshot: appointment?.visitorNameSnapshot ?? "",
+      visitorPhone:
+        appointment?.visitorPhone ?? appointment?.visitorPhoneSnapshot ?? "",
       tenantFormData: { ...(appointment?.tenantFormData ?? {}) },
     },
     { ttlMs: DRAFT_TTL_MS, version: DRAFT_VERSION },
   );
 
-  const { hostId, departmentId, scheduledDatetime, tenantFormData } = draft;
+  const {
+    hostId,
+    departmentId,
+    scheduledDatetime,
+    visitorNameSnapshot,
+    visitorPhone,
+    tenantFormData,
+  } = draft;
   const setHostId = (v: string) => setDraft((d) => ({ ...d, hostId: v }));
   const setDepartmentId = (v: string) =>
     setDraft((d) => ({ ...d, departmentId: v }));
   const setScheduledDatetime = (v: string) =>
     setDraft((d) => ({ ...d, scheduledDatetime: v }));
+  const setVisitorNameSnapshot = (v: string) =>
+    setDraft((d) => ({ ...d, visitorNameSnapshot: v }));
+  const setVisitorPhone = (v: string) =>
+    setDraft((d) => ({ ...d, visitorPhone: v }));
 
   const wizard = useWizard({
     steps: hasDetails ? [1, 2, 3, 4] : [1, 2, 4],
@@ -187,26 +207,40 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
     (!!draft.hostId ||
       !!draft.departmentId ||
       !!draft.scheduledDatetime ||
+      !!draft.visitorNameSnapshot ||
+      !!draft.visitorPhone ||
       Object.keys(draft.tenantFormData).length > 0);
 
-  const departmentOptions = useMemo(
-    () =>
+  const departmentOptions = useMemo(() => {
+    const opts =
       departmentsQuery.data?.items
         ?.filter((d) => !!d?.id)
-        .map((d) => ({ value: d.id, label: d.name })) ?? [],
-    [departmentsQuery.data],
-  );
+        .map((d) => ({ value: d.id, label: d.name })) ?? [];
+    // Edit mode: the appointment's saved department might not be in the
+    // current list (archived, branch-scoped, or still loading). Inject it so
+    // the picker shows the previous selection instead of resetting to empty.
+    if (departmentId && !opts.some((o) => o.value === departmentId)) {
+      opts.push({ value: departmentId, label: departmentId });
+    }
+    return opts;
+  }, [departmentsQuery.data, departmentId]);
 
-  const hostOptions = useMemo(
-    () =>
+  const hostOptions = useMemo(() => {
+    const opts =
       hostsQuery.data?.items
         ?.filter((h) => !!h?.id)
         .map((h) => ({
           value: h.id,
           label: h.email ? `${h.name} (${h.email})` : h.name,
-        })) ?? [],
-    [hostsQuery.data],
-  );
+        })) ?? [];
+    // Edit mode: legacy appointments may store a system-user host id that
+    // isn't in the dedicated roster. Fall back to the saved name snapshot so
+    // the host picker shows who was booked rather than going blank.
+    if (hostId && !opts.some((o) => o.value === hostId)) {
+      opts.push({ value: hostId, label: appointment?.hostNameSnapshot || hostId });
+    }
+    return opts;
+  }, [hostsQuery.data, hostId, appointment]);
 
   function setTenantFieldValue(key: string, value: unknown) {
     setDraft((d) => ({
@@ -270,6 +304,18 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
     ) {
       next[SYSTEM_KEYS.scheduledDatetime] = "Date and time is required";
     }
+    if (
+      systemRequired.some((f) => f.key === SYSTEM_KEYS.visitorNameSnapshot) &&
+      !visitorNameSnapshot.trim()
+    ) {
+      next[SYSTEM_KEYS.visitorNameSnapshot] = "Visitor full name is required";
+    }
+    if (
+      systemRequired.some((f) => f.key === SYSTEM_KEYS.visitorPhone) &&
+      !visitorPhone.trim()
+    ) {
+      next[SYSTEM_KEYS.visitorPhone] = "Visitor phone number is required";
+    }
 
     for (const field of tenantRequired) {
       if (!field.required) continue;
@@ -303,6 +349,18 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
         !departmentId
       ) {
         next[SYSTEM_KEYS.departmentId] = "Department is required";
+      }
+      if (
+        systemRequired.some((f) => f.key === SYSTEM_KEYS.visitorNameSnapshot) &&
+        !visitorNameSnapshot.trim()
+      ) {
+        next[SYSTEM_KEYS.visitorNameSnapshot] = "Visitor full name is required";
+      }
+      if (
+        systemRequired.some((f) => f.key === SYSTEM_KEYS.visitorPhone) &&
+        !visitorPhone.trim()
+      ) {
+        next[SYSTEM_KEYS.visitorPhone] = "Visitor phone number is required";
       }
     } else if (step === 2) {
       if (
@@ -353,6 +411,8 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
       hostId: "",
       departmentId: "",
       scheduledDatetime: "",
+      visitorNameSnapshot: "",
+      visitorPhone: "",
       tenantFormData: {},
     });
     draftControls.clear();
@@ -377,6 +437,13 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
       hostId,
       departmentId,
       scheduledDatetime: scheduledUnix,
+      // System-required visitor identity (unless a profile is linked). Send
+      // only when present so a profile-linked appointment isn't forced to
+      // carry redundant snapshots.
+      ...(visitorNameSnapshot.trim()
+        ? { visitorNameSnapshot: visitorNameSnapshot.trim() }
+        : {}),
+      ...(visitorPhone.trim() ? { visitorPhone: visitorPhone.trim() } : {}),
       ...(tenantFormDataPayload
         ? { tenantFormData: tenantFormDataPayload }
         : {}),
@@ -414,15 +481,30 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
           (missingRaw?.missing_fields as unknown) ??
           (missingRaw?.missingFields as unknown);
         if (Array.isArray(list) && list.length > 0) {
+          const SYSTEM_FIELD_LABELS: Record<string, string> = {
+            [SYSTEM_KEYS.hostId]: "Host",
+            [SYSTEM_KEYS.departmentId]: "Department",
+            [SYSTEM_KEYS.scheduledDatetime]: "Date and time",
+            [SYSTEM_KEYS.visitorNameSnapshot]: "Visitor full name",
+            [SYSTEM_KEYS.visitorPhone]: "Visitor phone number",
+          };
           const next: Record<string, string> = {};
+          let hasSystemMiss = false;
           for (const key of list) {
             if (typeof key !== "string") continue;
+            if (SYSTEM_FIELD_LABELS[key]) {
+              hasSystemMiss = true;
+              next[key] = `${SYSTEM_FIELD_LABELS[key]} is required`;
+              continue;
+            }
             const tenantField = tenantRequired.find((f) => f.key === key);
             next[key] = `${tenantField?.label || key} is required`;
           }
           setFieldErrors(next);
-          // Send the user back to the Details step where these live.
-          if (hasDetails) wizard.goTo(3);
+          // Land on the step that owns the first missing field: system
+          // identity fields live on step 1, tenant fields on the Details step.
+          if (hasSystemMiss) wizard.goTo(1);
+          else if (hasDetails) wizard.goTo(3);
           toast.error("Some required fields are missing.");
           return;
         }
@@ -472,6 +554,16 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
         setScheduledDatetime(v);
         clearError(SYSTEM_KEYS.scheduledDatetime);
       }}
+      visitorNameSnapshot={visitorNameSnapshot}
+      onVisitorNameSnapshotChange={(v) => {
+        setVisitorNameSnapshot(v);
+        clearError(SYSTEM_KEYS.visitorNameSnapshot);
+      }}
+      visitorPhone={visitorPhone}
+      onVisitorPhoneChange={(v) => {
+        setVisitorPhone(v);
+        clearError(SYSTEM_KEYS.visitorPhone);
+      }}
       errors={fieldErrors}
     />
   );
@@ -488,7 +580,10 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
 
   const step1Fields = systemRequired.filter(
     (f) =>
-      f.key === SYSTEM_KEYS.hostId || f.key === SYSTEM_KEYS.departmentId,
+      f.key === SYSTEM_KEYS.hostId ||
+      f.key === SYSTEM_KEYS.departmentId ||
+      f.key === SYSTEM_KEYS.visitorNameSnapshot ||
+      f.key === SYSTEM_KEYS.visitorPhone,
   );
   const step2Fields = systemRequired.filter(
     (f) => f.key === SYSTEM_KEYS.scheduledDatetime,
@@ -610,6 +705,14 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
               <div>
                 <ReviewRow label="Host" value={hostLabel} />
                 <ReviewRow label="Department" value={departmentLabel} />
+                <ReviewRow
+                  label="Visitor full name"
+                  value={visitorNameSnapshot.trim() || "—"}
+                />
+                <ReviewRow
+                  label="Visitor phone number"
+                  value={visitorPhone.trim() || "—"}
+                />
                 <ReviewRow label="Scheduled" value={scheduledLabel} />
                 {tenantRequired.map((field) => (
                   <ReviewRow
@@ -753,6 +856,10 @@ interface SystemFieldsSectionProps {
   departmentsLoading: boolean;
   scheduledDatetime: string;
   onScheduledDatetimeChange: (value: string) => void;
+  visitorNameSnapshot: string;
+  onVisitorNameSnapshotChange: (value: string) => void;
+  visitorPhone: string;
+  onVisitorPhoneChange: (value: string) => void;
   errors: Record<string, string>;
 }
 
@@ -763,6 +870,12 @@ function SystemFieldsSection(props: SystemFieldsSectionProps) {
   );
   const hasScheduled = props.fields.some(
     (f) => f.key === SYSTEM_KEYS.scheduledDatetime,
+  );
+  const hasVisitorName = props.fields.some(
+    (f) => f.key === SYSTEM_KEYS.visitorNameSnapshot,
+  );
+  const hasVisitorPhone = props.fields.some(
+    (f) => f.key === SYSTEM_KEYS.visitorPhone,
   );
 
   return (
@@ -810,6 +923,47 @@ function SystemFieldsSection(props: SystemFieldsSectionProps) {
           {props.errors[SYSTEM_KEYS.departmentId] && (
             <p className="text-sm text-destructive" role="alert">
               {props.errors[SYSTEM_KEYS.departmentId]}
+            </p>
+          )}
+        </div>
+      )}
+
+      {hasVisitorName && (
+        <div className="space-y-2">
+          <Label htmlFor="visitor_name_snapshot">Visitor full name *</Label>
+          <Input
+            id="visitor_name_snapshot"
+            type="text"
+            autoComplete="name"
+            value={props.visitorNameSnapshot}
+            onChange={(e) => props.onVisitorNameSnapshotChange(e.target.value)}
+            placeholder="e.g. Ada Lovelace"
+            className="min-h-[44px]"
+          />
+          {props.errors[SYSTEM_KEYS.visitorNameSnapshot] && (
+            <p className="text-sm text-destructive" role="alert">
+              {props.errors[SYSTEM_KEYS.visitorNameSnapshot]}
+            </p>
+          )}
+        </div>
+      )}
+
+      {hasVisitorPhone && (
+        <div className="space-y-2">
+          <Label htmlFor="visitor_phone">Visitor phone number *</Label>
+          <Input
+            id="visitor_phone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            value={props.visitorPhone}
+            onChange={(e) => props.onVisitorPhoneChange(e.target.value)}
+            placeholder="e.g. +2348012345678"
+            className="min-h-[44px]"
+          />
+          {props.errors[SYSTEM_KEYS.visitorPhone] && (
+            <p className="text-sm text-destructive" role="alert">
+              {props.errors[SYSTEM_KEYS.visitorPhone]}
             </p>
           )}
         </div>

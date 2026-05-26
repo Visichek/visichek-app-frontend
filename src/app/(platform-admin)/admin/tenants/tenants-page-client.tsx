@@ -65,23 +65,6 @@ import { usePlans } from "@/features/plans/hooks/use-plans";
 import type { AdminTenant } from "@/types/admin";
 import type { BillingCycle } from "@/types/enums";
 
-function subscriptionStatusVariant(status: string) {
-  switch (status) {
-    case "active":
-      return "success" as const;
-    case "trialing":
-      return "info" as const;
-    case "past_due":
-      return "warning" as const;
-    case "cancelled":
-    case "suspended":
-    case "expired":
-      return "destructive" as const;
-    default:
-      return "secondary" as const;
-  }
-}
-
 interface SubscribeModalProps {
   tenant: AdminTenant | null;
   open: boolean;
@@ -237,7 +220,8 @@ function TenantActions({ tenant, onSubscribe, onOffboard }: TenantActionsProps) 
 }
 
 type TenantStatusTab = "active" | "inactive" | "all";
-type SubscriptionStatusFilter = "all" | "active" | "trialing" | "past_due" | "cancelled" | "suspended" | "expired" | "none";
+type BoolFilter = "all" | "true" | "false";
+type LawfulBasisFilter = "all" | "consent" | "legitimate_interest";
 
 const TENANT_TABS: { value: TenantStatusTab; label: string; description: string }[] = [
   { value: "active", label: "Active", description: "Tenants currently provisioned and serving traffic" },
@@ -245,33 +229,33 @@ const TENANT_TABS: { value: TenantStatusTab; label: string; description: string 
   { value: "all", label: "All", description: "Show every tenant regardless of status" },
 ];
 
-const TENANT_PLAN_TIERS = [
-  "free",
-  "starter",
-  "professional",
-  "enterprise",
-  "custom",
-] as const;
-
 const TENANTS_PAGE_SIZE = 25;
 
 export function TenantsPageClient() {
   const { loadingHref } = useNavigationLoading();
 
   const [statusTab, setStatusTab] = useState<TenantStatusTab>("active");
-  const [planFilter, setPlanFilter] = useState<string>("all");
-  const [subscriptionFilter, setSubscriptionFilter] =
-    useState<SubscriptionStatusFilter>("all");
+  const [onboardingFilter, setOnboardingFilter] = useState<BoolFilter>("all");
+  const [dpaFilter, setDpaFilter] = useState<BoolFilter>("all");
+  const [crossBorderFilter, setCrossBorderFilter] = useState<BoolFilter>("all");
+  const [lawfulBasisFilter, setLawfulBasisFilter] = useState<LawfulBasisFilter>("all");
   const [pageIndex, setPageIndex] = useState(0);
+
+  const hasActiveFilters =
+    onboardingFilter !== "all" ||
+    dpaFilter !== "all" ||
+    crossBorderFilter !== "all" ||
+    lawfulBasisFilter !== "all";
 
   // Whenever the user changes any filter, reset to page 0 — otherwise the
   // table can land on a page that no longer exists in the filtered slice.
   useEffect(() => {
     setPageIndex(0);
-  }, [statusTab, planFilter, subscriptionFilter]);
+  }, [statusTab, onboardingFilter, dpaFilter, crossBorderFilter, lawfulBasisFilter]);
 
   // Server-side filter set per tables.txt §1.1. The status tab maps to the
-  // `status` filter; the dropdowns map to `planTier` and `subscriptionStatus`.
+  // `status` filter; the dropdowns map to the compliance/onboarding flags
+  // (onboardingInfoConfirmed, dpaAccepted, crossBorderApproved, lawfulBasis).
   // `facets=status` asks the backend to compute per-tab counts against the
   // full dataset so the badges don't drift as the user paginates.
   const listFilters = useMemo(() => {
@@ -282,10 +266,12 @@ export function TenantsPageClient() {
       facets: "status",
       status: statusTab,
     };
-    if (planFilter !== "all") params.planTier = planFilter;
-    if (subscriptionFilter !== "all") params.subscriptionStatus = subscriptionFilter;
+    if (onboardingFilter !== "all") params.onboardingInfoConfirmed = onboardingFilter;
+    if (dpaFilter !== "all") params.dpaAccepted = dpaFilter;
+    if (crossBorderFilter !== "all") params.crossBorderApproved = crossBorderFilter;
+    if (lawfulBasisFilter !== "all") params.lawfulBasis = lawfulBasisFilter;
     return params;
-  }, [pageIndex, statusTab, planFilter, subscriptionFilter]);
+  }, [pageIndex, statusTab, onboardingFilter, dpaFilter, crossBorderFilter, lawfulBasisFilter]);
 
   const { data, isLoading } = useTenantList(listFilters);
   const tenants = useMemo(() => data?.items ?? [], [data]);
@@ -371,31 +357,62 @@ export function TenantsPageClient() {
       ),
     },
     {
-      id: "plan",
-      header: "Plan",
+      id: "onboarding",
+      header: "Onboarding",
       cell: ({ row }) => {
-        const plan = row.original.planSummary;
-        if (!plan) return <span className="text-sm text-muted-foreground">—</span>;
+        const confirmed = row.original.onboardingInfoConfirmed === true;
+        const at = row.original.onboardingInfoConfirmedAt;
         return (
           <div className="space-y-0.5">
-            <span className="text-sm font-medium">{plan.planDisplayName || plan.planName}</span>
-            <span className="block text-xs text-muted-foreground capitalize">{plan.planTier}</span>
+            {confirmed ? (
+              <Badge variant="success">Confirmed</Badge>
+            ) : (
+              <Badge variant="warning">Pending</Badge>
+            )}
+            {confirmed && at ? (
+              <span className="block text-xs text-muted-foreground">{formatDate(at)}</span>
+            ) : null}
           </div>
         );
       },
     },
     {
-      id: "subscriptionStatus",
-      header: "Subscription",
+      id: "dpa",
+      header: "DPA",
       cell: ({ row }) => {
-        const status = row.original.planSummary?.subscriptionStatus;
-        if (!status) return <span className="text-sm text-muted-foreground">—</span>;
-        return (
-          <Badge variant={subscriptionStatusVariant(status)}>
-            {status.replace(/_/g, " ")}
-          </Badge>
+        const accepted = row.original.dpaAccepted === true;
+        const version = row.original.dpaVersion;
+        return accepted ? (
+          <div className="space-y-0.5">
+            <Badge variant="success">Accepted</Badge>
+            {version ? (
+              <span className="block text-xs text-muted-foreground">v{version}</span>
+            ) : null}
+          </div>
+        ) : (
+          <Badge variant="secondary">Not accepted</Badge>
         );
       },
+    },
+    {
+      id: "lawfulBasis",
+      header: "Lawful basis",
+      cell: ({ row }) => {
+        const basis = row.original.lawfulBasis;
+        if (!basis) return <span className="text-sm text-muted-foreground">—</span>;
+        return (
+          <span className="text-sm capitalize">{basis.replace(/_/g, " ")}</span>
+        );
+      },
+    },
+    {
+      id: "crossBorder",
+      header: "Cross-border",
+      cell: ({ row }) => (
+        row.original.crossBorderApproved
+          ? <Badge variant="success">Approved</Badge>
+          : <Badge variant="secondary">No</Badge>
+      ),
     },
     {
       accessorKey: "dateCreated",
@@ -421,7 +438,7 @@ export function TenantsPageClient() {
   ];
 
   const mobileCard = (tenant: AdminTenant) => {
-    const plan = tenant.planSummary;
+    const onboarded = tenant.onboardingInfoConfirmed === true;
     return (
       <div className="rounded-lg border p-4 space-y-2">
         <div className="flex items-center justify-between gap-2">
@@ -433,21 +450,26 @@ export function TenantsPageClient() {
         <div className="text-sm text-muted-foreground">
           {tenant.dateCreated ? formatDate(tenant.dateCreated) : "—"}
         </div>
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="text-sm">{plan ? (plan.planDisplayName || plan.planName) : "—"}</span>
-            {plan && (
-              <span className="ml-1.5 text-xs text-muted-foreground capitalize">{plan.planTier}</span>
-            )}
-          </div>
-          {plan?.subscriptionStatus ? (
-            <Badge variant={subscriptionStatusVariant(plan.subscriptionStatus)}>
-              {plan.subscriptionStatus.replace(/_/g, " ")}
-            </Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          {onboarded ? (
+            <Badge variant="success">Onboarded</Badge>
           ) : (
-            <span className="text-xs text-muted-foreground">No subscription</span>
+            <Badge variant="warning">Onboarding pending</Badge>
           )}
+          {tenant.dpaAccepted === true ? (
+            <Badge variant="success">DPA accepted</Badge>
+          ) : (
+            <Badge variant="secondary">DPA pending</Badge>
+          )}
+          {tenant.crossBorderApproved ? (
+            <Badge variant="success">Cross-border approved</Badge>
+          ) : null}
         </div>
+        {tenant.lawfulBasis ? (
+          <div className="text-xs text-muted-foreground capitalize">
+            Lawful basis: {tenant.lawfulBasis.replace(/_/g, " ")}
+          </div>
+        ) : null}
         <TenantActions
           tenant={tenant}
           onSubscribe={setSubscribeTarget}
@@ -549,68 +571,82 @@ export function TenantsPageClient() {
         </TabsList>
       </Tabs>
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:flex-wrap">
-        <div className="flex flex-1 flex-col gap-1 md:max-w-[220px]">
-          <Label htmlFor="tenant-plan-filter" className="text-xs text-muted-foreground">
-            Plan tier
-          </Label>
-          <Select value={planFilter} onValueChange={setPlanFilter}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <SelectTrigger id="tenant-plan-filter" className="min-h-[44px]">
-                  <SelectValue />
-                </SelectTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                Filter the list to a specific plan tier
-              </TooltipContent>
-            </Tooltip>
-            <SelectContent>
-              <SelectItem value="all">All tiers</SelectItem>
-              {TENANT_PLAN_TIERS.map((tier) => (
-                <SelectItem key={tier} value={tier} className="capitalize">
-                  {tier}
-                </SelectItem>
-              ))}
-              <SelectItem value="none">No plan attached</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:flex-wrap">
+        {[
+          {
+            id: "tenant-onboarding-filter",
+            label: "Onboarding",
+            tooltip: "Filter by whether the tenant has confirmed their onboarding info",
+            value: onboardingFilter,
+            onChange: (v: string) => setOnboardingFilter(v as BoolFilter),
+            options: [
+              { value: "all", label: "All" },
+              { value: "true", label: "Confirmed" },
+              { value: "false", label: "Pending" },
+            ],
+          },
+          {
+            id: "tenant-dpa-filter",
+            label: "DPA",
+            tooltip: "Filter by whether the tenant accepted the Data Processing Agreement",
+            value: dpaFilter,
+            onChange: (v: string) => setDpaFilter(v as BoolFilter),
+            options: [
+              { value: "all", label: "All" },
+              { value: "true", label: "Accepted" },
+              { value: "false", label: "Not accepted" },
+            ],
+          },
+          {
+            id: "tenant-crossborder-filter",
+            label: "Cross-border",
+            tooltip: "Filter by whether cross-border data transfer is approved",
+            value: crossBorderFilter,
+            onChange: (v: string) => setCrossBorderFilter(v as BoolFilter),
+            options: [
+              { value: "all", label: "All" },
+              { value: "true", label: "Approved" },
+              { value: "false", label: "Not approved" },
+            ],
+          },
+          {
+            id: "tenant-lawfulbasis-filter",
+            label: "Lawful basis",
+            tooltip: "Filter by the tenant's declared lawful basis for processing visitor data",
+            value: lawfulBasisFilter,
+            onChange: (v: string) => setLawfulBasisFilter(v as LawfulBasisFilter),
+            options: [
+              { value: "all", label: "All" },
+              { value: "consent", label: "Consent" },
+              { value: "legitimate_interest", label: "Legitimate interest" },
+            ],
+          },
+        ].map((f) => (
+          <div key={f.id} className="flex flex-1 flex-col gap-1 md:max-w-[200px]">
+            <Label htmlFor={f.id} className="text-xs text-muted-foreground">
+              {f.label}
+            </Label>
+            <Select value={f.value} onValueChange={f.onChange}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <SelectTrigger id={f.id} className="min-h-[44px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{f.tooltip}</TooltipContent>
+              </Tooltip>
+              <SelectContent>
+                {f.options.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ))}
 
-        <div className="flex flex-1 flex-col gap-1 md:max-w-[240px]">
-          <Label htmlFor="tenant-subscription-filter" className="text-xs text-muted-foreground">
-            Subscription status
-          </Label>
-          <Select
-            value={subscriptionFilter}
-            onValueChange={(v) =>
-              setSubscriptionFilter(v as SubscriptionStatusFilter)
-            }
-          >
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <SelectTrigger id="tenant-subscription-filter" className="min-h-[44px]">
-                  <SelectValue />
-                </SelectTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                Filter by the tenant&apos;s current subscription state
-              </TooltipContent>
-            </Tooltip>
-            <SelectContent>
-              <SelectItem value="all">All subscriptions</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="trialing">Trialing</SelectItem>
-              <SelectItem value="past_due">Past due</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
-              <SelectItem value="suspended">Suspended</SelectItem>
-              <SelectItem value="expired">Expired</SelectItem>
-              <SelectItem value="none">No subscription</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {(planFilter !== "all" || subscriptionFilter !== "all") && (
+        {hasActiveFilters && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -618,15 +654,17 @@ export function TenantsPageClient() {
                 size="sm"
                 className="md:self-end min-h-[44px]"
                 onClick={() => {
-                  setPlanFilter("all");
-                  setSubscriptionFilter("all");
+                  setOnboardingFilter("all");
+                  setDpaFilter("all");
+                  setCrossBorderFilter("all");
+                  setLawfulBasisFilter("all");
                 }}
               >
                 Reset filters
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              Clear plan and subscription filters
+              Clear all onboarding and compliance filters
             </TooltipContent>
           </Tooltip>
         )}
@@ -655,7 +693,7 @@ export function TenantsPageClient() {
               : "No tenants yet"
         }
         emptyDescription={
-          planFilter !== "all" || subscriptionFilter !== "all"
+          hasActiveFilters
             ? "No tenants match the current filters. Try clearing them."
             : statusTab === "inactive"
               ? "Inactive tenants will appear here after offboarding."

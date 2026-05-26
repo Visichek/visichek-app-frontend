@@ -22,7 +22,15 @@ export type VisitStatus =
 
 export type CheckInMethod = "qr_registration" | "id_scan" | "manual_entry";
 export type CheckOutMethod = "qr_scan" | "manual";
-export type VerificationMethod = "id_scan" | "qr_upload" | "host_approval";
+// `manual` = a staff member vouched for the visitor's identity from the
+// receptionist UI without an automated ID scan (see the manual-verify
+// flow doc). NOTE: this value is a pending backend addition — the FE ships
+// it ahead of the API per the manual-verify rollout.
+export type VerificationMethod =
+  | "id_scan"
+  | "qr_upload"
+  | "host_approval"
+  | "manual";
 export type VerificationStatus = "verified" | "unverified" | "denied";
 export type AppointmentStatus = "scheduled" | "fulfilled" | "cancelled" | "missed";
 export type BadgeFormat = "A6" | "A7";

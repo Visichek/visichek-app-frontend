@@ -35,6 +35,7 @@ import {
   useDeleteAppointment,
   useBulkAppointmentAction,
 } from "@/features/appointments/hooks/use-appointments";
+import { useDepartments } from "@/features/departments/hooks/use-departments";
 import { summarizeBulkResult } from "@/lib/api/bulk";
 import { useCapabilities } from "@/hooks/use-capabilities";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
@@ -95,6 +96,21 @@ export function AppointmentsPageClient() {
   }, [pageIndex, statusTab]);
 
   const { data: appointmentsList, isLoading } = useAppointments(listFilters);
+  // Department rows carry only `departmentId`; map id → name so the table
+  // shows a readable label instead of the raw ObjectId.
+  const { data: departmentsList } = useDepartments({ skip: 0, limit: 200 });
+  const departmentNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const dept of departmentsList?.items ?? []) {
+      if (dept.id) map.set(dept.id, dept.name);
+    }
+    return map;
+  }, [departmentsList]);
+  const departmentLabel = useCallback(
+    (id: string | null | undefined) =>
+      (id && (departmentNameById.get(id) ?? id)) || "—",
+    [departmentNameById],
+  );
   const appointments = appointmentsList?.items ?? [];
   const meta = appointmentsList?.meta;
   const statusFacet = meta?.facets?.status ?? {};
@@ -175,7 +191,7 @@ export function AppointmentsPageClient() {
       accessorKey: "departmentId",
       header: "Department",
       cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">{row.original.departmentId || "—"}</span>
+        <span className="text-muted-foreground text-sm">{departmentLabel(row.original.departmentId)}</span>
       ),
     },
     {
@@ -229,7 +245,9 @@ export function AppointmentsPageClient() {
         </div>
         <div className="text-xs text-muted-foreground space-y-1">
           <p>Scheduled: {formatDateTime(appointment.scheduledDatetime)}</p>
-          {appointment.departmentId && <p>Department: {appointment.departmentId}</p>}
+          {appointment.departmentId && (
+            <p>Department: {departmentLabel(appointment.departmentId)}</p>
+          )}
         </div>
         <div className="flex gap-2 pt-2">
           <Tooltip>

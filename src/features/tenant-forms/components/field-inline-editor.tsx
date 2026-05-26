@@ -1,6 +1,13 @@
 "use client";
 
-import { useMemo, useState, type DragEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type ReactNode,
+} from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -628,12 +635,10 @@ function AdvancedSettings({
         <Label htmlFor={`field-${field.fieldId}-id`} className="text-xs">
           Field id
         </Label>
-        <Input
+        <FieldIdInput
           id={`field-${field.fieldId}-id`}
-          value={field.fieldId}
-          onChange={(event) => onFieldIdChange(event.target.value)}
-          placeholder="snake_case_id"
-          className="min-h-[40px] text-base md:text-sm"
+          fieldId={field.fieldId}
+          onCommit={onFieldIdChange}
         />
         <p className="text-xs text-muted-foreground">
           Stable identifier across versions. Once a form is published with this id, don&apos;t change it — that&apos;s how historical submissions resolve.
@@ -864,6 +869,61 @@ function AdvancedSettings({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Field-id input that buffers keystrokes locally and only commits on blur
+ * (or Enter). Committing changes `field.fieldId`, which is the React key on
+ * the parent field list — so committing per-keystroke would unmount this
+ * editor and steal focus after a single character. Buffering means the user
+ * types the whole id freely; the slugified value is pushed up once when they
+ * leave the field, which also keeps autosave from firing mid-edit.
+ */
+function FieldIdInput({
+  id,
+  fieldId,
+  onCommit,
+}: {
+  id: string;
+  fieldId: string;
+  onCommit: (value: string) => void;
+}) {
+  const [local, setLocal] = useState(fieldId);
+  // Track the last value we know the parent holds so we can re-sync the
+  // buffer when the id changes from elsewhere (duplicate, hydrate, defaults)
+  // without clobbering what the user is currently typing.
+  const committedRef = useRef(fieldId);
+  useEffect(() => {
+    if (fieldId !== committedRef.current) {
+      committedRef.current = fieldId;
+      setLocal(fieldId);
+    }
+  }, [fieldId]);
+
+  function commit() {
+    const slug = slugify(local);
+    setLocal(slug);
+    committedRef.current = slug;
+    if (slug !== fieldId) onCommit(slug);
+  }
+
+  return (
+    <Input
+      id={id}
+      value={local}
+      onChange={(event) => setLocal(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          event.currentTarget.blur();
+        }
+      }}
+      onClick={(event) => event.stopPropagation()}
+      placeholder="snake_case_id"
+      className="min-h-[40px] text-base md:text-sm"
+    />
   );
 }
 

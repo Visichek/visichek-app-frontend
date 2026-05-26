@@ -109,9 +109,53 @@ export const checkinListPath = (tenantId: string) =>
 export const checkinDetailPath = (checkinId: string) =>
   `/checkins/${checkinId}`;
 
+/**
+ * Edit a visitor profile's identity fields (name, email, phone, company)
+ * from the receptionist / admin UI.
+ *
+ * PROPOSED endpoint — not yet implemented by the backend. See
+ * `backend-contract-manual-verify-and-edit-visitor.txt`.
+ *
+ * Backend contract the FE assumes:
+ *   - PATCH, tenant-authenticated, body `VisitorProfileUpdateRequest`
+ *     (any subset of `fullName`, `email`, `phone`, `company`).
+ *   - Updates the canonical `visitors` record; embedded `visitor`
+ *     snapshots on existing check-ins should reflect the change on next
+ *     read.
+ *   - Returns the updated `VisitorOut`.
+ *   - 422 if no editable field is supplied or `email`/`phone` is invalid;
+ *     404 if the visitor id is unknown.
+ *
+ * `visitorId` is `checkin.visitorId` (or `checkin.visitor.id`).
+ */
+export const visitorProfileUpdatePath = (visitorId: string) =>
+  `/visitors/${visitorId}`;
+
 /** Approve or reject a pending check-in. */
 export const checkinConfirmPath = (checkinId: string) =>
   `/checkins/${checkinId}/confirm`;
+
+/**
+ * Manually mark a check-in's visitor as identity-verified by staff — used
+ * when there was no automated ID scan (walk-in, scan skipped, OCR failed)
+ * but a receptionist / admin has physically confirmed the visitor's ID.
+ *
+ * PROPOSED endpoint — not yet implemented by the backend. See
+ * `backend-contract-manual-verify-and-edit-visitor.txt` for the full contract the
+ * frontend already codes against.
+ *
+ * Backend contract the FE assumes:
+ *   - POST, tenant-authenticated, body `{ notes?: string }`.
+ *   - Verifier identity (user id / name / role) is read from the auth
+ *     token — never trusted from the body.
+ *   - Flips `verified=true` on both the check-in and its visitor profile,
+ *     sets `verificationMethod="manual"`, and stamps the
+ *     `manualVerification` block on the response.
+ *   - Returns the updated `CheckinOut`.
+ *   - 409 if already verified; 404 if the check-in id is unknown.
+ */
+export const checkinManualVerifyPath = (checkinId: string) =>
+  `/checkins/${checkinId}/manual-verify`;
 
 /**
  * Super-admin recovery action: unstick a check-in that's been parked in
