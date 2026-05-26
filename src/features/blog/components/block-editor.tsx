@@ -27,13 +27,15 @@ import { Input } from "@/components/ui/input";
 import { useUploadMediaFile } from "@/features/blog/hooks/use-media";
 import { resolveDocumentUrl } from "@/lib/utils/document-url";
 import { toast } from "sonner";
-import type { Block, BlockType } from "@/types/blog";
+import type { Block, BlockType, InlineText } from "@/types/blog";
 import {
   blockText,
   buildBlock,
   emptyParagraph,
-  plainTextContent,
+  isBlockEmpty,
 } from "@/features/blog/lib/blocks";
+import { inlineToHtml, readInlineRuns } from "@/features/blog/lib/inline";
+import { htmlToBlocks, plainTextToBlocks } from "@/features/blog/lib/html-to-blocks";
 
 interface BlockEditorProps {
   value: Block[];
@@ -258,7 +260,7 @@ export function BlockEditor({ value, onChange, placeholder }: BlockEditorProps) 
     onChange(out);
   }
 
-  function handleBlockTextInput(block: Block, text: string) {
+  function handleBlockTextInput(block: Block, runs: InlineText[], text: string) {
     const converted = autoConvertMarkdown(block, text);
     if (converted) {
       replaceBlock(block.id, converted);
@@ -273,7 +275,59 @@ export function BlockEditor({ value, onChange, placeholder }: BlockEditorProps) 
       setSlashState(null);
     }
 
-    updateBlock(block.id, { content: plainTextContent(text) });
+    // Store the styled runs (bold/italic/etc) rather than flattening to plain
+    // text, so manual formatting and pasted styling survive a save.
+    updateBlock(block.id, { content: runs });
+  }
+
+  /**
+   * Rich paste: convert clipboard HTML (Google Docs, Word, etc.) into proper
+   * blocks instead of letting the contentEditable flatten everything into one
+   * plain-text block. Replaces the current block when it's empty, otherwise
+   * inserts the parsed blocks after it. A single inline paragraph dropped into
+   * a non-empty block is inserted at the caret as text so mid-sentence pastes
+   * still feel natural.
+   */
+  function handleBlockPaste(
+    e: React.ClipboardEvent<HTMLDivElement>,
+    block: Block,
+    index: number,
+  ) {
+    const cd = e.clipboardData;
+    if (!cd) return;
+
+    const html = cd.getData("text/html");
+    const plain = cd.getData("text/plain");
+
+    let pasted = html ? htmlToBlocks(html) : [];
+    if (pasted.length === 0 && plain) pasted = plainTextToBlocks(plain);
+    if (pasted.length === 0) return; // nothing useful — let the browser handle it
+
+    const targetIsTextBlock =
+      block.type !== "image" && block.type !== "video" && block.type !== "divider";
+    const targetEmpty = isBlockEmpty(block);
+
+    // Single plain paragraph into a non-empty text block → insert at the caret.
+    if (
+      pasted.length === 1 &&
+      pasted[0].type === "paragraph" &&
+      targetIsTextBlock &&
+      !targetEmpty
+    ) {
+      e.preventDefault();
+      const insertText = plain || blockText(pasted[0]);
+      document.execCommand("insertText", false, insertText);
+      return;
+    }
+
+    e.preventDefault();
+    const out = [...blocks];
+    if (targetEmpty && targetIsTextBlock) out.splice(index, 1, ...pasted);
+    else out.splice(index + 1, 0, ...pasted);
+
+    const last = pasted[pasted.length - 1];
+    pendingFocusRef.current = { id: last.id, caret: "end" };
+    onChange(out);
   }
 
   function handleBlockKeyDown(
@@ -381,8 +435,9 @@ export function BlockEditor({ value, onChange, placeholder }: BlockEditorProps) 
           block={block}
           index={index}
           totalBlocks={blocks.length}
-          onTextInput={(t) => handleBlockTextInput(block, t)}
+          onTextInput={(runs, t) => handleBlockTextInput(block, runs, t)}
           onKeyDown={(e) => handleBlockKeyDown(e, block, index)}
+          onPaste={(e) => handleBlockPaste(e, block, index)}
           onMoveUp={() => moveBlock(block.id, -1)}
           onMoveDown={() => moveBlock(block.id, 1)}
           onDelete={() => removeBlock(block.id)}
@@ -410,8 +465,9 @@ interface BlockRowProps {
   block: Block;
   index: number;
   totalBlocks: number;
-  onTextInput: (text: string) => void;
+  onTextInput: (runs: InlineText[], plainText: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
+  onPaste: (e: React.ClipboardEvent<HTMLDivElement>) => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onDelete: () => void;
@@ -432,6 +488,7 @@ function BlockRow(props: BlockRowProps) {
     totalBlocks,
     onTextInput,
     onKeyDown,
+    onPaste,
     onMoveUp,
     onMoveDown,
     onDelete,
@@ -491,6 +548,7 @@ function BlockRow(props: BlockRowProps) {
             block={block}
             onTextInput={onTextInput}
             onKeyDown={onKeyDown}
+            onPaste={onPaste}
             placeholder={placeholder ?? defaultPlaceholder(block)}
             refSetter={refSetter}
           />
@@ -535,8 +593,9 @@ function defaultPlaceholder(block: Block): string {
 
 interface ContentEditableBlockProps {
   block: Block;
-  onTextInput: (text: string) => void;
+  onTextInput: (runs: InlineText[], plainText: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
+  onPaste: (e: React.ClipboardEvent<HTMLDivElement>) => void;
   placeholder?: string;
   refSetter: (el: HTMLDivElement | null) => void;
 }
@@ -545,22 +604,39 @@ const ContentEditableBlock = React.memo(function ContentEditableBlock({
   block,
   onTextInput,
   onKeyDown,
+  onPaste,
   placeholder,
   refSetter,
 }: ContentEditableBlockProps) {
   const ref = React.useRef<HTMLDivElement | null>(null);
+  // The last inline HTML we know the DOM holds, in normalized form. Used to
+  // decide whether the model changed externally (slash menu, paste, load) and
+  // the DOM must be rewritten, versus our own keystroke (skip — rewriting
+  // would reset the caret).
+  const lastHtmlRef = React.useRef<string>("");
   const text = blockText(block);
 
-  // Keep the DOM in sync with controlled text without overriding user
-  // typing. Only re-render when the value diverges (e.g. after a slash
-  // menu replaces the block).
+  // Render styled runs into the editable. We compare against the normalized
+  // HTML we last emitted so typing never triggers a DOM rewrite (which would
+  // jump the caret), while external block changes do.
   React.useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if ((el.textContent ?? "") !== text) {
-      el.textContent = text;
+    const html = inlineToHtml(block.content);
+    if (html !== lastHtmlRef.current) {
+      el.innerHTML = html;
+      lastHtmlRef.current = html;
     }
-  }, [text]);
+  }, [block.content]);
+
+  function handleInput(e: React.FormEvent<HTMLDivElement>) {
+    const el = e.currentTarget;
+    const runs = readInlineRuns(el);
+    // Record the normalized form so the sync effect treats this as already
+    // in-sync and leaves the caret alone.
+    lastHtmlRef.current = inlineToHtml(runs);
+    onTextInput(runs, el.textContent ?? "");
+  }
 
   return (
     <div
@@ -574,8 +650,9 @@ const ContentEditableBlock = React.memo(function ContentEditableBlock({
       aria-multiline="false"
       data-empty={text.length === 0 || undefined}
       data-placeholder={placeholder ?? ""}
-      onInput={(e) => onTextInput(e.currentTarget.textContent ?? "")}
+      onInput={handleInput}
       onKeyDown={onKeyDown}
+      onPaste={onPaste}
       className={cn(
         "block-editable outline-none whitespace-pre-wrap break-words",
         textClassForBlock(block),
