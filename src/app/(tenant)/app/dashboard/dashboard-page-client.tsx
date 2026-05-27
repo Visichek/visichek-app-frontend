@@ -198,7 +198,7 @@ export function DashboardPageClient() {
                 <span>{tab.label}</span>
                 {locked && (
                   <Lock
-                    className="h-3 w-3 text-amber-600 dark:text-amber-400 animate-padlock-shake-loop group-hover/tab:animate-padlock-shake group-hover/tab:[animation-iteration-count:3]"
+                    className="h-3 w-3 text-amber-600 dark:text-amber-400"
                     aria-hidden="true"
                   />
                 )}

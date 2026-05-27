@@ -483,6 +483,16 @@ export interface CheckinOut {
    */
   visitor?: VisitorOut | null;
   /**
+   * Branch this check-in belongs to (Phase 4 branch isolation). `branchId`
+   * is stamped from the caller's token on creation; `branchSummary` is
+   * embedded on list / detail / analytics reads so the UI can show a
+   * "Branch" label without a second fetch. `branchSummary` is null only
+   * when the branch id is unset/invalid — the bare create response carries
+   * `branchId` without a summary.
+   */
+  branchId?: string;
+  branchSummary?: { id: string; name: string; isActive?: boolean } | null;
+  /**
    * Short-lived signed capability token, bound to this exact `id` and tenant,
    * that authorizes the public KYC follow-up calls (`/v1/kyc/initiate`,
    * `/v1/kyc/skip`, `/v1/kyc/status/{id}`). Present ONLY on the creation
@@ -588,6 +598,14 @@ export interface PendingApprovalItem {
 
   departmentId?: string | null;
   hostId?: string | null;
+
+  /**
+   * Branch this pending row belongs to (Phase 4). `branchSummary` is
+   * populated whenever `branchId` resolves, regardless of role; null only
+   * when the branch id is unset/invalid.
+   */
+  branchId?: string | null;
+  branchSummary?: { id: string; name: string; isActive?: boolean } | null;
 
   /** Set on `appointment` rows only. */
   scheduledDatetime?: number | null;

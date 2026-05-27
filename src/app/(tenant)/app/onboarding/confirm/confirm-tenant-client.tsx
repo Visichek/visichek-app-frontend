@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BadgeCheck, Building2, FileText, Info, ShieldCheck } from "lucide-react";
+import {
+  BadgeCheck,
+  Building2,
+  FileText,
+  Info,
+  Loader2,
+  ShieldCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,35 +26,40 @@ import { EmptyState } from "@/components/feedback/empty-state";
 import { PageHeader } from "@/components/recipes/page-header";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useCapabilities } from "@/hooks/use-capabilities";
+import { useSession } from "@/hooks/use-session";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import { ApiError } from "@/types/api";
 import { PATHS } from "@/lib/routing/paths";
 import {
   useTenantConfirmation,
+  useTenantDpa,
   useConfirmTenantInfo,
   usePendingOnboardingFields,
 } from "@/features/onboarding/hooks";
-import type { TenantConfirmationRequest } from "@/types/onboarding";
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import type { TenantConfirmationRequest, TenantDpa } from "@/types/onboarding";
+import { LegalContentRenderer } from "@/features/legal-documents/components/legal-content-renderer";
+import { formatDate } from "@/lib/utils/format-date";
 
 interface FormState {
   companyName: string;
-  dpoContactEmail: string;
-  privacyPolicyUrl: string;
-  countryOfHosting: string;
+  organizationAddress: string;
 }
 
 const EMPTY_FORM: FormState = {
   companyName: "",
-  dpoContactEmail: "",
-  privacyPolicyUrl: "",
-  countryOfHosting: "",
+  organizationAddress: "",
 };
+
+const ORG_ADDRESS_MAX = 500;
 
 export function ConfirmTenantClient() {
   const { hasCapability } = useCapabilities();
   const { navigate } = useNavigationLoading();
+  // The DPO contact email is the email of whoever is completing onboarding —
+  // the (main) super admin filling this form. We send it on confirm rather
+  // than asking for it; it's not an editable field.
+  const { systemUserProfile } = useSession();
+  const currentUserEmail = systemUserProfile?.email ?? "";
   // Tenant identity is a tenant-wide write gated to TENANT_CONFIG_EDIT,
   // which only super_admin holds today — the same gate the onboarding
   // completion screen uses.
@@ -66,6 +78,17 @@ export function ConfirmTenantClient() {
   const { data: pending } = usePendingOnboardingFields(isSuperAdmin);
   const hasPendingFields = !!pending && pending.pendingFieldKeys.length > 0;
 
+  // The per-tenant DPA. A 404 means the template isn't configured on this
+  // environment yet — we treat that as "not available" and fall back to the
+  // external link rather than blocking onboarding.
+  const {
+    data: dpa,
+    isLoading: dpaLoading,
+    error: dpaQueryError,
+  } = useTenantDpa(isSuperAdmin);
+  const dpaUnavailable =
+    dpaQueryError instanceof ApiError && dpaQueryError.status === 404;
+
   const confirm = useConfirmTenantInfo();
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -76,14 +99,18 @@ export function ConfirmTenantClient() {
   const [dpaAccepted, setDpaAccepted] = useState(false);
   const [dpaError, setDpaError] = useState<string | null>(null);
 
+  // If the DPA is already frozen as accepted, reflect that in the checkbox so
+  // the gate doesn't ask the super admin to re-accept what they already agreed.
+  useEffect(() => {
+    if (dpa?.accepted) setDpaAccepted(true);
+  }, [dpa?.accepted]);
+
   // Prefill once the review payload arrives.
   useEffect(() => {
     if (!confirmation) return;
     setForm({
       companyName: confirmation.companyName ?? "",
-      dpoContactEmail: confirmation.dpoContactEmail ?? "",
-      privacyPolicyUrl: confirmation.privacyPolicyUrl ?? "",
-      countryOfHosting: confirmation.countryOfHosting ?? "",
+      organizationAddress: confirmation.organizationAddress ?? "",
     });
   }, [confirmation]);
 
@@ -191,9 +218,8 @@ export function ConfirmTenantClient() {
     if (name.length < 1 || name.length > 200) {
       next.companyName = "Company name must be 1–200 characters.";
     }
-    const email = form.dpoContactEmail.trim();
-    if (email && !EMAIL_RE.test(email)) {
-      next.dpoContactEmail = "Enter a valid email address.";
+    if (form.organizationAddress.trim().length > ORG_ADDRESS_MAX) {
+      next.organizationAddress = `Address must be ${ORG_ADDRESS_MAX} characters or fewer.`;
     }
     setFieldErrors(next);
     return Object.keys(next).length === 0;
@@ -207,21 +233,28 @@ export function ConfirmTenantClient() {
     const payload: TenantConfirmationRequest = {};
     const trimmed = {
       companyName: form.companyName.trim(),
-      dpoContactEmail: form.dpoContactEmail.trim(),
-      privacyPolicyUrl: form.privacyPolicyUrl.trim(),
-      countryOfHosting: form.countryOfHosting.trim(),
+      organizationAddress: form.organizationAddress.trim(),
     };
     if (trimmed.companyName !== (confirmation.companyName ?? "")) {
       payload.companyName = trimmed.companyName;
     }
-    if (trimmed.dpoContactEmail !== (confirmation.dpoContactEmail ?? "")) {
-      payload.dpoContactEmail = trimmed.dpoContactEmail;
+    if (
+      trimmed.organizationAddress !== (confirmation.organizationAddress ?? "")
+    ) {
+      payload.organizationAddress = trimmed.organizationAddress;
     }
-    if (trimmed.privacyPolicyUrl !== (confirmation.privacyPolicyUrl ?? "")) {
-      payload.privacyPolicyUrl = trimmed.privacyPolicyUrl;
+    // The DPO contact email is always the email of the super admin completing
+    // onboarding — not a field they fill in. Send it when it differs from
+    // what's on file.
+    const email = currentUserEmail.trim();
+    if (email && email !== (confirmation.dpoContactEmail ?? "")) {
+      payload.dpoContactEmail = email;
     }
-    if (trimmed.countryOfHosting !== (confirmation.countryOfHosting ?? "")) {
-      payload.countryOfHosting = trimmed.countryOfHosting;
+    // Privacy policy URL is prepared per-tenant by the backend — never send it
+    // so we don't overwrite the prepared value.
+    // Country of hosting is not collected here — submit it blank.
+    if ((confirmation.countryOfHosting ?? "") !== "") {
+      payload.countryOfHosting = "";
     }
     // DPA acceptance is the gate for finishing onboarding — always record it
     // (the submit is blocked until the box is checked) with the moment of
@@ -276,122 +309,72 @@ export function ConfirmTenantClient() {
         </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Building2 className="h-4 w-4" />
-            Company identity
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Building2 className="h-4 w-4" />
+              Company identity
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
             <Field
               id="confirm-companyName"
               label="Company name"
               required
+              disabled
               value={form.companyName}
               onChange={(v) => setField("companyName", v)}
               error={fieldErrors.companyName}
               maxLength={200}
+              hint="This is the company name on file. Contact support if it needs to change."
             />
             <Field
-              id="confirm-dpoContactEmail"
-              label="DPO contact email"
-              type="email"
-              inputMode="email"
-              value={form.dpoContactEmail}
-              onChange={(v) => setField("dpoContactEmail", v)}
-              error={fieldErrors.dpoContactEmail}
-              placeholder="dpo@yourcompany.com"
+              id="confirm-organizationAddress"
+              label="Organization address"
+              value={form.organizationAddress}
+              onChange={(v) => setField("organizationAddress", v)}
+              error={fieldErrors.organizationAddress}
+              maxLength={ORG_ADDRESS_MAX}
+              placeholder="e.g. 1 Main St, Lagos"
+              hint="Used to fill the Organization party block in your Data Processing Agreement."
             />
-            <Field
-              id="confirm-privacyPolicyUrl"
-              label="Privacy policy URL"
-              type="url"
-              inputMode="url"
-              value={form.privacyPolicyUrl}
-              onChange={(v) => setField("privacyPolicyUrl", v)}
-              error={fieldErrors.privacyPolicyUrl}
-              placeholder="https://yourcompany.com/privacy"
-            />
-            <Field
-              id="confirm-countryOfHosting"
-              label="Country of hosting"
-              value={form.countryOfHosting}
-              onChange={(v) => setField("countryOfHosting", v)}
-              placeholder="e.g. NG"
-            />
+          </CardContent>
+        </Card>
 
-            {/* Data Processing Agreement acceptance — required to finish
-                onboarding. */}
-            <div className="rounded-md border border-border bg-muted/30 p-4">
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  id="confirm-dpaAccepted"
-                  checked={dpaAccepted}
-                  onCheckedChange={(checked) => {
-                    setDpaAccepted(checked === true);
-                    if (checked === true) setDpaError(null);
-                  }}
-                  className="mt-0.5 h-5 w-5"
-                  aria-invalid={!!dpaError}
-                  aria-describedby={dpaError ? "confirm-dpaAccepted-error" : undefined}
-                />
-                <div className="space-y-1">
-                  <Label
-                    htmlFor="confirm-dpaAccepted"
-                    className="flex items-center gap-1.5 text-sm font-medium cursor-pointer"
-                  >
-                    <ShieldCheck className="h-4 w-4 text-primary" aria-hidden="true" />
-                    I accept the Data Processing Agreement
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    On behalf of your organization, you agree to VisiChek&apos;s{" "}
-                    <a
-                      href="https://www.visichek.app/legal/dpa"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium text-primary underline underline-offset-2"
-                    >
-                      Data Processing Agreement
-                    </a>{" "}
-                    governing how visitor personal data is processed under the NDPA.
-                  </p>
-                </div>
-              </div>
-              {dpaError && (
-                <p
-                  id="confirm-dpaAccepted-error"
-                  className="mt-2 text-xs text-destructive"
-                  role="alert"
+        {/* Data Processing Agreement — preview + acceptance gate. */}
+        <DpaCard
+          dpa={dpa}
+          loading={dpaLoading}
+          unavailable={dpaUnavailable}
+          accepted={dpaAccepted}
+          error={dpaError}
+          onAcceptedChange={(checked) => {
+            setDpaAccepted(checked);
+            if (checked) setDpaError(null);
+          }}
+        />
+
+        <div className="flex justify-end pt-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <LoadingButton
+                  type="submit"
+                  isLoading={confirm.isPending}
+                  loadingText="Saving…"
+                  className="min-h-[44px] w-full md:w-auto"
                 >
-                  {dpaError}
-                </p>
-              )}
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <LoadingButton
-                      type="submit"
-                      isLoading={confirm.isPending}
-                      loadingText="Saving…"
-                      className="min-h-[44px] w-full md:w-auto"
-                    >
-                      Confirm details
-                    </LoadingButton>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Save these company details and continue to your dashboard
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+                  Confirm details
+                </LoadingButton>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              Save these company details and continue to your dashboard
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </form>
 
       {originalSubmission.length > 0 && (
         <Card>
@@ -429,6 +412,136 @@ function formatValue(value: unknown): string {
   return String(value);
 }
 
+/**
+ * The Data Processing Agreement preview + acceptance gate. Renders the
+ * per-tenant DPA body (BlockNote blocks) read-only when available, an
+ * "accepted on <date>" state once frozen, and a graceful fallback (external
+ * link) when the tenant DPA isn't available yet (`404`) or failed to load.
+ */
+function DpaCard({
+  dpa,
+  loading,
+  unavailable,
+  accepted,
+  error,
+  onAcceptedChange,
+}: {
+  dpa: TenantDpa | undefined;
+  loading: boolean;
+  unavailable: boolean;
+  accepted: boolean;
+  error: string | null;
+  onAcceptedChange: (checked: boolean) => void;
+}) {
+  const alreadyAccepted = !!dpa?.accepted;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ShieldCheck className="h-4 w-4" />
+          {dpa?.title ?? "Data Processing Agreement"}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {loading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            Loading your Data Processing Agreement…
+          </div>
+        ) : dpa ? (
+          <>
+            <p className="text-xs text-muted-foreground">
+              Version {dpa.version}. The Organization details below are drawn
+              from the company information above — saving your edits together
+              with acceptance freezes the exact wording you agree to.
+            </p>
+            <div
+              className="max-h-96 overflow-y-auto rounded-md border border-border bg-muted/20 p-4"
+              role="region"
+              aria-label="Data Processing Agreement text"
+              tabIndex={0}
+            >
+              <LegalContentRenderer blocks={dpa.body} />
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {unavailable
+              ? "Your tailored Data Processing Agreement isn’t available to preview yet."
+              : "We couldn’t load your Data Processing Agreement preview right now."}{" "}
+            You can still review the{" "}
+            <a
+              href="https://www.visichek.app/legal/dpa"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-primary underline underline-offset-2"
+            >
+              standard agreement
+            </a>{" "}
+            and accept to continue.
+          </p>
+        )}
+
+        {alreadyAccepted ? (
+          <div className="flex items-start gap-3 rounded-md border border-success/30 bg-success/10 p-4 text-sm">
+            <BadgeCheck
+              className="mt-0.5 h-5 w-5 shrink-0 text-success"
+              aria-hidden="true"
+            />
+            <div className="space-y-0.5">
+              <p className="font-medium">Data Processing Agreement accepted</p>
+              <p className="text-muted-foreground">
+                Accepted on {formatDate(dpa?.acceptedAt)}
+                {dpa?.version ? ` (version ${dpa.version})` : ""}.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-md border border-border bg-muted/30 p-4">
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="confirm-dpaAccepted"
+                checked={accepted}
+                onCheckedChange={(checked) => onAcceptedChange(checked === true)}
+                className="mt-0.5 h-5 w-5"
+                aria-invalid={!!error}
+                aria-describedby={error ? "confirm-dpaAccepted-error" : undefined}
+              />
+              <div className="space-y-1">
+                <Label
+                  htmlFor="confirm-dpaAccepted"
+                  className="flex items-center gap-1.5 text-sm font-medium cursor-pointer"
+                >
+                  <ShieldCheck
+                    className="h-4 w-4 text-primary"
+                    aria-hidden="true"
+                  />
+                  I have read and accept the Data Processing Agreement
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  On behalf of your organization, you agree to the Data
+                  Processing Agreement{dpa ? " shown above" : ""} governing how
+                  visitor personal data is processed under the NDPA.
+                </p>
+              </div>
+            </div>
+            {error && (
+              <p
+                id="confirm-dpaAccepted-error"
+                className="mt-2 text-xs text-destructive"
+                role="alert"
+              >
+                {error}
+              </p>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function Field({
   id,
   label,
@@ -436,10 +549,12 @@ function Field({
   onChange,
   error,
   required,
+  disabled,
   type = "text",
   inputMode,
   placeholder,
   maxLength,
+  hint,
 }: {
   id: string;
   label: string;
@@ -447,11 +562,17 @@ function Field({
   onChange: (v: string) => void;
   error?: string;
   required?: boolean;
+  disabled?: boolean;
   type?: string;
   inputMode?: "email" | "url" | "text" | "numeric";
   placeholder?: string;
   maxLength?: number;
+  hint?: string;
 }) {
+  const describedBy =
+    [error ? `${id}-error` : null, hint ? `${id}-hint` : null]
+      .filter(Boolean)
+      .join(" ") || undefined;
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>
@@ -466,10 +587,16 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         maxLength={maxLength}
+        disabled={disabled}
         aria-invalid={!!error}
-        aria-describedby={error ? `${id}-error` : undefined}
-        className="text-base md:text-sm"
+        aria-describedby={describedBy}
+        className="text-base md:text-sm disabled:cursor-not-allowed disabled:opacity-70"
       />
+      {hint && !error && (
+        <p id={`${id}-hint`} className="text-xs text-muted-foreground">
+          {hint}
+        </p>
+      )}
       {error && (
         <p id={`${id}-error`} className="text-xs text-destructive">
           {error}

@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
 import { useHideLocked } from "../hooks/use-hide-locked";
+import { useLockedUiAllowed } from "../hooks/use-locked-ui-visibility";
 
 export interface LockedBadgeProps {
   /** "branch" / "department" — used in the tooltip copy. */
@@ -26,8 +27,12 @@ export interface LockedBadgeProps {
  */
 export function LockedBadge({ noun, planLabel = "your current plan", className }: LockedBadgeProps) {
   const { hideLocked } = useHideLocked();
-  // Device-only opt-in: the "Hide locked items" pref collapses every
-  // padlock affordance — including this badge — out of the UI.
+  const lockedUiAllowed = useLockedUiAllowed();
+  // Locked affordances only surface on the dashboard; the branches /
+  // departments lists that render this badge live elsewhere, so the badge
+  // is hidden there. The device-only "Hide locked items" pref also
+  // collapses it everywhere it would otherwise show.
+  if (!lockedUiAllowed) return null;
   if (hideLocked) return null;
   return (
     <Tooltip>

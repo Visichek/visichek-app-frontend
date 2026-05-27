@@ -438,10 +438,7 @@ export function QuickActions() {
                       className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-500/20 dark:text-amber-200"
                       aria-hidden="true"
                     >
-                      <Lock
-                        className="h-2.5 w-2.5 animate-padlock-shake-loop group-hover/qa:animate-padlock-shake group-hover/qa:[animation-iteration-count:3]"
-                        aria-hidden="true"
-                      />
+                      <Lock className="h-2.5 w-2.5" aria-hidden="true" />
                       Pro
                     </span>
                   )}

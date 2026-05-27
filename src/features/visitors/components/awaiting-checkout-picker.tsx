@@ -26,6 +26,7 @@ import { EmptyState } from "@/components/feedback/empty-state";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { TableSkeleton } from "@/components/feedback/table-skeleton";
 import { useAwaitingCheckout, useCheckOut } from "@/features/visitors/hooks";
+import { useShowBranch } from "@/hooks/use-show-branch";
 import { formatRelative } from "@/lib/utils/format-date";
 import { cn } from "@/lib/utils/cn";
 import type {
@@ -85,6 +86,10 @@ function hostName(row: AwaitingCheckoutItem): string | undefined {
 
 function departmentName(row: AwaitingCheckoutItem): string | undefined {
   return row.departmentSummary?.name;
+}
+
+function branchName(row: AwaitingCheckoutItem): string | undefined {
+  return row.branchSummary?.name ?? undefined;
 }
 
 const ELIGIBLE_LABEL: Record<AwaitingCheckoutSourceType, string> = {
@@ -194,6 +199,7 @@ export function AwaitingCheckoutPicker({
   pageSize = 50,
   onDone,
 }: AwaitingCheckoutPickerProps) {
+  const showBranch = useShowBranch();
   const [query, setQuery] = useState("");
   const [pendingRow, setPendingRow] = useState<AwaitingCheckoutItem | null>(
     null,
@@ -245,12 +251,14 @@ export function AwaitingCheckoutPicker({
       const company = (visitorCompany(row) ?? "").toLowerCase();
       const host = (hostName(row) ?? "").toLowerCase();
       const dept = (departmentName(row) ?? "").toLowerCase();
+      const branch = (branchName(row) ?? "").toLowerCase();
       const phone = (row.phone ?? "").toLowerCase();
       return (
         name.includes(q) ||
         company.includes(q) ||
         host.includes(q) ||
         dept.includes(q) ||
+        branch.includes(q) ||
         phone.includes(q)
       );
     });
@@ -568,6 +576,7 @@ export function AwaitingCheckoutPicker({
               const company = visitorCompany(row);
               const host = hostName(row);
               const dept = departmentName(row);
+              const branch = showBranch ? branchName(row) : undefined;
               const sourceBadge = SOURCE_BADGE[row.sourceType];
               const eligibleLabel = ELIGIBLE_LABEL[row.sourceType];
               const isSelected = selectedIds.has(row.id);
@@ -637,7 +646,7 @@ export function AwaitingCheckoutPicker({
                           "No company or purpose"}
                       </p>
                       <p className="text-xs text-muted-foreground truncate mt-0.5">
-                        {[host && `Host: ${host}`, dept]
+                        {[host && `Host: ${host}`, dept, branch && `Branch: ${branch}`]
                           .filter(Boolean)
                           .join(" · ")}
                       </p>

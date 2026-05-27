@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPatch } from "@/lib/api/request";
 import type { PrivacyNotice } from "@/types/dpo";
 import type { NoticeDisplayMode } from "@/types/enums";
+import type { Block } from "@/types/blog";
 
 interface PaginatedResponse<T> {
   data: T[];
@@ -17,7 +18,9 @@ interface PaginatedResponse<T> {
 export interface CreatePrivacyNoticeRequest {
   title: string;
   summary?: string;
-  fullText?: string;
+  /** Canonical rich content — BlockNote blocks. The server derives `fullText`
+   * from this. */
+  body?: Block[];
   displayMode: NoticeDisplayMode;
   effectiveDate?: number;
 }
@@ -25,7 +28,9 @@ export interface CreatePrivacyNoticeRequest {
 export interface UpdatePrivacyNoticeRequest {
   title?: string;
   summary?: string;
-  fullText?: string;
+  /** Send the full block array from the editor. Editing it mints a new
+   * `versionId`. */
+  body?: Block[];
   displayMode?: NoticeDisplayMode;
   isActive?: boolean;
   effectiveDate?: number;

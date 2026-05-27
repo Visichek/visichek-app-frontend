@@ -23,8 +23,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/feedback/empty-state";
+import { BranchLabel } from "@/components/recipes/branch-label";
 import { CheckinStateBadge } from "@/features/checkins";
 import { useCapabilities } from "@/hooks/use-capabilities";
+import { useShowBranch } from "@/hooks/use-show-branch";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { cn } from "@/lib/utils/cn";
@@ -182,6 +184,7 @@ export function GroupedVisitorsList({
   );
   const { loadingHref } = useNavigationLoading();
   const { hasCapability } = useCapabilities();
+  const showBranch = useShowBranch();
   const canEditProfile = hasCapability(CAPABILITIES.VISITOR_EDIT_PROFILE);
   const canVerify = hasCapability(CAPABILITIES.CHECKIN_APPROVE);
 
@@ -376,6 +379,14 @@ export function GroupedVisitorsList({
                               <p className="text-xs text-muted-foreground mt-0.5">
                                 Submitted {formatDateTime(checkin.dateCreated)}
                               </p>
+                              {showBranch && checkin.branchSummary?.name && (
+                                <div className="mt-0.5">
+                                  <BranchLabel
+                                    branch={checkin.branchSummary}
+                                    className="text-xs"
+                                  />
+                                </div>
+                              )}
                               {manual?.manual && (
                                 <p className="text-xs text-success mt-1 inline-flex items-center gap-1">
                                   <BadgeCheck

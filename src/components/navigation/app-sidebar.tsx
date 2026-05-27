@@ -22,7 +22,6 @@ import {
   PanelLeftClose,
   PanelLeft,
   Loader2,
-  Lock,
   Settings,
   LogOut,
   ChevronUp,
@@ -32,8 +31,6 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { AppLink } from "@/components/navigation/app-link";
-import { useUpgradePrompt } from "@/features/limitations/components/upgrade-prompt-provider";
-import type { PlanFeatureKey } from "@/types/billing";
 
 /**
  * Notification buckets the sidebar can render a badge for.
@@ -84,18 +81,6 @@ export interface NavItem {
    * stale pricing publish.
    */
   attentionPulse?: boolean;
-  /**
-   * When true, the row renders in "locked" mode: padlock icon swap, a
-   * shake animation on hover, and a click handler that opens the upgrade
-   * modal instead of navigating. Used in the tenant shell to surface
-   * plan-gated destinations without hiding them entirely.
-   */
-  locked?: boolean;
-  /**
-   * Feature key passed to the upgrade modal so it can render the right
-   * headline + bullets. Only meaningful when `locked` is true.
-   */
-  lockedFeatureKey?: PlanFeatureKey | string;
 }
 
 /**
@@ -636,25 +621,6 @@ function SidebarLeaf({
   const Icon = item.icon;
   const badge = resolveBadgeCount(item, notificationCounts);
   const showPulse = badge === 0 && item.attentionPulse === true;
-  const { promptUpgrade } = useUpgradePrompt();
-
-  if (item.locked) {
-    return (
-      <li>
-        <LockedSidebarLeaf
-          item={item}
-          collapsed={collapsed}
-          nested={nested}
-          onClick={() =>
-            promptUpgrade({
-              featureKey: item.lockedFeatureKey ?? null,
-              title: item.label,
-            })
-          }
-        />
-      </li>
-    );
-  }
 
   return (
     <li>
@@ -949,96 +915,7 @@ function SidebarGroup({
   );
 }
 
-// ── Locked leaf ─────────────────────────────────────────────────
-//
-// Replaces the AppLink in `SidebarLeaf` when `item.locked` is true. Renders
-// a button (not a link) so middle-click / cmd-click can't bypass the gate,
-// pairs the row icon with a padlock that wiggles on hover, and calls
-// `onClick` to open the upgrade modal.
-interface LockedSidebarLeafProps {
-  item: NavItem;
-  collapsed: boolean;
-  nested: boolean;
-  onClick: () => void;
-}
-
-function LockedSidebarLeaf({
-  item,
-  collapsed,
-  nested,
-  onClick,
-}: LockedSidebarLeafProps) {
-  const Icon = item.icon;
-  const planNote = "Upgrade your plan to unlock this.";
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={onClick}
-          aria-label={`${item.label} (locked — upgrade to unlock)`}
-          className={cn(
-            "group/locked flex w-full items-center rounded-lg text-sm font-medium transition-colors",
-            collapsed
-              ? "justify-center p-2 min-h-[40px] relative"
-              : "gap-3 px-3 py-2 min-h-[40px]",
-            !collapsed && nested && "pl-9 text-[13px]",
-            "text-sidebar-foreground/50 hover:bg-sidebar-accent hover:text-sidebar-foreground/70",
-          )}
-        >
-          <span className="relative inline-flex shrink-0">
-            <Icon
-              className={cn(
-                "shrink-0 transition-colors",
-                nested && !collapsed ? "h-4 w-4" : "h-[18px] w-[18px]",
-                "text-sidebar-foreground/30 group-hover/locked:text-sidebar-foreground/40",
-              )}
-              aria-hidden="true"
-            />
-            {/* Padlock badge anchored to the icon — shakes on hover and
-                continues a slow loop so it remains discoverable while idle. */}
-            <Lock
-              className={cn(
-                "absolute -right-1 -top-1 h-3 w-3 text-amber-600 dark:text-amber-400",
-                "animate-padlock-shake-loop group-hover/locked:animate-padlock-shake",
-                "group-hover/locked:[animation-iteration-count:3]",
-              )}
-              aria-hidden="true"
-            />
-          </span>
-          {!collapsed && (
-            <>
-              <span className="flex-1 truncate">{item.label}</span>
-              <span
-                className="ml-auto inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
-                aria-hidden="true"
-              >
-                Pro
-              </span>
-            </>
-          )}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="right" className="max-w-[240px]">
-        <div>
-          <div className="font-medium">{item.label}</div>
-          {item.description && (
-            <div className="mt-0.5 text-xs opacity-80">{item.description}</div>
-          )}
-          <div className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-300">
-            {planNote}
-          </div>
-        </div>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
 // ── Collapsed-group dropdown child ──────────────────────────────
-//
-// Extracted so the locked branch can use a hook (`useUpgradePrompt`) at the
-// top of its own component, instead of conditionally inside `.map`.
 interface CollapsedGroupChildItemProps {
   child: NavItem;
   pathname: string;
@@ -1058,34 +935,6 @@ function CollapsedGroupChildItem({
   const childActive = child.href ? pathname.startsWith(child.href) : false;
   const childLoading = loadingHref === child.href;
   const childBadge = resolveBadgeCount(child, notificationCounts);
-  const { promptUpgrade } = useUpgradePrompt();
-
-  if (child.locked) {
-    return (
-      <DropdownMenuItem
-        onSelect={(event) => {
-          event.preventDefault();
-          promptUpgrade({
-            featureKey: child.lockedFeatureKey ?? null,
-            title: child.label,
-          });
-        }}
-        className="gap-2 min-h-[36px] text-muted-foreground focus:text-foreground"
-      >
-        <span className="relative inline-flex shrink-0">
-          <ChildIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <Lock
-            className="absolute -right-1 -top-1 h-2.5 w-2.5 text-amber-600 dark:text-amber-400 animate-padlock-shake-loop"
-            aria-hidden="true"
-          />
-        </span>
-        <span className="flex-1">{child.label}</span>
-        <span className="ml-auto rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
-          Pro
-        </span>
-      </DropdownMenuItem>
-    );
-  }
 
   return (
     <DropdownMenuItem

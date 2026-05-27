@@ -25,6 +25,9 @@ import { LoadingButton } from "@/components/feedback/loading-button";
 import { ErrorState } from "@/components/feedback/error-state";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { PrivacyNoticeDisplay } from "@/features/public-registration/components/privacy-notice-display";
+import { BlockEditor } from "@/features/blog/components/block-editor";
+import { blockText, normalizeBlocks } from "@/features/blog/lib/blocks";
+import { plainTextToBlocks } from "@/features/blog/lib/html-to-blocks";
 import {
   usePrivacyNotices,
   useCreatePrivacyNotice,
@@ -34,12 +37,14 @@ import { useCapabilities } from "@/hooks/use-capabilities";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import type { PrivacyNotice } from "@/types/dpo";
 import type { NoticeDisplayMode } from "@/types/enums";
+import type { Block } from "@/types/blog";
 import type { PublicPrivacyNotice } from "@/types/public";
 
 interface FormState {
   title: string;
   summary: string;
-  fullText: string;
+  /** Canonical rich content authored in the BlockNote editor. */
+  body: Block[];
   displayMode: NoticeDisplayMode;
   isActive: boolean;
   /** yyyy-mm-dd for the native date input; "" when unset. */
@@ -49,11 +54,27 @@ interface FormState {
 const EMPTY_FORM: FormState = {
   title: "Visitor privacy notice",
   summary: "",
-  fullText: "",
+  body: [],
   displayMode: "active_consent",
   isActive: true,
   effectiveDate: "",
 };
+
+/**
+ * Resolve the editor's starting blocks: prefer the notice's canonical `body`,
+ * and fall back to deriving blocks from the legacy `fullText` for any notice
+ * that predates the BlockNote migration so its text isn't lost on first edit.
+ */
+function initialBody(notice: PrivacyNotice): Block[] {
+  if (notice.body && notice.body.length > 0) return normalizeBlocks(notice.body);
+  if (notice.fullText?.trim()) return plainTextToBlocks(notice.fullText);
+  return [];
+}
+
+/** Whether the body has any visible text — used to gate the live preview. */
+function bodyHasContent(body: Block[]): boolean {
+  return body.some((b) => blockText(b).trim().length > 0);
+}
 
 const DISPLAY_MODE_OPTIONS: {
   value: NoticeDisplayMode;
@@ -115,7 +136,7 @@ export default function PrivacyNoticesPage() {
       setForm({
         title: current.title ?? "",
         summary: current.summary ?? "",
-        fullText: current.fullText ?? "",
+        body: initialBody(current),
         displayMode: current.displayMode,
         isActive: current.isActive,
         effectiveDate: unixToDateInput(current.effectiveDate),
@@ -129,9 +150,9 @@ export default function PrivacyNoticesPage() {
     id: current?.id ?? "preview",
     title: form.title.trim() || "Visitor privacy notice",
     summary: form.summary.trim() || undefined,
-    fullText: form.fullText.trim() || undefined,
+    body: bodyHasContent(form.body) ? form.body : undefined,
     displayMode: form.displayMode,
-    versionId: current?.id,
+    versionId: current?.versionId ?? current?.id,
     effectiveDate: dateInputToUnix(form.effectiveDate),
   };
 
@@ -193,7 +214,7 @@ export default function PrivacyNoticesPage() {
     const base = {
       title: form.title.trim(),
       summary: form.summary.trim() || undefined,
-      fullText: form.fullText.trim() || undefined,
+      body: form.body,
       displayMode: form.displayMode,
       effectiveDate: dateInputToUnix(form.effectiveDate),
     };
@@ -297,18 +318,27 @@ export default function PrivacyNoticesPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="pn-fullText">Full notice</Label>
-              <Textarea
-                id="pn-fullText"
-                value={form.fullText}
-                onChange={(e) => setField("fullText", e.target.value)}
-                placeholder="The complete privacy policy and terms text. Visitors can expand this to read it in full."
-                rows={8}
-                disabled={!canEdit}
-                className="text-base md:text-sm"
-              />
+              <Label htmlFor="pn-body">Full notice</Label>
+              <div
+                id="pn-body"
+                className="rounded-md border border-input bg-background px-2 py-3 md:px-4"
+                aria-label="Full privacy notice content"
+              >
+                {canEdit ? (
+                  <BlockEditor
+                    value={form.body}
+                    onChange={(body) => setField("body", body)}
+                    placeholder="Write the privacy policy and terms, or press '/' for blocks…"
+                  />
+                ) : (
+                  <PrivacyNoticeDisplay notice={preview} />
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">
-                Visitors expand “Read full privacy notice” to see this.
+                The complete privacy policy and terms. Use headings and lists to
+                structure it — visitors expand “Read full privacy notice” to see
+                this. Tenant details are filled in automatically; you don’t need
+                to add them.
               </p>
             </div>
 

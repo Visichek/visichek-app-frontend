@@ -2,6 +2,7 @@
 
 import { Shield } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LegalContentRenderer } from "@/features/legal-documents/components/legal-content-renderer";
 import type { PublicPrivacyNotice } from "@/types/public";
 
 interface PrivacyNoticeDisplayProps {
@@ -13,6 +14,10 @@ interface PrivacyNoticeDisplayProps {
  * Shown before meaningful data capture on the public registration form.
  */
 export function PrivacyNoticeDisplay({ notice }: PrivacyNoticeDisplayProps) {
+  // `body` is the canonical rich copy; `fullText` is the plain-text fallback
+  // for notices that predate the BlockNote migration.
+  const hasBody = !!notice.body && notice.body.length > 0;
+
   return (
     <Card className="border-info/30 bg-info/5">
       <CardHeader className="pb-3">
@@ -27,13 +32,17 @@ export function PrivacyNoticeDisplay({ notice }: PrivacyNoticeDisplayProps) {
             {notice.summary}
           </p>
         )}
-        {notice.fullText && (
+        {(hasBody || notice.fullText) && (
           <details className="group">
             <summary className="cursor-pointer text-sm font-medium text-info hover:underline">
               Read full privacy notice
             </summary>
             <div className="mt-2 rounded-md bg-background p-3 text-sm leading-relaxed text-foreground/70">
-              {notice.fullText}
+              {hasBody ? (
+                <LegalContentRenderer blocks={notice.body} />
+              ) : (
+                <p className="whitespace-pre-wrap">{notice.fullText}</p>
+              )}
             </div>
           </details>
         )}

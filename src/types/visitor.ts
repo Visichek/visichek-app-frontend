@@ -248,6 +248,13 @@ export interface AwaitingCheckoutItem {
   hostId?: string | null;
   appointmentId?: string | null;
 
+  /**
+   * Branch this row belongs to (Phase 4). Populated whenever the source
+   * record's `branchId` resolves; null for a legacy row with no branch.
+   */
+  branchId?: string | null;
+  branchSummary?: { id: string; name: string; isActive?: boolean } | null;
+
   // Resolved summaries — exactly one of visitorSummary /
   // visitorProfileSummary is non-null.
   visitorSummary?: VisitorSummary | null;

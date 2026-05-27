@@ -1,5 +1,6 @@
 import type { VisitSession, Appointment } from "./visitor";
 import type { NoticeDisplayMode } from "./enums";
+import type { Block } from "./blog";
 
 // ── Public Registration Info ─────────────────────────────────────────
 export interface PublicTenantInfo {
@@ -20,7 +21,11 @@ export interface PublicPrivacyNotice {
   id: string;
   title: string;
   summary?: string;
+  /** Flattened plain-text fallback; render `body` when present. */
   fullText?: string;
+  /** Canonical BlockNote rich content the kiosk renders. May be empty for a
+   * not-yet-migrated notice — fall back to `fullText`. */
+  body?: Block[];
   displayMode: NoticeDisplayMode;
   versionId?: string;
   effectiveDate?: number;

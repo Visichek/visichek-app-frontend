@@ -38,6 +38,7 @@ import {
   type DataTableBulkAction,
 } from "@/components/recipes/data-table";
 import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
+import { BranchLabel } from "@/components/recipes/branch-label";
 import { NavButton } from "@/components/recipes/nav-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -81,6 +82,7 @@ import {
 } from "@/features/appointments/components/appointment-checkin-prompt-modal";
 import { useSession } from "@/hooks/use-session";
 import { useCapabilities } from "@/hooks/use-capabilities";
+import { useShowBranch } from "@/hooks/use-show-branch";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import type { PendingApprovalItem } from "@/types/checkin";
 import type { AppointmentCheckInRequest } from "@/types/visitor";
@@ -194,6 +196,9 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
    * role string.
    */
   const isSuperAdmin = hasCapability(CAPABILITIES.CHECKIN_FORCE_APPROVE);
+  // Branch column visibility — unscoped roles (and multi-branch users) see
+  // a mix of branches in this tenant-wide queue, so the label helps.
+  const showBranch = useShowBranch();
   // Suppress unused warning — kept for any future callers that need
   // the raw profile (e.g., audit log attribution).
   void systemUserProfile;
@@ -594,6 +599,17 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
             <span className="text-xs text-muted-foreground">Not verified</span>
           ),
       },
+      ...(showBranch
+        ? [
+            {
+              id: "branch",
+              header: "Branch",
+              cell: ({ row }) => (
+                <BranchLabel branch={row.original.branchSummary} />
+              ),
+            } as ColumnDef<PendingApprovalItem>,
+          ]
+        : []),
       {
         id: "when",
         header: "When",
@@ -764,6 +780,7 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
       handleNavClick,
       isSuperAdmin,
       loadingHref,
+      showBranch,
     ],
   );
 
@@ -807,6 +824,11 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
           <div className="text-xs text-muted-foreground">
             Scheduled for {formatDateTime(ts)}
           </div>
+          {showBranch && item.branchSummary?.name && (
+            <div className="text-xs text-muted-foreground">
+              Branch: {item.branchSummary.name}
+            </div>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -883,6 +905,11 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
         <div className="text-xs text-muted-foreground">
           Submitted {formatDateTime(item.createdAt)}
         </div>
+        {showBranch && item.branchSummary?.name && (
+          <div className="text-xs text-muted-foreground">
+            Branch: {item.branchSummary.name}
+          </div>
+        )}
         {isAwaitingVerification && (
           <p className="text-xs text-muted-foreground">
             Visitor is completing their ID check at the kiosk. Approve and

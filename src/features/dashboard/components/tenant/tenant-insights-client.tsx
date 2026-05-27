@@ -55,7 +55,6 @@ import {
 } from "@/features/insights/components/section-renderer";
 import { LockedSection } from "@/features/insights/components/locked-section";
 import { DrillBlock } from "@/features/insights/components/drill-block";
-import { LiveStrip } from "@/features/insights/components/live-strip";
 import { QuickActions } from "@/components/tenant/quick-actions";
 
 const ONE_DAY = 86_400;
@@ -246,7 +245,7 @@ export function TenantInsightsClient() {
     <div className="space-y-6">
       <PageHeader
         title="Dashboard"
-        description="Live, role-scoped analytics — adjustable range, per-tab breakdowns, drill-down, and live counters."
+        description="Role-scoped analytics — adjustable range, per-tab breakdowns, and drill-down."
         actions={
           <Tooltip>
             <TooltipTrigger asChild>
@@ -261,8 +260,6 @@ export function TenantInsightsClient() {
       />
 
       <QuickActions />
-
-      <LiveStrip role={roleView} />
 
       {gates.canCustomRange ? (
         <AdminRangeBar

@@ -7,12 +7,14 @@ import type {
   OnboardingPendingFields,
   TenantConfirmation,
   TenantConfirmationRequest,
+  TenantDpa,
 } from "@/types/onboarding";
 
 export const tenantOnboardingKeys = {
   all: ["tenant", "onboarding"] as const,
   pendingFields: ["tenant", "onboarding", "pending-fields"] as const,
   confirmation: ["tenant", "onboarding", "confirmation"] as const,
+  dpa: ["tenant", "onboarding", "dpa"] as const,
 };
 
 /**
@@ -72,6 +74,26 @@ export function useTenantConfirmation(enabled: boolean = true) {
     queryKey: tenantOnboardingKeys.confirmation,
     queryFn: () =>
       apiGet<TenantConfirmation>("/onboarding/me/tenant-confirmation"),
+    enabled,
+    retry: false,
+    staleTime: 60_000,
+  });
+}
+
+/**
+ * `GET /v1/onboarding/me/dpa` (super_admin only) — the calling tenant's Data
+ * Processing Agreement. While unaccepted, the body is rebuilt from the
+ * tenant's current details on each read; once accepted it returns the frozen
+ * snapshot.
+ *
+ * `404` (`RESOURCE_NOT_FOUND`) means the DPA template is not yet configured on
+ * the environment — callers should treat the thrown error as "DPA not
+ * available yet" and fall back to the external link, not surface it harshly.
+ */
+export function useTenantDpa(enabled: boolean = true) {
+  return useQuery<TenantDpa>({
+    queryKey: tenantOnboardingKeys.dpa,
+    queryFn: () => apiGet<TenantDpa>("/onboarding/me/dpa"),
     enabled,
     retry: false,
     staleTime: 60_000,

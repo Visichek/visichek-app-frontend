@@ -10,6 +10,8 @@ export interface Tenant {
   dpoContactEmail?: string | null;
   privacyPolicyUrl?: string | null;
   countryOfHosting?: string;
+  /** Organization's registered address — fills the Organization party "Address" line in the per-tenant DPA. Max 500 chars; may be absent on older tenants. */
+  organizationAddress?: string | null;
   crossBorderApproved?: boolean;
   isActive?: boolean;
   activeNoticeVersion?: string | null;

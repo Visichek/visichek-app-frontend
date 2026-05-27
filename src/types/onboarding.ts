@@ -1,4 +1,5 @@
 import type { OnboardingStatus } from "./enums";
+import type { Block } from "./blog";
 
 /**
  * Schema-on-read submission payload values. Lists collapse repeated form
@@ -141,6 +142,12 @@ export interface TenantConfirmation {
   dpoContactEmail: string | null;
   privacyPolicyUrl: string | null;
   countryOfHosting: string | null;
+  /**
+   * Organization's registered address. Fills the "Address" line of the
+   * Organization party block in the per-tenant Data Processing Agreement;
+   * shows `[To be provided]` in the DPA copy when unset.
+   */
+  organizationAddress: string | null;
 
   onboardingInfoConfirmed: boolean;
   onboardingInfoConfirmedAt: number | null;
@@ -164,18 +171,56 @@ export interface TenantConfirmationRequest {
   privacyPolicyUrl?: string;
   countryOfHosting?: string;
   /**
+   * Organization's registered address (max 500 chars). Editable on the
+   * confirm screen; fills the Organization party "Address" line in the DPA.
+   * Save it in the same request as `dpaAccepted: true` so the frozen DPA copy
+   * reflects the final address.
+   */
+  organizationAddress?: string;
+  /**
    * Tenant's acceptance of the VisiChek Data Processing Agreement, captured
    * on the first-login confirm screen. `dpaAcceptedAt` is the Unix epoch
    * (seconds) at the moment the super admin checked the box.
    *
-   * NOTE: these two fields depend on backend support. The onboarding
-   * accept/partial-accept endpoints reject unexpected fields with a 422, so
-   * if the confirm endpoint behaves the same way the backend must whitelist
-   * `dpaAccepted` / `dpaAcceptedAt` before this ships. Confirm with the
-   * backend team.
+   * On `dpaAccepted: true` the backend rebuilds the tenant's DPA copy from the
+   * just-saved company details (incl. `organizationAddress`) and freezes it as
+   * `accepted`. There is no separate "accept DPA" call — acceptance flows
+   * through this confirmation endpoint.
    */
   dpaAccepted?: boolean;
   dpaAcceptedAt?: number;
+}
+
+/**
+ * Response for `GET /v1/onboarding/me/dpa` (super_admin only) — the calling
+ * tenant's Data Processing Agreement.
+ *
+ * While `accepted === false`, `body` is rebuilt from the tenant's CURRENT
+ * details on every read (so editing + re-saving the company name/address
+ * updates the Organization party block). Once `accepted === true`, the
+ * endpoint returns the frozen snapshot of exactly what was agreed.
+ *
+ * `body` is an array of BlockNote blocks — the same dialect as legal documents
+ * and visitor privacy notices, so it renders through `LegalContentRenderer`.
+ * `fullText` is a flattened plain-text projection used as a fallback.
+ *
+ * The endpoint returns `404` (`RESOURCE_NOT_FOUND`) when the DPA template has
+ * not been configured on the environment yet — treat that as "not available
+ * yet", not a hard error.
+ */
+export interface TenantDpa {
+  id: string;
+  tenantId: string;
+  version: string;
+  title: string;
+  summary: string | null;
+  body: Block[];
+  fullText: string;
+  accepted: boolean;
+  acceptedAt: number | null;
+  acceptedBy: string | null;
+  createdAt: number;
+  updatedAt: number;
 }
 
 /**

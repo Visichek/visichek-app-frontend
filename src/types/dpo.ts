@@ -1,4 +1,5 @@
 import type { DSRType, DSRStatus, DeletionAction, NoticeDisplayMode } from "./enums";
+import type { Block } from "./blog";
 
 // ── Data Subject Requests ─────────────────────────────────────────────
 export interface DataSubjectRequest {
@@ -48,9 +49,18 @@ export interface SubProcessor {
 export interface PrivacyNotice {
   id: string;
   tenantId: string;
+  /** Opaque version code; consent records pin to this. Minted anew whenever
+   * title/summary/fullText/body/displayMode change. */
+  versionId?: string;
   title: string;
   summary?: string;
+  /** Flattened plain-text projection of `body`, kept populated server-side as
+   * a fallback. `body` is the canonical, editable copy. */
   fullText?: string;
+  /** Canonical rich content — BlockNote blocks (same dialect as legal docs and
+   * the DPA). May be empty for a not-yet-migrated notice; fall back to
+   * `fullText` when rendering. */
+  body?: Block[];
   displayMode: NoticeDisplayMode;
   isActive: boolean;
   effectiveDate?: number;

@@ -38,7 +38,6 @@ import {
   type SectionSelectPayload,
 } from "@/features/insights/components/section-renderer";
 import { DrillBlock } from "@/features/insights/components/drill-block";
-import { AdminLiveStrip } from "@/features/insights/components/admin-live-strip";
 import { QuickActions } from "@/components/platform-admin/quick-actions";
 import { AttentionPanel } from "@/features/dashboard/components/admin/attention-panel";
 import { useAdminDashboardStats } from "@/features/auth/hooks/use-admin-dashboard";
@@ -247,7 +246,7 @@ export function AdminInsightsClient() {
     <div className="space-y-6">
       <PageHeader
         title="Platform Dashboard"
-        description="Cross-tenant analytics — adjustable range, per-tab breakdowns, live counters."
+        description="Cross-tenant analytics — adjustable range and per-tab breakdowns."
         actions={
           <div className="flex items-center gap-2">
             <Tooltip>
@@ -275,8 +274,6 @@ export function AdminInsightsClient() {
       {attentionStats && <AttentionPanel stats={attentionStats} />}
 
       <QuickActions />
-
-      <AdminLiveStrip />
 
       {/* Date presets (Today / 7d / 60d / 90d / All time) + Custom */}
       <AdminRangeBar

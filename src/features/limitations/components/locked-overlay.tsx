@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useUpgradePrompt } from "./upgrade-prompt-provider";
 import { useHideLocked } from "../hooks/use-hide-locked";
+import { useLockedUiAllowed } from "../hooks/use-locked-ui-visibility";
 import type { PlanFeatureKey } from "@/types/billing";
 
 export interface LockedOverlayProps {
@@ -31,12 +32,13 @@ export interface LockedOverlayProps {
 
 /**
  * Wraps any block of UI so that, when `locked` is true, the children render
- * blurred and behind a clickable overlay with a shaking padlock. Clicking
- * opens the shared upgrade modal pre-keyed to `featureKey`.
+ * blurred and behind a clickable overlay with a padlock. Clicking opens the
+ * shared upgrade modal pre-keyed to `featureKey`.
  *
- * Used for plan-gated dashboard cards, tabs, quick actions — anywhere the
- * user should see "this exists, here's a hint of what's behind it, upgrade
- * to use it" rather than the destination being silently hidden.
+ * Only renders on the dashboard (see `useLockedUiAllowed`) — on every other
+ * route a locked section is hidden entirely. Used for plan-gated dashboard
+ * cards, tabs, and stats where the user should see "this exists, upgrade to
+ * use it" rather than the destination being silently hidden.
  */
 export function LockedOverlay({
   locked,
@@ -48,12 +50,15 @@ export function LockedOverlay({
 }: LockedOverlayProps) {
   const { promptUpgrade } = useUpgradePrompt();
   const { hideLocked } = useHideLocked();
+  const lockedUiAllowed = useLockedUiAllowed();
 
   if (!locked) return <>{children}</>;
+  // Locked features only surface on the dashboard. On every other route we
+  // render nothing — no blur preview, no padlock — so the surrounding
+  // layout closes the gap naturally.
+  if (!lockedUiAllowed) return null;
   // Device-only opt-in: free-plan users can collapse padlocks out of
-  // their UI for up to 4 hours via the "Hide locked items" pref. The
-  // wrapper renders nothing — no blur preview, no padlock — so the
-  // surrounding layout closes the gap naturally.
+  // their UI for up to 4 hours via the "Hide locked items" pref.
   if (hideLocked) return null;
 
   return (
@@ -92,10 +97,7 @@ export function LockedOverlay({
               )}
             >
               <Lock
-                className={cn(
-                  "h-5 w-5 text-amber-700 dark:text-amber-300",
-                  "animate-padlock-shake-loop group-hover/lock:animate-padlock-shake group-hover/lock:[animation-iteration-count:3]",
-                )}
+                className="h-5 w-5 text-amber-700 dark:text-amber-300"
                 aria-hidden="true"
               />
             </span>

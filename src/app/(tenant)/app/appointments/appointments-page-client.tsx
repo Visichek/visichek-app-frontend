@@ -13,6 +13,7 @@ import {
 import { toast } from "sonner";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable, type DataTableBulkAction } from "@/components/recipes/data-table";
+import { BranchLabel } from "@/components/recipes/branch-label";
 import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
 import { NavButton } from "@/components/recipes/nav-button";
 import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
@@ -38,6 +39,7 @@ import {
 import { useDepartments } from "@/features/departments/hooks/use-departments";
 import { summarizeBulkResult } from "@/lib/api/bulk";
 import { useCapabilities } from "@/hooks/use-capabilities";
+import { useShowBranch } from "@/hooks/use-show-branch";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import { formatDateTime } from "@/lib/utils/format-date";
@@ -75,6 +77,9 @@ export function AppointmentsPageClient() {
   // and lower roles no longer do. Backend permission dependency is
   // authoritative; this is the UI-visibility half.
   const canConfigureForms = hasCapability(CAPABILITIES.TENANT_FORM_CONFIGURE);
+  // Show the Branch column only for unscoped roles (or multi-branch users);
+  // a single-branch user's rows all match, so the label would be noise.
+  const showBranch = useShowBranch();
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
   const [statusTab, setStatusTab] = useState<AppointmentStatusTab>("all");
@@ -194,6 +199,17 @@ export function AppointmentsPageClient() {
         <span className="text-muted-foreground text-sm">{departmentLabel(row.original.departmentId)}</span>
       ),
     },
+    ...(showBranch
+      ? [
+          {
+            id: "branch",
+            header: "Branch",
+            cell: ({ row }) => (
+              <BranchLabel branch={row.original.branchSummary} />
+            ),
+          } as ColumnDef<Appointment>,
+        ]
+      : []),
     {
       accessorKey: "scheduledDatetime",
       header: "Scheduled",
@@ -247,6 +263,9 @@ export function AppointmentsPageClient() {
           <p>Scheduled: {formatDateTime(appointment.scheduledDatetime)}</p>
           {appointment.departmentId && (
             <p>Department: {departmentLabel(appointment.departmentId)}</p>
+          )}
+          {showBranch && appointment.branchSummary?.name && (
+            <p>Branch: {appointment.branchSummary.name}</p>
           )}
         </div>
         <div className="flex gap-2 pt-2">

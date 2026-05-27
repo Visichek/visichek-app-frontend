@@ -49,7 +49,6 @@ import { cn } from "@/lib/utils/cn";
 import { useThemeSync } from "@/hooks/use-theme-sync";
 import { requestUserLocation } from "@/lib/geolocation/user-location";
 import { useCapability } from "@/features/limitations/hooks/use-limitations";
-import { useHideLocked } from "@/features/limitations/hooks/use-hide-locked";
 import { UpgradePromptProvider } from "@/features/limitations/components/upgrade-prompt-provider";
 import { HideLockedExpiryToast } from "@/features/limitations/components/hide-locked-expiry-toast";
 import { HideLockedMenuItem } from "@/features/limitations/components/hide-locked-menu-item";
@@ -312,7 +311,6 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
   const workspaceLogo = branding?.logoUrl;
 
   const { can, isEndpointDenied, isLoading: limitationsLoading } = useCapability();
-  const { hideLocked } = useHideLocked();
   // Issue 2: tenant-side notification badges. Reuses the same
   // bucket-classification path the admin shell uses so the topbar bell,
   // sidebar badges, and any page-level alerts stay in sync.
@@ -365,17 +363,14 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
       return allowedRoutes.some((route) => leaf.href!.startsWith(route));
     }
 
-    // Plan-denied items are kept visible but rendered as locked rows so
-    // the tenant can see what the paid tiers unlock. The sidebar primitive
-    // intercepts the click and opens the upgrade modal instead of
-    // navigating. Role-denied items are still filtered out — those are not
-    // upgrade prompts, they're role-scoped.
+    // Plan-denied items are hidden from the sidebar entirely — we no longer
+    // surface locked nav rows or padlocks here. Role-denied items are also
+    // filtered out. The parent-group emptiness check below collapses any
+    // group whose children all dropped out.
     //
-    // While limitations are loading we LOCK every gated item by default.
-    // That eliminates the "shake" where Appointments looks free for the
-    // first ~200ms and then snaps to PRO once /me/limitations resolves —
-    // for free users (the common case) the badge is correct from frame
-    // one, and paid users see at most a single lock → unlock transition.
+    // While limitations are loading we treat every gated item as denied, so
+    // a free user never sees a gated row flash in for ~200ms before
+    // /me/limitations resolves and removes it.
     function toNavItem(leaf: GatedNavItem): NavItem | null {
       if (!roleAllowsLeaf(leaf)) return null;
 
@@ -387,16 +382,8 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
         (limitationsLoading || isEndpointDenied(leaf.apiPrefix));
 
       if (!hasGate || (!featureDenied && !endpointDenied)) return leaf;
-      // Device-only opt-in: when "Hide locked items" is on, the row
-      // disappears from the rail rather than rendering as a locked
-      // padlock. The parent-group emptiness check below collapses any
-      // group whose children all dropped out for the same reason.
-      if (hideLocked) return null;
-      return {
-        ...leaf,
-        locked: true,
-        lockedFeatureKey: leaf.feature ?? leaf.lockKey,
-      };
+      // Denied → hidden everywhere in the nav.
+      return null;
     }
 
     const visible: NavItem[] = [];
@@ -413,7 +400,7 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
       }
     }
     return visible;
-  }, [currentRole, can, isEndpointDenied, limitationsLoading, hideLocked]);
+  }, [currentRole, can, isEndpointDenied, limitationsLoading]);
 
   // Page-level lock check. Builds the set of href prefixes the current
   // plan denies (from nav items + extra map), then tests the current

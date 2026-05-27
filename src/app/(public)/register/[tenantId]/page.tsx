@@ -79,6 +79,7 @@ import {
 import type { KycStatusScreenState } from "@/features/checkins";
 import { ApiError } from "@/types/api";
 import { usePublicTenantBranding } from "@/hooks/use-public-tenant-branding";
+import { useSession } from "@/hooks/use-session";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useWizard } from "@/hooks/use-wizard";
 import { requestUserLocation } from "@/lib/geolocation/user-location";
@@ -283,6 +284,11 @@ export default function KioskCheckinPage() {
 
   usePublicTenantBranding(tenantId);
 
+  // Session of whoever opened the kiosk. Bootstrap runs on public routes
+  // too (see `app/providers.tsx`), so an authenticated tenant staffer who
+  // navigates to their own tenant's kiosk has a populated session here.
+  const session = useSession();
+
   // ── Derived ──────────────────────────────────────────────────────
 
   const config = configQ.data;
@@ -303,6 +309,33 @@ export default function KioskCheckinPage() {
       consentAcceptedAt: Math.floor(Date.now() / 1000),
     }));
   }
+
+  /**
+   * Whether the kiosk was opened by an authenticated staff member of *this*
+   * tenant (super_admin, receptionist, dpo, etc.). Platform admins are
+   * excluded — they're not scoped to a tenant. We compare the session's
+   * tenant id to the kiosk's tenant id so a staffer from a different tenant
+   * is still treated as an ordinary visitor.
+   */
+  const isTenantStaff =
+    !session.isBootstrapping &&
+    session.isAuthenticated &&
+    session.isSystemUser &&
+    !!session.tenantId &&
+    session.tenantId === tenantId;
+
+  // Internal staff shouldn't be forced to re-accept the visitor privacy
+  // notice — they're not the visitor. When the notice requires explicit
+  // consent and the kiosk was opened by a staff member of this tenant,
+  // accept it on their behalf so they go straight into the wizard. This
+  // still populates `consentAccepted`/`consentAcceptedAt`, so the consent
+  // fields ride along on submit and `active_consent` tenants don't 422.
+  useEffect(() => {
+    if (consentRequired && !state.consentAccepted && isTenantStaff) {
+      acceptConsent();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [consentRequired, state.consentAccepted, isTenantStaff]);
 
   const detailsFields = useMemo<RequiredField[]>(() => {
     if (!config) return [];
