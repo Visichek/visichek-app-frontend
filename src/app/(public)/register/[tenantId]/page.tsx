@@ -48,6 +48,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -92,6 +93,7 @@ import type { KycWidgetConfig } from "@/types/kyc";
 import type { PublicPrivacyNotice } from "@/types/public";
 import { usePublicPrivacyNotice } from "@/features/public-registration/hooks/use-public-registration";
 import { PrivacyNoticeDisplay } from "@/features/public-registration/components/privacy-notice-display";
+import { LegalContentRenderer } from "@/features/legal-documents/components/legal-content-renderer";
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -1056,6 +1058,8 @@ function PrivacyConsentGate({
     onAccept();
   }
 
+  const hasBody = !!notice.body && notice.body.length > 0;
+
   return (
     <Card>
       <CardHeader>
@@ -1065,7 +1069,45 @@ function PrivacyConsentGate({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <PrivacyNoticeDisplay notice={notice} />
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ShieldCheck
+                  className="h-4 w-4 text-primary"
+                  aria-hidden="true"
+                />
+                {notice.title}
+              </CardTitle>
+              {notice.versionId ? (
+                <Badge variant="outline">v{notice.versionId}</Badge>
+              ) : null}
+            </div>
+            {notice.summary && (
+              <p className="text-sm text-muted-foreground">{notice.summary}</p>
+            )}
+          </CardHeader>
+          <CardContent>
+            <div
+              className="max-h-96 overflow-y-auto rounded-md border border-border bg-muted/20 p-4"
+              role="region"
+              aria-label={`${notice.title} text`}
+              tabIndex={0}
+            >
+              {hasBody ? (
+                <LegalContentRenderer blocks={notice.body} />
+              ) : notice.fullText ? (
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
+                  {notice.fullText}
+                </p>
+              ) : (
+                <p className="text-sm italic text-muted-foreground">
+                  No additional details were provided with this notice.
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="rounded-md border border-border bg-muted/30 p-4">
           <div className="flex items-start gap-3">

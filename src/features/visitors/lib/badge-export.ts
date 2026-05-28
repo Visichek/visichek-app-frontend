@@ -1,15 +1,15 @@
 "use client";
 
-import type { VisitorBadgeFormat } from "../components/visitor-badge";
+import type { PrintBadgeFormat } from "../components/print-badge";
 
-const DIMS: Record<VisitorBadgeFormat, { w: number; h: number }> = {
+const DIMS: Record<PrintBadgeFormat, { w: number; h: number }> = {
   A6: { w: 105, h: 148 },
   A7: { w: 74, h: 105 },
 };
 
 function badgeFilename(
   visitorName: string,
-  format: VisitorBadgeFormat,
+  format: PrintBadgeFormat,
   ext: "pdf" | "png",
 ) {
   const slug =
@@ -77,7 +77,7 @@ async function captureBadgeImage(node: HTMLElement): Promise<{
  */
 export async function printVisitorBadge(
   node: HTMLElement,
-  format: VisitorBadgeFormat,
+  format: PrintBadgeFormat,
 ): Promise<void> {
   const { w, h } = DIMS[format];
   const { dataUrl } = await captureBadgeImage(node);
@@ -153,7 +153,7 @@ export async function printVisitorBadge(
  */
 export async function downloadVisitorBadgePdf(
   node: HTMLElement,
-  format: VisitorBadgeFormat,
+  format: PrintBadgeFormat,
   visitorName: string,
 ): Promise<void> {
   const { w, h } = DIMS[format];
@@ -179,7 +179,7 @@ export async function downloadVisitorBadgePdf(
  */
 export async function downloadVisitorBadgeImage(
   node: HTMLElement,
-  format: VisitorBadgeFormat,
+  format: PrintBadgeFormat,
   visitorName: string,
 ): Promise<void> {
   const { blob } = await captureBadgeImage(node);

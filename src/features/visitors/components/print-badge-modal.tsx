@@ -14,27 +14,29 @@ import { ResponsiveModal } from "@/components/recipes/responsive-modal";
 import { useAppSelector } from "@/lib/store/hooks";
 import { selectBranding } from "@/lib/store/branding-slice";
 import {
-  VisitorBadge,
-  visitorBadgeDims,
-  type VisitorBadgeData,
-  type VisitorBadgeFormat,
-} from "./visitor-badge";
+  PrintBadge,
+  printBadgeDims,
+  type PrintBadgeData,
+  type PrintBadgeFormat,
+} from "./print-badge";
 import {
   downloadVisitorBadgePdf,
   printVisitorBadge,
 } from "../lib/badge-export";
 
+/** Badge data the caller supplies — tenant info is merged in from Redux. */
+export type PrintBadgeModalData = Omit<PrintBadgeData, "tenantName" | "tenantLogoUrl"> & {
+  /** Optional override; falls back to Redux tenant branding company name. */
+  tenantName?: string;
+};
+
 export interface PrintBadgeModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Badge data without tenant info — branding is merged in from Redux. */
-  badge: Omit<VisitorBadgeData, "tenantName" | "logoUrl" | "primaryColor"> & {
-    /** Optional override; falls back to Redux tenant branding. */
-    tenantName?: string;
-  };
+  badge: PrintBadgeModalData;
 }
 
-const FORMAT_OPTIONS: { value: VisitorBadgeFormat; label: string; help: string }[] = [
+const FORMAT_OPTIONS: { value: PrintBadgeFormat; label: string; help: string }[] = [
   {
     value: "A6",
     label: "A6 (105 × 148mm)",
@@ -53,7 +55,7 @@ export function PrintBadgeModal({
   badge,
 }: PrintBadgeModalProps) {
   const branding = useAppSelector(selectBranding);
-  const [format, setFormat] = useState<VisitorBadgeFormat>("A6");
+  const [format, setFormat] = useState<PrintBadgeFormat>("A6");
   const [isPrinting, setIsPrinting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const badgeRef = useRef<HTMLDivElement | null>(null);
@@ -63,14 +65,12 @@ export function PrintBadgeModal({
     if (open) setFormat("A6");
   }, [open]);
 
-  const data = useMemo<VisitorBadgeData>(
+  const data = useMemo<PrintBadgeData>(
     () => ({
       ...badge,
       tenantName:
         badge.tenantName || branding?.companyName || "Your Company",
-      logoUrl: branding?.badgeLogoUrl || branding?.logoUrl,
-      primaryColor:
-        branding?.badgePrimaryColor || branding?.primaryColor || "#0f172a",
+      tenantLogoUrl: branding?.badgeLogoUrl || branding?.logoUrl || undefined,
     }),
     [badge, branding],
   );
@@ -106,7 +106,7 @@ export function PrintBadgeModal({
     }
   }
 
-  const dims = visitorBadgeDims(format);
+  const dims = printBadgeDims(format);
 
   return (
     <ResponsiveModal
@@ -115,7 +115,7 @@ export function PrintBadgeModal({
       title="Print visitor badge"
       description={`Preview the badge before printing. Default size is A6 (${FORMAT_OPTIONS[0].label.split(" ")[1]}).`}
     >
-      <div className="space-y-4">
+      <div className="flex max-h-[calc(85vh-7rem)] flex-col gap-4">
         <div
           className="grid grid-cols-2 gap-2"
           role="radiogroup"
@@ -148,10 +148,10 @@ export function PrintBadgeModal({
 
         <div
           aria-label="Badge preview"
-          className="rounded-lg border bg-muted/30 p-3 sm:p-4 flex justify-center"
+          className="flex min-h-0 flex-1 justify-center overflow-y-auto rounded-lg border bg-muted/30 p-3 sm:p-4"
         >
-          <BadgePreviewFrame format={format} dims={dims}>
-            <VisitorBadge ref={badgeRef} data={data} format={format} />
+          <BadgePreviewFrame dims={dims}>
+            <PrintBadge ref={badgeRef} data={data} format={format} />
           </BadgePreviewFrame>
         </div>
 
@@ -215,17 +215,17 @@ export function PrintBadgeModal({
 }
 
 interface PreviewFrameProps {
-  format: VisitorBadgeFormat;
   dims: { width: number; height: number };
   children: React.ReactNode;
 }
 
 /**
- * Wraps the print-sized badge in a responsive scaled box for on-screen
- * preview. The badge itself stays at its real mm size (so html2canvas
- * captures it crisply); only the visual presentation is scaled.
+ * Scales the print-sized badge down to fit the on-screen preview while
+ * leaving the underlying mm geometry untouched, so the print and PDF
+ * capture stays crisp. Scales by BOTH available width and height so the
+ * badge never overflows the dialog and the action buttons stay in view.
  */
-function BadgePreviewFrame({ format, dims, children }: PreviewFrameProps) {
+function BadgePreviewFrame({ dims, children }: PreviewFrameProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
 
@@ -236,21 +236,28 @@ function BadgePreviewFrame({ format, dims, children }: PreviewFrameProps) {
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const observer = new ResizeObserver(() => {
-      const available = el.clientWidth;
-      const target = format === "A6" ? Math.min(360, available - 8) : Math.min(280, available - 8);
-      setScale(Math.min(1, target / pxWidth));
-    });
+    const compute = () => {
+      const availableWidth = Math.max(0, el.clientWidth - 8);
+      const availableHeight = Math.max(0, el.clientHeight - 8);
+      const widthScale = availableWidth > 0 ? availableWidth / pxWidth : 1;
+      const heightScale = availableHeight > 0 ? availableHeight / pxHeight : 1;
+      setScale(Math.min(1, widthScale, heightScale));
+    };
+    const observer = new ResizeObserver(compute);
     observer.observe(el);
+    compute();
     return () => observer.disconnect();
-  }, [format, pxWidth]);
+  }, [pxWidth, pxHeight]);
 
   return (
     <div
       ref={containerRef}
       style={{
         width: "100%",
+        flex: 1,
+        minHeight: 0,
         display: "flex",
+        alignItems: "flex-start",
         justifyContent: "center",
       }}
     >

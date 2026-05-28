@@ -30,10 +30,69 @@ export function LegalContentRenderer({
 
   return (
     <div className={cn("space-y-3 text-sm leading-relaxed", className)}>
-      {blocks.map((block, index) => (
-        <RenderedBlock key={block.id || index} block={block} />
-      ))}
+      {renderBlocks(blocks)}
     </div>
+  );
+}
+
+function blockKey(block: Block, index: number): string {
+  return block.id || `${block.type}-${index}`;
+}
+
+/**
+ * Walk the block array and render in order, but greedily group runs of
+ * adjacent `bulletListItem` / `numberedListItem` blocks into a single `<ul>` /
+ * `<ol>` — otherwise each item lives in its own list and numbered items
+ * restart counting at 1 on every row.
+ */
+function renderBlocks(blocks: Block[]): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  let i = 0;
+  while (i < blocks.length) {
+    const block = blocks[i];
+    if (block.type === "bulletListItem" || block.type === "numberedListItem") {
+      const listType = block.type;
+      const items: Block[] = [];
+      while (i < blocks.length && blocks[i].type === listType) {
+        items.push(blocks[i]);
+        i += 1;
+      }
+      nodes.push(
+        <ListGroup key={blockKey(block, i)} type={listType} items={items} />,
+      );
+      continue;
+    }
+    nodes.push(<RenderedBlock key={blockKey(block, i)} block={block} />);
+    i += 1;
+  }
+  return nodes;
+}
+
+function ListGroup({
+  type,
+  items,
+}: {
+  type: "bulletListItem" | "numberedListItem";
+  items: Block[];
+}) {
+  const align = alignClass(items[0]);
+  const ListTag = type === "numberedListItem" ? "ol" : "ul";
+  const listClass = cn(
+    type === "numberedListItem" ? "list-decimal" : "list-disc",
+    "pl-6 space-y-1",
+    align,
+  );
+  return (
+    <ListTag className={listClass}>
+      {items.map((item, idx) => (
+        <li key={blockKey(item, idx)}>
+          <Inline content={item.content} />
+          {item.children && item.children.length > 0 ? (
+            <div className="mt-1">{renderBlocks(item.children)}</div>
+          ) : null}
+        </li>
+      ))}
+    </ListTag>
   );
 }
 
@@ -65,22 +124,9 @@ function RenderedBlock({ block }: { block: Block }) {
         </p>
       );
     }
-    case "bulletListItem":
-      return (
-        <ul className={cn("list-disc pl-6", align)}>
-          <li>
-            <Inline content={block.content} />
-          </li>
-        </ul>
-      );
-    case "numberedListItem":
-      return (
-        <ol className={cn("list-decimal pl-6", align)}>
-          <li>
-            <Inline content={block.content} />
-          </li>
-        </ol>
-      );
+    // bulletListItem / numberedListItem are grouped into a single <ul>/<ol>
+    // in renderBlocks so adjacent items share one list and numbered items
+    // count 1, 2, 3 instead of restarting on every row.
     case "quote":
       return (
         <blockquote

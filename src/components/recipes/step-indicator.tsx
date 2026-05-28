@@ -30,6 +30,10 @@ export function StepIndicator({
       {steps.map((step, index) => {
         const isCompleted = completedSteps.includes(step.id);
         const isCurrent = currentStep === step.id;
+        // While the user is ON a step, show its original icon — even if the
+        // wizard remembers it as previously completed. The check only marks
+        // steps the user has moved PAST.
+        const showCheck = isCompleted && !isCurrent;
         const Icon = step.icon;
 
         return (
@@ -39,17 +43,16 @@ export function StepIndicator({
               <div
                 className={cn(
                   "flex h-9 w-9 items-center justify-center rounded-full border-2 transition-colors",
-                  isCompleted &&
+                  showCheck &&
                     "border-primary bg-primary text-primary-foreground",
                   isCurrent &&
-                    !isCompleted &&
                     "border-primary bg-background text-primary",
                   !isCurrent &&
-                    !isCompleted &&
+                    !showCheck &&
                     "border-muted-foreground/30 bg-background text-muted-foreground"
                 )}
               >
-                {isCompleted ? (
+                {showCheck ? (
                   <Check className="h-4 w-4" />
                 ) : (
                   <Icon className="h-4 w-4" />

@@ -260,6 +260,13 @@ export function useConfirmCheckin() {
       queryClient.invalidateQueries({
         queryKey: checkinKeys.detail(checkinId),
       });
+      // Approval mints a fresh badge token that only surfaces on the
+      // awaiting-checkout endpoint. Without invalidating it the "Print
+      // badge" action on the Approved tab won't appear until the next
+      // 5s poll, so the button flickers in shortly after the row does.
+      queryClient.invalidateQueries({
+        queryKey: ["visitors", "awaiting-checkout"],
+      });
     },
   });
 }

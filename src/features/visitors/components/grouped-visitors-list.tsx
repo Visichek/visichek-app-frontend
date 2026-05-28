@@ -38,8 +38,7 @@ import {
   ManualVerifyDialog,
   type ManualVerifyTarget,
 } from "./manual-verify-dialog";
-import { PrintBadgeModal } from "./print-badge-modal";
-import type { VisitorBadgeData } from "./visitor-badge";
+import { PrintBadgeModal, type PrintBadgeModalData } from "./print-badge-modal";
 
 /** Human label for the verifier's role on the manual-verify attribution line. */
 const ROLE_LABELS: Record<string, string> = {
@@ -72,9 +71,7 @@ export interface GroupedVisitorsListProps {
 /** Default expiry hint shown on the badge when the backend doesn't supply one. */
 const BADGE_DEFAULT_TTL_SECONDS = 12 * 60 * 60;
 
-function buildBadgeData(
-  awaiting: AwaitingCheckoutItem,
-): Omit<VisitorBadgeData, "tenantName" | "logoUrl" | "primaryColor"> {
+function buildBadgeData(awaiting: AwaitingCheckoutItem): PrintBadgeModalData {
   const issuedAt =
     awaiting.approvedAt ??
     awaiting.checkInTime ??
@@ -91,9 +88,9 @@ function buildBadgeData(
     hostName: awaiting.hostSummary?.name,
     departmentName: awaiting.departmentSummary?.name,
     statusLabel: "Approved",
-    badgeQrToken: awaiting.badgeQrToken ?? "",
+    qrToken: awaiting.badgeQrToken ?? "",
     issuedAt: issuedAt ?? undefined,
-    badgeExpiry:
+    expiresAt:
       issuedAt !== undefined ? issuedAt + BADGE_DEFAULT_TTL_SECONDS : undefined,
   };
 }
@@ -512,7 +509,7 @@ export function GroupedVisitorsList({
             : {
                 visitorName: "",
                 statusLabel: "Approved",
-                badgeQrToken: "",
+                qrToken: "",
               }
         }
       />
