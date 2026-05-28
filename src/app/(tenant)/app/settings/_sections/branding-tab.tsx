@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Palette,
   Image as ImageIcon,
@@ -12,6 +13,8 @@ import {
   AlignRight,
   UploadCloud,
   CheckCircle2,
+  Loader2,
+  Printer,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +23,7 @@ import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { PageSkeleton } from "@/components/feedback/page-skeleton";
 import { ErrorState } from "@/components/feedback/error-state";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { useSession } from "@/hooks/use-session";
 import {
@@ -210,25 +214,35 @@ function BadgePreview({
           </div>
         </div>
 
-        {/* QR placeholder */}
+        {/* QR with embedded logo (tenant logo if uploaded, VisiChek otherwise) */}
         <div
-          className="mt-auto flex h-20 w-20 items-center justify-center rounded-md"
+          className="mt-auto flex h-24 w-24 items-center justify-center rounded-md p-1.5"
           style={{ backgroundColor: accentColor }}
         >
-          <div className="grid h-14 w-14 grid-cols-4 grid-rows-4 gap-[2px]">
-            {Array.from({ length: 16 }).map((_, i) => (
-              <div
-                key={i}
-                className="rounded-[1px]"
-                style={{ backgroundColor: i % 3 === 0 ? primaryColor : "white" }}
-              />
-            ))}
+          <div className="flex h-full w-full items-center justify-center rounded-sm bg-white p-1">
+            <QRCodeSVG
+              value="visichek://badge-preview"
+              size={84}
+              level="H"
+              marginSize={0}
+              fgColor={primaryColor}
+              bgColor="#ffffff"
+              imageSettings={{
+                src: logoPreviewUrl ?? "/visichek_logo.svg",
+                height: 18,
+                width: 18,
+                excavate: true,
+              }}
+              style={{ width: "100%", height: "100%" }}
+            />
           </div>
         </div>
       </div>
     </div>
   );
 }
+
+type BrandingTabKey = "colors" | "logo" | "print";
 
 export function BrandingTab() {
   const { tenantId, systemUserProfile } = useSession();
@@ -238,6 +252,19 @@ export function BrandingTab() {
   const [logoFileName, setLogoFileName] = useState<string | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeTab, setActiveTab] = useState<BrandingTabKey>("colors");
+  const [pendingTab, setPendingTab] = useState<BrandingTabKey | null>(null);
+  const [isTabPending, startTabTransition] = useTransition();
+
+  const handleTabChange = (next: string) => {
+    const tab = next as BrandingTabKey;
+    if (tab === activeTab) return;
+    setPendingTab(tab);
+    startTabTransition(() => {
+      setActiveTab(tab);
+      setPendingTab(null);
+    });
+  };
 
   useEffect(() => {
     return () => {
@@ -359,14 +386,55 @@ export function BrandingTab() {
     <div className="space-y-8">
       <form onSubmit={handleSubmit(onSubmit)}>
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-          <div className="space-y-8 lg:col-span-7">
-            <Card className="overflow-hidden">
-              <CardHeader className="flex flex-row items-center gap-2 border-b bg-muted/30 px-6 py-4">
-                <Palette className="h-5 w-5 text-muted-foreground" />
-                <CardTitle className="text-base font-semibold">Color Palette</CardTitle>
-              </CardHeader>
+          <div className="space-y-4 lg:col-span-7">
+            <Tabs value={activeTab} onValueChange={handleTabChange}>
+              <TabsList className="flex w-full flex-wrap gap-1 h-auto md:w-auto">
+                <TabsTrigger
+                  value="colors"
+                  className="min-h-[44px] gap-2"
+                  title="Pick your tenant's primary, secondary, and accent colors or apply a quick theme preset"
+                >
+                  {isTabPending && pendingTab === "colors" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Palette className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  Colors
+                </TabsTrigger>
+                <TabsTrigger
+                  value="logo"
+                  className="min-h-[44px] gap-2"
+                  title="Upload your logo, set its alignment, and review the company name shown on the badge"
+                >
+                  {isTabPending && pendingTab === "logo" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <ImageIcon className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  Logo
+                </TabsTrigger>
+                <TabsTrigger
+                  value="print"
+                  className="min-h-[44px] gap-2"
+                  title="Open a sample printable visitor badge in a new tab to test how it looks coming out of your printer"
+                >
+                  {isTabPending && pendingTab === "print" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Printer className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  Test Print
+                </TabsTrigger>
+              </TabsList>
 
-              <CardContent className="space-y-8 p-6">
+              <TabsContent value="colors" className="mt-4">
+                <Card className="overflow-hidden">
+                  <CardHeader className="flex flex-row items-center gap-2 border-b bg-muted/30 px-6 py-4">
+                    <Palette className="h-5 w-5 text-muted-foreground" />
+                    <CardTitle className="text-base font-semibold">Color Palette</CardTitle>
+                  </CardHeader>
+
+                  <CardContent className="space-y-8 p-6">
                 <div>
                   <p className="mb-3 text-sm font-medium text-foreground">Quick Themes</p>
                   <div className="flex flex-wrap gap-3">
@@ -427,14 +495,16 @@ export function BrandingTab() {
                 </div>
               </CardContent>
             </Card>
+              </TabsContent>
 
-            <Card className="overflow-hidden">
-              <CardHeader className="flex flex-row items-center gap-2 border-b bg-muted/30 px-6 py-4">
-                <ImageIcon className="h-5 w-5 text-muted-foreground" />
-                <CardTitle className="text-base font-semibold">Logo &amp; Branding</CardTitle>
-              </CardHeader>
+              <TabsContent value="logo" className="mt-4">
+                <Card className="overflow-hidden">
+                  <CardHeader className="flex flex-row items-center gap-2 border-b bg-muted/30 px-6 py-4">
+                    <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                    <CardTitle className="text-base font-semibold">Logo &amp; Branding</CardTitle>
+                  </CardHeader>
 
-              <CardContent className="space-y-6 p-6">
+                  <CardContent className="space-y-6 p-6">
                 <div>
                   <p className="mb-2 text-sm font-medium text-foreground">Upload Logo</p>
 
@@ -536,6 +606,66 @@ export function BrandingTab() {
                 </div>
               </CardContent>
             </Card>
+              </TabsContent>
+
+              <TabsContent value="print" className="mt-4">
+                <Card className="overflow-hidden">
+                  <CardHeader className="flex flex-row items-center gap-2 border-b bg-muted/30 px-6 py-4">
+                    <Printer className="h-5 w-5 text-muted-foreground" />
+                    <CardTitle className="text-base font-semibold">Test Print</CardTitle>
+                  </CardHeader>
+
+                  <CardContent className="space-y-4 p-6">
+                    <p className="text-sm text-muted-foreground">
+                      Open a sample printable visitor badge in a new tab to test how the
+                      A6 and A7 layouts come out of your printer. The sample uses mock
+                      visitor data so you can run as many test prints as you like.
+                    </p>
+
+                    {!isDirty && !logoFile ? null : (
+                      <div className="rounded-md border border-amber-300/50 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                        You have unsaved changes. The test print page renders the sample
+                        badge with VisiChek defaults — save first to test with your own
+                        colors and logo.
+                      </div>
+                    )}
+
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            asChild
+                            className="h-11 w-full sm:w-auto"
+                          >
+                            <a
+                              href="/badge/test-badge-token"
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <Printer className="mr-2 h-4 w-4" aria-hidden="true" />
+                              Open test badge
+                            </a>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          Open the printable visitor badge with mock data in a new tab —
+                          use the Print and Download buttons there to verify your printer
+                          output
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground">
+                      The printable badge is monochrome by design so it prints crisply
+                      on any black-and-white printer, including thermal label printers.
+                      Your colors apply to the on-screen badge experience and visitor
+                      check-in flows.
+                    </p>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
           </div>
 
           <div className="lg:col-span-5">

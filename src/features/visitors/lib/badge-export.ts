@@ -59,14 +59,21 @@ async function captureBadgeImage(node: HTMLElement): Promise<{
 /**
  * Print the badge currently mounted at `node`. The badge is captured to
  * a PNG first (same image the PDF and download paths consume), then
- * dropped into a hidden iframe as a single `<img>` sized at the badge's
- * exact A6/A7 footprint in mm.
+ * dropped into a hidden iframe as a single `<img>` filling the page.
  *
- * `@page` intentionally does NOT pin the paper size — only the margin —
- * so the user's print dialog can pick any paper and the printer can
- * scale the badge to fit (the "Scale" / "Fit to page" slider in the
- * dialog is what "resizable" means in print contexts). Defaults to
- * exact A6/A7 size at 100% scale when the user has matching paper.
+ * Print sizing strategy:
+ *   - `@page { size: ${w}mm ${h}mm; margin: 0 }` pins the paper-size hint
+ *     so the printer driver pre-selects A6/A7 (or treats it as a custom
+ *     page) and lays the badge out at its true footprint. Without this,
+ *     browsers default to Letter/A4 and the badge prints tiny in a
+ *     corner.
+ *   - The image is locked to the page's full mm dimensions, so 1mm on
+ *     the printout = 1mm on the badge — no DPI rounding, no scaling
+ *     ambiguity. The user's print dialog "Scale" / "Fit to page" slider
+ *     still works for resizing to larger paper.
+ *   - `print-color-adjust: exact` forces the printer to honor the black
+ *     ink in the QR rather than treating it as a "background colour" to
+ *     suppress in economy modes.
  */
 export async function printVisitorBadge(
   node: HTMLElement,
@@ -95,25 +102,31 @@ export async function printVisitorBadge(
 <meta charset="utf-8" />
 <title>Visitor Badge</title>
 <style>
-  @page { margin: 0; }
-  html, body { margin: 0; padding: 0; background: #ffffff; }
-  body {
+  @page { size: ${w}mm ${h}mm; margin: 0; }
+  html, body {
     margin: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
+    padding: 0;
+    background: #ffffff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
+  body { width: ${w}mm; height: ${h}mm; }
   img {
     display: block;
     width: ${w}mm;
     height: ${h}mm;
-    max-width: 100%;
-    max-height: 100vh;
-    object-fit: contain;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
   }
-  @media print {
-    body { min-height: auto; }
+  @media screen {
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      width: auto;
+      height: auto;
+    }
   }
 </style>
 </head>
