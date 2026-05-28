@@ -141,7 +141,7 @@ function RenderedBlock({ block }: { block: Block }) {
     case "codeBlock":
       return (
         <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 font-mono text-xs">
-          <code>{(block.content ?? []).map((r) => r.text).join("")}</code>
+          <code>{plainText(block.content)}</code>
         </pre>
       );
     case "divider":
@@ -177,27 +177,100 @@ function RenderedBlock({ block }: { block: Block }) {
   }
 }
 
-function Inline({ content }: { content?: InlineText[] }) {
+/**
+ * BlockNote's inline content array can include plain strings (the whitespace
+ * between styled runs is often serialized that way), `{ type: "text", ... }`
+ * runs, and `{ type: "link", href, content: [...] }` runs. We accept all three
+ * — dropping plain-string entries collapses bold/italic phrases together with
+ * no space between them ("**DPA**or**Agreement**" instead of "**DPA** or
+ * **Agreement**").
+ */
+type InlineLink = {
+  type: "link";
+  href?: string;
+  content?: InlineNode[];
+};
+type InlineNode = string | InlineText | InlineLink;
+
+function isInlineLink(node: unknown): node is InlineLink {
+  return (
+    typeof node === "object" &&
+    node !== null &&
+    (node as { type?: unknown }).type === "link"
+  );
+}
+
+function Inline({ content }: { content?: InlineNode[] | InlineText[] }) {
   if (!content || content.length === 0) {
     return <span className="text-muted-foreground">&nbsp;</span>;
   }
   return (
     <>
-      {content.map((run, i) => {
-        const styles = run.styles ?? {};
-        let node: React.ReactNode = run.text;
-        if (styles.bold) node = <strong>{node}</strong>;
-        if (styles.italic) node = <em>{node}</em>;
-        if (styles.underline) node = <u>{node}</u>;
-        if (styles.strike) node = <s>{node}</s>;
-        if (styles.code)
-          node = (
-            <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
-              {node}
-            </code>
-          );
-        return <React.Fragment key={i}>{node}</React.Fragment>;
-      })}
+      {(content as InlineNode[]).map((run, i) => (
+        <React.Fragment key={i}>{renderInlineNode(run)}</React.Fragment>
+      ))}
     </>
   );
+}
+
+function renderInlineNode(run: InlineNode): React.ReactNode {
+  // Plain string entries are how BlockNote serializes whitespace between
+  // styled runs — render them verbatim or the spaces disappear.
+  if (typeof run === "string") return renderTextWithBreaks(run);
+
+  if (isInlineLink(run)) {
+    return (
+      <a
+        href={run.href ?? "#"}
+        target={run.href?.startsWith("http") ? "_blank" : undefined}
+        rel={run.href?.startsWith("http") ? "noreferrer" : undefined}
+        className="font-medium text-primary underline underline-offset-2"
+      >
+        <Inline content={run.content} />
+      </a>
+    );
+  }
+
+  // Text run with optional inline marks.
+  const styles = run.styles ?? {};
+  let node: React.ReactNode = renderTextWithBreaks(run.text ?? "");
+  if (styles.code)
+    node = (
+      <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+        {node}
+      </code>
+    );
+  if (styles.bold) node = <strong>{node}</strong>;
+  if (styles.italic) node = <em>{node}</em>;
+  if (styles.underline) node = <u>{node}</u>;
+  if (styles.strike) node = <s>{node}</s>;
+  return node;
+}
+
+/**
+ * Split a text run on `\n` so literal newlines authored inside a single run
+ * survive HTML's whitespace collapsing.
+ */
+function renderTextWithBreaks(text: string): React.ReactNode {
+  if (!text) return null;
+  if (!text.includes("\n")) return text;
+  const parts = text.split("\n");
+  return parts.map((part, idx) => (
+    <React.Fragment key={idx}>
+      {idx > 0 ? <br /> : null}
+      {part}
+    </React.Fragment>
+  ));
+}
+
+/** Flatten any inline-content shape down to its raw text — used by codeBlock. */
+function plainText(content: InlineNode[] | InlineText[] | undefined): string {
+  if (!content) return "";
+  return (content as InlineNode[])
+    .map((run) => {
+      if (typeof run === "string") return run;
+      if (isInlineLink(run)) return plainText(run.content);
+      return run.text ?? "";
+    })
+    .join("");
 }
