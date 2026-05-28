@@ -1,5 +1,5 @@
 import type { VisitSession, Appointment } from "./visitor";
-import type { NoticeDisplayMode } from "./enums";
+import type { NoticeDisplayMode, VisitStatus } from "./enums";
 import type { Block } from "./blog";
 
 // ── Public Registration Info ─────────────────────────────────────────
@@ -132,6 +132,36 @@ export interface PublicCheckoutRequest {
 export interface PublicCheckoutResponse {
   session: VisitSession;
   visitDurationMinutes?: number;
+}
+
+// ── Public Badge Pass (print-by-token) ───────────────────────────────
+// Backed by GET /public/badge/{token} — see backend-contract-public-badge.txt.
+// `token` is the visitor's badgeQrToken; the endpoint is unauthenticated and
+// returns only the non-sensitive fields the printable pass needs.
+export interface PublicBadgeTenant {
+  companyName: string;
+  /** Present ONLY when the tenant has branding ability; absent otherwise so
+   * the badge falls back to VisiChek-only chrome. Rendered grayscale. */
+  logoUrl?: string;
+  /** Whether the tenant has the branding capability on its current plan. */
+  brandingEnabled: boolean;
+}
+
+export interface PublicBadgePass {
+  /** Echo of the badgeQrToken used in the URL; also what the QR encodes. */
+  token: string;
+  visitorName: string;
+  company?: string;
+  purpose?: string;
+  hostName?: string;
+  departmentName?: string;
+  /** Current visit status; drives the status pill label. */
+  status: VisitStatus;
+  /** Unix epoch seconds. */
+  issuedAt?: number;
+  /** Unix epoch seconds. */
+  expiresAt?: number;
+  tenant: PublicBadgeTenant;
 }
 
 // ── Public Rights ────────────────────────────────────────────────────

@@ -14,4 +14,6 @@ export {
   usePublicOcrIdScan,
   usePublicLookup,
   usePublicFinalize,
+  usePublicBadge,
+  TEST_BADGE_TOKEN,
 } from "./use-public-registration";

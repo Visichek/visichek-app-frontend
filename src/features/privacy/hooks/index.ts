@@ -18,10 +18,6 @@ export {
 export {
   usePrivacyNotices,
   useActivePrivacyNotice,
-  useCreatePrivacyNotice,
-  useUpdatePrivacyNotice,
-  type CreatePrivacyNoticeRequest,
-  type UpdatePrivacyNoticeRequest,
 } from "./use-privacy-notices";
 
 export {

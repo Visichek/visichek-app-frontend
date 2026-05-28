@@ -9,10 +9,12 @@ import {
   Download,
   Globe,
   History,
+  Info,
   Loader2,
   MoreHorizontal,
   Save,
   Settings2,
+  ShieldAlert,
   Trash2,
 } from "lucide-react";
 import {
@@ -68,6 +70,31 @@ import {
 import type { Block } from "@/types/blog";
 
 const BACK_HREF = "/admin/legal-documents";
+
+/**
+ * The FIXED allowlist of placeholder tokens the backend substitutes per tenant
+ * inside a tenant-agreement master. Authors insert them as plain bracketed
+ * text in any block; anything outside this list is left verbatim. An unset
+ * value renders as the literal "[To be provided]" so gaps stay reviewable.
+ */
+const AGREEMENT_PLACEHOLDERS: { token: string; description: string }[] = [
+  { token: "[company_name]", description: "Tenant company / legal name" },
+  { token: "[organization_address]", description: "Tenant organization address" },
+  {
+    token: "[contact_email]",
+    description: "Tenant main super admin email (falls back to DPO)",
+  },
+  { token: "[dpo_contact_email]", description: "Tenant DPO contact email" },
+  {
+    token: "[retention_period]",
+    description: "Retention window from the tenant's policy, e.g. \"1095 days\"",
+  },
+  { token: "[country_of_hosting]", description: "Tenant data-hosting country" },
+  {
+    token: "[effective_date]",
+    description: "Reserved — currently resolves to the fallback",
+  },
+];
 
 function docTypeLabel(value: LegalDocType): string {
   return LEGAL_DOC_TYPES.find((t) => t.value === value)?.label ?? value;
@@ -126,6 +153,7 @@ export function LegalDocumentForm({ document }: { document?: LegalDocument }) {
 
   const isPublished = document?.status === "published";
   const isArchived = document?.status === "archived";
+  const isTenantAgreement = !!document?.isTenantAgreement;
   const showUnpublishedBadge =
     isPublished && (dirty || !!document?.hasUnpublishedChanges);
 
@@ -326,6 +354,17 @@ export function LegalDocumentForm({ document }: { document?: LegalDocument }) {
           <div className="flex items-center gap-2">
             {statusBadge}
             <Badge variant="outline">{docTypeLabel(state.docType)}</Badge>
+            {isTenantAgreement ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="info">Tenant agreement</Badge>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  Platform-managed master. Publishing a new version forces all
+                  tenants to re-accept before they can run visitor operations.
+                </TooltipContent>
+              </Tooltip>
+            ) : null}
             {document?.currentVersion ? (
               <Badge variant="outline">v{document.currentVersion} live</Badge>
             ) : null}
@@ -569,6 +608,41 @@ export function LegalDocumentForm({ document }: { document?: LegalDocument }) {
                 className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
               />
             </section>
+
+            {isTenantAgreement ? (
+              <section className="space-y-3">
+                <div className="flex items-start gap-2 text-sm">
+                  <Info
+                    className="mt-0.5 h-4 w-4 shrink-0 text-info"
+                    aria-hidden="true"
+                  />
+                  <div>
+                    <p className="font-medium">Tenant placeholders</p>
+                    <p className="text-xs text-muted-foreground">
+                      Type any of these tokens as plain text in the body. The
+                      backend fills them per tenant; an unset value renders as
+                      &ldquo;[To be provided]&rdquo;. Anything else in square
+                      brackets is left untouched.
+                    </p>
+                  </div>
+                </div>
+                <ul className="space-y-2">
+                  {AGREEMENT_PLACEHOLDERS.map((p) => (
+                    <li
+                      key={p.token}
+                      className="rounded-md border border-border bg-muted/30 px-3 py-2"
+                    >
+                      <code className="font-mono text-xs text-foreground">
+                        {p.token}
+                      </code>
+                      <p className="text-xs text-muted-foreground">
+                        {p.description}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
           </div>
         </SheetContent>
       </Sheet>
@@ -581,6 +655,23 @@ export function LegalDocumentForm({ document }: { document?: LegalDocument }) {
         description="Snapshot the current working copy as an immutable version and make it live on the public site."
       >
         <div className="space-y-5">
+          {isTenantAgreement ? (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm"
+            >
+              <ShieldAlert
+                className="mt-0.5 h-4 w-4 shrink-0 text-warning"
+                aria-hidden="true"
+              />
+              <p className="text-foreground/90">
+                This is a tenant agreement. Publishing a new version requires{" "}
+                <span className="font-medium">all tenants to re-accept</span>{" "}
+                before they can continue running visitor operations. They&apos;re
+                re-prompted within ~2 minutes.
+              </p>
+            </div>
+          ) : null}
           <div className="space-y-2">
             <Label htmlFor="change-note">
               Change note

@@ -1,10 +1,13 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiGet, apiPost, apiPatch } from "@/lib/api/request";
+// The visitor privacy notice is now DERIVED from the platform-managed Visitor
+// Privacy Policy master (templated per tenant). Tenants can no longer author
+// it — `POST`/`PATCH /v1/privacy-notices` return `409
+// PRIVACY_NOTICE_MANAGED_BY_PLATFORM` — so only the read hooks remain. The
+// notice is reviewed/accepted via the platform agreements at `/app/agreements`.
+import { useQuery } from "@tanstack/react-query";
+import { apiGet } from "@/lib/api/request";
 import type { PrivacyNotice } from "@/types/dpo";
-import type { NoticeDisplayMode } from "@/types/enums";
-import type { Block } from "@/types/blog";
 
 interface PaginatedResponse<T> {
   data: T[];
@@ -13,27 +16,6 @@ interface PaginatedResponse<T> {
     skip?: number;
     limit?: number;
   };
-}
-
-export interface CreatePrivacyNoticeRequest {
-  title: string;
-  summary?: string;
-  /** Canonical rich content — BlockNote blocks. The server derives `fullText`
-   * from this. */
-  body?: Block[];
-  displayMode: NoticeDisplayMode;
-  effectiveDate?: number;
-}
-
-export interface UpdatePrivacyNoticeRequest {
-  title?: string;
-  summary?: string;
-  /** Send the full block array from the editor. Editing it mints a new
-   * `versionId`. */
-  body?: Block[];
-  displayMode?: NoticeDisplayMode;
-  isActive?: boolean;
-  effectiveDate?: number;
 }
 
 interface UsePrivacyNoticesParams {
@@ -56,54 +38,12 @@ export function usePrivacyNotices(params?: UsePrivacyNoticesParams) {
 }
 
 /**
- * Fetch the currently active privacy notice
+ * Fetch the currently active privacy notice (the platform-derived notice).
  */
 export function useActivePrivacyNotice() {
   return useQuery<PrivacyNotice>({
     queryKey: ["privacy-notices", "active"],
     queryFn: () =>
       apiGet<PrivacyNotice>("/privacy-notices/active"),
-  });
-}
-
-/**
- * Create a new privacy notice
- */
-export function useCreatePrivacyNotice() {
-  const queryClient = useQueryClient();
-
-  return useMutation<PrivacyNotice, Error, CreatePrivacyNoticeRequest>({
-    mutationFn: (data) =>
-      apiPost<PrivacyNotice>("/privacy-notices", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["privacy-notices"] });
-    },
-  });
-}
-
-/**
- * Update an existing privacy notice
- */
-export function useUpdatePrivacyNotice(noticeId: string) {
-  const queryClient = useQueryClient();
-
-  return useMutation<
-    PrivacyNotice,
-    Error,
-    UpdatePrivacyNoticeRequest
-  >({
-    mutationFn: (data) =>
-      apiPatch<PrivacyNotice>(
-        `/privacy-notices/${noticeId}`,
-        data
-      ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["privacy-notices"],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["privacy-notices", "active"],
-      });
-    },
   });
 }

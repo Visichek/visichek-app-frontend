@@ -1,11 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Search, UserRound, X } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
 import { NavButton } from "@/components/recipes/nav-button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +30,9 @@ import {
   useCreateDSR,
   useUpdateDSR,
 } from "@/features/dsr/hooks/use-dsr";
+import { useSearchVisitorProfiles } from "@/features/visitors/hooks/use-visitors";
 import type { DataSubjectRequest } from "@/types/dpo";
+import type { VisitorProfile } from "@/types/visitor";
 import type { DSRStatus, DSRType } from "@/types/enums";
 
 const DSR_TYPES = [
@@ -47,6 +50,9 @@ const DSR_STATUSES = [
 ] as const;
 
 const dsrSchema = z.object({
+  // Required on create (enforced in onSubmit since the picker only shows
+  // in create mode); irrelevant when editing an existing request.
+  visitorProfileId: z.string().optional(),
   requesterName: z.string().trim().min(1, "Requester name is required"),
   requesterEmail: z
     .string()
@@ -91,10 +97,13 @@ export function DSRForm({ dsr }: DSRFormProps) {
     register,
     handleSubmit,
     control,
+    setValue,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<DSRFormData>({
     resolver: zodResolver(dsrSchema),
     defaultValues: {
+      visitorProfileId: "",
       requesterName: dsr?.requesterName ?? "",
       requesterEmail: dsr?.requesterEmail ?? "",
       type: (dsr?.type as DSRType) ?? "access",
@@ -102,6 +111,38 @@ export function DSRForm({ dsr }: DSRFormProps) {
       status: (dsr?.status as DSRStatus) ?? "pending",
     },
   });
+
+  // ── Visitor picker (create only) ──────────────────────────────────
+  // The backend requires `visitor_profile_id` on POST /v1/dsr. We resolve
+  // it by searching visitor profiles and letting the user pick one.
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [selectedVisitor, setSelectedVisitor] =
+    useState<VisitorProfile | null>(null);
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  const { data: visitorResults, isFetching: isSearching } =
+    useSearchVisitorProfiles(debouncedSearch);
+
+  function selectVisitor(visitor: VisitorProfile) {
+    setSelectedVisitor(visitor);
+    setValue("visitorProfileId", visitor.id, { shouldValidate: true });
+    // Prefill requester identity from the chosen profile; the user can
+    // still edit these before submitting.
+    setValue("requesterName", visitor.fullName);
+    if (visitor.email) setValue("requesterEmail", visitor.email);
+    setSearch("");
+    setDebouncedSearch("");
+  }
+
+  function clearVisitor() {
+    setSelectedVisitor(null);
+    setValue("visitorProfileId", "");
+  }
 
   const onSubmit = handleSubmit(async (data) => {
     try {
@@ -112,10 +153,18 @@ export function DSRForm({ dsr }: DSRFormProps) {
         });
         toast.success("Request updated");
       } else {
+        if (!data.visitorProfileId) {
+          setError("visitorProfileId", {
+            type: "required",
+            message: "Select the visitor this request is about",
+          });
+          return;
+        }
         await createMutation.mutateAsync({
+          visitorProfileId: data.visitorProfileId,
           requesterName: data.requesterName,
           requesterEmail: data.requesterEmail || undefined,
-          type: data.type as DSRType,
+          requestType: data.type as DSRType,
           description: data.description,
         });
         toast.success("Request created");
@@ -163,6 +212,152 @@ export function DSRForm({ dsr }: DSRFormProps) {
       />
 
       <form onSubmit={onSubmit} className="space-y-5">
+        {!isEditing && (
+          <div className="space-y-2">
+            <Label htmlFor="visitor-search">Visitor *</Label>
+            <p className="text-sm text-muted-foreground">
+              Search for and select the visitor whose data this request
+              concerns. The request cannot be created without one.
+            </p>
+
+            {selectedVisitor ? (
+              <div className="flex items-center justify-between gap-3 rounded-md border border-input bg-muted/40 p-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <UserRound className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">
+                      {selectedVisitor.fullName}
+                    </p>
+                    <p className="truncate text-sm text-muted-foreground">
+                      {[selectedVisitor.company, selectedVisitor.phone]
+                        .filter(Boolean)
+                        .join(" · ") || "No additional details"}
+                    </p>
+                  </div>
+                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearVisitor}
+                      className="min-h-[44px] shrink-0"
+                      aria-label="Choose a different visitor"
+                    >
+                      <X className="mr-1 h-4 w-4" aria-hidden="true" />
+                      Change
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">
+                    Clear this visitor and search for a different one
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <Input
+                    id="visitor-search"
+                    type="search"
+                    placeholder="Search by name, phone, or company…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    aria-invalid={!!errors.visitorProfileId}
+                    aria-describedby={
+                      errors.visitorProfileId
+                        ? "error-visitorProfileId"
+                        : undefined
+                    }
+                    className="min-h-[44px] pl-9"
+                  />
+                </div>
+
+                {debouncedSearch.length >= 2 && (
+                  <div
+                    className="max-h-60 overflow-y-auto rounded-md border border-input"
+                    role="listbox"
+                    aria-label="Visitor search results"
+                  >
+                    {isSearching ? (
+                      <div className="flex items-center gap-2 p-3 text-sm text-muted-foreground">
+                        <Loader2
+                          className="h-4 w-4 animate-spin"
+                          aria-hidden="true"
+                        />
+                        Searching…
+                      </div>
+                    ) : !visitorResults || visitorResults.length === 0 ? (
+                      <p className="p-3 text-sm text-muted-foreground">
+                        No visitors match “{debouncedSearch}”.
+                      </p>
+                    ) : (
+                      <ul className="divide-y divide-border">
+                        {visitorResults.map((visitor) => (
+                          <li key={visitor.id}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  role="option"
+                                  aria-selected="false"
+                                  onClick={() => selectVisitor(visitor)}
+                                  className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+                                >
+                                  <UserRound
+                                    className="h-4 w-4 shrink-0 text-muted-foreground"
+                                    aria-hidden="true"
+                                  />
+                                  <span className="min-w-0">
+                                    <span className="block truncate font-medium">
+                                      {visitor.fullName}
+                                    </span>
+                                    <span className="block truncate text-sm text-muted-foreground">
+                                      {[visitor.company, visitor.phone]
+                                        .filter(Boolean)
+                                        .join(" · ") || visitor.email || "—"}
+                                    </span>
+                                  </span>
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="left">
+                                Select {visitor.fullName} as the data subject
+                                for this request
+                              </TooltipContent>
+                            </Tooltip>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                {debouncedSearch.length > 0 && debouncedSearch.length < 2 && (
+                  <p className="text-xs text-muted-foreground">
+                    Type at least 2 characters to search.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {errors.visitorProfileId && (
+              <p
+                id="error-visitorProfileId"
+                className="text-sm text-destructive"
+                role="alert"
+              >
+                {errors.visitorProfileId.message}
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="space-y-2">
           <Label htmlFor="requesterName">Requester name *</Label>
           <Input

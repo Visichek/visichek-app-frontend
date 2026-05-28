@@ -319,6 +319,40 @@ export function isKioskAuthPermissionDenied(
   return (details as { code?: string }).code !== "PASSWORD_CHANGE_REQUIRED";
 }
 
+/**
+ * `403 AUTH_PERMISSION_DENIED` with `details.code = "AGREEMENT_ACCEPTANCE_REQUIRED"`
+ * — the tenant's organization must accept the latest platform agreements
+ * (Data Processing Agreement / Visitor Privacy Policy) before running visitor
+ * operations. The gate is intentionally narrow: it blocks only the core
+ * operational writes; reads and `/v1/agreements/*` stay reachable.
+ *
+ * The frontend should surface an acceptance prompt (the super_admin accepts at
+ * `/app/agreements`); it does NOT need to hard-redirect — the rest of the app
+ * is usable while an agreement is pending.
+ */
+export function isAgreementAcceptanceRequired(
+  error: unknown,
+): error is ApiError {
+  if (!(error instanceof ApiError) || error.status !== 403) return false;
+  const details = error.details;
+  if (typeof details !== "object" || details === null) return false;
+  return (
+    (details as { code?: string }).code === "AGREEMENT_ACCEPTANCE_REQUIRED"
+  );
+}
+
+/**
+ * Read the `pending` agreement keys carried in an
+ * `AGREEMENT_ACCEPTANCE_REQUIRED` error body.
+ */
+export function agreementAcceptancePending(error: ApiError): string[] {
+  const details = error.details;
+  if (typeof details !== "object" || details === null) return [];
+  const pending = (details as { pending?: unknown }).pending;
+  if (!Array.isArray(pending)) return [];
+  return pending.filter((x): x is string => typeof x === "string");
+}
+
 export interface QuotaExceededDetails {
   collection: string;
   operation: string;

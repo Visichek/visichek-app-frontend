@@ -298,8 +298,6 @@ export default function KioskCheckinPage() {
   const privacyNotice = privacyNoticeQ.data ?? null;
   /** Notice requires an explicit "I accept" before the visitor may proceed. */
   const consentRequired = privacyNotice?.displayMode === "active_consent";
-  /** Show the gate until the visitor accepts (only when required). */
-  const consentGateOpen = consentRequired && !state.consentAccepted;
 
   function acceptConsent() {
     setStepError(null);
@@ -315,7 +313,8 @@ export default function KioskCheckinPage() {
    * tenant (super_admin, receptionist, dpo, etc.). Platform admins are
    * excluded — they're not scoped to a tenant. We compare the session's
    * tenant id to the kiosk's tenant id so a staffer from a different tenant
-   * is still treated as an ordinary visitor.
+   * is still treated as an ordinary visitor. `false` while bootstrap is
+   * still in flight — we don't yet know who opened the kiosk.
    */
   const isTenantStaff =
     !session.isBootstrapping &&
@@ -324,12 +323,21 @@ export default function KioskCheckinPage() {
     !!session.tenantId &&
     session.tenantId === tenantId;
 
+  /**
+   * Show the gate until the visitor accepts (only when required). Tenant
+   * staff are skipped synchronously here — not via the effect below — so the
+   * gate never renders for a single frame before the auto-accept lands.
+   */
+  const consentGateOpen =
+    consentRequired && !state.consentAccepted && !isTenantStaff;
+
   // Internal staff shouldn't be forced to re-accept the visitor privacy
   // notice — they're not the visitor. When the notice requires explicit
   // consent and the kiosk was opened by a staff member of this tenant,
-  // accept it on their behalf so they go straight into the wizard. This
-  // still populates `consentAccepted`/`consentAcceptedAt`, so the consent
-  // fields ride along on submit and `active_consent` tenants don't 422.
+  // accept it on their behalf. The synchronous `consentGateOpen` check
+  // above already hides the gate; this records `consentAccepted`/
+  // `consentAcceptedAt` so the consent fields ride along on submit and
+  // `active_consent` tenants don't 422.
   useEffect(() => {
     if (consentRequired && !state.consentAccepted && isTenantStaff) {
       acceptConsent();
@@ -784,6 +792,14 @@ export default function KioskCheckinPage() {
   // snap to the consent gate. On error it resolves to "no notice" and the
   // flow proceeds (fail-open) rather than blocking check-in on a fetch hiccup.
   if (configQ.isLoading || privacyNoticeQ.isLoading) return <LoadingShell />;
+
+  // When the notice requires explicit consent, hold the spinner until the
+  // session bootstrap settles. Until then we can't tell whether the kiosk
+  // was opened by tenant staff (auto-accepted) or a visitor (must see the
+  // gate), and rendering either one early would flash the wrong screen.
+  if (consentRequired && !state.consentAccepted && session.isBootstrapping) {
+    return <LoadingShell />;
+  }
 
   if (configQ.isError || !config) {
     const info = describeCheckinError(configQ.error);

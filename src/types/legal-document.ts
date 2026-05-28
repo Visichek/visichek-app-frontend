@@ -16,6 +16,7 @@
  */
 
 import type { Block } from "@/types/blog";
+import type { AgreementKey } from "@/types/agreements";
 
 export type LegalDocStatus = "draft" | "published" | "archived";
 
@@ -127,6 +128,14 @@ export interface LegalDocument {
   hasUnpublishedChanges: boolean;
   sourceFile?: SourceFile | null;
   sourceFileUrl?: string | null;
+  /**
+   * True for the two platform-managed master agreements (Data Processing
+   * Agreement, Visitor Privacy Policy). Derived from the slug server-side.
+   * Publishing a new version of one of these forces ALL tenants to re-accept.
+   */
+  isTenantAgreement?: boolean;
+  /** `"dpa"` / `"visitor_privacy_policy"` for an agreement master, else null. */
+  agreementKey?: AgreementKey | null;
   dateCreated: number;
   lastUpdated: number;
 }
@@ -144,6 +153,10 @@ export interface LegalDocumentListRow {
   effectiveAt?: number | null;
   hasUnpublishedChanges: boolean;
   hasSourceFile: boolean;
+  /** True for a platform-managed master agreement — see {@link LegalDocument}. */
+  isTenantAgreement?: boolean;
+  /** `"dpa"` / `"visitor_privacy_policy"` for an agreement master, else null. */
+  agreementKey?: AgreementKey | null;
   dateCreated: number;
   lastUpdated: number;
 }

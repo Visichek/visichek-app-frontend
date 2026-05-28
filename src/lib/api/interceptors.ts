@@ -3,6 +3,7 @@ import { refreshSession, clearSession } from "@/lib/auth/session";
 import { isLogoutTransitionActive } from "@/lib/auth/auth-transition";
 import { readAuthHint } from "@/lib/auth/auth-hint";
 import { peekUserLocationHeader } from "@/lib/geolocation/user-location";
+import { emitAgreementGate } from "@/lib/api/agreement-gate";
 import { ApiError, type ErrorEnvelope } from "@/types/api";
 
 /**
@@ -114,6 +115,17 @@ export function setupInterceptors(client: AxiosInstance) {
         ) {
           redirectToChangePassword();
         }
+        // AGREEMENT_ACCEPTANCE_REQUIRED is the tenant-agreement gate on
+        // operational writes. We don't redirect (the rest of the app stays
+        // usable); instead we nudge the React tree to refetch pending
+        // agreements so the acceptance banner/prompt surfaces right away.
+        if (
+          typeof window !== "undefined" &&
+          normalized.status === 403 &&
+          isAgreementAcceptanceRequiredDetails(normalized.details)
+        ) {
+          emitAgreementGate(agreementGatePending(normalized.details));
+        }
         return Promise.reject(normalized);
       }
 
@@ -160,6 +172,20 @@ function isPasswordChangeRequiredDetails(details: unknown): boolean {
   return (
     (details as { code?: string }).code === "PASSWORD_CHANGE_REQUIRED"
   );
+}
+
+function isAgreementAcceptanceRequiredDetails(details: unknown): boolean {
+  if (typeof details !== "object" || details === null) return false;
+  return (
+    (details as { code?: string }).code === "AGREEMENT_ACCEPTANCE_REQUIRED"
+  );
+}
+
+function agreementGatePending(details: unknown): string[] {
+  if (typeof details !== "object" || details === null) return [];
+  const pending = (details as { pending?: unknown }).pending;
+  if (!Array.isArray(pending)) return [];
+  return pending.filter((x): x is string => typeof x === "string");
 }
 
 /**

@@ -95,8 +95,10 @@ export const ROLE_CAPABILITIES: Record<SystemUserRole, Capability[]> = {
     C.RETENTION_EDIT,
     C.SUB_PROCESSOR_VIEW,
     C.SUB_PROCESSOR_EDIT,
+    // PRIVACY_NOTICE_EDIT is gone — the visitor privacy notice is now derived
+    // from the platform-managed Visitor Privacy Policy master and is read-only
+    // for tenants (writes return 409 PRIVACY_NOTICE_MANAGED_BY_PLATFORM).
     C.PRIVACY_NOTICE_VIEW,
-    C.PRIVACY_NOTICE_EDIT,
     C.COMPLIANCE_REGISTER_VIEW,
     C.COMPLIANCE_REGISTER_EDIT,
     C.AUDIT_VIEW,

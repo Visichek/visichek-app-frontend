@@ -97,6 +97,9 @@ export const CAPABILITIES = {
   SUB_PROCESSOR_VIEW: "subProcessor:view",
   SUB_PROCESSOR_EDIT: "subProcessor:edit",
   PRIVACY_NOTICE_VIEW: "privacyNotice:view",
+  /** @deprecated The visitor privacy notice is now platform-managed (derived
+   * from the Visitor Privacy Policy master). No tenant role grants this and the
+   * tenant editor is gone; kept only so legacy references still type-check. */
   PRIVACY_NOTICE_EDIT: "privacyNotice:edit",
   COMPLIANCE_REGISTER_VIEW: "compliance_register:view",
   COMPLIANCE_REGISTER_EDIT: "compliance_register:edit",

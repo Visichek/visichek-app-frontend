@@ -266,6 +266,17 @@ export function LegalDocumentsPageClient() {
       cell: ({ row }) => (
         <div className="flex flex-wrap items-center gap-1.5">
           {statusBadge(row.original.status)}
+          {row.original.isTenantAgreement ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="info">Tenant agreement</Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                A platform-managed master. Publishing a new version forces all
+                tenants to re-accept before they can run visitor operations.
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
           {row.original.hasUnpublishedChanges ? (
             <Badge variant="warning">Unpublished changes</Badge>
           ) : null}
@@ -381,6 +392,9 @@ export function LegalDocumentsPageClient() {
       <div className="flex flex-wrap items-center gap-1.5">
         {statusBadge(doc.status)}
         <Badge variant="outline">{docTypeLabel(doc.docType)}</Badge>
+        {doc.isTenantAgreement ? (
+          <Badge variant="info">Tenant agreement</Badge>
+        ) : null}
         {doc.hasUnpublishedChanges ? (
           <Badge variant="warning">Unpublished changes</Badge>
         ) : null}

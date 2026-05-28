@@ -1,0 +1,136 @@
+================================================================================
+VISICHEK — BACKEND CONTRACT
+Public Printable Visitor Badge (print-by-token)
+================================================================================
+
+Author:        Frontend team (Claude)
+Date:          2026-05-28
+Status:        SPEC — FRONTEND IS IMPLEMENTED against the shape below.
+               The endpoint DOES NOT EXIST yet and must be built.
+Audience:      Backend engineers.
+
+READ THIS FIRST
+  The frontend now ships a public, unauthenticated page that turns a visitor's
+  badge QR token into a print-ready A6/A7 badge:
+
+      /badge/{token}        (Next.js public route)
+
+  It calls ONE endpoint that does not exist yet:
+
+      GET /v1/public/badge/{token}
+
+  Until the endpoint exists, the page is fully exercisable with the reserved
+  token  "test-badge-token"  (i.e. /badge/test-badge-token), which renders the
+  template with mock data and never calls the backend. Build the endpoint to
+  the shape below and real tokens light up end-to-end.
+
+--------------------------------------------------------------------------------
+0. GROUND RULES
+--------------------------------------------------------------------------------
+
+- Response envelope: standard envelope. The frontend unwraps `data`.
+    success:true  -> { success, message, data, meta?, requestId? }
+    success:false -> { success, message, data?: { code, details? }, requestId? }
+
+- Field casing: responses default to camelCase (honor X-Response-Case: snake).
+
+- Timestamps: Unix epoch SECONDS (integers).
+
+- Auth: NONE. This is a public visitor-facing endpoint, exactly like
+  POST /v1/public/checkout and GET /v1/public/register/{tenant_id}/info.
+  The token itself is the only credential. Treat it as a bearer capability:
+  knowing the token is sufficient to render the badge. Do NOT require a cookie.
+
+- The token is the visitor's `badgeQrToken` — the SAME value already minted at
+  check-in confirm (POST /v1/visitors/sessions/{id}/confirm returns
+  `badge_qr_token`) and already accepted by POST /v1/public/checkout
+  ({ badgeQrToken }). No new token space.
+
+--------------------------------------------------------------------------------
+1. ENDPOINT
+--------------------------------------------------------------------------------
+
+  GET /v1/public/badge/{token}
+
+  Path param:
+    token   the visitor's badgeQrToken (opaque string).
+
+--------------------------------------------------------------------------------
+2. RESPONSE (200) — the printable pass
+--------------------------------------------------------------------------------
+
+  Return ONLY the non-sensitive fields the badge prints. Do NOT include email,
+  phone, ID numbers, portrait, or any PII beyond the visitor's display name —
+  this payload is reachable by anyone holding the token.
+
+  {
+    "token": "bqt_9f3c…",            // echo of the badgeQrToken (the QR encodes this)
+    "visitorName": "Nathaniel Uriri",
+    "company": "Introgroup Technologies",   // optional
+    "purpose": "Quarterly partnership review", // optional
+    "hostName": "Ada Receptionist",          // optional
+    "departmentName": "Operations",          // optional
+    "status": "checked_in",                  // VisitStatus enum
+    "issuedAt": 1748419200,                  // unix seconds, optional
+    "expiresAt": 1748448000,                 // unix seconds, optional
+    "tenant": {
+      "companyName": "Doux Finance",         // who the visitor is visiting
+      "logoUrl": "https://…/logo.png",       // OPTIONAL — see branding rule below
+      "brandingEnabled": true                // does the tenant's plan include branding?
+    }
+  }
+
+  BRANDING RULE (load-bearing — the frontend keys off these two fields):
+    - `tenant.brandingEnabled` reflects whether the tenant's CURRENT plan
+      includes the branding capability.
+    - `tenant.logoUrl` should be present ONLY when brandingEnabled is true AND
+      the tenant has uploaded a (badge) logo. When brandingEnabled is false,
+      omit logoUrl (or send null) regardless of any stored logo.
+    - The frontend renders the tenant logo in GRAYSCALE and only when
+      brandingEnabled && logoUrl. Otherwise the badge falls back to the
+      VisiChek mark. The VisiChek brand always appears in the badge footer.
+    - Prefer the badge-specific logo (TenantBranding.badgeLogoUrl) when set,
+      else fall back to the general logoUrl.
+
+  `status` drives the badge's status pill. Use the existing VisitStatus enum:
+    registered | pending_verification | checked_in | checked_out |
+    denied | cancelled
+
+--------------------------------------------------------------------------------
+3. ERRORS
+--------------------------------------------------------------------------------
+
+  404 RESOURCE_NOT_FOUND  — token unknown / no session for this token.
+  410 (or 404) with code BADGE_EXPIRED — token/session expired. The frontend
+                            shows a generic "invalid or expired" message either
+                            way, so 404 is acceptable if you prefer not to add
+                            a 410. Do NOT leak whether a token ever existed
+                            beyond not-found semantics.
+
+  Do NOT 401/403 — there is no auth on this route.
+
+--------------------------------------------------------------------------------
+4. FRONTEND PIECES ALREADY BUILT (for parity testing)
+--------------------------------------------------------------------------------
+
+  Types:
+    src/types/public.ts
+      - PublicBadgePass         (the section-2 shape)
+      - PublicBadgeTenant       (the tenant sub-object)
+
+  Data hook:
+    src/features/public-registration/hooks/use-public-registration.ts
+      - usePublicBadge(token)   (GET /public/badge/{token}; short-circuits the
+                                 reserved TEST_BADGE_TOKEN to mock data)
+      - TEST_BADGE_TOKEN        = "test-badge-token"
+
+  UI:
+    src/app/(public)/badge/[token]/page.tsx        (public print page)
+    src/features/visitors/components/print-badge.tsx (the B&W A6/A7 template)
+
+  To smoke-test the FE against a stub: have GET /v1/public/badge/{token} echo
+  the section-2 shape for any test token and the page renders + prints.
+
+================================================================================
+END
+================================================================================

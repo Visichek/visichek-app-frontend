@@ -23,6 +23,7 @@ import type {
   PublicLookupResponse,
   PublicFinalizeRequest,
   PublicFinalizeResponse,
+  PublicBadgePass,
 } from "@/types/public";
 
 // ── Query Keys ───────────────────────────────────────────────────────
@@ -41,6 +42,7 @@ export const publicKeys = {
     ["public", "rights-status", requestId] as const,
   tokenVerify: (token: string) =>
     ["public", "token-verify", token] as const,
+  badge: (token: string) => ["public", "badge", token] as const,
 };
 
 // ── Registration token verify ────────────────────────────────────────
@@ -94,6 +96,54 @@ export function usePublicFinalize(tenantId: string) {
         `/public/register/${tenantId}/finalize`,
         data
       ),
+  });
+}
+
+// ── Printable Badge Pass (by token) ──────────────────────────────────
+
+/**
+ * Sentinel token that renders the badge with mock data instead of hitting
+ * the backend, so the print template can be designed/iterated at
+ * `/badge/test-badge-token` without a live check-in. Real tokens are opaque
+ * badge QR tokens and will never collide with this value.
+ */
+export const TEST_BADGE_TOKEN = "test-badge-token";
+
+const TEST_BADGE_PASS: PublicBadgePass = {
+  token: TEST_BADGE_TOKEN,
+  visitorName: "Nathaniel Uriri",
+  company: "Introgroup Technologies",
+  purpose: "Quarterly partnership review",
+  hostName: "Ada Receptionist",
+  departmentName: "Operations",
+  status: "checked_in",
+  issuedAt: Math.floor(Date.now() / 1000),
+  expiresAt: Math.floor(Date.now() / 1000) + 8 * 60 * 60,
+  tenant: {
+    companyName: "Doux Finance",
+    logoUrl: "/visichek_logo.svg",
+    brandingEnabled: true,
+  },
+};
+
+export function usePublicBadge(token: string | null) {
+  return useQuery({
+    queryKey: publicKeys.badge(token ?? ""),
+    queryFn: async (): Promise<PublicBadgePass> => {
+      if (token === TEST_BADGE_TOKEN) return TEST_BADGE_PASS;
+      const data = await apiGet<PublicBadgePass>(`/public/badge/${token}`);
+      return {
+        ...data,
+        tenant: {
+          ...data.tenant,
+          logoUrl:
+            resolveDocumentUrl(data.tenant.logoUrl) ?? data.tenant.logoUrl,
+        },
+      };
+    },
+    enabled: !!token,
+    staleTime: 60 * 1000,
+    retry: 0,
   });
 }
 

@@ -7,28 +7,73 @@ const DIMS: Record<VisitorBadgeFormat, { w: number; h: number }> = {
   A7: { w: 74, h: 105 },
 };
 
-function badgeFilename(visitorName: string, format: VisitorBadgeFormat) {
+function badgeFilename(
+  visitorName: string,
+  format: VisitorBadgeFormat,
+  ext: "pdf" | "png",
+) {
   const slug =
     visitorName
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "") || "visitor";
-  return `badge-${slug}-${format.toLowerCase()}.pdf`;
+  return `badge-${slug}-${format.toLowerCase()}.${ext}`;
 }
 
 /**
- * Print the badge currently mounted at `node` at exactly its A6/A7
- * footprint. Renders into a hidden iframe (so popup blockers stay out
- * of the way), waits for images/fonts, then triggers the iframe's
- * print dialog. The user's "Save as PDF" option in that dialog also
- * works — the page size is locked to the badge by `@page`.
+ * Snapshot the badge node to a high-DPI PNG via html2canvas. Both the
+ * print and the download paths consume this so the printed/saved badge
+ * is pixel-identical to the on-screen preview — no font substitution,
+ * no remote-CSS races in a print iframe.
+ */
+async function captureBadgeImage(node: HTMLElement): Promise<{
+  dataUrl: string;
+  blob: Blob;
+}> {
+  const { default: html2canvas } = await import("html2canvas");
+  await waitForFontsAndImages(node);
+
+  const canvas = await html2canvas(node, {
+    scale: Math.max(4, window.devicePixelRatio * 2 || 4),
+    backgroundColor: "#ffffff",
+    useCORS: true,
+    logging: false,
+    imageTimeout: 0,
+    windowWidth: node.scrollWidth,
+    windowHeight: node.scrollHeight,
+  });
+
+  const dataUrl = canvas.toDataURL("image/png");
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (b) =>
+        b
+          ? resolve(b)
+          : reject(new Error("Could not encode badge image.")),
+      "image/png",
+    );
+  });
+  return { dataUrl, blob };
+}
+
+/**
+ * Print the badge currently mounted at `node`. The badge is captured to
+ * a PNG first (same image the PDF and download paths consume), then
+ * dropped into a hidden iframe as a single `<img>` sized at the badge's
+ * exact A6/A7 footprint in mm.
+ *
+ * `@page` intentionally does NOT pin the paper size — only the margin —
+ * so the user's print dialog can pick any paper and the printer can
+ * scale the badge to fit (the "Scale" / "Fit to page" slider in the
+ * dialog is what "resizable" means in print contexts). Defaults to
+ * exact A6/A7 size at 100% scale when the user has matching paper.
  */
 export async function printVisitorBadge(
   node: HTMLElement,
   format: VisitorBadgeFormat,
 ): Promise<void> {
   const { w, h } = DIMS[format];
-  const html = node.outerHTML;
+  const { dataUrl } = await captureBadgeImage(node);
 
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
@@ -49,18 +94,30 @@ export async function printVisitorBadge(
 <head>
 <meta charset="utf-8" />
 <title>Visitor Badge</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800;900&family=IBM+Plex+Mono:wght@500;700&display=swap" />
 <style>
-  @page { size: ${w}mm ${h}mm; margin: 0; }
+  @page { margin: 0; }
   html, body { margin: 0; padding: 0; background: #ffffff; }
-  body { width: ${w}mm; height: ${h}mm; }
-  body > * { border-radius: 0 !important; box-shadow: none !important; }
-  @media screen { body { display: flex; align-items: center; justify-content: center; } }
+  body {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  img {
+    display: block;
+    width: ${w}mm;
+    height: ${h}mm;
+    max-width: 100%;
+    max-height: 100vh;
+    object-fit: contain;
+  }
+  @media print {
+    body { min-height: auto; }
+  }
 </style>
 </head>
-<body>${html}</body>
+<body><img src="${dataUrl}" alt="" /></body>
 </html>`);
   doc.close();
 
@@ -75,9 +132,9 @@ export async function printVisitorBadge(
 }
 
 /**
- * Capture the badge node and save it as a fixed-format PDF. Uses
- * html2canvas at high DPR for crisp QR/logo rendering, then writes the
- * resulting bitmap into a jsPDF page sized exactly to the badge.
+ * Capture the badge node and save it as a fixed-format PDF. The PDF
+ * carries a single rasterised PNG sized to the badge — same pixels as
+ * the on-screen preview and the print path.
  *
  * Filename derives from `visitorName`, e.g. `badge-edoka-issac-a6.pdf`.
  */
@@ -87,25 +144,11 @@ export async function downloadVisitorBadgePdf(
   visitorName: string,
 ): Promise<void> {
   const { w, h } = DIMS[format];
-
-  const [{ default: html2canvas }, { default: JsPDF }] = await Promise.all([
-    import("html2canvas"),
+  const [{ default: JsPDF }, { dataUrl }] = await Promise.all([
     import("jspdf"),
+    captureBadgeImage(node),
   ]);
 
-  await waitForFontsAndImages(node);
-
-  const canvas = await html2canvas(node, {
-    scale: Math.max(4, window.devicePixelRatio * 2 || 4),
-    backgroundColor: "#ffffff",
-    useCORS: true,
-    logging: false,
-    imageTimeout: 0,
-    windowWidth: node.scrollWidth,
-    windowHeight: node.scrollHeight,
-  });
-
-  const imgData = canvas.toDataURL("image/png");
   const pdf = new JsPDF({
     unit: "mm",
     format: format === "A6" ? "a6" : [w, h],
@@ -113,8 +156,28 @@ export async function downloadVisitorBadgePdf(
     compress: true,
   });
 
-  pdf.addImage(imgData, "PNG", 0, 0, w, h, undefined, "SLOW");
-  pdf.save(badgeFilename(visitorName, format));
+  pdf.addImage(dataUrl, "PNG", 0, 0, w, h, undefined, "SLOW");
+  pdf.save(badgeFilename(visitorName, format, "pdf"));
+}
+
+/**
+ * Save the badge as a standalone PNG image. This is the most portable
+ * artefact — any phone or printer can open it, no PDF reader required.
+ */
+export async function downloadVisitorBadgeImage(
+  node: HTMLElement,
+  format: VisitorBadgeFormat,
+  visitorName: string,
+): Promise<void> {
+  const { blob } = await captureBadgeImage(node);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = badgeFilename(visitorName, format, "png");
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /**

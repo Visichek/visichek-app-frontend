@@ -47,9 +47,13 @@ export const PATHS = {
   APP_INCIDENTS: "/app/incidents",
   APP_AUDIT: "/app/audit",
   APP_DPO: "/app/dpo",
-  // Visitor-facing privacy notice shown at kiosk / QR check-in. Managed by
-  // super_admin + dpo (PRIVACY_NOTICE_EDIT).
+  // Visitor-facing privacy notice shown at kiosk / QR check-in. Now derived
+  // from the platform-managed Visitor Privacy Policy master — tenants can no
+  // longer author it, so this page is read-only.
   APP_DPO_PRIVACY_NOTICES: "/app/dpo/privacy-notices",
+  // Platform agreements (DPA + Visitor Privacy Policy) the tenant must accept.
+  // Visible to every tenant role; only super_admin can accept/decline.
+  APP_AGREEMENTS: "/app/agreements",
   APP_BILLING: "/app/billing",
   APP_ALERTS: "/app/alerts",
   APP_SETTINGS: "/app/settings",

@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Headphones,
   GraduationCap,
+  FileCheck,
 } from "lucide-react";
 import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
 import { MobileNavSheet } from "@/components/navigation/mobile-nav-sheet";
@@ -57,6 +58,7 @@ import {
   useNotificationStream,
 } from "@/features/notifications/hooks";
 import { useDashboardLiveStream } from "@/features/dashboard/hooks/use-dashboard-live-stream";
+import { AgreementAcceptanceBanner } from "@/features/agreements/components/agreement-acceptance-banner";
 import {
   useTenantConfirmation,
   usePendingOnboardingFields,
@@ -212,6 +214,12 @@ const ALL_TENANT_NAV_ITEMS: (GatedNavItem | GatedNavGroup)[] = [
         notificationBucket: "jobs",
       },
     ],
+  },
+  {
+    label: "Agreements",
+    href: "/app/agreements",
+    icon: FileCheck,
+    description: "Review the platform agreements your organization must accept — the Data Processing Agreement and Visitor Privacy Policy — and accept new versions when they're published",
   },
   {
     label: "Tutorials",
@@ -499,6 +507,7 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
             onSearchClick={() => setCommandOpen(true)}
           />
           <FreePlanBanner pathname={pathname} />
+          <AgreementAcceptanceBanner />
           <main id="main-content" className="p-4 lg:p-6">
             {shouldBlockChildren ? <PageSkeleton /> : children}
           </main>

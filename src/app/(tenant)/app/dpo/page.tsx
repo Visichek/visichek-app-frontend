@@ -267,14 +267,14 @@ export default function DPOPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">
-                    Edit the privacy notice visitors accept at check-in
+                    View the privacy notice visitors see at check-in
                   </p>
                 </CardContent>
               </Card>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              Open the visitor privacy notice editor — the policy and terms
-              shown at your QR / kiosk check-in
+              View the visitor privacy notice — the policy and terms shown at
+              your QR / kiosk check-in. It&apos;s now managed by VisiChek.
             </TooltipContent>
           </Tooltip>
         ) : (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowDown,
@@ -75,6 +75,21 @@ export interface ChangePlanFormProps {
   currentPlanId?: string;
   /** Currently active tier — used to detect downgrades. */
   currentPlanTier?: PlanTier;
+  /**
+   * Plan to preselect on mount — used by the `/app/billing/checkout`
+   * deep-link (e.g. from a "discount available" notification). Ignored if it
+   * doesn't match an available plan or matches the current plan.
+   */
+  initialPlanId?: string;
+  /**
+   * Discount code to auto-apply once a plan is selected — used by the
+   * checkout deep-link. Validated through `/discounts/preview`; if it can't be
+   * applied the error surfaces in the discount field rather than failing
+   * silently.
+   */
+  initialDiscountCode?: string;
+  /** Billing cycle to start on — defaults to monthly. */
+  initialBillingCycle?: BillingCycle;
 }
 
 function messageForError(error: unknown): string {
@@ -113,12 +128,22 @@ function messageForError(error: unknown): string {
 export function ChangePlanForm({
   currentPlanId,
   currentPlanTier,
+  initialPlanId,
+  initialDiscountCode,
+  initialBillingCycle,
 }: ChangePlanFormProps) {
   const router = useRouter();
   const { loadingHref } = useNavigationLoading();
 
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>(
+    initialBillingCycle ?? "monthly"
+  );
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  // Discount code carried in from a checkout deep-link, applied once a plan
+  // is selected. Cleared after the first apply attempt (success or failure).
+  const [pendingDeepLinkCode, setPendingDeepLinkCode] = useState<string | null>(
+    initialDiscountCode?.trim() || null
+  );
   // Premium plans are priced per location. Default to a single location;
   // tenants who need more bump it before paying. Free/Starter ignore this.
   const [locationCount, setLocationCount] = useState<number>(1);
@@ -180,6 +205,61 @@ export function ChangePlanForm({
     selectedPlan?.tier as PlanTier | undefined,
   );
 
+  // Deep-link bootstrap (1/2): preselect the plan passed via the query
+  // string. Runs once, after the plans list has loaded so the id can be
+  // validated. A plan that doesn't exist or is the current plan is ignored —
+  // the user just lands on the picker with nothing selected.
+  const deepLinkPlanHandled = useRef(false);
+  useEffect(() => {
+    if (deepLinkPlanHandled.current) return;
+    if (!initialPlanId) {
+      deepLinkPlanHandled.current = true;
+      return;
+    }
+    if (plans.length === 0) return; // wait for the list to load
+    const target = plans.find((p) => p.id === initialPlanId);
+    deepLinkPlanHandled.current = true;
+    if (target && target.id !== currentPlanId) {
+      setSelectedPlanId(initialPlanId);
+    }
+  }, [plans, initialPlanId, currentPlanId]);
+
+  // Deep-link bootstrap (2/2): auto-apply the discount code passed via the
+  // query string once a plan is selected. Previews are bound to
+  // (code, plan, cycle); on failure we open the discount field with the code
+  // pre-filled and show the error so the user isn't left wondering.
+  useEffect(() => {
+    if (!pendingDeepLinkCode) return;
+    if (!selectedPlan) return;
+    if (appliedCode?.kind === "discount") return;
+
+    let cancelled = false;
+    const code = pendingDeepLinkCode;
+    const planId = selectedPlan.id;
+
+    discountPreview
+      .mutateAsync({ code, planId, billingCycle })
+      .then((preview) => {
+        if (cancelled) return;
+        setAppliedCode({ kind: "discount", preview });
+        setPendingDeepLinkCode(null);
+        toast.success(`${preview.discount.name} applied.`);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setCodeOpen(true);
+        setCodeInput(code);
+        setCodeError(messageForError(err));
+        setPendingDeepLinkCode(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // discountPreview.mutateAsync is stable across renders in @tanstack/react-query.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingDeepLinkCode, selectedPlan, billingCycle]);
+
   // Auto-claim a trial the moment a trial-eligible plan is selected.
   // /trials/claim is idempotent for the same (tenant, plan), so this is
   // safe to call once per selection. Eligibility failures
@@ -191,6 +271,9 @@ export function ChangePlanForm({
     if (isEnterprise || isDowngradeSelected) return;
     if (autoTrialDismissedForPlan === selectedPlan.id) return;
     if (appliedCode !== null) return;
+    // A deep-linked discount takes precedence — let it resolve first so we
+    // don't flash a trial banner that the discount immediately replaces.
+    if (pendingDeepLinkCode) return;
 
     let cancelled = false;
     const planId = selectedPlan.id;
@@ -216,6 +299,7 @@ export function ChangePlanForm({
     isDowngradeSelected,
     autoTrialDismissedForPlan,
     appliedCode,
+    pendingDeepLinkCode,
   ]);
 
   function basePriceForCycle(plan: Plan): number {

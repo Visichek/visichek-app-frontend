@@ -15,9 +15,16 @@ export interface DataSubjectRequest {
 }
 
 export interface CreateDSRRequest {
+  /**
+   * The visitor profile this request is about. Backend (`POST /v1/dsr`)
+   * requires `visitor_profile_id`; without it the create call 422s with
+   * `VALIDATION_FAILED` / missing `visitor_profile_id`.
+   */
+  visitorProfileId: string;
   requesterName: string;
   requesterEmail?: string;
-  type: DSRType;
+  /** Backend field is `request_type`, not `type`. */
+  requestType: DSRType;
   description?: string;
 }
 
