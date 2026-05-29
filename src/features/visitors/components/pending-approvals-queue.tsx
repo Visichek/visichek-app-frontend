@@ -11,7 +11,7 @@
  * Action paths split by discriminator:
  *  - "checkin"     → /app/visitors/{checkinId}/confirm?action=approve|reject
  *  - "appointment" → POST /v1/appointments/{appointmentId}/check-in
- *                    (handled inline; downloads badge PDF on success)
+ *                    (handled inline; opens /badge/{token} on success)
  */
 
 import { useMemo, useState, type ReactNode } from "react";
@@ -80,12 +80,19 @@ import {
   AppointmentCheckInPromptModal,
   type AppointmentCheckInMissingField,
 } from "@/features/appointments/components/appointment-checkin-prompt-modal";
+import {
+  PrintBadgeModal,
+  type PrintBadgeModalData,
+} from "@/features/visitors/components/print-badge-modal";
 import { useSession } from "@/hooks/use-session";
 import { useCapabilities } from "@/hooks/use-capabilities";
 import { useShowBranch } from "@/hooks/use-show-branch";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import type { PendingApprovalItem } from "@/types/checkin";
-import type { AppointmentCheckInRequest } from "@/types/visitor";
+import type {
+  AppointmentCheckInRequest,
+  AppointmentCheckInResponse,
+} from "@/types/visitor";
 import { ApiError } from "@/types/api";
 
 /**
@@ -159,23 +166,38 @@ function checkinDetailHref(id: string) {
   return `/app/visitors/${id}`;
 }
 
+/** Default expiry hint shown on the badge when the backend doesn't supply one. */
+const BADGE_DEFAULT_TTL_SECONDS = 12 * 60 * 60;
+
 /**
- * Decode a base64-encoded PDF and trigger a browser download. Used after
- * `POST /v1/appointments/{id}/check-in` returns a fresh badge.
+ * Assemble badge data from an appointment check-in response. Snapshot
+ * strings (host/department/visitor name) are written onto the session by
+ * the backend at register-time; pull from the row's pre-vetted summary
+ * when a field is missing so the badge still renders fully.
  */
-function downloadBadgePdf(base64: string, filename: string) {
-  const byteString = atob(base64);
-  const bytes = new Uint8Array(byteString.length);
-  for (let i = 0; i < byteString.length; i++) bytes[i] = byteString.charCodeAt(i);
-  const blob = new Blob([bytes], { type: "application/pdf" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+function buildBadgeData(
+  response: AppointmentCheckInResponse,
+  row: PendingApprovalItem,
+): PrintBadgeModalData {
+  const session = response.session;
+  const issuedAt = session.checkedInAt ?? row.scheduledDatetime ?? undefined;
+  const visitorName =
+    response.visitorProfile.fullName ||
+    session.visitorNameSnapshot ||
+    row.visitorName ||
+    "Unnamed visitor";
+  return {
+    visitorName,
+    company: response.visitorProfile.company ?? row.company ?? undefined,
+    purpose: session.purpose ?? row.purpose ?? undefined,
+    hostName: session.hostNameSnapshot,
+    departmentName: session.departmentNameSnapshot,
+    statusLabel: "Checked in",
+    qrToken: response.badgeQrToken ?? "",
+    issuedAt: issuedAt ?? undefined,
+    expiresAt:
+      issuedAt !== undefined ? issuedAt + BADGE_DEFAULT_TTL_SECONDS : undefined,
+  };
 }
 
 export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) {
@@ -215,6 +237,14 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
     item: PendingApprovalItem;
     field: AppointmentCheckInMissingField;
   } | null>(null);
+  /**
+   * Badge data populated after a successful appointment check-in so the
+   * PrintBadgeModal can render the printable pass in-shell. The backend
+   * no longer ships a PDF — the FE renders from session snapshots +
+   * `badgeQrToken` instead. Cleared when the modal is dismissed.
+   */
+  const [badgePrintTarget, setBadgePrintTarget] =
+    useState<PrintBadgeModalData | null>(null);
 
   /**
    * Pending bulk-action modal state. Buttons only appear when the
@@ -323,14 +353,8 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
         body,
       });
       toast.success(`Checked in ${result.visitorProfile.fullName}`);
-      if (result.badgePdfBase64) {
-        const safeName = result.visitorProfile.fullName
-          .replace(/[^a-zA-Z0-9]+/g, "-")
-          .toLowerCase();
-        downloadBadgePdf(
-          result.badgePdfBase64,
-          `badge-${safeName || "visitor"}.pdf`,
-        );
+      if (result.badgeQrToken) {
+        setBadgePrintTarget(buildBadgeData(result, item));
       }
       return { kind: "ok" };
     } catch (err) {
@@ -1214,6 +1238,19 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
         }
         onConfirm={() => void handleBulkConfirm()}
         isSubmitting={bulkPending}
+      />
+      <PrintBadgeModal
+        open={badgePrintTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setBadgePrintTarget(null);
+        }}
+        badge={
+          badgePrintTarget ?? {
+            visitorName: "",
+            statusLabel: "Checked in",
+            qrToken: "",
+          }
+        }
       />
     </>
   );

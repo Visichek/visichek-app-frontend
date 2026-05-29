@@ -54,7 +54,6 @@ const visitorKeys = {
     departmentId?: string;
   }) => ['visitors', 'sessions', params] as const,
   session: (sessionId: string) => ['visitors', 'sessions', sessionId] as const,
-  badge: (sessionId: string) => ['visitors', 'sessions', sessionId, 'badge'] as const,
   awaitingCheckout: ['visitors', 'awaiting-checkout'] as const,
   awaitingCheckoutList: (params: {
     departmentId?: string;
@@ -119,23 +118,6 @@ export function useVisitorSession(sessionId: string) {
     },
     enabled: !!sessionId,
     staleTime: 30000,
-  });
-}
-
-/**
- * Fetch visitor badge PDF (manual trigger).
- * Enabled is false by default, manually request when needed.
- */
-export function useVisitorBadge(sessionId: string) {
-  return useQuery({
-    queryKey: visitorKeys.badge(sessionId),
-    queryFn: async () => {
-      const data = await apiGet<Blob>(
-        `/visitors/sessions/${sessionId}/badge`
-      );
-      return data;
-    },
-    enabled: false,
   });
 }
 

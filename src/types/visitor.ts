@@ -74,7 +74,16 @@ export interface VisitSession {
   checkedInBy?: string;
   checkedOutBy?: string;
   badgeQrToken?: string;
+  badgeFormat?: "A6" | "A7";
   visitorNameSnapshot?: string;
+  /**
+   * Snapshot strings stamped on the session at register-time so badges and
+   * audit reads don't have to re-resolve the host / department by id. Both
+   * are populated by the appointment check-in path and the staged check-in
+   * confirm path; legacy rows from older flows may be missing them.
+   */
+  hostNameSnapshot?: string;
+  departmentNameSnapshot?: string;
   /**
    * Phase 4 (branch isolation, queued): every visit session will carry
    * its branch id. May be missing on rows fetched before the rollout —
@@ -503,15 +512,18 @@ export interface AppointmentCheckInRequest {
 /**
  * Successful response from `POST /v1/appointments/{appointment_id}/check-in`.
  *
- * `badgeQrToken` and `badgePdfBase64` are only populated when
- * `issueBadge` was true (the default). Otherwise the session is
- * `registered` and the appointment stays `scheduled` until the badge is
- * issued via `POST /v1/visitors/check-in/{session_id}/confirm`.
+ * `badgeQrToken` is only populated when `issueBadge` was true (the
+ * default) AND the tenant's plan grants badges. Otherwise the session is
+ * `registered`, the appointment stays `scheduled`, and the receptionist
+ * issues the badge later via the staged check-in flow.
+ *
+ * The badge PDF is no longer returned — render the printable badge on
+ * the frontend from `session` snapshots + `badgeQrToken` (typically by
+ * opening `/badge/{token}`).
  */
 export interface AppointmentCheckInResponse {
   appointmentId: string;
   session: VisitSession;
   visitorProfile: VisitorProfile;
   badgeQrToken?: string;
-  badgePdfBase64?: string;
 }

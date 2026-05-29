@@ -51,7 +51,8 @@ export type SidebarNotificationBucket =
   | "content"
   | "billing"
   | "plans"
-  | "pricing";
+  | "pricing"
+  | "dsr";
 
 export interface NavItem {
   label: string;

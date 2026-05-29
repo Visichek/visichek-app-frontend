@@ -14,6 +14,47 @@ export interface DataSubjectRequest {
   updatedAt: number;
 }
 
+/**
+ * Cross-tenant DSR row returned by the platform-admin oversight endpoints
+ * (`GET /v1/admins/dsr*`). Carries the extra compliance fields the
+ * tenant-scoped `DataSubjectRequest` shape doesn't expose — SLA deadline,
+ * identity verification flag, the original receipt timestamp, and the
+ * cross-tenant `tenantId` so the row can be attributed.
+ */
+export interface AdminDataSubjectRequest {
+  id: string;
+  tenantId: string;
+  visitorProfileId?: string;
+  requestType: DSRType;
+  status: DSRStatus;
+  identityVerified?: boolean;
+  /**
+   * Unix epoch seconds when the legal SLA window closes. Mirrors the
+   * tenant's regulatory deadline; used by the "approaching SLA" and
+   * "breached SLA" queues.
+   */
+  slaDeadline?: number;
+  /** Unix epoch seconds when the DSR was received. */
+  receivedAt?: number;
+  /** Unix epoch seconds when the DSR record was created. */
+  dateCreated: number;
+  notes?: string | null;
+}
+
+/**
+ * Aggregate response from `GET /v1/admins/dsr/stats`. Drives the
+ * platform-admin compliance dashboard tile.
+ */
+export interface AdminDSRStats {
+  total: number;
+  byStatus: Partial<Record<DSRStatus, number>>;
+  byRequestType: Partial<Record<DSRType, number>>;
+  /** Open DSRs whose deadline lands in the next 24h. */
+  slaAtRisk: number;
+  /** Open DSRs whose deadline has already passed. */
+  slaBreached: number;
+}
+
 export interface CreateDSRRequest {
   /**
    * The visitor profile this request is about. Backend (`POST /v1/dsr`)

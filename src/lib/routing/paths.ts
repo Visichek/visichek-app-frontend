@@ -26,6 +26,8 @@ export const PATHS = {
   ADMIN_SUBSCRIPTIONS: "/admin/subscriptions",
   ADMIN_DISCOUNTS: "/admin/discounts",
   ADMIN_LEGAL_DOCUMENTS: "/admin/legal-documents",
+  ADMIN_DSR: "/admin/dsr",
+  ADMIN_DSR_SLA_WATCH: "/admin/dsr/sla-watch",
   ADMIN_SETTINGS: "/admin/settings",
 
   // First-login tenant-info confirmation (super_admin only). A soft gate

@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useParams } from "next/navigation";
-import { AlertCircle, Download, Loader2, Printer } from "lucide-react";
+import { AlertCircle, Loader2, Printer } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -24,10 +24,7 @@ import {
   type PrintBadgeData,
   type PrintBadgeFormat,
 } from "@/features/visitors/components/print-badge";
-import {
-  downloadVisitorBadgeImage,
-  printVisitorBadge,
-} from "@/features/visitors/lib/badge-export";
+import { printVisitorBadge } from "@/features/visitors/lib/badge-export";
 import type { VisitStatus } from "@/types/enums";
 
 const FORMAT_OPTIONS: {
@@ -66,7 +63,6 @@ export default function PublicBadgePage() {
 
   const [format, setFormat] = useState<PrintBadgeFormat>("A6");
   const [isPrinting, setIsPrinting] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
   const badgeRef = useRef<HTMLDivElement | null>(null);
 
   const badgeData = useMemo<PrintBadgeData | null>(() => {
@@ -99,27 +95,6 @@ export default function PublicBadgePage() {
       );
     } finally {
       setIsPrinting(false);
-    }
-  }
-
-  async function handleDownload() {
-    if (!badgeRef.current || isDownloading || !badgeData) return;
-    setIsDownloading(true);
-    try {
-      await downloadVisitorBadgeImage(
-        badgeRef.current,
-        format,
-        badgeData.visitorName,
-      );
-      toast.success("Badge image downloaded");
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : "Could not generate the badge image.",
-      );
-    } finally {
-      setIsDownloading(false);
     }
   }
 
@@ -162,8 +137,7 @@ export default function PublicBadgePage() {
       <div className="flex flex-col items-center gap-1.5 text-center">
         <h1 className="text-2xl font-display font-semibold">Visitor Badge</h1>
         <p className="max-w-sm text-sm text-muted-foreground">
-          Print or save your badge below, then keep it with you until you check
-          out.
+          Print your badge below, then keep it with you until you check out.
         </p>
       </div>
 
@@ -209,13 +183,13 @@ export default function PublicBadgePage() {
       </div>
 
       {/* Actions */}
-      <div className="flex w-full flex-col gap-2 sm:flex-row">
+      <div className="flex w-full">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               onClick={handlePrint}
-              disabled={isPrinting || isDownloading}
-              className="min-h-[44px] flex-1"
+              disabled={isPrinting}
+              className="min-h-[44px] w-full"
             >
               {isPrinting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
@@ -228,28 +202,6 @@ export default function PublicBadgePage() {
           <TooltipContent side="top">
             Open the print dialog and send the badge to the printer at exact{" "}
             {format} size
-          </TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              onClick={handleDownload}
-              disabled={isDownloading || isPrinting}
-              className="min-h-[44px] flex-1"
-            >
-              {isDownloading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-              )}
-              Download image
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">
-            Save the badge as a PNG image you can share or reprint from any
-            phone or printer — no PDF reader needed
           </TooltipContent>
         </Tooltip>
       </div>

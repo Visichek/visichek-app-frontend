@@ -70,6 +70,24 @@ const REWRITES: Rewrite[] = [
       tenant: "/app/visitors/",
     },
   },
+  // DSR — backend emits `/app/dsr/{id}` for tenant DPOs and
+  // `/admin/dsr/{id}` for platform admins. The tenant detail view lives
+  // under the existing `/app/dpo` page (no separate `/app/dsr` route),
+  // so rewrite the tenant path to the DPO landing page.
+  {
+    from: "/app/dsr/",
+    byAudience: {
+      admin: "/admin/dsr/",
+      tenant: "/app/dpo/",
+    },
+  },
+  {
+    from: "/admin/dsr/",
+    byAudience: {
+      admin: "/admin/dsr/",
+      tenant: "/app/dpo/",
+    },
+  },
 ];
 
 /**
@@ -92,7 +110,8 @@ export type NotificationBucket =
   | "content"
   | "billing"
   | "plans"
-  | "pricing";
+  | "pricing"
+  | "dsr";
 
 /**
  * Match a resolved path to its sidebar bucket. Used by the dashboard
@@ -117,6 +136,10 @@ const BUCKET_PATTERNS: Array<{
   { bucket: "pricing", test: (p) => p.includes("/pricing") },
   { bucket: "billing", test: (p) => p.includes("/billing") || p.includes("/subscriptions") },
   { bucket: "content", test: (p) => p.includes("/blogs") || p.includes("/media") || p.includes("/content") },
+  // DSR notifications fan out to both shells — tenant DPOs land on
+  // `/app/dsr/{id}` (which today renders inside the tenant `/app/dpo`
+  // view), platform admins land on `/admin/dsr/{id}`.
+  { bucket: "dsr", test: (p) => p.includes("/dsr") || p.includes("/dpo") },
 ];
 
 export function resolveNotificationBucket(

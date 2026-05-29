@@ -144,12 +144,14 @@ export function useUpdateAppointment() {
  * when nothing needs correction at the desk.
  *
  * On success with `issueBadge !== false` (the default): the response
- * includes `badgeQrToken` and `badgePdfBase64`, the visit-session is
- * `checked_in`, and the appointment transitions to `checked_in`.
+ * includes `badgeQrToken` (signed by the backend), the visit-session is
+ * `checked_in`, and the appointment transitions to `checked_in`. The
+ * printable badge is rendered on the frontend from `session` snapshots
+ * + `badgeQrToken` — the backend no longer ships a PDF.
  *
  * On success with `issueBadge === false`: the session is `registered`
  * and the appointment stays `scheduled` until the badge is later
- * issued via `POST /v1/visitors/check-in/{session_id}/confirm`.
+ * issued via the staged check-in confirm flow.
  *
  * Invalidates appointments, visitors, checkins, and the unified
  * pending-approvals queue so receptionist UI updates everywhere.
