@@ -36,6 +36,7 @@ import {
   useNotificationBuckets,
   useNotificationStream,
 } from "@/features/notifications/hooks";
+import { usePushAutoRefresh } from "@/features/push";
 import { useDashboardLiveStream } from "@/features/dashboard/hooks/use-dashboard-live-stream";
 import { filterAdminNavByPreset } from "@/lib/permissions/admin-access";
 
@@ -233,6 +234,9 @@ function AdminShellInner({ children }: { children: React.ReactNode }) {
   const notificationCounts = useNotificationBuckets("admin");
   // Real-time unread updates over SSE; falls back to polling when down.
   useNotificationStream();
+  // Silent push re-subscribe on login (no prompt — only when already
+  // permitted) so the backend subscription stays fresh for this admin.
+  usePushAutoRefresh();
   // Real-time platform dashboard counters over SSE (admin slice).
   useDashboardLiveStream();
 

@@ -14,6 +14,7 @@ import {
 } from "@/lib/store/session-slice";
 import { clearBranding } from "@/lib/store/branding-slice";
 import { apiPost } from "@/lib/api/request";
+import { disablePush } from "@/features/push/lib/push-client";
 import { clearUserLocation } from "@/lib/geolocation/user-location";
 import {
   beginLogoutTransition,
@@ -427,6 +428,12 @@ export function useAuth() {
     const logoutEndpoint =
       sessionType === "admin" ? "/admins/logout" : "/system-users/logout";
     const loginPath = sessionType === "admin" ? "/admin/login" : "/app/login";
+
+    // Remove this device's push subscription while cookies are still valid
+    // (the DELETE needs auth), then unsubscribe locally. Best-effort — a
+    // failure here must never block sign-out; the backend auto-prunes dead
+    // rows on the next send.
+    await disablePush().catch(() => {});
 
     try {
       beginLogoutTransition();

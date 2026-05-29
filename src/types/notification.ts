@@ -80,6 +80,19 @@ export interface NotificationPreferences {
   emailOnSubscriptionAlert: boolean;
   emailOnNewUser: boolean;
   emailOnSupportCase: boolean;
+  // Web push flags mirror the email flags. `pushEnabled` is the master
+  // server-side gate — when false, no push fires regardless of the
+  // per-event flags below. Events sent without a specific flag
+  // (operational alerts) are gated by `pushEnabled` alone. Older backend
+  // rows may omit these, so consumers read them with a `?? false` default.
+  pushEnabled: boolean;
+  pushOnIncident: boolean;
+  pushOnVisitorCheckIn: boolean;
+  pushOnAppointmentReminder: boolean;
+  pushOnDsrReceived: boolean;
+  pushOnSubscriptionAlert: boolean;
+  pushOnNewUser: boolean;
+  pushOnSupportCase: boolean;
   dateCreated: number;
   lastUpdated: number;
 }
@@ -95,5 +108,13 @@ export type NotificationPreferencesUpdate = Partial<
     | "emailOnSubscriptionAlert"
     | "emailOnNewUser"
     | "emailOnSupportCase"
+    | "pushEnabled"
+    | "pushOnIncident"
+    | "pushOnVisitorCheckIn"
+    | "pushOnAppointmentReminder"
+    | "pushOnDsrReceived"
+    | "pushOnSubscriptionAlert"
+    | "pushOnNewUser"
+    | "pushOnSupportCase"
   >
 >;

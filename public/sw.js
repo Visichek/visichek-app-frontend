@@ -14,7 +14,7 @@
 
 importScripts("https://storage.googleapis.com/workbox-cdn/releases/7.1.0/workbox-sw.js");
 
-const VERSION = "v3";
+const VERSION = "v4";
 const OFFLINE_URL = "/offline";
 // Bundled assets that the app needs the first time it boots offline: the
 // fallback shell, app icons referenced by the manifest, and the platform
@@ -117,6 +117,77 @@ self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
+});
+
+// ── Web Push ────────────────────────────────────────────────────────
+// Backend (Web Push / VAPID) delivers a JSON payload built server-side:
+//   { title, body, url, id, type }
+// The payload is already plain (no snake/camel conversion) — read keys
+// as-is. `url` is the deep-link the notification points at, e.g.
+// "/app/visitors/{id}". `id` is the notification id; we use it as the
+// `tag` so the OS collapses repeat pushes for the same notification.
+self.addEventListener("push", (event) => {
+  let payload = {};
+  if (event.data) {
+    try {
+      payload = event.data.json();
+    } catch {
+      // Some providers send a bare string body with no JSON envelope.
+      payload = { body: event.data.text() };
+    }
+  }
+
+  const title = payload.title || "VisiChek";
+  const options = {
+    body: payload.body || "",
+    // Bundled app icon (referenced by the manifest); always present.
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    // Carry the deep-link + id through to the click handler.
+    data: { url: payload.url || "/", id: payload.id, type: payload.type },
+    // Collapse repeat pushes for the same notification id.
+    tag: payload.id || undefined,
+    // Re-alert when a same-tag push arrives with new info.
+    renotify: payload.id ? true : undefined,
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Focus an already-open VisiChek tab and route it to the deep-link; open
+// a fresh window only when no client is available. `client.navigate`
+// keeps the user's existing SPA session/cookies instead of cold-loading.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || "/";
+
+  event.waitUntil(
+    (async () => {
+      const allClients = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+
+      for (const client of allClients) {
+        // Prefer a window already on our origin so we don't spawn duplicates.
+        if ("focus" in client) {
+          try {
+            if ("navigate" in client && typeof client.navigate === "function") {
+              await client.navigate(targetUrl);
+            }
+          } catch {
+            // navigate() can reject cross-origin / mid-unload — focus anyway.
+          }
+          return client.focus();
+        }
+      }
+
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+      return undefined;
+    })(),
+  );
 });
 
 const { registerRoute, setCatchHandler } = workbox.routing;

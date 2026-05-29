@@ -57,6 +57,7 @@ import {
   useNotificationBuckets,
   useNotificationStream,
 } from "@/features/notifications/hooks";
+import { usePushAutoRefresh } from "@/features/push";
 import { useDashboardLiveStream } from "@/features/dashboard/hooks/use-dashboard-live-stream";
 import { AgreementAcceptanceBanner } from "@/features/agreements/components/agreement-acceptance-banner";
 import {
@@ -325,6 +326,10 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
   const notificationCounts = useNotificationBuckets("tenant");
   // Real-time unread updates over SSE; falls back to polling when down.
   useNotificationStream();
+  // Silent push re-subscribe on login: no-ops unless push is already
+  // permitted, so it never prompts — just keeps the backend subscription
+  // fresh and re-pointed to the current user on this device.
+  usePushAutoRefresh();
   // Real-time dashboard/insights counters over SSE (best-effort; the strip
   // stays hidden until the first frame arrives).
   useDashboardLiveStream();

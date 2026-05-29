@@ -24,6 +24,7 @@ import {
   useUpdateNotificationPreferences,
   useSendTestNotification,
 } from "@/features/notifications/hooks";
+import { PushNotificationsCard } from "@/features/push";
 import type { UserSettingsUpdate, DigestFrequency } from "@/types/settings";
 import type { NotificationPreferencesUpdate } from "@/types/notification";
 
@@ -111,14 +112,7 @@ export function NotificationsTab() {
             onCheckedChange={(v) => handleUpdate({ emailNotifications: v })}
             isLoading={updateSettings.isPending}
           />
-          <SettingsToggle
-            id="pushNotifications"
-            label="Push notifications"
-            description="Get browser push notifications for time-sensitive alerts"
-            checked={userSettings?.pushNotifications ?? false}
-            onCheckedChange={(v) => handleUpdate({ pushNotifications: v })}
-            isLoading={updateSettings.isPending}
-          />
+          <PushNotificationsCard />
         </div>
 
         {/* Issue 6: surface the master-toggle dependency + test email entry. */}

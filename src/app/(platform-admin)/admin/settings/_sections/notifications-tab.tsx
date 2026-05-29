@@ -18,6 +18,7 @@ import {
   useUpdateUserSettings,
 } from "@/features/settings/hooks";
 import { useSendTestNotification } from "@/features/notifications/hooks";
+import { PushNotificationsCard } from "@/features/push";
 import type { UserSettingsUpdate, DigestFrequency } from "@/types/settings";
 
 /**
@@ -83,14 +84,7 @@ export function NotificationsTab() {
             }
             isLoading={updateSettings.isPending}
           />
-          <SettingsToggle
-            id="pushNotifications"
-            label="Push notifications"
-            description="Get browser push notifications for time-sensitive alerts"
-            checked={userSettings?.pushNotifications ?? false}
-            onCheckedChange={(v) => handleUpdate({ pushNotifications: v })}
-            isLoading={updateSettings.isPending}
-          />
+          <PushNotificationsCard />
           <SettingsToggle
             id="notifyOnSystemAlert"
             label="System alerts"
