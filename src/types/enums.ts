@@ -38,7 +38,9 @@ export type ProfilingPreference = "allowed" | "opted_out";
 
 // ── Tenant & Compliance ───────────────────────────────────────────────
 export type LawfulBasis = "consent" | "legitimate_interest";
-export type DeletionAction = "delete" | "anonymise";
+// "scheduled" = soft-deleted now, permanent deletion pending the grace window
+// (DSR erasure flow); "delete"/"anonymise" are the immediate retention actions.
+export type DeletionAction = "delete" | "anonymise" | "scheduled";
 export type NoticeDisplayMode = "passive" | "active_consent";
 export type DSRType = "access" | "correction" | "deletion" | "consent_withdrawal";
 export type DSRStatus = "pending" | "in_progress" | "completed" | "rejected";

@@ -2,16 +2,78 @@ import type { DSRType, DSRStatus, DeletionAction, NoticeDisplayMode } from "./en
 import type { Block } from "./blog";
 
 // ── Data Subject Requests ─────────────────────────────────────────────
+/**
+ * Brief visitor snapshot embedded on a DSR (`DSROut.visitor_profile_summary`)
+ * so the DPO UI can show who the request concerns without a follow-up fetch.
+ */
+export interface DSRVisitorSummary {
+  id: string;
+  fullName?: string;
+  phone?: string;
+  emailAddress?: string;
+  company?: string;
+}
+
+/**
+ * Tenant-scoped data subject request. Field names mirror the backend
+ * `DSROut` (camelCased): `requestType` / `dateCreated` / `visitorProfileId`,
+ * NOT `type` / `createdAt`. The backend carries no requester identity on the
+ * DSR itself — render the subject via `visitorProfileSummary`.
+ */
 export interface DataSubjectRequest {
   id: string;
   tenantId: string;
-  requesterName: string;
-  requesterEmail?: string;
-  type: DSRType;
+  /**
+   * The visitor profile this request concerns. The DPO needs it to fulfil a
+   * `deletion` request by erasing that profile (`DELETE /v1/visitor-profiles/{id}`).
+   */
+  visitorProfileId?: string;
+  requestType: DSRType;
   status: DSRStatus;
+  notes?: string;
+  /** Unix epoch seconds — backend `date_created`. */
+  dateCreated: number;
+  receivedAt?: number;
+  resolvedAt?: number;
+  /** Documented outcome set when the request is completed. */
+  resolution?: string;
+  /** Documented reason set when the request is rejected. */
+  rejectionReason?: string;
+  /** Embedded subject snapshot (backend `visitor_profile_summary`). */
+  visitorProfileSummary?: DSRVisitorSummary;
+
+  // ── Legacy field names kept optional for older consumers (dsr-form, public
+  // rights). The backend does NOT emit these; new code must use the fields
+  // above. ──
+  /** @deprecated Backend emits `requestType`. */
+  type?: DSRType;
+  /** @deprecated Backend has no requester identity; use `visitorProfileSummary`. */
+  requesterName?: string;
+  /** @deprecated Backend has no requester identity; use `visitorProfileSummary`. */
+  requesterEmail?: string;
   description?: string;
-  createdAt: number;
-  updatedAt: number;
+  /** @deprecated Backend emits `dateCreated`. */
+  createdAt?: number;
+  /** @deprecated Backend emits `resolvedAt`. */
+  updatedAt?: number;
+}
+
+/**
+ * A visitor profile that has been soft-deleted via a DSR erasure and is
+ * awaiting permanent deletion. Returned by
+ * `GET /v1/visitor-profiles/scheduled-deletions` (camelCase of
+ * `VisitorProfileOut`). Restorable until `scheduledPurgeAt` elapses.
+ */
+export interface ScheduledDeletionProfile {
+  id: string;
+  fullName: string;
+  phone?: string;
+  emailAddress?: string;
+  company?: string;
+  /** Unix epoch seconds the profile was soft-deleted. */
+  deletedAt?: number;
+  /** Unix epoch seconds the permanent purge sweep will hard-delete it. */
+  scheduledPurgeAt?: number;
 }
 
 /**

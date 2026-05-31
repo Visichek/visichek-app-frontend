@@ -10,6 +10,14 @@ export const CAPABILITIES = {
   VISITOR_VIEW_SESSIONS: "visitor:view_sessions",
   VISITOR_VIEW_PROFILES: "visitor:view_profiles",
   VISITOR_EDIT_PROFILE: "visitor:edit_profile",
+  /**
+   * Erase a visitor's profile data to fulfil a data-subject erasure (right
+   * to be forgotten) request: soft-deletes now and schedules a permanent
+   * purge after a grace window, with a restore window in between. Granted
+   * only to the data-protection roles (dpo + super_admin); the backend
+   * re-enforces this on `DELETE /v1/visitor-profiles/{id}`.
+   */
+  VISITOR_ERASE: "visitor:erase",
 
   // Check-in approval (pending → approved/rejected)
   CHECKIN_APPROVE: "checkin:approve",

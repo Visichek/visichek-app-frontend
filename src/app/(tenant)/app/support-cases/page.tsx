@@ -26,12 +26,12 @@ import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useSupportCases } from "@/features/support-cases/hooks/use-support-cases";
 import {
   CaseStatusBadge,
-  CasePriorityBadge,
-  CaseCategoryBadge,
+  CasePriorityDot,
   QuotaBanner,
   CASE_CATEGORY_LABELS,
+  FilterSheet,
 } from "@/features/support-cases/components";
-import { formatRelative } from "@/lib/utils/format-date";
+import { formatDateTime, formatRelative } from "@/lib/utils/format-date";
 import type { SupportCase } from "@/types/support-case";
 import type {
   SupportCaseStatus,
@@ -51,13 +51,33 @@ type StatusFilter = SupportCaseStatus | "all";
 type PriorityFilter = SupportCasePriority | "all";
 type CategoryFilter = SupportCaseCategory | "all";
 
+const SUPPORT_CASES_PAGE_SIZE = 25;
+
+const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "All statuses" },
+  { value: "open", label: "Open" },
+  { value: "acknowledged", label: "Acknowledged" },
+  { value: "in_progress", label: "In progress" },
+  { value: "awaiting_tenant", label: "Awaiting you" },
+  { value: "resolved", label: "Resolved" },
+  { value: "closed", label: "Closed" },
+  { value: "reopened", label: "Reopened" },
+];
+
+const PRIORITY_OPTIONS: { value: PriorityFilter; label: string }[] = [
+  { value: "all", label: "All priorities" },
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "critical", label: "Critical" },
+];
+
 export default function SupportCasesPage() {
   const [status, setStatus] = useState<StatusFilter>("all");
   const [priority, setPriority] = useState<PriorityFilter>("all");
   const [category, setCategory] = useState<CategoryFilter>("all");
-  const { loadingHref, handleNavClick, navigate, navigateFromOverlay } = useNavigationLoading();
+  const { loadingHref, handleNavClick, navigate } = useNavigationLoading();
 
-  const SUPPORT_CASES_PAGE_SIZE = 25;
   const [pageIndex, setPageIndex] = useState(0);
 
   useEffect(() => {
@@ -77,67 +97,61 @@ export default function SupportCasesPage() {
 
   const { data, isLoading, isError, refetch } = useSupportCases(params);
 
+  // Authoritative open-case count for the 10-case cap. Driven by the status
+  // facet (counted across ALL of the tenant's cases, independent of the
+  // current page/filter) rather than the visible page — a filtered or
+  // paginated page would mis-count. Falls back to the loaded page if the
+  // backend doesn't return facets.
+  const { data: facetData } = useSupportCases({ facets: "status", limit: 1 });
+  const statusFacets = facetData?.meta?.facets?.status;
+
   const cases = data?.items ?? [];
   const meta = data?.meta;
 
-  // Count open cases against the cap regardless of current filter.
-  const openCases = useMemo(
-    () => cases.filter((c) => OPEN_STATUSES.includes(c.status)),
-    [cases],
-  );
-  const openCount = openCases.length;
+  const openCount = useMemo(() => {
+    if (statusFacets) {
+      return OPEN_STATUSES.reduce((sum, s) => sum + (statusFacets[s] ?? 0), 0);
+    }
+    return cases.filter((c) => OPEN_STATUSES.includes(c.status)).length;
+  }, [statusFacets, cases]);
   const atCap = openCount >= 10;
+
+  const secondaryCount =
+    (priority !== "all" ? 1 : 0) + (category !== "all" ? 1 : 0);
+
+  function clearSecondary() {
+    setPriority("all");
+    setCategory("all");
+  }
 
   const columns: ColumnDef<SupportCase>[] = [
     {
       accessorKey: "subject",
       header: "Subject",
       cell: ({ row }) => {
-        const href = `/app/support-cases/${row.original.id ?? row.original._id}`;
+        const c = row.original;
+        const href = `/app/support-cases/${c.id ?? c._id}`;
         const isLoadingRow = loadingHref === href;
+        const category = CASE_CATEGORY_LABELS[c.category] ?? c.category;
         return (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link
-                href={href}
-                onClick={(event) => {
-                  if (
-                    event.defaultPrevented ||
-                    event.metaKey ||
-                    event.ctrlKey ||
-                    event.shiftKey ||
-                    event.altKey ||
-                    event.button !== 0
-                  ) {
-                    return;
-                  }
-                  event.preventDefault();
-                  navigateFromOverlay(href);
-                }}
-                className="inline-flex items-center gap-2 font-medium text-sm hover:underline"
-              >
-                {isLoadingRow && (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                )}
-                <span className="line-clamp-1">{row.original.subject}</span>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              Open this case to view the full conversation and reply
-            </TooltipContent>
-          </Tooltip>
+          <div className="min-w-0">
+            <Link
+              href={href}
+              onClick={() => handleNavClick(href)}
+              title="Open this case to view the full conversation and reply"
+              className="inline-flex items-center gap-2 text-sm font-medium hover:underline"
+            >
+              {isLoadingRow && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              )}
+              <span className="line-clamp-1">{c.subject}</span>
+            </Link>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {category}
+            </p>
+          </div>
         );
       },
-    },
-    {
-      accessorKey: "category",
-      header: "Category",
-      cell: ({ row }) => <CaseCategoryBadge category={row.original.category} />,
-    },
-    {
-      accessorKey: "priority",
-      header: "Priority",
-      cell: ({ row }) => <CasePriorityBadge priority={row.original.priority} />,
     },
     {
       accessorKey: "status",
@@ -145,20 +159,32 @@ export default function SupportCasesPage() {
       cell: ({ row }) => <CaseStatusBadge status={row.original.status} />,
     },
     {
+      accessorKey: "priority",
+      header: "Priority",
+      cell: ({ row }) => <CasePriorityDot priority={row.original.priority} />,
+    },
+    {
       accessorKey: "lastMessageAt",
       header: "Last activity",
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">
-          {formatRelative(row.original.lastMessageAt ?? row.original.lastUpdated)}
-        </span>
-      ),
       enableSorting: true,
+      cell: ({ row }) => {
+        const ts = row.original.lastMessageAt ?? row.original.lastUpdated;
+        return (
+          <span
+            className="text-sm text-muted-foreground"
+            title={formatDateTime(ts)}
+          >
+            {formatRelative(ts)}
+          </span>
+        );
+      },
     },
   ];
 
   const mobileCard = (c: SupportCase) => {
     const href = `/app/support-cases/${c.id ?? c._id}`;
     const isLoadingRow = loadingHref === href;
+    const category = CASE_CATEGORY_LABELS[c.category] ?? c.category;
     return (
       <Link
         href={href}
@@ -166,22 +192,22 @@ export default function SupportCasesPage() {
         className="block rounded-lg border p-4 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 space-y-1">
+          <div className="min-w-0 flex-1 space-y-1">
             <p className="inline-flex items-center gap-2 text-sm font-medium">
               {isLoadingRow && (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
               )}
-              {c.subject}
+              <span className="line-clamp-1">{c.subject}</span>
             </p>
-            <p className="text-xs text-muted-foreground">
-              {formatRelative(c.lastMessageAt ?? c.lastUpdated)}
-            </p>
+            <p className="truncate text-xs text-muted-foreground">{category}</p>
           </div>
           <CaseStatusBadge status={c.status} />
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <CasePriorityBadge priority={c.priority} />
-          <CaseCategoryBadge category={c.category} />
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <CasePriorityDot priority={c.priority} />
+          <span className="text-xs text-muted-foreground">
+            {formatRelative(c.lastMessageAt ?? c.lastUpdated)}
+          </span>
         </div>
       </Link>
     );
@@ -207,15 +233,15 @@ export default function SupportCasesPage() {
             <TooltipTrigger asChild>
               <span>
                 {atCap ? (
-                  <Button
-                    disabled
-                    className="w-full min-h-[44px] md:w-auto"
-                  >
+                  <Button disabled className="min-h-[44px] w-full md:w-auto">
                     <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
                     New case
                   </Button>
                 ) : (
-                  <NavButton href="/app/support-cases/new" className="w-full min-h-[44px] md:w-auto">
+                  <NavButton
+                    href="/app/support-cases/new"
+                    className="min-h-[44px] w-full md:w-auto"
+                  >
                     {loadingHref === "/app/support-cases/new" ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
                     ) : (
@@ -237,52 +263,77 @@ export default function SupportCasesPage() {
 
       <QuotaBanner openCount={openCount} />
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <FilterSelect
-          id="status-filter"
-          label="Status"
-          value={status}
-          onChange={(v) => setStatus(v as StatusFilter)}
-          options={[
-            { value: "all", label: "All statuses" },
-            { value: "open", label: "Open" },
-            { value: "acknowledged", label: "Acknowledged" },
-            { value: "in_progress", label: "In progress" },
-            { value: "awaiting_tenant", label: "Awaiting you" },
-            { value: "resolved", label: "Resolved" },
-            { value: "closed", label: "Closed" },
-            { value: "reopened", label: "Reopened" },
-          ]}
-          tooltip="Filter cases by their current workflow status"
-        />
-        <FilterSelect
-          id="priority-filter"
-          label="Priority"
-          value={priority}
-          onChange={(v) => setPriority(v as PriorityFilter)}
-          options={[
-            { value: "all", label: "All priorities" },
-            { value: "low", label: "Low" },
-            { value: "medium", label: "Medium" },
-            { value: "high", label: "High" },
-            { value: "critical", label: "Critical" },
-          ]}
-          tooltip="Filter cases by the priority you assigned when opening them"
-        />
-        <FilterSelect
-          id="category-filter"
-          label="Category"
-          value={category}
-          onChange={(v) => setCategory(v as CategoryFilter)}
-          options={[
-            { value: "all", label: "All categories" },
-            ...Object.entries(CASE_CATEGORY_LABELS).map(([value, label]) => ({
-              value,
-              label,
-            })),
-          ]}
-          tooltip="Filter cases by their subject area (billing, technical, account, etc.)"
-        />
+      {/* Inline controls: status + Filters disclosure */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="min-w-[10rem] flex-1 sm:flex-none">
+              <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>
+                <SelectTrigger className="min-h-[44px]" aria-label="Filter by status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            Filter cases by their current workflow status
+          </TooltipContent>
+        </Tooltip>
+
+        <FilterSheet
+          activeCount={secondaryCount}
+          onClear={clearSecondary}
+          description="Refine your cases by priority and category."
+        >
+          <div className="space-y-1.5">
+            <label
+              htmlFor="tenant-filter-priority"
+              className="text-xs font-medium text-muted-foreground"
+            >
+              Priority
+            </label>
+            <Select value={priority} onValueChange={(v) => setPriority(v as PriorityFilter)}>
+              <SelectTrigger id="tenant-filter-priority" className="min-h-[44px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PRIORITY_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <label
+              htmlFor="tenant-filter-category"
+              className="text-xs font-medium text-muted-foreground"
+            >
+              Category
+            </label>
+            <Select value={category} onValueChange={(v) => setCategory(v as CategoryFilter)}>
+              <SelectTrigger id="tenant-filter-category" className="min-h-[44px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {Object.entries(CASE_CATEGORY_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </FilterSheet>
       </div>
 
       {cases.length === 0 && !isLoading ? (
@@ -298,8 +349,6 @@ export default function SupportCasesPage() {
           columns={columns}
           data={cases}
           isLoading={isLoading}
-          searchKey="subject"
-          searchPlaceholder="Search by subject…"
           pagination
           serverPagination={{
             pageIndex,
@@ -319,51 +368,6 @@ export default function SupportCasesPage() {
           rowClickAriaLabel={(c) => `View support case ${c.subject ?? "details"}`}
         />
       )}
-    </div>
-  );
-}
-
-// ── Small helpers ─────────────────────────────────────────────────────
-
-function FilterSelect({
-  id,
-  label,
-  value,
-  onChange,
-  options,
-  tooltip,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-  tooltip: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className="text-xs font-medium text-muted-foreground">
-        {label}
-      </label>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div>
-            <Select value={value} onValueChange={onChange}>
-              <SelectTrigger id={id} className="min-h-[44px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {options.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="top">{tooltip}</TooltipContent>
-      </Tooltip>
     </div>
   );
 }

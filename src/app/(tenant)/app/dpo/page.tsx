@@ -1,30 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  Plus,
-  Edit2,
-  Trash2,
-  MoreHorizontal,
-  Loader2,
-} from "lucide-react";
+import { Plus, Loader2, PlayCircle, ShieldOff, XCircle } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
-import { DropdownMenuNavItem } from "@/components/recipes/dropdown-menu-nav-item";
 import { NavButton } from "@/components/recipes/nav-button";
-import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { DetailSheet } from "@/components/recipes/detail-sheet";
-import { RecordDetailList, type RecordDetailRow } from "@/components/recipes/record-detail-list";
-import { Button } from "@/components/ui/button";
+import {
+  RecordDetailList,
+  type RecordDetailRow,
+} from "@/components/recipes/record-detail-list";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipTrigger,
@@ -33,8 +21,14 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { formatDateTime } from "@/lib/utils/format-date";
-import { useDataSubjectRequests } from "@/features/dsr/hooks/use-dsr";
+import {
+  useBulkDSRAction,
+  useDataSubjectRequests,
+} from "@/features/dsr/hooks/use-dsr";
+import { DSRRowActions } from "@/features/dsr/components/dsr-row-actions";
+import { ScheduledErasuresSheet } from "@/features/dsr/components/scheduled-erasures-sheet";
 import { GeofencingComplianceCard } from "@/features/dpo/components/geofencing-compliance-card";
+import { summarizeBulkResult } from "@/lib/api/bulk";
 import { useCapabilities } from "@/hooks/use-capabilities";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
@@ -55,6 +49,16 @@ function statusVariant(status: DSRStatus) {
   }
 }
 
+/** The DSR carries no requester name; show the linked visitor's snapshot. */
+function subjectName(dsr: DataSubjectRequest): string {
+  return dsr.visitorProfileSummary?.fullName || dsr.requesterName || "Unknown visitor";
+}
+
+/** Backend emits `requestType`; tolerate the legacy `type` defensively. */
+function requestTypeLabel(dsr: DataSubjectRequest): string {
+  return (dsr.requestType ?? dsr.type ?? "").replace(/_/g, " ");
+}
+
 const DSR_PAGE_SIZE = 25;
 type DSRStatusTab = "all" | "pending" | "in_progress" | "completed" | "rejected";
 const DSR_STATUS_TABS: { value: DSRStatusTab; label: string; description: string }[] = [
@@ -68,8 +72,10 @@ const DSR_STATUS_TABS: { value: DSRStatusTab; label: string; description: string
 export default function DPOPage() {
   const { hasCapability } = useCapabilities();
   const canCreate = hasCapability(CAPABILITIES.DSR_CREATE);
+  const canEdit = hasCapability(CAPABILITIES.DSR_EDIT);
+  const canErase = hasCapability(CAPABILITIES.VISITOR_ERASE);
   const canViewPrivacyNotices = hasCapability(CAPABILITIES.PRIVACY_NOTICE_VIEW);
-  // navigateFromOverlay (not navigate): this card is wrapped in a Radix
+  // navigateFromOverlay (not navigate): these cards are wrapped in a Radix
   // Tooltip, and a plain router.push from inside a portal races the
   // page-tree swap against the tooltip unmount and crashes the React 19
   // reconciler (removeChild on null). navigateFromOverlay defers the push.
@@ -77,6 +83,8 @@ export default function DPOPage() {
 
   const [statusTab, setStatusTab] = useState<DSRStatusTab>("all");
   const [pageIndex, setPageIndex] = useState(0);
+  const [detailTarget, setDetailTarget] = useState<DataSubjectRequest | null>(null);
+  const [erasuresOpen, setErasuresOpen] = useState(false);
 
   useEffect(() => {
     setPageIndex(0);
@@ -105,40 +113,61 @@ export default function DPOPage() {
     rejected: statusFacet.rejected ?? 0,
   };
 
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [dsrToDelete, setDSRToDelete] = useState<DataSubjectRequest | undefined>();
-  const [detailTarget, setDetailTarget] = useState<DataSubjectRequest | null>(null);
+  const bulkAcknowledge = useBulkDSRAction("acknowledge");
+  const bulkReject = useBulkDSRAction("reject");
 
-  const handleDeleteClick = (dsr: DataSubjectRequest) => {
-    setDSRToDelete(dsr);
-    setDeleteDialogOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!dsrToDelete) return;
+  async function handleBulkAcknowledge(ids: string[]) {
     try {
-      // TODO: Implement delete mutation when API is available
-      toast.success("Data subject request deleted successfully");
-      setDeleteDialogOpen(false);
-      setDSRToDelete(undefined);
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to delete request"
-      );
+      const result = await bulkAcknowledge.mutateAsync({ ids });
+      const { tone, message } = summarizeBulkResult(result, "request", "acknowledged");
+      toast[tone](message);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to acknowledge requests");
     }
-  };
+  }
+
+  async function handleBulkReject(ids: string[]) {
+    try {
+      const result = await bulkReject.mutateAsync({ ids });
+      const { tone, message } = summarizeBulkResult(result, "request", "rejected");
+      toast[tone](message);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to reject requests");
+    }
+  }
+
+  const bulkActions = canEdit
+    ? [
+        {
+          label: "Acknowledge",
+          description: "Mark the selected requests as in progress",
+          icon: <PlayCircle className="h-4 w-4" aria-hidden="true" />,
+          variant: "default" as const,
+          isLoading: bulkAcknowledge.isPending,
+          onClick: (ids: string[]) => handleBulkAcknowledge(ids),
+        },
+        {
+          label: "Reject",
+          description: "Reject the selected requests",
+          icon: <XCircle className="h-4 w-4" aria-hidden="true" />,
+          variant: "destructive" as const,
+          isLoading: bulkReject.isPending,
+          onClick: (ids: string[]) => handleBulkReject(ids),
+        },
+      ]
+    : undefined;
 
   const columns: ColumnDef<DataSubjectRequest>[] = [
     {
-      accessorKey: "requesterName",
-      header: "Requester",
-      cell: ({ row }) => <span className="font-medium text-sm">{row.original.requesterName}</span>,
+      id: "subject",
+      header: "Visitor",
+      cell: ({ row }) => <span className="font-medium text-sm">{subjectName(row.original)}</span>,
     },
     {
-      accessorKey: "type",
+      id: "type",
       header: "Type",
       cell: ({ row }) => (
-        <span className="text-sm capitalize">{row.original.type.replace(/_/g, " ")}</span>
+        <span className="text-sm capitalize">{requestTypeLabel(row.original)}</span>
       ),
     },
     {
@@ -151,23 +180,18 @@ export default function DPOPage() {
       ),
     },
     {
-      accessorKey: "createdAt",
+      id: "submitted",
       header: "Submitted",
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">
-          {formatDateTime(row.original.createdAt)}
+          {formatDateTime(row.original.dateCreated ?? row.original.createdAt)}
         </span>
       ),
     },
     {
       id: "actions",
       header: "Actions",
-      cell: ({ row }) => (
-        <RowActions
-          dsr={row.original}
-          onDelete={handleDeleteClick}
-        />
-      ),
+      cell: ({ row }) => <DSRRowActions dsr={row.original} />,
       enableHiding: false,
     },
   ];
@@ -175,18 +199,17 @@ export default function DPOPage() {
   const mobileCard = (dsr: DataSubjectRequest) => (
     <div className="rounded-lg border p-4 space-y-2">
       <div className="flex items-center justify-between">
-        <span className="font-medium text-sm">{dsr.requesterName}</span>
+        <span className="font-medium text-sm">{subjectName(dsr)}</span>
         <Badge variant={statusVariant(dsr.status)}>
           {dsr.status.replace(/_/g, " ")}
         </Badge>
       </div>
       <div className="text-sm text-muted-foreground capitalize">
-        {dsr.type.replace(/_/g, " ")}
+        {requestTypeLabel(dsr)}
       </div>
-      <RowActions
-        dsr={dsr}
-        onDelete={handleDeleteClick}
-      />
+      <div className="flex justify-end">
+        <DSRRowActions dsr={dsr} />
+      </div>
     </div>
   );
 
@@ -194,7 +217,7 @@ export default function DPOPage() {
     <div className="space-y-6">
       <PageHeader
         title="Data Protection"
-        description="Data subject requests, retention policies, and compliance"
+        description="Manage data subject requests and visitor data erasure"
         actions={
           canCreate ? (
             <Tooltip>
@@ -217,31 +240,41 @@ export default function DPOPage() {
       />
 
       {/* Quick links */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Card className="cursor-pointer hover:bg-accent/50 transition-colors">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              Retention Policies
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Manage data retention rules
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="cursor-pointer hover:bg-accent/50 transition-colors">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">
-              Sub-Processors
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Track third-party processors
-            </p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {canErase && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Card
+                role="button"
+                tabIndex={0}
+                onClick={() => setErasuresOpen(true)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setErasuresOpen(true);
+                  }
+                }}
+                className="cursor-pointer transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    <ShieldOff className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    Scheduled erasures
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    Review and restore visitor data awaiting permanent deletion
+                  </p>
+                </CardContent>
+              </Card>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              Visitor profiles soft-deleted by an erasure request. Restore one
+              before its grace window closes.
+            </TooltipContent>
+          </Tooltip>
+        )}
         {canViewPrivacyNotices ? (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -328,21 +361,24 @@ export default function DPOPage() {
           hasMore: meta?.hasMore,
           onPageChange: setPageIndex,
         }}
+        selectable={canEdit}
+        getRowId={(dsr) => dsr.id}
+        itemNoun="requests"
+        bulkActions={bulkActions}
         emptyTitle="No data subject requests"
         emptyDescription="Requests from data subjects will appear here."
         mobileCard={mobileCard}
-        getRowId={(dsr) => dsr.id}
         onRowClick={(dsr) => setDetailTarget(dsr)}
-        rowClickAriaLabel={(dsr) => `View request from ${dsr.requesterName}`}
+        rowClickAriaLabel={(dsr) => `View request from ${subjectName(dsr)}`}
       />
 
       <DetailSheet
         open={!!detailTarget}
         onOpenChange={(open) => { if (!open) setDetailTarget(null); }}
-        title={detailTarget ? `Request from ${detailTarget.requesterName}` : ""}
+        title={detailTarget ? `Request from ${subjectName(detailTarget)}` : ""}
         description={
           detailTarget
-            ? `${detailTarget.type.replace(/_/g, " ")} request — created ${formatDateTime(detailTarget.createdAt)}`
+            ? `${requestTypeLabel(detailTarget)} request — created ${formatDateTime(detailTarget.dateCreated ?? detailTarget.createdAt)}`
             : undefined
         }
       >
@@ -362,29 +398,43 @@ export default function DPOPage() {
                   label: "Type",
                   value: (
                     <span className="capitalize">
-                      {detailTarget.type.replace(/_/g, " ")}
+                      {requestTypeLabel(detailTarget)}
                     </span>
                   ),
                 },
                 {
-                  label: "Requester",
-                  value: detailTarget.requesterName,
+                  label: "Visitor",
+                  value: subjectName(detailTarget),
                 },
                 {
                   label: "Email",
-                  value: detailTarget.requesterEmail,
+                  value:
+                    detailTarget.visitorProfileSummary?.emailAddress ??
+                    detailTarget.requesterEmail,
                 },
                 {
                   label: "Created",
-                  value: formatDateTime(detailTarget.createdAt),
+                  value: formatDateTime(detailTarget.dateCreated ?? detailTarget.createdAt),
                 },
                 {
-                  label: "Last updated",
-                  value: formatDateTime(detailTarget.updatedAt),
+                  label: "Resolved",
+                  value: detailTarget.resolvedAt
+                    ? formatDateTime(detailTarget.resolvedAt)
+                    : undefined,
                 },
                 {
-                  label: "Description",
-                  value: detailTarget.description,
+                  label: "Resolution",
+                  value: detailTarget.resolution,
+                  full: true,
+                },
+                {
+                  label: "Rejection reason",
+                  value: detailTarget.rejectionReason,
+                  full: true,
+                },
+                {
+                  label: "Notes",
+                  value: detailTarget.notes ?? detailTarget.description,
                   full: true,
                 },
               ] as RecordDetailRow[]
@@ -393,57 +443,7 @@ export default function DPOPage() {
         )}
       </DetailSheet>
 
-      <ConfirmDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        title="Delete Data Subject Request"
-        description={`Are you sure you want to delete the request from "${dsrToDelete?.requesterName}"? This action cannot be undone.`}
-        confirmLabel="Delete"
-        variant="destructive"
-        isLoading={false}
-        onConfirm={handleDeleteConfirm}
-      />
+      <ScheduledErasuresSheet open={erasuresOpen} onOpenChange={setErasuresOpen} />
     </div>
-  );
-}
-
-function RowActions({
-  dsr,
-  onDelete,
-}: {
-  dsr: DataSubjectRequest;
-  onDelete: (d: DataSubjectRequest) => void;
-}) {
-  const editHref = `/app/dpo/requests/${dsr.id}/edit`;
-  return (
-    <DropdownMenu>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-              <span className="sr-only">Actions</span>
-            </Button>
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="left">
-          Open actions for this data subject request
-        </TooltipContent>
-      </Tooltip>
-      <DropdownMenuContent align="end">
-        <DropdownMenuNavItem
-          href={editHref}
-          label="Edit"
-          icon={<Edit2 className="h-4 w-4" aria-hidden="true" />}
-        />
-        <DropdownMenuItem
-          onClick={() => onDelete(dsr)}
-          className="text-destructive"
-        >
-          <Trash2 className="mr-2 h-4 w-4" />
-          Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }

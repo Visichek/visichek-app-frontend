@@ -135,6 +135,13 @@ export interface SupportCaseListParams {
   status?: SupportCaseStatus;
   priority?: SupportCasePriority;
   category?: SupportCaseCategory;
+  /**
+   * Comma-separated facet fields to compute. Only `status` is on the backend
+   * allowlist for support cases; the response carries
+   * `meta.facets.status = { open, ..., all }` counted independently of the
+   * status filter — use it for the tenant open-case quota.
+   */
+  facets?: string;
 }
 
 /**

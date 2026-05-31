@@ -3,14 +3,30 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
-import { AlarmClock, Loader2, Search, X } from "lucide-react";
+import { toast } from "sonner";
+import {
+  AlarmClock,
+  Loader2,
+  RefreshCw,
+  Search,
+  UserPlus,
+  X,
+  XCircle,
+} from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
-import { DataTable } from "@/components/recipes/data-table";
+import {
+  DataTable,
+  type DataTableBulkAction,
+} from "@/components/recipes/data-table";
+import { summarizeBulkResult } from "@/lib/api/bulk";
 import { NavButton } from "@/components/recipes/nav-button";
+import { ResponsiveModal } from "@/components/recipes/responsive-modal";
+import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { LoadingButton } from "@/components/feedback/loading-button";
 import {
   Select,
   SelectContent,
@@ -25,16 +41,25 @@ import {
 } from "@/components/ui/tooltip";
 import { ErrorState } from "@/components/feedback/error-state";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
-import { useAdminSupportCases } from "@/features/support-cases/hooks/use-admin-support-cases";
+import {
+  useAdminSupportCases,
+  useBulkAdminSupportCaseAction,
+} from "@/features/support-cases/hooks/use-admin-support-cases";
 import { useTenantList } from "@/features/auth/hooks/use-admin-dashboard";
 import {
   CaseStatusBadge,
-  CasePriorityBadge,
-  CaseCategoryBadge,
+  CasePriorityDot,
   CASE_CATEGORY_LABELS,
+  AdminSearchCombobox,
+  FilterSheet,
+  getInitials,
 } from "@/features/support-cases/components";
-import { formatRelative } from "@/lib/utils/format-date";
-import type { SupportCase, AdminSupportCaseSort } from "@/types/support-case";
+import { formatDateTime, formatRelative } from "@/lib/utils/format-date";
+import type {
+  SupportCase,
+  AdminSupportCaseSort,
+} from "@/types/support-case";
+import type { AdminSearchResult } from "@/types/admin";
 import type {
   SupportCaseStatus,
   SupportCasePriority,
@@ -44,19 +69,27 @@ import type {
 type StatusFilter = SupportCaseStatus | "all";
 type PriorityFilter = SupportCasePriority | "all";
 type CategoryFilter = SupportCaseCategory | "all";
+type BulkAction = "assign" | "status" | "close";
 
 const SUPPORT_CASES_PAGE_SIZE = 25;
 const DEFAULT_SORT: AdminSupportCaseSort = "-date_created";
 
+const STATUS_LABELS: Record<SupportCaseStatus, string> = {
+  open: "Open",
+  acknowledged: "Acknowledged",
+  in_progress: "In progress",
+  awaiting_tenant: "Awaiting tenant",
+  resolved: "Resolved",
+  closed: "Closed",
+  reopened: "Reopened",
+};
+
 const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "All statuses" },
-  { value: "open", label: "Open" },
-  { value: "acknowledged", label: "Acknowledged" },
-  { value: "in_progress", label: "In progress" },
-  { value: "awaiting_tenant", label: "Awaiting tenant" },
-  { value: "resolved", label: "Resolved" },
-  { value: "closed", label: "Closed" },
-  { value: "reopened", label: "Reopened" },
+  ...(Object.keys(STATUS_LABELS) as SupportCaseStatus[]).map((s) => ({
+    value: s,
+    label: STATUS_LABELS[s],
+  })),
 ];
 
 const PRIORITY_OPTIONS: { value: PriorityFilter; label: string }[] = [
@@ -76,7 +109,16 @@ const SORT_OPTIONS: { value: AdminSupportCaseSort; label: string }[] = [
   { value: "status", label: "Status (A–Z)" },
 ];
 
-/** Local YYYY-MM-DD → unix epoch seconds at the start of that day. */
+/** Statuses an admin can move cases into in bulk. */
+const BULK_STATUS_OPTIONS: SupportCaseStatus[] = [
+  "acknowledged",
+  "in_progress",
+  "awaiting_tenant",
+  "resolved",
+  "closed",
+];
+
+/** Local YYYY-MM-DD → unix epoch seconds at the start/end of that day. */
 function dateStringToEpoch(value: string, endOfDay = false): number | undefined {
   if (!value) return undefined;
   const [y, m, d] = value.split("-").map(Number);
@@ -88,21 +130,48 @@ function dateStringToEpoch(value: string, endOfDay = false): number | undefined 
   return Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined;
 }
 
-export default function AdminSupportCasesPage() {
-  const { loadingHref, handleNavClick, navigateFromOverlay } = useNavigationLoading();
+function truncateId(id: string): string {
+  if (id.length <= 12) return id;
+  return `${id.slice(0, 6)}…${id.slice(-4)}`;
+}
 
-  // Filters
+function plural(n: number): string {
+  return n === 1 ? "" : "s";
+}
+
+export default function AdminSupportCasesPage() {
+  const { loadingHref, handleNavClick } = useNavigationLoading();
+
+  // Inline filters
   const [searchInput, setSearchInput] = useState("");
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
+
+  // Secondary filters (live behind the Filters sheet)
   const [priority, setPriority] = useState<PriorityFilter>("all");
   const [category, setCategory] = useState<CategoryFilter>("all");
   const [tenantId, setTenantId] = useState("all");
+  const [assignee, setAssignee] = useState<AdminSearchResult | null>(null);
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
   const [sort, setSort] = useState<AdminSupportCaseSort>(DEFAULT_SORT);
 
   const [pageIndex, setPageIndex] = useState(0);
+  // Bumped after a bulk mutation to remount the table and clear its selection.
+  const [tableKey, setTableKey] = useState(0);
+
+  // Bulk-action dialog state
+  const [bulkTarget, setBulkTarget] = useState<{
+    action: BulkAction;
+    ids: string[];
+  } | null>(null);
+  const [bulkAssignee, setBulkAssignee] = useState<AdminSearchResult | null>(null);
+  const [bulkStatusValue, setBulkStatusValue] =
+    useState<SupportCaseStatus>("acknowledged");
+
+  const bulkAssign = useBulkAdminSupportCaseAction("assign");
+  const bulkStatus = useBulkAdminSupportCaseAction("status");
+  const bulkClose = useBulkAdminSupportCaseAction("close");
 
   // Debounce the free-text search so each keystroke doesn't fire a request.
   useEffect(() => {
@@ -123,7 +192,7 @@ export default function AdminSupportCasesPage() {
   // Reset to the first page whenever the result set changes.
   useEffect(() => {
     setPageIndex(0);
-  }, [q, status, priority, category, tenantId, createdFrom, createdTo, sort]);
+  }, [q, status, priority, category, tenantId, assignee, createdFrom, createdTo, sort]);
 
   const params = useMemo(
     () => ({
@@ -132,22 +201,21 @@ export default function AdminSupportCasesPage() {
       priority: priority === "all" ? undefined : priority,
       category: category === "all" ? undefined : category,
       tenantId: tenantId === "all" ? undefined : tenantId,
+      assigneeId: assignee?.id,
       createdAtGte: dateStringToEpoch(createdFrom),
       createdAtLte: dateStringToEpoch(createdTo, true),
-      // Only send `sort` when it differs from the backend default so the
-      // unfiltered first page keeps hitting the precompute cache fast-path.
       sort: sort === DEFAULT_SORT ? undefined : sort,
       skip: pageIndex * SUPPORT_CASES_PAGE_SIZE,
       limit: SUPPORT_CASES_PAGE_SIZE,
     }),
-    [q, status, priority, category, tenantId, createdFrom, createdTo, sort, pageIndex],
+    [q, status, priority, category, tenantId, assignee, createdFrom, createdTo, sort, pageIndex],
   );
 
   const { data, isLoading, isFetching, isError, refetch } = useAdminSupportCases(params);
   const cases = data?.items ?? [];
   const meta = data?.meta;
 
-  // Active-filter chips (search + each non-default filter).
+  // ── Filter summary chips ────────────────────────────────────────────
   const activeChips = useMemo(() => {
     const chips: { key: string; label: string; clear: () => void }[] = [];
     if (q.length >= 2)
@@ -155,7 +223,7 @@ export default function AdminSupportCasesPage() {
     if (status !== "all")
       chips.push({
         key: "status",
-        label: `Status: ${STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status}`,
+        label: `Status: ${STATUS_LABELS[status]}`,
         clear: () => setStatus("all"),
       });
     if (priority !== "all")
@@ -176,104 +244,162 @@ export default function AdminSupportCasesPage() {
         label: `Tenant: ${tenantOptions.find((o) => o.value === tenantId)?.label ?? tenantId}`,
         clear: () => setTenantId("all"),
       });
+    if (assignee)
+      chips.push({
+        key: "assignee",
+        label: `Assignee: ${assignee.fullName}`,
+        clear: () => setAssignee(null),
+      });
     if (createdFrom)
       chips.push({ key: "from", label: `From: ${createdFrom}`, clear: () => setCreatedFrom("") });
     if (createdTo)
       chips.push({ key: "to", label: `To: ${createdTo}`, clear: () => setCreatedTo("") });
     return chips;
-  }, [q, status, priority, category, tenantId, createdFrom, createdTo, tenantOptions]);
+  }, [q, status, priority, category, tenantId, assignee, createdFrom, createdTo, tenantOptions]);
+
+  // Count only the filters that live behind the Filters sheet (search + status
+  // are inline, so they don't contribute to the Filters badge).
+  const secondaryCount =
+    (priority !== "all" ? 1 : 0) +
+    (category !== "all" ? 1 : 0) +
+    (tenantId !== "all" ? 1 : 0) +
+    (assignee ? 1 : 0) +
+    (createdFrom ? 1 : 0) +
+    (createdTo ? 1 : 0) +
+    (sort !== DEFAULT_SORT ? 1 : 0);
 
   const hasActiveFilters = activeChips.length > 0 || sort !== DEFAULT_SORT;
 
-  function clearAll() {
-    setSearchInput("");
-    setStatus("all");
+  function clearSecondary() {
     setPriority("all");
     setCategory("all");
     setTenantId("all");
+    setAssignee(null);
     setCreatedFrom("");
     setCreatedTo("");
     setSort(DEFAULT_SORT);
   }
 
+  function clearAll() {
+    setSearchInput("");
+    setStatus("all");
+    clearSecondary();
+  }
+
+  // ── Bulk actions ────────────────────────────────────────────────────
+  const cancelBulk = () => {
+    setBulkTarget(null);
+    setBulkAssignee(null);
+  };
+
+  const finishBulk = () => {
+    cancelBulk();
+    setTableKey((k) => k + 1); // remount table → clears selection
+  };
+
+  const runBulkAssign = async () => {
+    if (!bulkTarget || !bulkAssignee) return;
+    try {
+      const result = await bulkAssign.mutateAsync({
+        ids: bulkTarget.ids,
+        assigneeId: bulkAssignee.id,
+      });
+      const { tone, message } = summarizeBulkResult(result, "case", "assigned");
+      toast[tone](message);
+      finishBulk();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't assign the cases");
+    }
+  };
+
+  const runBulkStatus = async () => {
+    if (!bulkTarget) return;
+    try {
+      const result = await bulkStatus.mutateAsync({
+        ids: bulkTarget.ids,
+        status: bulkStatusValue,
+      });
+      const { tone, message } = summarizeBulkResult(result, "case", "updated");
+      toast[tone](message);
+      finishBulk();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't update the cases");
+    }
+  };
+
+  const runBulkClose = async () => {
+    if (!bulkTarget) return;
+    try {
+      const result = await bulkClose.mutateAsync({ ids: bulkTarget.ids });
+      const { tone, message } = summarizeBulkResult(result, "case", "closed");
+      toast[tone](message);
+      finishBulk();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't close the cases");
+    }
+  };
+
+  const bulkActions: DataTableBulkAction<SupportCase>[] = [
+    {
+      label: "Assign",
+      description: "Assign the selected cases to an admin",
+      icon: <UserPlus className="h-4 w-4" aria-hidden="true" />,
+      onClick: (ids) => {
+        setBulkAssignee(null);
+        setBulkTarget({ action: "assign", ids });
+      },
+    },
+    {
+      label: "Change status",
+      description: "Move the selected cases to a new workflow status",
+      icon: <RefreshCw className="h-4 w-4" aria-hidden="true" />,
+      onClick: (ids) => {
+        setBulkStatusValue("acknowledged");
+        setBulkTarget({ action: "status", ids });
+      },
+    },
+    {
+      label: "Close",
+      description: "Close the selected cases — tenants can reopen them",
+      icon: <XCircle className="h-4 w-4" aria-hidden="true" />,
+      variant: "destructive",
+      onClick: (ids) => setBulkTarget({ action: "close", ids }),
+    },
+  ];
+
+  // ── Columns ─────────────────────────────────────────────────────────
   const columns: ColumnDef<SupportCase>[] = [
     {
       accessorKey: "subject",
       header: "Subject",
       enableSorting: false,
       cell: ({ row }) => {
-        const id = row.original.id ?? row.original._id ?? "";
+        const c = row.original;
+        const id = c.id ?? c._id ?? "";
         const href = `/admin/support-cases/${id}`;
         const isLoadingRow = loadingHref === href;
+        const tenantName =
+          c.tenantSummary?.companyName?.trim() || truncateId(c.tenantId);
+        const category = CASE_CATEGORY_LABELS[c.category] ?? c.category;
         return (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link
-                href={href}
-                onClick={(event) => {
-                  // Intercept plain left-click only; preserve cmd/ctrl/middle
-                  // for open-in-new-tab. The defer is what stops the page-tree
-                  // swap from racing the tooltip portal unmount.
-                  if (
-                    event.defaultPrevented ||
-                    event.metaKey ||
-                    event.ctrlKey ||
-                    event.shiftKey ||
-                    event.altKey ||
-                    event.button !== 0
-                  ) {
-                    return;
-                  }
-                  event.preventDefault();
-                  navigateFromOverlay(href);
-                }}
-                className="inline-flex items-center gap-2 font-medium text-sm hover:underline"
-              >
-                {isLoadingRow && (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                )}
-                <span className="line-clamp-1">{row.original.subject}</span>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              Open this case to view the thread and respond
-            </TooltipContent>
-          </Tooltip>
+          <div className="min-w-0">
+            <Link
+              href={href}
+              onClick={() => handleNavClick(href)}
+              title="Open this case to view the thread and respond"
+              className="inline-flex items-center gap-2 text-sm font-medium hover:underline"
+            >
+              {isLoadingRow && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              )}
+              <span className="line-clamp-1">{c.subject}</span>
+            </Link>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {tenantName} · {category}
+            </p>
+          </div>
         );
       },
-    },
-    {
-      accessorKey: "tenantId",
-      header: "Tenant",
-      enableSorting: false,
-      cell: ({ row }) => {
-        const summary = row.original.tenantSummary;
-        const name = summary?.companyName?.trim();
-        const country = summary?.countryOfHosting;
-        return (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="block max-w-[180px] truncate text-sm">
-                {name || (
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {truncateId(row.original.tenantId)}
-                  </span>
-                )}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              <span className="font-mono text-xs">{row.original.tenantId}</span>
-              {country ? ` · ${country}` : ""}
-            </TooltipContent>
-          </Tooltip>
-        );
-      },
-    },
-    {
-      accessorKey: "priority",
-      header: "Priority",
-      enableSorting: false,
-      cell: ({ row }) => <CasePriorityBadge priority={row.original.priority} />,
     },
     {
       accessorKey: "status",
@@ -282,10 +408,10 @@ export default function AdminSupportCasesPage() {
       cell: ({ row }) => <CaseStatusBadge status={row.original.status} />,
     },
     {
-      accessorKey: "category",
-      header: "Category",
+      accessorKey: "priority",
+      header: "Priority",
       enableSorting: false,
-      cell: ({ row }) => <CaseCategoryBadge category={row.original.category} />,
+      cell: ({ row }) => <CasePriorityDot priority={row.original.priority} />,
     },
     {
       id: "assignedAdmin",
@@ -293,10 +419,19 @@ export default function AdminSupportCasesPage() {
       enableSorting: false,
       cell: ({ row }) => {
         const name = row.original.assignedAdminSummary?.fullName?.trim();
-        return name ? (
-          <span className="text-sm">{name}</span>
-        ) : (
-          <span className="text-xs text-muted-foreground">Unassigned</span>
+        if (!name) {
+          return <span className="text-xs text-muted-foreground">Unassigned</span>;
+        }
+        return (
+          <span
+            className="inline-flex items-center gap-2"
+            title={`Assigned to ${name}`}
+          >
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
+              {getInitials(name)}
+            </span>
+            <span className="max-w-[120px] truncate text-sm">{name}</span>
+          </span>
         );
       },
     },
@@ -304,11 +439,17 @@ export default function AdminSupportCasesPage() {
       accessorKey: "lastMessageAt",
       header: "Last activity",
       enableSorting: false,
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">
-          {formatRelative(row.original.lastMessageAt ?? row.original.lastUpdated)}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const ts = row.original.lastMessageAt ?? row.original.lastUpdated;
+        return (
+          <span
+            className="text-sm text-muted-foreground"
+            title={formatDateTime(ts)}
+          >
+            {formatRelative(ts)}
+          </span>
+        );
+      },
     },
   ];
 
@@ -316,8 +457,10 @@ export default function AdminSupportCasesPage() {
     const id = c.id ?? c._id ?? "";
     const href = `/admin/support-cases/${id}`;
     const isLoadingRow = loadingHref === href;
-    const tenantName = c.tenantSummary?.companyName?.trim() || truncateId(c.tenantId);
-    const assignee = c.assignedAdminSummary?.fullName?.trim();
+    const tenantName =
+      c.tenantSummary?.companyName?.trim() || truncateId(c.tenantId);
+    const category = CASE_CATEGORY_LABELS[c.category] ?? c.category;
+    const assigneeName = c.assignedAdminSummary?.fullName?.trim();
     return (
       <Link
         href={href}
@@ -325,21 +468,23 @@ export default function AdminSupportCasesPage() {
         className="block rounded-lg border p-4 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 space-y-1">
+          <div className="min-w-0 flex-1 space-y-1">
             <p className="inline-flex items-center gap-2 text-sm font-medium">
               {isLoadingRow && (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
               )}
-              {c.subject}
+              <span className="line-clamp-1">{c.subject}</span>
             </p>
-            <p className="text-xs text-muted-foreground">{tenantName}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {tenantName} · {category}
+            </p>
           </div>
           <CaseStatusBadge status={c.status} />
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <CasePriorityBadge priority={c.priority} />
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <CasePriorityDot priority={c.priority} />
           <span className="text-xs text-muted-foreground">
-            {assignee ? `Assigned: ${assignee}` : "Unassigned"}
+            {assigneeName ? `Assigned: ${assigneeName}` : "Unassigned"}
           </span>
         </div>
       </Link>
@@ -355,11 +500,13 @@ export default function AdminSupportCasesPage() {
     );
   }
 
+  const bulkCount = bulkTarget?.ids.length ?? 0;
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Support Cases"
-        description="Every case across all tenants. Search, filter, and sort to narrow the queue."
+        description="Every case across all tenants. Search, filter, and act on the queue."
         actions={
           <Tooltip>
             <TooltipTrigger asChild>
@@ -383,105 +530,137 @@ export default function AdminSupportCasesPage() {
         }
       />
 
-      {/* Single search bar — matches subject + description server-side. */}
-      <div className="relative">
-        <Search
-          className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-          aria-hidden="true"
-        />
-        <Input
-          type="search"
-          placeholder="Search cases by subject or description…"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          className="min-h-[44px] pl-10 text-base md:text-sm"
-          aria-label="Search support cases"
-        />
-        {isFetching && searchInput && (
-          <Loader2
-            className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground"
+      {/* Inline controls: search + status + Filters disclosure */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="relative flex-1">
+          <Search
+            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
             aria-hidden="true"
           />
-        )}
-      </div>
-
-      {/* Filters */}
-      <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-5">
-        <FilterSelect
-          id="admin-status"
-          label="Status"
-          value={status}
-          onChange={(v) => setStatus(v as StatusFilter)}
-          options={STATUS_OPTIONS}
-          tooltip="Filter by workflow status — e.g. show only Resolved or Awaiting tenant cases"
-        />
-        <FilterSelect
-          id="admin-priority"
-          label="Priority"
-          value={priority}
-          onChange={(v) => setPriority(v as PriorityFilter)}
-          options={PRIORITY_OPTIONS}
-          tooltip="Filter by the tenant-declared priority of each case"
-        />
-        <FilterSelect
-          id="admin-category"
-          label="Category"
-          value={category}
-          onChange={(v) => setCategory(v as CategoryFilter)}
-          options={[
-            { value: "all", label: "All categories" },
-            ...Object.entries(CASE_CATEGORY_LABELS).map(([value, label]) => ({
-              value,
-              label,
-            })),
-          ]}
-          tooltip="Filter by the tenant-declared subject area"
-        />
-        <FilterSelect
-          id="admin-tenant"
-          label="Tenant"
-          value={tenantId}
-          onChange={setTenantId}
-          options={[{ value: "all", label: "All tenants" }, ...tenantOptions]}
-          tooltip="Show only cases opened by a specific tenant company"
-        />
-        <FilterSelect
-          id="admin-sort"
-          label="Sort by"
-          value={sort}
-          onChange={(v) => setSort(v as AdminSupportCaseSort)}
-          options={SORT_OPTIONS}
-          tooltip="Change the order cases are listed in"
-        />
-      </div>
-
-      {/* Created-date range */}
-      <div className="grid gap-3 md:grid-cols-2 lg:max-w-md">
-        <div className="space-y-1.5">
-          <Label htmlFor="created-from" className="text-xs font-medium text-muted-foreground">
-            Created from
-          </Label>
           <Input
-            id="created-from"
-            type="date"
-            value={createdFrom}
-            max={createdTo || undefined}
-            onChange={(e) => setCreatedFrom(e.target.value)}
-            className="min-h-[44px] text-base md:text-sm"
+            type="search"
+            placeholder="Search cases by subject or description…"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="min-h-[44px] pl-10 text-base md:text-sm"
+            aria-label="Search support cases"
           />
+          {isFetching && searchInput && (
+            <Loader2
+              className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground"
+              aria-hidden="true"
+            />
+          )}
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="created-to" className="text-xs font-medium text-muted-foreground">
-            Created to
-          </Label>
-          <Input
-            id="created-to"
-            type="date"
-            value={createdTo}
-            min={createdFrom || undefined}
-            onChange={(e) => setCreatedTo(e.target.value)}
-            className="min-h-[44px] text-base md:text-sm"
-          />
+
+        <div className="flex items-center gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="min-w-[10rem]">
+                <Select
+                  value={status}
+                  onValueChange={(v) => setStatus(v as StatusFilter)}
+                >
+                  <SelectTrigger
+                    className="min-h-[44px]"
+                    aria-label="Filter by status"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              Filter by workflow status — e.g. show only Resolved or Awaiting tenant cases
+            </TooltipContent>
+          </Tooltip>
+
+          <FilterSheet
+            activeCount={secondaryCount}
+            onClear={clearSecondary}
+            description="Refine the queue by priority, category, tenant, assignee, date, and sort order."
+          >
+            <FilterSelect
+              id="filter-priority"
+              label="Priority"
+              value={priority}
+              onChange={(v) => setPriority(v as PriorityFilter)}
+              options={PRIORITY_OPTIONS}
+            />
+            <FilterSelect
+              id="filter-category"
+              label="Category"
+              value={category}
+              onChange={(v) => setCategory(v as CategoryFilter)}
+              options={[
+                { value: "all", label: "All categories" },
+                ...Object.entries(CASE_CATEGORY_LABELS).map(([value, label]) => ({
+                  value,
+                  label,
+                })),
+              ]}
+            />
+            <FilterSelect
+              id="filter-tenant"
+              label="Tenant"
+              value={tenantId}
+              onChange={setTenantId}
+              options={[{ value: "all", label: "All tenants" }, ...tenantOptions]}
+            />
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">
+                Assigned admin
+              </Label>
+              <AdminSearchCombobox
+                id="filter-assignee"
+                selected={assignee}
+                onSelect={setAssignee}
+                placeholder="Filter by assigned admin…"
+              />
+            </div>
+            <FilterSelect
+              id="filter-sort"
+              label="Sort by"
+              value={sort}
+              onChange={(v) => setSort(v as AdminSupportCaseSort)}
+              options={SORT_OPTIONS}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="created-from" className="text-xs font-medium text-muted-foreground">
+                  Created from
+                </Label>
+                <Input
+                  id="created-from"
+                  type="date"
+                  value={createdFrom}
+                  max={createdTo || undefined}
+                  onChange={(e) => setCreatedFrom(e.target.value)}
+                  className="min-h-[44px] text-base md:text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="created-to" className="text-xs font-medium text-muted-foreground">
+                  Created to
+                </Label>
+                <Input
+                  id="created-to"
+                  type="date"
+                  value={createdTo}
+                  min={createdFrom || undefined}
+                  onChange={(e) => setCreatedTo(e.target.value)}
+                  className="min-h-[44px] text-base md:text-sm"
+                />
+              </div>
+            </div>
+          </FilterSheet>
         </div>
       </div>
 
@@ -508,12 +687,7 @@ export default function AdminSupportCasesPage() {
           ))}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearAll}
-                className="h-8 gap-1.5"
-              >
+              <Button variant="ghost" size="sm" onClick={clearAll} className="h-8 gap-1.5">
                 <X className="h-4 w-4" aria-hidden="true" />
                 Clear all
               </Button>
@@ -526,10 +700,15 @@ export default function AdminSupportCasesPage() {
       )}
 
       <DataTable
+        key={tableKey}
         columns={columns}
         data={cases}
         isLoading={isLoading}
         pagination
+        selectable
+        getRowId={(c) => c.id ?? c._id ?? ""}
+        itemNoun="case"
+        bulkActions={bulkActions}
         serverPagination={{
           pageIndex,
           pageSize: SUPPORT_CASES_PAGE_SIZE,
@@ -540,12 +719,106 @@ export default function AdminSupportCasesPage() {
         mobileCard={mobileCard}
         emptyTitle="No cases match your filters"
         emptyDescription="Adjust or clear the filters to see more results."
-        getRowId={(c) => c.id ?? c._id ?? ""}
         getRowHref={(c) => {
           const id = c.id ?? c._id ?? "";
           return id ? `/admin/support-cases/${id}` : undefined;
         }}
         rowClickAriaLabel={(c) => `View support case ${c.subject ?? "details"}`}
+      />
+
+      {/* Bulk: assign */}
+      <ResponsiveModal
+        open={bulkTarget?.action === "assign"}
+        onOpenChange={(o) => !o && cancelBulk()}
+        title={`Assign ${bulkCount} case${plural(bulkCount)}`}
+        description="Search for an admin to take ownership of the selected cases."
+      >
+        <div className="space-y-4">
+          <AdminSearchCombobox
+            id="bulk-assign-admin"
+            selected={bulkAssignee}
+            onSelect={setBulkAssignee}
+          />
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" className="min-h-[44px]" onClick={cancelBulk}>
+              Cancel
+            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <LoadingButton
+                    onClick={runBulkAssign}
+                    isLoading={bulkAssign.isPending}
+                    loadingText="Assigning…"
+                    disabled={!bulkAssignee || bulkAssign.isPending}
+                    className="w-full sm:w-auto"
+                  >
+                    Assign {bulkCount} case{plural(bulkCount)}
+                  </LoadingButton>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                Route every selected case to the chosen admin
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
+      </ResponsiveModal>
+
+      {/* Bulk: change status */}
+      <ResponsiveModal
+        open={bulkTarget?.action === "status"}
+        onOpenChange={(o) => !o && cancelBulk()}
+        title={`Change status of ${bulkCount} case${plural(bulkCount)}`}
+        description="Move the selected cases to a new workflow status."
+      >
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="bulk-status" className="text-xs font-medium text-muted-foreground">
+              New status
+            </Label>
+            <Select
+              value={bulkStatusValue}
+              onValueChange={(v) => setBulkStatusValue(v as SupportCaseStatus)}
+            >
+              <SelectTrigger id="bulk-status" className="min-h-[44px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {BULK_STATUS_OPTIONS.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {STATUS_LABELS[s]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" className="min-h-[44px]" onClick={cancelBulk}>
+              Cancel
+            </Button>
+            <LoadingButton
+              onClick={runBulkStatus}
+              isLoading={bulkStatus.isPending}
+              loadingText="Updating…"
+              className="w-full sm:w-auto"
+            >
+              Update {bulkCount} case{plural(bulkCount)}
+            </LoadingButton>
+          </div>
+        </div>
+      </ResponsiveModal>
+
+      {/* Bulk: close */}
+      <ConfirmDialog
+        open={bulkTarget?.action === "close"}
+        onOpenChange={(o) => !o && cancelBulk()}
+        title={`Close ${bulkCount} case${plural(bulkCount)}?`}
+        description={`The selected case${plural(bulkCount)} will be closed. Tenants can reopen a closed case if they still need help.`}
+        confirmLabel={`Close ${bulkCount} case${plural(bulkCount)}`}
+        variant="destructive"
+        isLoading={bulkClose.isPending}
+        onConfirm={runBulkClose}
       />
     </div>
   );
@@ -557,44 +830,30 @@ function FilterSelect({
   value,
   onChange,
   options,
-  tooltip,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
-  tooltip: string;
 }) {
   return (
     <div className="space-y-1.5">
       <label htmlFor={id} className="text-xs font-medium text-muted-foreground">
         {label}
       </label>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div>
-            <Select value={value} onValueChange={onChange}>
-              <SelectTrigger id={id} className="min-h-[44px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {options.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="top">{tooltip}</TooltipContent>
-      </Tooltip>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger id={id} className="min-h-[44px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
-}
-
-function truncateId(id: string): string {
-  if (id.length <= 12) return id;
-  return `${id.slice(0, 6)}…${id.slice(-4)}`;
 }

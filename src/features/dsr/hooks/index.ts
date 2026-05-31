@@ -3,7 +3,17 @@ export {
   useDataSubjectRequest,
   useCreateDSR,
   useUpdateDSR,
+  useAcknowledgeDSR,
+  useCompleteDSR,
+  useRejectDSR,
+  useBulkDSRAction,
 } from "./use-dsr";
+
+export {
+  useEraseVisitorProfile,
+  useRestoreVisitorProfile,
+  useScheduledDeletions,
+} from "./use-visitor-erasure";
 
 export {
   useAdminDSRList,

@@ -18,6 +18,19 @@ export function QuotaBanner({ openCount, cap = 10, className }: QuotaBannerProps
   const atCap = remaining === 0;
   const nearCap = !atCap && remaining <= 2;
 
+  // Plenty of room left — keep it to a single quiet line instead of a full
+  // banner block so it doesn't compete with the list for attention.
+  if (!atCap && !nearCap) {
+    return (
+      <p
+        className={cn("text-xs text-muted-foreground", className)}
+        role="status"
+      >
+        {openCount} of {cap} open support cases used.
+      </p>
+    );
+  }
+
   return (
     <div
       className={cn(

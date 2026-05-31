@@ -50,10 +50,19 @@ export function ReplyComposer({
   const [isUploading, setIsUploading] = useState(false);
   const [isInternalNote, setIsInternalNote] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const busy = isSubmitting || isUploading;
   const canSubmit =
     !busy && !disabled && body.trim().length > 0;
+
+  // Auto-grow the textarea up to a cap so the composer stays compact at rest
+  // (one line) and only expands as the message gets longer.
+  const autoGrow = (el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  };
 
   const handlePickFiles = () => {
     if (busy || disabled) return;
@@ -102,8 +111,7 @@ export function ReplyComposer({
     setAttachments((prev) => prev.filter((a) => a.objectKey !== objectKey));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const doSubmit = async () => {
     if (!canSubmit) return;
     await onSubmit({
       body: body.trim(),
@@ -113,6 +121,21 @@ export function ReplyComposer({
     setBody("");
     setAttachments([]);
     setIsInternalNote(false);
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await doSubmit();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Enter sends; Shift+Enter inserts a newline. Skip while an IME
+    // composition is active so CJK input isn't submitted mid-word.
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      void doSubmit();
+    }
   };
 
   return (
@@ -127,13 +150,23 @@ export function ReplyComposer({
       />
 
       <Textarea
+        ref={textareaRef}
         value={body}
-        onChange={(e) => setBody(e.target.value)}
+        onChange={(e) => {
+          setBody(e.target.value);
+          autoGrow(e.currentTarget);
+        }}
+        onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        rows={4}
+        rows={1}
         disabled={disabled || busy}
         aria-label="Reply message"
+        aria-describedby="reply-composer-hint"
+        className="max-h-[40vh] min-h-[44px] resize-none"
       />
+      <p id="reply-composer-hint" className="sr-only">
+        Press Enter to send, Shift plus Enter for a new line.
+      </p>
 
       {attachments.length > 0 && (
         <ul className="space-y-1.5">
@@ -149,7 +182,7 @@ export function ReplyComposer({
                   <button
                     type="button"
                     onClick={() => handleRemoveAttachment(att.objectKey)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-8 md:w-8"
                     aria-label={`Remove ${att.fileName}`}
                   >
                     <X className="h-4 w-4" aria-hidden="true" />

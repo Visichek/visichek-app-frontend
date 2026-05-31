@@ -91,6 +91,8 @@ export const ROLE_CAPABILITIES: Record<SystemUserRole, Capability[]> = {
     C.DSR_CREATE,
     C.DSR_VIEW,
     C.DSR_EDIT,
+    // Fulfil a deletion request by erasing the visitor's profile data.
+    C.VISITOR_ERASE,
     C.RETENTION_VIEW,
     C.RETENTION_EDIT,
     C.SUB_PROCESSOR_VIEW,

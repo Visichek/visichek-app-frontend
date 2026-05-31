@@ -28,6 +28,10 @@ import {
   useCreateIncident,
   useUpdateIncident,
 } from "@/features/incidents/hooks/use-incidents";
+import {
+  RISK_LEVEL_OPTIONS,
+  RISK_LEVEL_BY_VALUE,
+} from "@/features/incidents/lib/risk-levels";
 import type { Incident } from "@/types/incident";
 import type { IncidentStatus, IncidentType } from "@/types/enums";
 
@@ -204,20 +208,37 @@ export function IncidentForm({ incident }: IncidentFormProps) {
           <Controller
             name="riskLevel"
             control={control}
-            render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger id="riskLevel" className="min-h-[44px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {RISK_LEVELS.map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {formatType(r)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            render={({ field }) => {
+              const selected =
+                RISK_LEVEL_BY_VALUE[field.value] ?? RISK_LEVEL_OPTIONS[0];
+              return (
+                <>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger
+                      id="riskLevel"
+                      className="min-h-[44px]"
+                      aria-describedby="riskLevel-helper"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {RISK_LEVEL_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.headline}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p
+                    id="riskLevel-helper"
+                    aria-live="polite"
+                    className="text-sm text-muted-foreground"
+                  >
+                    {selected.example}
+                  </p>
+                </>
+              );
+            }}
           />
         </div>
 
