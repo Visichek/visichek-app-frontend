@@ -39,11 +39,18 @@ import type {
   SupportCaseCategory,
 } from "@/types/enums";
 
+// Statuses that hold a slot against the tenant's 10-open-case cap. MUST mirror
+// the backend `OPEN_STATUSES` in schemas/support_case_schema.py — that is
+// everything except `closed`, INCLUDING `resolved` (a resolved case keeps its
+// slot until it auto-closes after 7d). Omitting `resolved` here under-counts
+// the quota, so the gate would let the user start a new case the backend then
+// rejects with 429.
 const OPEN_STATUSES: SupportCaseStatus[] = [
   "open",
   "acknowledged",
   "in_progress",
   "awaiting_tenant",
+  "resolved",
   "reopened",
 ];
 

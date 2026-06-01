@@ -29,6 +29,10 @@ import {
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useCreateSupportCase } from "@/features/support-cases/hooks/use-support-cases";
 import { CASE_CATEGORY_LABELS } from "@/features/support-cases/components";
+import {
+  PRIORITY_LEVEL_OPTIONS,
+  PRIORITY_LEVEL_BY_VALUE,
+} from "@/features/support-cases/lib/priority-levels";
 import { ApiError } from "@/types/api";
 import type {
   SupportCasePriority,
@@ -88,6 +92,8 @@ export default function NewSupportCasePage() {
 
   const category = watch("category");
   const priority = watch("priority");
+  const selectedPriority =
+    PRIORITY_LEVEL_BY_VALUE[priority] ?? PRIORITY_LEVEL_OPTIONS[1];
   const descriptionLength = watch("description")?.length ?? 0;
 
   const onSubmit = handleSubmit(async (data) => {
@@ -212,32 +218,33 @@ export default function NewSupportCasePage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="priority">Priority</Label>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div>
-                  <Select
-                    value={priority}
-                    onValueChange={(v) => setValue("priority", v as SupportCasePriority)}
-                  >
-                    <SelectTrigger id="priority" className="min-h-[44px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Low — no immediate impact</SelectItem>
-                      <SelectItem value="medium">Medium — some users affected</SelectItem>
-                      <SelectItem value="high">High — significant impact on operations</SelectItem>
-                      <SelectItem value="critical">
-                        Critical — system is down or unusable
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                How urgent is this for your organisation? We use this to set response expectations.
-              </TooltipContent>
-            </Tooltip>
+            <Label htmlFor="priority">How urgent is this?</Label>
+            <Select
+              value={priority}
+              onValueChange={(v) => setValue("priority", v as SupportCasePriority)}
+            >
+              <SelectTrigger
+                id="priority"
+                className="min-h-[44px]"
+                aria-describedby="priority-helper"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PRIORITY_LEVEL_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.headline}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p
+              id="priority-helper"
+              aria-live="polite"
+              className="text-sm text-muted-foreground"
+            >
+              {selectedPriority.example}
+            </p>
           </div>
         </div>
 

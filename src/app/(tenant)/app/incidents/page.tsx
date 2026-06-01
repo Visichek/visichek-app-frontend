@@ -9,6 +9,7 @@ import {
   Edit2,
   Loader2,
   CheckCircle2,
+  Search,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/recipes/page-header";
@@ -21,6 +22,7 @@ import { RecordDetailList, type RecordDetailRow } from "@/components/recipes/rec
 import { summarizeBulkResult } from "@/lib/api/bulk";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +40,7 @@ import {
   useApproachingDeadlineIncidents,
   useBulkMarkIncidentsNotified,
 } from "@/features/incidents/hooks/use-incidents";
+import { IncidentRiskDot } from "@/features/incidents/components/incident-risk-dot";
 import { useCapabilities } from "@/hooks/use-capabilities";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
@@ -106,11 +109,19 @@ export default function IncidentsPage() {
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
   const [statusTab, setStatusTab] = useState<IncidentStatusTab>("all");
+  const [searchInput, setSearchInput] = useState("");
+  const [q, setQ] = useState("");
   const [pageIndex, setPageIndex] = useState(0);
+
+  // Debounce the free-text search so each keystroke doesn't fire a request.
+  useEffect(() => {
+    const handle = setTimeout(() => setQ(searchInput.trim()), 300);
+    return () => clearTimeout(handle);
+  }, [searchInput]);
 
   useEffect(() => {
     setPageIndex(0);
-  }, [statusTab]);
+  }, [statusTab, q]);
 
   const listFilters = useMemo(() => {
     const params: Record<string, unknown> = {
@@ -120,12 +131,16 @@ export default function IncidentsPage() {
       facets: "status",
     };
     if (statusTab !== "all") params.status = statusTab;
+    // Server-side search over description/summary (min 2 chars, matching the
+    // backend INCIDENTS_LIST_SPEC). Replaces the old client-only page filter.
+    if (q.length >= 2) params.q = q;
     return params;
-  }, [pageIndex, statusTab]);
+  }, [pageIndex, statusTab, q]);
 
   const {
     data: incidentsResponse,
     isLoading,
+    isFetching,
     refetch,
   } = useIncidents(listFilters);
   const { data: deadlineResponse } = useApproachingDeadlineIncidents();
@@ -235,27 +250,21 @@ export default function IncidentsPage() {
       accessorFn: (row) => row.description ?? "",
       header: "Summary",
       cell: ({ row }) => (
-        <span className="font-medium text-sm line-clamp-2">{incidentLabel(row.original)}</span>
+        <div className="min-w-0">
+          <p className="line-clamp-2 text-sm font-medium">
+            {incidentLabel(row.original)}
+          </p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            {formatType(row.original.incidentType)}
+          </p>
+        </div>
       ),
       enableSorting: true,
     },
     {
-      accessorKey: "incidentType",
-      header: "Type",
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">
-          {formatType(row.original.incidentType)}
-        </span>
-      ),
-    },
-    {
       accessorKey: "riskLevel",
       header: "Risk",
-      cell: ({ row }) => (
-        <Badge variant={riskVariant(row.original.riskLevel)}>
-          {row.original.riskLevel ?? "—"}
-        </Badge>
-      ),
+      cell: ({ row }) => <IncidentRiskDot risk={row.original.riskLevel} />,
     },
     {
       accessorKey: "status",
@@ -267,47 +276,9 @@ export default function IncidentsPage() {
       ),
     },
     {
-      accessorKey: "dateCreated",
-      header: "Reported",
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">
-          {formatDateTime(row.original.dateCreated)}
-        </span>
-      ),
-      enableSorting: true,
-    },
-    {
-      accessorKey: "notificationDeadline",
-      header: "NDPC Deadline",
-      cell: ({ row }) => {
-        if (!row.original.notificationDeadline) {
-          return <span className="text-muted-foreground text-sm">—</span>;
-        }
-        const deadline = row.original.notificationDeadline * 1000;
-        const now = Date.now();
-        const hoursRemaining = Math.floor((deadline - now) / (1000 * 60 * 60));
-
-        return (
-          <span
-            className={`text-sm ${
-              hoursRemaining < 24
-                ? "font-medium text-warning"
-                : "text-muted-foreground"
-            }`}
-          >
-            {hoursRemaining > 0 ? `in ${hoursRemaining}h` : "overdue"}
-          </span>
-        );
-      },
-    },
-    {
-      accessorKey: "ndpcNotified",
-      header: "NDPC Status",
-      cell: ({ row }) => (
-        <Badge variant={row.original.ndpcNotified ? "success" : "warning"}>
-          {row.original.ndpcNotified ? "Notified" : "Pending"}
-        </Badge>
-      ),
+      id: "ndpc",
+      header: "NDPC",
+      cell: ({ row }) => <NdpcCell incident={row.original} />,
     },
     {
       id: "actions",
@@ -332,15 +303,15 @@ export default function IncidentsPage() {
             <p className="font-medium text-sm line-clamp-2">{incidentLabel(incident)}</p>
             <p className="text-xs text-muted-foreground">
               {formatType(incident.incidentType)}
-              {incident.riskLevel ? ` · ${incident.riskLevel} risk` : ""}
             </p>
           </div>
           <Badge variant={statusVariant(incident.status)}>
             {(incident.status ?? "").replace(/_/g, " ") || "—"}
           </Badge>
         </div>
-        <div className="text-xs text-muted-foreground">
-          {formatDateTime(incident.dateCreated)}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <IncidentRiskDot risk={incident.riskLevel} />
+          <NdpcCell incident={incident} />
         </div>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -406,7 +377,7 @@ export default function IncidentsPage() {
               the 72-hour NDPC notification deadline.
             </p>
             <ul className="mt-2 space-y-1">
-              {deadlineIncidents.map((inc) => (
+              {deadlineIncidents.slice(0, 3).map((inc) => (
                 <li key={inc.id} className="text-sm">
                   • <strong>{incidentLabel(inc)}</strong> — deadline:{" "}
                   {inc.notificationDeadline
@@ -415,9 +386,35 @@ export default function IncidentsPage() {
                 </li>
               ))}
             </ul>
+            {deadlineIncidents.length > 3 && (
+              <p className="mt-1 text-sm text-muted-foreground">
+                …and {deadlineIncidents.length - 3} more — see the list below.
+              </p>
+            )}
           </div>
         </div>
       )}
+
+      <div className="relative">
+        <Search
+          className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <Input
+          type="search"
+          placeholder="Search incidents by description…"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          className="min-h-[44px] pl-10 text-base md:text-sm"
+          aria-label="Search incidents"
+        />
+        {isFetching && searchInput && (
+          <Loader2
+            className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground"
+            aria-hidden="true"
+          />
+        )}
+      </div>
 
       <Tabs
         value={statusTab}
@@ -444,8 +441,6 @@ export default function IncidentsPage() {
         columns={columns}
         data={incidents}
         isLoading={isLoading}
-        searchKey="summary"
-        searchPlaceholder="Search incidents..."
         pagination={true}
         serverPagination={{
           pageIndex,
@@ -455,8 +450,8 @@ export default function IncidentsPage() {
           onPageChange: setPageIndex,
         }}
         mobileCard={mobileCard}
-        emptyTitle="No incidents"
-        emptyDescription="No security incidents have been reported."
+        emptyTitle="No incidents found"
+        emptyDescription="No incidents match your search or the selected status."
         selectable
         getRowId={(incident) => incident.id}
         itemNoun="incident"
@@ -562,6 +557,52 @@ export default function IncidentsPage() {
         onConfirm={handleBulkMarkNotifiedConfirm}
       />
     </div>
+  );
+}
+
+/**
+ * Merges the NDPC deadline + notified status into one cell: a quiet "Notified"
+ * once the regulator has been told, otherwise the 72-hour countdown — amber
+ * within 24h, red once overdue. Keeps the compliance clock visible without a
+ * second badge column competing with Status.
+ */
+function NdpcCell({ incident }: { incident: Incident }) {
+  if (incident.ndpcNotified) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-sm text-success"
+        title={
+          incident.ndpcNotifiedAt
+            ? `Notified to NDPC ${formatDateTime(incident.ndpcNotifiedAt)}`
+            : "Notified to NDPC"
+        }
+      >
+        <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+        Notified
+      </span>
+    );
+  }
+  if (!incident.notificationDeadline) {
+    return <span className="text-sm text-muted-foreground">—</span>;
+  }
+  const hoursRemaining = Math.floor(
+    (incident.notificationDeadline * 1000 - Date.now()) / (1000 * 60 * 60),
+  );
+  const overdue = hoursRemaining <= 0;
+  const urgent = !overdue && hoursRemaining < 24;
+  return (
+    <span
+      className={`text-sm ${
+        overdue
+          ? "font-medium text-destructive"
+          : urgent
+            ? "font-medium text-warning"
+            : "text-muted-foreground"
+      }`}
+      title={`NDPC deadline: ${formatDateTime(incident.notificationDeadline)}`}
+    >
+      {overdue ? "Overdue" : `Due in ${hoursRemaining}h`}
+    </span>
   );
 }
 
