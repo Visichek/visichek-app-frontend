@@ -15,6 +15,30 @@ export interface DSRVisitorSummary {
 }
 
 /**
+ * Brief snapshot of the system user / admin handling a DSR
+ * (`DSROut.admin_summary`). `userType` is "system_user" | "admin".
+ */
+export interface DSRAdminSummary {
+  id: string;
+  fullName?: string;
+  email?: string;
+  role?: string;
+  userType?: string;
+}
+
+/**
+ * Brief snapshot of the visit session a DSR is linked to
+ * (`DSROut.visit_session_summary`), when the request originated from a
+ * specific check-in.
+ */
+export interface DSRVisitSessionSummary {
+  id: string;
+  status?: string;
+  visitorNameSnapshot?: string;
+  checkInTime?: number;
+}
+
+/**
  * Tenant-scoped data subject request. Field names mirror the backend
  * `DSROut` (camelCased): `requestType` / `dateCreated` / `visitorProfileId`,
  * NOT `type` / `createdAt`. The backend carries no requester identity on the
@@ -41,6 +65,24 @@ export interface DataSubjectRequest {
   rejectionReason?: string;
   /** Embedded subject snapshot (backend `visitor_profile_summary`). */
   visitorProfileSummary?: DSRVisitorSummary;
+  /** Embedded snapshot of the system user handling the request. */
+  adminSummary?: DSRAdminSummary;
+  /** Embedded snapshot of the linked visit session, when present. */
+  visitSessionSummary?: DSRVisitSessionSummary;
+  /** Whether the data subject's identity has been verified (gates access fulfilment). */
+  identityVerified?: boolean;
+  /** Unix epoch seconds when the legal SLA window closes. */
+  slaDeadline?: number;
+
+  // ── Right-of-access export artifact (set once an access request is fulfilled). ──
+  /** Storage object key of the generated export ZIP. */
+  accessExportObjectKey?: string;
+  /** Unix epoch seconds the secure download link stops working. */
+  accessExportExpiresAt?: number;
+  /** Email address the export link was sent to. */
+  accessExportEmailedTo?: string;
+  /** Unix epoch seconds the export was generated. */
+  accessExportGeneratedAt?: number;
 
   // ── Legacy field names kept optional for older consumers (dsr-form, public
   // rights). The backend does NOT emit these; new code must use the fields
@@ -129,6 +171,19 @@ export interface CreateDSRRequest {
   /** Backend field is `request_type`, not `type`. */
   requestType: DSRType;
   description?: string;
+}
+
+/**
+ * Body for fulfilling a *correction* DSR
+ * (`POST /v1/dsr/{id}/fulfil-correction`). Allowlists exactly the four
+ * visitor-profile PII fields a subject can have corrected; only the supplied
+ * fields are applied.
+ */
+export interface DSRCorrectionRequest {
+  fullName?: string;
+  phone?: string;
+  emailAddress?: string;
+  company?: string;
 }
 
 // ── Retention Policies ────────────────────────────────────────────────

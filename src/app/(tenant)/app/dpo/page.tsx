@@ -1,18 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Loader2, PlayCircle, ShieldOff, XCircle } from "lucide-react";
+import { Plus, Loader2, PlayCircle, ShieldOff, FileText, XCircle } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
 import { DataTable } from "@/components/recipes/data-table";
 import { NavButton } from "@/components/recipes/nav-button";
-import { DetailSheet } from "@/components/recipes/detail-sheet";
-import {
-  RecordDetailList,
-  type RecordDetailRow,
-} from "@/components/recipes/record-detail-list";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Tooltip,
   TooltipTrigger,
@@ -75,15 +70,10 @@ export default function DPOPage() {
   const canEdit = hasCapability(CAPABILITIES.DSR_EDIT);
   const canErase = hasCapability(CAPABILITIES.VISITOR_ERASE);
   const canViewPrivacyNotices = hasCapability(CAPABILITIES.PRIVACY_NOTICE_VIEW);
-  // navigateFromOverlay (not navigate): these cards are wrapped in a Radix
-  // Tooltip, and a plain router.push from inside a portal races the
-  // page-tree swap against the tooltip unmount and crashes the React 19
-  // reconciler (removeChild on null). navigateFromOverlay defers the push.
-  const { loadingHref, navigateFromOverlay } = useNavigationLoading();
+  const { loadingHref } = useNavigationLoading();
 
   const [statusTab, setStatusTab] = useState<DSRStatusTab>("all");
   const [pageIndex, setPageIndex] = useState(0);
-  const [detailTarget, setDetailTarget] = useState<DataSubjectRequest | null>(null);
   const [erasuresOpen, setErasuresOpen] = useState(false);
 
   useEffect(() => {
@@ -161,7 +151,21 @@ export default function DPOPage() {
     {
       id: "subject",
       header: "Visitor",
-      cell: ({ row }) => <span className="font-medium text-sm">{subjectName(row.original)}</span>,
+      cell: ({ row }) => {
+        const email = row.original.visitorProfileSummary?.emailAddress;
+        return (
+          <div className="min-w-0">
+            <span className="block truncate text-sm font-medium">
+              {subjectName(row.original)}
+            </span>
+            {email && (
+              <span className="block truncate text-xs text-muted-foreground">
+                {email}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       id: "type",
@@ -178,6 +182,16 @@ export default function DPOPage() {
           {row.original.status.replace(/_/g, " ")}
         </Badge>
       ),
+    },
+    {
+      id: "identity",
+      header: "Identity",
+      cell: ({ row }) =>
+        row.original.identityVerified ? (
+          <Badge variant="success">Verified</Badge>
+        ) : (
+          <Badge variant="warning">Unverified</Badge>
+        ),
     },
     {
       id: "submitted",
@@ -197,21 +211,26 @@ export default function DPOPage() {
   ];
 
   const mobileCard = (dsr: DataSubjectRequest) => (
-    <div className="rounded-lg border p-4 space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="font-medium text-sm">{subjectName(dsr)}</span>
+    <div className="space-y-2 rounded-lg border p-4">
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate text-sm font-medium">{subjectName(dsr)}</span>
         <Badge variant={statusVariant(dsr.status)}>
           {dsr.status.replace(/_/g, " ")}
         </Badge>
       </div>
-      <div className="text-sm text-muted-foreground capitalize">
+      <div className="text-sm capitalize text-muted-foreground">
         {requestTypeLabel(dsr)}
       </div>
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">
+          {formatDateTime(dsr.dateCreated ?? dsr.createdAt)}
+        </span>
         <DSRRowActions dsr={dsr} />
       </div>
     </div>
   );
+
+  const showUtilityBar = canErase || canViewPrivacyNotices;
 
   return (
     <div className="space-y-6">
@@ -239,94 +258,53 @@ export default function DPOPage() {
         }
       />
 
-      {/* Quick links */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {canErase && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Card
-                role="button"
-                tabIndex={0}
-                onClick={() => setErasuresOpen(true)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setErasuresOpen(true);
-                  }
-                }}
-                className="cursor-pointer transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                    <ShieldOff className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                    Scheduled erasures
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Review and restore visitor data awaiting permanent deletion
-                  </p>
-                </CardContent>
-              </Card>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              Visitor profiles soft-deleted by an erasure request. Restore one
-              before its grace window closes.
-            </TooltipContent>
-          </Tooltip>
-        )}
-        {canViewPrivacyNotices ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Card
-                role="button"
-                tabIndex={0}
-                onClick={() => navigateFromOverlay(PATHS.APP_DPO_PRIVACY_NOTICES)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    navigateFromOverlay(PATHS.APP_DPO_PRIVACY_NOTICES);
-                  }
-                }}
-                className="cursor-pointer transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                    {loadingHref === PATHS.APP_DPO_PRIVACY_NOTICES && (
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                    )}
-                    Privacy Notices
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    View the privacy notice visitors see at check-in
-                  </p>
-                </CardContent>
-              </Card>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              View the visitor privacy notice — the policy and terms shown at
-              your QR / kiosk check-in. It&apos;s now managed by VisiChek.
-            </TooltipContent>
-          </Tooltip>
-        ) : (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">
-                Privacy Notices
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Manage consent notices
-              </p>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      <GeofencingComplianceCard />
+      {/* Compact utility bar — keeps the table the focus of the page. */}
+      {showUtilityBar && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-2">
+          {canErase && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setErasuresOpen(true)}
+                  className="min-h-[44px] justify-start"
+                >
+                  <ShieldOff className="mr-2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  Scheduled erasures
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Review and restore visitor profiles soft-deleted by an erasure
+                request before their grace window closes
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {canViewPrivacyNotices && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <NavButton
+                  href={PATHS.APP_DPO_PRIVACY_NOTICES}
+                  variant="ghost"
+                  size="sm"
+                  className="min-h-[44px] justify-start"
+                >
+                  {loadingHref === PATHS.APP_DPO_PRIVACY_NOTICES ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <FileText className="mr-2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  )}
+                  Privacy notices
+                </NavButton>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                View the privacy notice visitors see at check-in
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      )}
 
       <Tabs
         value={statusTab}
@@ -368,80 +346,13 @@ export default function DPOPage() {
         emptyTitle="No data subject requests"
         emptyDescription="Requests from data subjects will appear here."
         mobileCard={mobileCard}
-        onRowClick={(dsr) => setDetailTarget(dsr)}
+        getRowHref={(dsr) => `/app/dpo/requests/${dsr.id}`}
         rowClickAriaLabel={(dsr) => `View request from ${subjectName(dsr)}`}
       />
 
-      <DetailSheet
-        open={!!detailTarget}
-        onOpenChange={(open) => { if (!open) setDetailTarget(null); }}
-        title={detailTarget ? `Request from ${subjectName(detailTarget)}` : ""}
-        description={
-          detailTarget
-            ? `${requestTypeLabel(detailTarget)} request — created ${formatDateTime(detailTarget.dateCreated ?? detailTarget.createdAt)}`
-            : undefined
-        }
-      >
-        {detailTarget && (
-          <RecordDetailList
-            rows={(
-              [
-                {
-                  label: "Status",
-                  value: (
-                    <Badge variant={statusVariant(detailTarget.status)}>
-                      {detailTarget.status.replace(/_/g, " ")}
-                    </Badge>
-                  ),
-                },
-                {
-                  label: "Type",
-                  value: (
-                    <span className="capitalize">
-                      {requestTypeLabel(detailTarget)}
-                    </span>
-                  ),
-                },
-                {
-                  label: "Visitor",
-                  value: subjectName(detailTarget),
-                },
-                {
-                  label: "Email",
-                  value:
-                    detailTarget.visitorProfileSummary?.emailAddress ??
-                    detailTarget.requesterEmail,
-                },
-                {
-                  label: "Created",
-                  value: formatDateTime(detailTarget.dateCreated ?? detailTarget.createdAt),
-                },
-                {
-                  label: "Resolved",
-                  value: detailTarget.resolvedAt
-                    ? formatDateTime(detailTarget.resolvedAt)
-                    : undefined,
-                },
-                {
-                  label: "Resolution",
-                  value: detailTarget.resolution,
-                  full: true,
-                },
-                {
-                  label: "Rejection reason",
-                  value: detailTarget.rejectionReason,
-                  full: true,
-                },
-                {
-                  label: "Notes",
-                  value: detailTarget.notes ?? detailTarget.description,
-                  full: true,
-                },
-              ] as RecordDetailRow[]
-            ).filter((r) => r.value !== null && r.value !== undefined && r.value !== "")}
-          />
-        )}
-      </DetailSheet>
+      {/* Geofencing compliance status — a footnote panel below the workspace
+          so it informs without crowding the request list. */}
+      <GeofencingComplianceCard />
 
       <ScheduledErasuresSheet open={erasuresOpen} onOpenChange={setErasuresOpen} />
     </div>

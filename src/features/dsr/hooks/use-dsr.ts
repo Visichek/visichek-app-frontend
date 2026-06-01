@@ -7,6 +7,7 @@ import { bulkAction } from "@/lib/api/bulk";
 import type {
   DataSubjectRequest,
   CreateDSRRequest,
+  DSRCorrectionRequest,
 } from "@/types/dpo";
 import type { ListResponse, BulkJobResult } from "@/types/list";
 
@@ -135,6 +136,65 @@ export function useRejectDSR() {
       queryClient.invalidateQueries({ queryKey: ["dsr"] });
     },
   });
+}
+
+/**
+ * Mark a DSR's identity verification. Gates access fulfilment — the
+ * `fulfil-access` endpoint 409s until `identityVerified` is true.
+ */
+export function useVerifyDSRIdentity(dsrId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<DataSubjectRequest, Error, boolean>({
+    mutationFn: (verified) =>
+      apiPatch<DataSubjectRequest>(`/dsr/${dsrId}`, {
+        identityVerified: verified,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dsr", dsrId] });
+      queryClient.invalidateQueries({ queryKey: ["dsr"] });
+    },
+  });
+}
+
+/**
+ * Type-specific fulfilment actions. Each POST returns 202 and the API client
+ * auto-polls the queued job to terminal, so the mutation resolves only once
+ * the worker has finished (or rejects with the job's error, e.g.
+ * `DSR_ACCESS_NO_EMAIL`).
+ */
+function useDSRFulfilMutation<TBody = void>(dsrId: string, action: string) {
+  const queryClient = useQueryClient();
+  return useMutation<DataSubjectRequest, Error, TBody>({
+    mutationFn: (body) =>
+      apiPost<DataSubjectRequest>(
+        `/dsr/${dsrId}/${action}`,
+        (body ?? {}) as Record<string, unknown>,
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dsr", dsrId] });
+      queryClient.invalidateQueries({ queryKey: ["dsr"] });
+    },
+  });
+}
+
+/** Gather + email the subject's data export (requires identity verified). */
+export function useFulfilAccessDSR(dsrId: string) {
+  return useDSRFulfilMutation<void>(dsrId, "fulfil-access");
+}
+
+/** Revoke consent + disable profiling, then complete the DSR. */
+export function useFulfilConsentWithdrawalDSR(dsrId: string) {
+  return useDSRFulfilMutation<void>(dsrId, "fulfil-consent-withdrawal");
+}
+
+/** Apply allowlisted profile corrections, then complete the DSR. */
+export function useFulfilCorrectionDSR(dsrId: string) {
+  return useDSRFulfilMutation<DSRCorrectionRequest>(dsrId, "fulfil-correction");
+}
+
+/** Schedule the visitor-profile erasure and complete the deletion DSR. */
+export function useFulfilDeletionDSR(dsrId: string) {
+  return useDSRFulfilMutation<void>(dsrId, "fulfil-deletion");
 }
 
 /**

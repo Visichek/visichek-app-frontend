@@ -7,6 +7,11 @@ export {
   useCompleteDSR,
   useRejectDSR,
   useBulkDSRAction,
+  useVerifyDSRIdentity,
+  useFulfilAccessDSR,
+  useFulfilConsentWithdrawalDSR,
+  useFulfilCorrectionDSR,
+  useFulfilDeletionDSR,
 } from "./use-dsr";
 
 export {
