@@ -91,9 +91,16 @@ export default function DPOPage() {
     return params;
   }, [pageIndex, statusTab]);
 
-  const { data, isLoading } = useDataSubjectRequests(listFilters);
+  const { data, isLoading, isFetching } = useDataSubjectRequests(listFilters);
   const requests = data?.items ?? [];
   const meta = data?.meta;
+  // Show the skeleton (not the "No requests" empty state) whenever a fetch is
+  // in flight and we have no rows yet. Without this, navigating back from the
+  // create form briefly renders the query's pre-create cached snapshot (often
+  // empty) before the refetch lands — the row appears to flash out and back.
+  // keepPreviousData already keeps a present row visible across same-key
+  // refetches, so this only affects the genuinely-empty-while-fetching case.
+  const showSkeleton = isLoading || (isFetching && requests.length === 0);
   const statusFacet = meta?.facets?.status ?? {};
   const tabCounts: Record<DSRStatusTab, number> = {
     all: statusFacet.all ?? meta?.total ?? 0,
@@ -330,7 +337,7 @@ export default function DPOPage() {
       <DataTable
         columns={columns}
         data={requests}
-        isLoading={isLoading}
+        isLoading={showSkeleton}
         pagination={true}
         serverPagination={{
           pageIndex,

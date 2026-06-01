@@ -173,6 +173,12 @@ export default function DSRDetailPage({
         value: dsr.resolvedAt ? formatDateTime(dsr.resolvedAt) : undefined,
       },
       {
+        label: "Requester contact",
+        value: dsr.requesterEmail
+          ? `${dsr.requesterName ? `${dsr.requesterName} · ` : ""}${dsr.requesterEmail}`
+          : undefined,
+      },
+      {
         label: "Handled by",
         value: dsr.adminSummary?.fullName ?? dsr.adminSummary?.email,
       },

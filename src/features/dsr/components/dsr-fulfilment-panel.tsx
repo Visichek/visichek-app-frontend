@@ -68,7 +68,15 @@ export function DSRFulfilmentPanel({ dsr }: { dsr: DataSubjectRequest }) {
   const isClosed = dsr.status === "completed" || dsr.status === "rejected";
   const subjectName =
     dsr.visitorProfileSummary?.fullName || dsr.requesterName || "this visitor";
-  const subjectEmail = dsr.visitorProfileSummary?.emailAddress;
+  // The export + notifications go to the requester email AND the linked
+  // visitor profile's email, de-duplicated.
+  const accessRecipients = Array.from(
+    new Set(
+      [dsr.requesterEmail, dsr.visitorProfileSummary?.emailAddress].filter(
+        (e): e is string => !!e && e.includes("@"),
+      ),
+    ),
+  );
 
   // ── Mutations ────────────────────────────────────────────────────────
   const acknowledge = useAcknowledgeDSR();
@@ -153,7 +161,9 @@ export function DSRFulfilmentPanel({ dsr }: { dsr: DataSubjectRequest }) {
   async function handleAccess() {
     try {
       await fulfilAccess.mutateAsync();
-      toast.success(`Data export generated and emailed to ${subjectEmail}`);
+      toast.success(
+        `Data export generated and emailed to ${accessRecipients.join(", ")}`,
+      );
     } catch (err) {
       toast.error(errMessage(err, "Couldn't generate the data export"));
     }
@@ -221,7 +231,7 @@ export function DSRFulfilmentPanel({ dsr }: { dsr: DataSubjectRequest }) {
     }
   }
 
-  const accessReady = !!dsr.identityVerified && !!subjectEmail;
+  const accessReady = !!dsr.identityVerified && accessRecipients.length > 0;
 
   return (
     <>
@@ -258,7 +268,7 @@ export function DSRFulfilmentPanel({ dsr }: { dsr: DataSubjectRequest }) {
                 />
               </div>
 
-              {subjectEmail ? (
+              {accessRecipients.length > 0 ? (
                 <p className="flex items-start gap-2 text-sm text-muted-foreground">
                   <Mail
                     className="mt-0.5 h-4 w-4 shrink-0"
@@ -267,7 +277,7 @@ export function DSRFulfilmentPanel({ dsr }: { dsr: DataSubjectRequest }) {
                   <span>
                     A secure download link will be emailed to{" "}
                     <span className="font-medium text-foreground">
-                      {subjectEmail}
+                      {accessRecipients.join(", ")}
                     </span>{" "}
                     (expires in 7 days).
                   </span>
@@ -279,8 +289,9 @@ export function DSRFulfilmentPanel({ dsr }: { dsr: DataSubjectRequest }) {
                     aria-hidden="true"
                   />
                   <span>
-                    This visitor has no email on file, so the export can&apos;t
-                    be delivered. Add an email to their profile first.
+                    There&apos;s no email on file for the requester or the
+                    linked visitor, so the export can&apos;t be delivered. Add
+                    an email to the visitor profile first.
                   </span>
                 </p>
               )}
