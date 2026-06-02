@@ -10,6 +10,7 @@ import {
 import { useBranches } from "@/features/branches/hooks";
 import { useDepartments } from "@/features/departments/hooks";
 import { useHosts } from "@/features/hosts/hooks";
+import { useCapability } from "@/features/limitations/hooks/use-limitations";
 import type { SystemUserRole } from "@/types/enums";
 
 /** Filter values that narrow the insights query (string-valued for selects). */
@@ -247,9 +248,13 @@ function FilterRow({ children }: { children: React.ReactNode }) {
 }
 
 function SuperAdminFilters({ values, onChange }: FiltersProps) {
+  const { denied, isLoading: capLoading } = useCapability();
+  // Hosts are Premium-only (denied on Free/Starter). Treat "still loading"
+  // as denied so the control never flashes in for a gated tenant.
+  const hostsDenied = capLoading || denied("hosts");
   const branches = useBranches({ limit: 100 });
   const departments = useDepartments({ limit: 100 });
-  const hosts = useHosts({ limit: 100 });
+  const hosts = useHosts({ limit: 100 }, { enabled: !hostsDenied });
 
   const branchOpts = (branches.data?.items ?? []).map((b) => ({ value: b.id, label: b.name }));
   const deptOpts = (departments.data?.items ?? []).map((d) => ({ value: d.id, label: d.name }));
@@ -271,20 +276,28 @@ function SuperAdminFilters({ values, onChange }: FiltersProps) {
         options={deptOpts}
         onChange={(v) => onChange({ ...values, departmentId: v })}
       />
-      <FilterSelect
-        label="Host"
-        placeholder="All hosts"
-        value={values.hostId}
-        options={hostOpts}
-        onChange={(v) => onChange({ ...values, hostId: v })}
-      />
+      {!hostsDenied && (
+        <FilterSelect
+          label="Host"
+          placeholder="All hosts"
+          value={values.hostId}
+          options={hostOpts}
+          onChange={(v) => onChange({ ...values, hostId: v })}
+        />
+      )}
     </FilterRow>
   );
 }
 
 function DeptAdminFilters({ values, onChange }: FiltersProps) {
-  const hosts = useHosts({ limit: 100 });
+  const { denied, isLoading: capLoading } = useCapability();
+  // Hosts are Premium-only — Host is this role's only insights filter, so a
+  // Free/Starter dept_admin gets no filter row at all.
+  const hostsDenied = capLoading || denied("hosts");
+  const hosts = useHosts({ limit: 100 }, { enabled: !hostsDenied });
   const hostOpts = (hosts.data?.items ?? []).map((h) => ({ value: h.id, label: h.name }));
+
+  if (hostsDenied) return null;
 
   return (
     <FilterRow>

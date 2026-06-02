@@ -36,11 +36,18 @@ export const hostKeys = {
  * `departmentId`, `isActive`, and skip/limit pagination. The unfiltered
  * first page is served from the backend precompute cache; filtered queries
  * fall through to run_list — transparent to the FE.
+ *
+ * Pass `{ enabled: false }` to suppress the request — used where hosts are
+ * plan-gated (Free/Starter), so the query never fires and 403s.
  */
-export function useHosts(filters?: Record<string, unknown>) {
+export function useHosts(
+  filters?: Record<string, unknown>,
+  options?: { enabled?: boolean },
+) {
   return useQuery<ListResponse<Host>>({
     queryKey: hostKeys.list(filters),
     queryFn: () => apiGetList<Host>("/hosts", filters),
+    enabled: options?.enabled ?? true,
     staleTime: 30_000,
     placeholderData: keepPreviousData,
   });

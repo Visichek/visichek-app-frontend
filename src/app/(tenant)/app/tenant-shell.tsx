@@ -141,6 +141,7 @@ const ALL_TENANT_NAV_ITEMS: (GatedNavItem | GatedNavGroup)[] = [
         href: "/app/hosts",
         icon: UserRound,
         description: "Manage the roster of people visitors can be scheduled to see — including contractors and executives who don't have a login account",
+        feature: "hosts",
       },
       {
         label: "Branches",

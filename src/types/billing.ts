@@ -395,6 +395,7 @@ export interface TenantUsageSummary {
  */
 export type PlanFeatureKey =
   | "appointments"
+  | "hosts"
   | "badges"
   | "branding"
   | "kyc"

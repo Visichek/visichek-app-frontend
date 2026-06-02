@@ -70,6 +70,23 @@ export function useCheckoutSession(
   });
 }
 
+/**
+ * Resolve a checkout session by its provider reference — the value Paystack /
+ * Flutterwave append to the post-payment callback URL (?reference=...). Used by
+ * the payment-return page to map the redirect back to a session, then hand off
+ * to the canonical /app/billing/checkout/[id] status page.
+ */
+export function useCheckoutSessionByReference(reference: string) {
+  return useQuery<CheckoutSession>({
+    queryKey: ["checkout", "sessions", "by-reference", reference],
+    queryFn: () =>
+      apiGet<CheckoutSession>(
+        `/checkout/sessions/by-reference/${encodeURIComponent(reference)}`
+      ),
+    enabled: !!reference,
+  });
+}
+
 export function useCheckoutSessions(params?: UseCheckoutSessionsParams) {
   return useQuery<CheckoutSession[]>({
     queryKey: ["checkout", "sessions", "list", params],
