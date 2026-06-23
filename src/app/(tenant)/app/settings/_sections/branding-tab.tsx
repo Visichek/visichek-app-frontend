@@ -33,6 +33,7 @@ import {
   type UpdateBrandingInput,
 } from "@/features/branding/hooks/use-branding";
 import type { LogoPosition } from "@/types/enums";
+import { PrintBadgeModal } from "@/features/visitors/components/print-badge-modal";
 
 interface BrandingFormData {
   primaryColor: string;
@@ -68,6 +69,49 @@ const LOGO_ALIGNMENT_OPTIONS = [
   { id: "top_center" as LogoPosition, icon: AlignCenter, label: "Center" },
   { id: "top_right"  as LogoPosition, icon: AlignRight,  label: "Right"  },
 ];
+
+/**
+ * Inline "test print" (#20) — opens the same local-render badge modal
+ * receptionists use, seeded with sample visitor data and the tenant's saved
+ * branding (logo + name from Redux). Lets admins preview + print/download an
+ * A6/A7 badge right on the branding page, without opening the public
+ * test-badge tab.
+ */
+function TestPrintBadgeButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 w-full sm:w-auto"
+            onClick={() => setOpen(true)}
+          >
+            <Printer className="mr-2 h-4 w-4" aria-hidden="true" />
+            Preview &amp; print here
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          Open the printable badge inline with your saved branding — pick A6 or
+          A7, then print or download a PDF without leaving this page
+        </TooltipContent>
+      </Tooltip>
+      <PrintBadgeModal
+        open={open}
+        onOpenChange={setOpen}
+        badge={{
+          visitorName: "Nathaniel Uriri",
+          company: "Sample Company Ltd",
+          purpose: "Test print",
+          statusLabel: "Checked in",
+          qrToken: "test-badge-token",
+        }}
+      />
+    </>
+  );
+}
 
 interface ColorInputProps {
   id: string;
@@ -654,6 +698,7 @@ export function BrandingTab() {
                           output
                         </TooltipContent>
                       </Tooltip>
+                      <TestPrintBadgeButton />
                     </div>
 
                     <p className="text-xs text-muted-foreground">
