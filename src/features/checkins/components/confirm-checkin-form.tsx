@@ -10,7 +10,6 @@ import {
   XCircle,
   Loader2,
   Printer,
-  Download,
   Copy,
 } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
@@ -33,6 +32,10 @@ import {
 } from "@/types/checkin";
 import { CheckinStateBadge } from "./state-badge";
 import { useConfirmCheckin } from "../hooks";
+import {
+  PrintBadgeModal,
+  type PrintBadgeModalData,
+} from "@/features/visitors/components/print-badge-modal";
 import { formatDateTime } from "@/lib/utils/format-date";
 
 interface ConfirmCheckinFormProps {
@@ -41,44 +44,8 @@ interface ConfirmCheckinFormProps {
 }
 
 interface BadgeState {
-  pdfBase64?: string;
   qrToken: string;
   visitorName: string;
-}
-
-function base64ToBlob(base64: string, mime: string) {
-  const byteCharacters = atob(base64);
-  const byteNumbers = new Array(byteCharacters.length);
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteNumbers[i] = byteCharacters.charCodeAt(i);
-  }
-  return new Blob([new Uint8Array(byteNumbers)], { type: mime });
-}
-
-function downloadBadgePdf(base64: string, visitorName: string) {
-  const blob = base64ToBlob(base64, "application/pdf");
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `badge-${
-    visitorName.replace(/\s+/g, "-").toLowerCase() || "visitor"
-  }.pdf`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
-function printBadgePdf(base64: string) {
-  const blob = base64ToBlob(base64, "application/pdf");
-  const url = URL.createObjectURL(blob);
-  const printWindow = window.open(url, "_blank");
-  if (printWindow) {
-    printWindow.addEventListener("load", () => {
-      printWindow.print();
-    });
-  }
-  setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
 /**
@@ -104,6 +71,7 @@ export function ConfirmCheckinForm({
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [badge, setBadge] = useState<BadgeState | null>(null);
+  const [printOpen, setPrintOpen] = useState(false);
 
   const visitorName = checkin.visitor?.fullName || "Visitor";
   const isPending = checkin.state === "pending_approval";
@@ -129,7 +97,6 @@ export function ConfirmCheckinForm({
         toast.success(`${visitorName} checked in. Badge ready to print.`);
         if (isCheckinApproveResponse(response)) {
           setBadge({
-            pdfBase64: response.badge.badgePdfBase64,
             qrToken: response.badge.badgeQrToken,
             visitorName,
           });
@@ -249,54 +216,27 @@ export function ConfirmCheckinForm({
             fetch the badge later from the check-in details.
           </p>
           <div className="flex flex-col gap-2 md:flex-row">
-            {badge.pdfBase64 && (
-              <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={() =>
-                        badge.pdfBase64 && printBadgePdf(badge.pdfBase64)
-                      }
-                      className="min-h-[44px]"
-                    >
-                      <Printer
-                        className="mr-2 h-4 w-4"
-                        aria-hidden="true"
-                      />
-                      Print badge
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    Open the badge PDF and send it to your printer
-                  </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        badge.pdfBase64 &&
-                        downloadBadgePdf(badge.pdfBase64, badge.visitorName)
-                      }
-                      className="min-h-[44px]"
-                    >
-                      <Download
-                        className="mr-2 h-4 w-4"
-                        aria-hidden="true"
-                      />
-                      Download PDF
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    Save the badge as a PDF to your computer
-                  </TooltipContent>
-                </Tooltip>
-              </>
-            )}
-            {!badge.pdfBase64 && badge.qrToken && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={() => setPrintOpen(true)}
+                  disabled={!badge.qrToken}
+                  className="min-h-[44px]"
+                >
+                  <Printer className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Print badge
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                Preview the badge and send it straight to your printer, or save
+                it as a PDF
+              </TooltipContent>
+            </Tooltip>
+            {badge.qrToken && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
+                    variant="outline"
                     onClick={() => {
                       navigator.clipboard
                         .writeText(badge.qrToken)
@@ -474,6 +414,22 @@ export function ConfirmCheckinForm({
           </div>
         </section>
       )}
+
+      <PrintBadgeModal
+        open={printOpen}
+        onOpenChange={setPrintOpen}
+        badge={
+          badge
+            ? ({
+                visitorName: badge.visitorName,
+                company: checkin.visitor?.company ?? undefined,
+                purpose: checkin.purpose?.purpose ?? undefined,
+                statusLabel: "Checked in",
+                qrToken: badge.qrToken,
+              } satisfies PrintBadgeModalData)
+            : { visitorName: "", statusLabel: "Checked in", qrToken: "" }
+        }
+      />
     </div>
   );
 }
