@@ -26,6 +26,7 @@ import {
   HelpCircle,
   GraduationCap,
   ScrollText,
+  ShieldAlert,
 } from "lucide-react";
 import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
 import { MobileNavSheet } from "@/components/navigation/mobile-nav-sheet";
@@ -185,6 +186,13 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
         icon: Scale,
         description: "Cross-tenant read-only oversight of NDPA / GDPR data subject requests — SLA risk, status, and identity verification. Processing remains the tenant's responsibility.",
         notificationBucket: "dsr",
+      },
+      {
+        label: "Incidents",
+        href: "/admin/incidents",
+        icon: ShieldAlert,
+        description: "Cross-tenant read-only oversight of security and data-protection incidents — risk, status, and the 72h NDPC notification deadline across every tenant.",
+        notificationBucket: "incidents",
       },
     ],
   },

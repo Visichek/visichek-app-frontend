@@ -42,6 +42,33 @@ export function useIncidents(params?: UseIncidentsParams) {
   });
 }
 
+/** An incident row from the cross-tenant admin list, with its owning tenant. */
+export interface AdminIncident extends Incident {
+  tenantSummary?: { id: string; name?: string | null } | null;
+}
+
+interface UseAdminIncidentsParams extends UseIncidentsParams {
+  /** Narrow to a single tenant's incidents. */
+  tenantId?: string;
+}
+
+/**
+ * Platform-admin cross-tenant incidents list — `GET /v1/admins/dashboard/incidents`.
+ * Admin-gated; each row carries a `tenantSummary` so the table can show which
+ * tenant the incident belongs to. Read-only oversight (no triage here).
+ */
+export function useAdminIncidents(params?: UseAdminIncidentsParams) {
+  return useQuery<ListResponse<AdminIncident>>({
+    queryKey: ["admin-incidents", params],
+    queryFn: () =>
+      apiGetList<AdminIncident>(
+        "/admins/dashboard/incidents",
+        params as Record<string, unknown> | undefined,
+      ),
+    placeholderData: keepPreviousData,
+  });
+}
+
 /**
  * Fetch a single incident by ID
  */
