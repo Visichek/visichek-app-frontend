@@ -383,6 +383,34 @@ export function NotificationDropdown() {
             })
           )}
         </div>
+
+        <Separator />
+
+        {/* Footer — jump to the full feed for filtering, pagination, and the
+            complete history (the dropdown only shows the latest 10). */}
+        <div className="p-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 w-full justify-center text-xs"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate(
+                    isAdmin ? "/admin/notifications" : "/app/notifications",
+                  );
+                }}
+              >
+                View all notifications
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              Open the full notifications page to filter, paginate, and manage
+              every alert
+            </TooltipContent>
+          </Tooltip>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );
