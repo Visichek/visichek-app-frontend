@@ -43,6 +43,8 @@ export const ADMIN_ROUTES: RouteEntry[] = [
   { prefix: "/admin/content/pricing", kind: "prefix-match" },
   { prefix: "/admin/content/faqs", kind: "prefix-match" },
   { prefix: "/admin/support-cases", kind: "prefix-match" },
+  { prefix: "/admin/incidents", kind: "prefix-match" },
+  { prefix: "/admin/notifications", kind: "prefix-match" },
   { prefix: "/admin/jobs", kind: "prefix-match" },
   { prefix: "/admin/settings", kind: "prefix-match" },
   // Admin shell also hosts a generic visitor-detail page for cases
@@ -59,6 +61,8 @@ export const TENANT_ROUTES: RouteEntry[] = [
   { prefix: "/app/users", kind: "prefix-match" },
   { prefix: "/app/branding", kind: "prefix-match" },
   { prefix: "/app/incidents", kind: "prefix-match" },
+  { prefix: "/app/notifications", kind: "prefix-match" },
+  { prefix: "/app/my-activity", kind: "prefix-match" },
   { prefix: "/app/audit", kind: "prefix-match" },
   { prefix: "/app/dpo", kind: "prefix-match" },
   { prefix: "/app/billing", kind: "prefix-match" },
