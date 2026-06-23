@@ -191,8 +191,7 @@ function orderActions(
 export function QuickActions() {
   const { navigate } = useNavigationLoading();
   const { hasCapability } = useCapabilities();
-  const { can, isEndpointDenied, capFor, isLoading: limitationsLoading } =
-    useCapability();
+  const { gateDenied, isLoading: limitationsLoading } = useCapability();
   const { promptUpgrade } = useUpgradePrompt();
 
   // Filter to only the actions the current role can perform. Plan-denied
@@ -204,18 +203,14 @@ export function QuickActions() {
   );
 
   function isActionLocked(action: TenantQuickAction): boolean {
+    // Don't lock while limitations load — the card stays clickable until we
+    // know, rather than flashing a padlock that then disappears.
     if (limitationsLoading) return false;
-    if (action.lockFeature && !can(action.lockFeature)) return true;
-    if (action.lockApiPrefix && isEndpointDenied(action.lockApiPrefix)) return true;
-    if (action.lockCap) {
-      const cap = capFor(action.lockCap.field);
-      // `null` means unlimited — not locked. Concrete caps at/under the
-      // threshold flip the action into locked mode.
-      if (cap !== null && cap !== undefined && cap <= action.lockCap.max) {
-        return true;
-      }
-    }
-    return false;
+    return gateDenied({
+      feature: action.lockFeature,
+      apiPrefix: action.lockApiPrefix,
+      cap: action.lockCap,
+    });
   }
 
   const [actions, setActions] = useState<TenantQuickAction[]>(() =>

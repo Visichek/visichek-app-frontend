@@ -38,6 +38,31 @@ export function useInvalidateLimitations() {
   return () => queryClient.invalidateQueries({ queryKey: limitationsKey });
 }
 
+/**
+ * A declarative description of what gates a piece of UI behind the plan.
+ * Any one matching dimension denies the gate (logical OR). This is the
+ * single shape every plan-gated surface (sidebar nav, dashboard quick
+ * actions, page-level redirects, in-page controls) builds and hands to
+ * `gateDenied`, so the "what counts as denied" logic lives in exactly one
+ * place. Adding a new gate dimension means editing `gateDenied` only.
+ */
+export interface PlanGate {
+  /** Stable feature key, matched against `deniedFeatures`. */
+  feature?: PlanFeatureKey | string;
+  /**
+   * API prefix, matched against `deniedEndpoints[].pattern` (startsWith).
+   * Use for surfaces with no stable feature key (incidents, audit, dpo).
+   */
+  apiPrefix?: string;
+  /**
+   * Entity-cap gate. Denied when the cap is a concrete number `<= max`.
+   * `null`/`undefined` cap = unlimited = NOT denied. Use for limits
+   * expressed as a number (e.g. Free = 1 system user / 1 department)
+   * rather than a feature flag.
+   */
+  cap?: { field: keyof Limitations["caps"]; max: number };
+}
+
 export interface CapabilitiesView {
   /** Resolved limitations payload, or null while loading or for non-tenant users. */
   limitations: Limitations | null;
@@ -45,6 +70,14 @@ export interface CapabilitiesView {
   can: (key: PlanFeatureKey | string) => boolean;
   /** True when the feature is explicitly denied. (Inverse of `can`.) */
   denied: (key: PlanFeatureKey | string) => boolean;
+  /**
+   * Evaluate a declarative {@link PlanGate} (feature, API prefix, and/or
+   * entity cap) in one call. Returns true when the current plan denies it.
+   * Does NOT factor in load state — each caller combines this with its own
+   * loading policy (e.g. nav hides while loading; quick actions stay
+   * clickable while loading). The single source of truth for gate logic.
+   */
+  gateDenied: (gate: PlanGate) => boolean;
   /** Lookup helpers for greying out branch / department rows. */
   isBranchLocked: (branchId: string) => boolean;
   isDepartmentLocked: (departmentId: string) => boolean;
@@ -108,6 +141,20 @@ export function useCapability(): CapabilitiesView {
       isDepartmentLocked: (id) => deptLocked.has(id),
       isEndpointDenied: (apiPrefix) =>
         deniedEndpointPatterns.some((p) => p.startsWith(apiPrefix)),
+      gateDenied: (gate) => {
+        if (gate.feature && deniedSet.has(gate.feature)) return true;
+        if (
+          gate.apiPrefix &&
+          deniedEndpointPatterns.some((p) => p.startsWith(gate.apiPrefix!))
+        ) {
+          return true;
+        }
+        if (gate.cap) {
+          const c = limitations?.caps?.[gate.cap.field];
+          if (c !== null && c !== undefined && c <= gate.cap.max) return true;
+        }
+        return false;
+      },
       capFor: (field) => limitations?.caps?.[field],
       isFreeFallback: limitations?.plan?.isFreeFallback === true,
       isFreePlan,

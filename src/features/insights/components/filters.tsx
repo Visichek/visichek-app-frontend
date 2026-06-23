@@ -248,10 +248,10 @@ function FilterRow({ children }: { children: React.ReactNode }) {
 }
 
 function SuperAdminFilters({ values, onChange }: FiltersProps) {
-  const { denied, isLoading: capLoading } = useCapability();
+  const { gateDenied, isLoading: capLoading } = useCapability();
   // Hosts are Premium-only (denied on Free/Starter). Treat "still loading"
   // as denied so the control never flashes in for a gated tenant.
-  const hostsDenied = capLoading || denied("hosts");
+  const hostsDenied = capLoading || gateDenied({ feature: "hosts" });
   const branches = useBranches({ limit: 100 });
   const departments = useDepartments({ limit: 100 });
   const hosts = useHosts({ limit: 100 }, { enabled: !hostsDenied });
@@ -290,10 +290,10 @@ function SuperAdminFilters({ values, onChange }: FiltersProps) {
 }
 
 function DeptAdminFilters({ values, onChange }: FiltersProps) {
-  const { denied, isLoading: capLoading } = useCapability();
+  const { gateDenied, isLoading: capLoading } = useCapability();
   // Hosts are Premium-only — Host is this role's only insights filter, so a
   // Free/Starter dept_admin gets no filter row at all.
-  const hostsDenied = capLoading || denied("hosts");
+  const hostsDenied = capLoading || gateDenied({ feature: "hosts" });
   const hosts = useHosts({ limit: 100 }, { enabled: !hostsDenied });
   const hostOpts = (hosts.data?.items ?? []).map((h) => ({ value: h.id, label: h.name }));
 
