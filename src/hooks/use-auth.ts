@@ -93,6 +93,33 @@ export type LoginResult =
 
 const EMPTY_TOKENS = { accessToken: "", refreshToken: "" };
 
+/**
+ * Outcome of {@link useAuth().resetPassword}.
+ *   - "complete": the backend auto-signed-in an eligible system user (cookies
+ *     set + profile dispatched); the hook already navigated.
+ *   - "manual": password was reset but no session was issued (admin, MFA, or
+ *     an ineligible/inactive account) — the caller shows a sign-in CTA.
+ */
+export type ResetPasswordResult = { kind: "complete" } | { kind: "manual" };
+
+/**
+ * The reset-password response is either the minimal `{ reset, auto_login }`
+ * body or, when the backend auto-signed-in an eligible system user, the full
+ * login profile. Discriminate on the identity fields only present on the
+ * latter.
+ */
+function isSystemUserLoginResponse(
+  data: unknown,
+): data is SystemUserLoginResponse {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "id" in data &&
+    "role" in data &&
+    "tenantId" in data
+  );
+}
+
 export function useAuth() {
   const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
@@ -413,10 +440,38 @@ export function useAuth() {
    *   422 → password policy failure, `details` carries field-level info
    */
   const resetPassword = useCallback(
-    async (request: ResetPasswordRequest): Promise<ResetPasswordResponse> => {
-      return apiPost<ResetPasswordResponse>("/auth/reset-password", request);
+    async (request: ResetPasswordRequest): Promise<ResetPasswordResult> => {
+      const data = await apiPost<
+        ResetPasswordResponse | SystemUserLoginResponse
+      >("/auth/reset-password", request);
+
+      // Backend auto sign-in: an eligible system user receives httpOnly
+      // cookies on the reset response and the body carries their login
+      // profile. Dispatch the session (the Redux store subscription writes
+      // the auth hint) and route straight in — no second login with the
+      // password they just typed. Admin / MFA / ineligible accounts return
+      // the plain `{ reset }` body and fall back to manual sign-in.
+      if (isSystemUserLoginResponse(data)) {
+        const profile = extractProfile(data);
+        clearExplicitLogout();
+        dispatch(
+          setSystemUserSession({
+            type: "system_user",
+            tokens: EMPTY_TOKENS,
+            profile,
+          })
+        );
+        navigate(
+          data.mustChangePassword
+            ? getChangePasswordPath("system_user")
+            : getPostLoginPath("system_user", data.role)
+        );
+        return { kind: "complete" };
+      }
+
+      return { kind: "manual" };
     },
-    []
+    [dispatch, navigate]
   );
 
   /**

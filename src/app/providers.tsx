@@ -10,7 +10,7 @@ import { bootstrapSession } from "@/lib/auth/bootstrap";
 import { selectIsBootstrapping } from "@/lib/store/session-slice";
 import { useAppSelector } from "@/lib/store/hooks";
 import { Toaster, toast } from "sonner";
-import { isPermissionError } from "@/types/api";
+import { ApiError, isPermissionError } from "@/types/api";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { NavigationLoadingProvider } from "@/lib/routing/navigation-context";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
@@ -76,9 +76,30 @@ export function Providers({ children }: ProvidersProps) {
           mutations: {
             retry: 0,
             onError: (error) => {
-              if (isPermissionError(error)) {
-                toast.error("Insufficient permissions — you do not have access to this feature.");
+              if (!isPermissionError(error)) return;
+              // Some 403s are gate redirects, not feature-access denials:
+              // a temp-password user (PASSWORD_CHANGE_REQUIRED), an inactive
+              // account (AUTH_ACCOUNT_INACTIVE), or a tenant that hasn't
+              // accepted the latest agreements. The routing layer (and the
+              // login form) handle these with specific copy, so the generic
+              // "insufficient permissions" toast would be misleading.
+              const code = error instanceof ApiError ? error.code : undefined;
+              const detailCode =
+                error instanceof ApiError &&
+                error.details &&
+                typeof error.details === "object"
+                  ? (error.details as { code?: string }).code
+                  : undefined;
+              if (
+                code === "AUTH_ACCOUNT_INACTIVE" ||
+                detailCode === "PASSWORD_CHANGE_REQUIRED" ||
+                detailCode === "AGREEMENT_ACCEPTANCE_REQUIRED"
+              ) {
+                return;
               }
+              toast.error(
+                "Insufficient permissions — you do not have access to this feature.",
+              );
             },
           },
         },

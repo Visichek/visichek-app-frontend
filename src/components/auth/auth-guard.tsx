@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/hooks/use-session";
 import { useAppSelector } from "@/lib/store/hooks";
-import { selectIsBootstrapping } from "@/lib/store/session-slice";
+import {
+  selectAdminProfile,
+  selectIsBootstrapping,
+  selectSystemUserProfile,
+} from "@/lib/store/session-slice";
 import { isLogoutTransitionActive } from "@/lib/auth/auth-transition";
 import { readAuthHint } from "@/lib/auth/auth-hint";
 import type { SessionType } from "@/types/auth";
@@ -41,6 +45,15 @@ export function AuthGuard({ shell, children }: AuthGuardProps) {
   const router = useRouter();
   const { isAuthenticated, sessionType } = useSession();
   const isBootstrapping = useAppSelector(selectIsBootstrapping);
+  const adminProfile = useAppSelector(selectAdminProfile);
+  const systemUserProfile = useAppSelector(selectSystemUserProfile);
+  // A first-login / temp-password user must set a real password before the
+  // backend lets them touch any shell endpoint. Route them out to the
+  // change-password screen rather than rendering a shell that 403s.
+  const mustChangePassword =
+    shell === "admin"
+      ? Boolean(adminProfile?.mustChangePassword)
+      : Boolean(systemUserProfile?.mustChangePassword);
   const isLoggingOut = isLogoutTransitionActive();
 
   // Read the auth hint ONCE on mount. We use it as a synchronous tripwire
@@ -65,7 +78,7 @@ export function AuthGuard({ shell, children }: AuthGuardProps) {
   const redirectPath =
     !hasHint || isBootstrapping
       ? null
-      : resolveRedirect(shell, isAuthenticated, sessionType);
+      : resolveRedirect(shell, isAuthenticated, sessionType, mustChangePassword);
 
   useEffect(() => {
     if (!isLoggingOut && redirectPath) {
@@ -84,12 +97,20 @@ function resolveRedirect(
   shell: SessionType,
   isAuthenticated: boolean,
   sessionType: SessionType | null,
+  mustChangePassword: boolean,
 ): string | null {
   if (!isAuthenticated) {
     return shell === "admin" ? "/admin/login" : "/app/login";
   }
   if (sessionType !== shell) {
     return sessionType === "admin" ? "/admin/dashboard" : "/app/dashboard";
+  }
+  // Funnel a temp-password user to the change-password screen (a public page,
+  // so this guard won't re-run there) before any shell content mounts.
+  if (mustChangePassword) {
+    return shell === "admin"
+      ? "/admin/change-password"
+      : "/app/change-password";
   }
   return null;
 }

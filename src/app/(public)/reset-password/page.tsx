@@ -136,7 +136,14 @@ function ResetPasswordContent() {
     setError(null);
     setIsSubmitting(true);
     try {
-      await resetPassword({ token, newPassword: password });
+      const result = await resetPassword({ token, newPassword: password });
+      if (result.kind === "complete") {
+        // The backend auto-signed-in an eligible system user and the auth
+        // hook already navigated to their workspace. Keep the spinner up
+        // until the route swaps instead of re-logging-in below.
+        setView({ kind: "signing_in" });
+        return;
+      }
       await attemptAutoLogin();
     } catch (err) {
       if (err instanceof ApiError) {

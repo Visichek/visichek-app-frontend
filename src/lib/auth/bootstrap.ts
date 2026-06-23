@@ -180,6 +180,14 @@ async function tryFetchSystemUserProfile(): Promise<SystemUserProfile | null> {
         (data.departmentId as string) ??
         (data.department_id as string) ??
         undefined,
+      // Carry the forced-password-change flag so a hard refresh re-routes a
+      // first-login user to the change-password screen instead of leaving
+      // them on a shell where every gated request 403s. `/me` is exempt from
+      // the must-change gate on the backend precisely so this survives boot.
+      mustChangePassword:
+        (data.mustChangePassword as boolean | undefined) ??
+        (data.must_change_password as boolean | undefined) ??
+        false,
     };
   } catch (err) {
     // 401 means no valid session for this shell; 403 means we have a
@@ -207,6 +215,10 @@ async function tryFetchAdminProfile(): Promise<AdminProfile | null> {
       mfaEnabled:
         (data.mfaEnabled as boolean | undefined) ??
         (data.mfa_enabled as boolean | undefined),
+      mustChangePassword:
+        (data.mustChangePassword as boolean | undefined) ??
+        (data.must_change_password as boolean | undefined) ??
+        false,
     };
   } catch {
     return null;
