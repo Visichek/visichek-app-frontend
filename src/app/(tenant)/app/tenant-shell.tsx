@@ -27,6 +27,7 @@ import {
   Headphones,
   GraduationCap,
   FileCheck,
+  History,
 } from "lucide-react";
 import { AppSidebar, type NavItem } from "@/components/navigation/app-sidebar";
 import { MobileNavSheet } from "@/components/navigation/mobile-nav-sheet";
@@ -181,6 +182,13 @@ const ALL_TENANT_NAV_ITEMS: (GatedNavItem | GatedNavGroup)[] = [
         lockKey: "audit",
       },
       {
+        label: "My activity",
+        href: "/app/my-activity",
+        icon: History,
+        description: "A read-only record of every action you've taken in this workspace — your own scoped audit trail, available to all roles.",
+        apiPrefix: "/v1/audit-logs",
+      },
+      {
         label: "Data Protection",
         href: "/app/dpo",
         icon: Shield,
@@ -320,7 +328,7 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
   const workspaceName = branding?.companyName ?? "VisiChek";
   const workspaceLogo = branding?.logoUrl;
 
-  const { can, isEndpointDenied, isLoading: limitationsLoading } = useCapability();
+  const { gateDenied, isLoading: limitationsLoading } = useCapability();
   // Issue 2: tenant-side notification badges. Reuses the same
   // bucket-classification path the admin shell uses so the topbar bell,
   // sidebar badges, and any page-level alerts stay in sync.
@@ -389,15 +397,14 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
       if (!roleAllowsLeaf(leaf)) return null;
 
       const hasGate = !!leaf.feature || !!leaf.apiPrefix;
-      const featureDenied =
-        !!leaf.feature && (limitationsLoading || !can(leaf.feature));
-      const endpointDenied =
-        !!leaf.apiPrefix &&
-        (limitationsLoading || isEndpointDenied(leaf.apiPrefix));
+      // Treat "still loading" as denied so a free user never sees a gated row
+      // flash in before /me/limitations resolves and removes it.
+      const denied =
+        hasGate &&
+        (limitationsLoading ||
+          gateDenied({ feature: leaf.feature, apiPrefix: leaf.apiPrefix }));
 
-      if (!hasGate || (!featureDenied && !endpointDenied)) return leaf;
-      // Denied → hidden everywhere in the nav.
-      return null;
+      return denied ? null : leaf;
     }
 
     const visible: NavItem[] = [];
@@ -414,7 +421,7 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
       }
     }
     return visible;
-  }, [currentRole, can, isEndpointDenied, limitationsLoading]);
+  }, [currentRole, gateDenied, limitationsLoading]);
 
   // Page-level lock check. Builds the set of href prefixes the current
   // plan denies (from nav items + extra map), then tests the current
@@ -433,25 +440,23 @@ function TenantShellInner({ children }: { children: React.ReactNode }) {
         }
         const leaf = item as GatedNavItem;
         if (!leaf.href) continue;
-        const featureDenied = !!leaf.feature && !can(leaf.feature);
-        const endpointDenied =
-          !!leaf.apiPrefix && isEndpointDenied(leaf.apiPrefix);
-        if (featureDenied || endpointDenied) lockedPrefixes.push(leaf.href);
+        if (gateDenied({ feature: leaf.feature, apiPrefix: leaf.apiPrefix })) {
+          lockedPrefixes.push(leaf.href);
+        }
       }
     }
     collect(ALL_TENANT_NAV_ITEMS);
 
     for (const route of EXTRA_LOCKED_ROUTES) {
-      const featureDenied = !!route.feature && !can(route.feature);
-      const endpointDenied =
-        !!route.apiPrefix && isEndpointDenied(route.apiPrefix);
-      if (featureDenied || endpointDenied) lockedPrefixes.push(route.pathPrefix);
+      if (gateDenied({ feature: route.feature, apiPrefix: route.apiPrefix })) {
+        lockedPrefixes.push(route.pathPrefix);
+      }
     }
 
     return lockedPrefixes.some(
       (p) => pathname === p || pathname.startsWith(p + "/"),
     );
-  }, [pathname, can, isEndpointDenied, limitationsLoading]);
+  }, [pathname, gateDenied, limitationsLoading]);
 
   // Hard redirect when the user lands on a locked route — directly via
   // the URL bar, a bookmark, or a click that landed before the lock

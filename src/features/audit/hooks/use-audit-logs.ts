@@ -26,6 +26,24 @@ export function useAuditLogs(params?: AuditLogFilters) {
 }
 
 /**
+ * Fetch the CURRENT user's own audit activity — `GET /v1/audit-logs/me`.
+ * Open to every tenant role; the backend forces actor_id to the caller, so
+ * this can never surface another user's actions. Same enriched row shape as
+ * {@link useAuditLogs}.
+ */
+export function useMyAuditLogs(params?: AuditLogFilters) {
+  return useQuery<ListResponse<AuditLog>>({
+    queryKey: ["audit-logs", "me", params],
+    queryFn: () =>
+      apiGetList<AuditLog>(
+        "/audit-logs/me",
+        params as Record<string, unknown> | undefined,
+      ),
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
  * Trigger a browser download of a Blob with the given filename.
  * Cleans up the object URL after the click is dispatched.
  */
