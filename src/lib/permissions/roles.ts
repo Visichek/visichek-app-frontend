@@ -36,6 +36,10 @@ export const ROLE_CAPABILITIES: Record<SystemUserRole, Capability[]> = {
     C.HOST_VIEW,
     C.HOST_EDIT,
     C.DASHBOARD_VIEW,
+    // Incident reporting (file + view). Triage (status/NDPC) stays with the
+    // security / compliance roles — enforced by the backend route gate.
+    C.INCIDENT_CREATE,
+    C.INCIDENT_VIEW,
     C.SUPPORT_CASE_CREATE,
     C.SUPPORT_CASE_VIEW,
     C.SUPPORT_CASE_REPLY,
@@ -55,6 +59,10 @@ export const ROLE_CAPABILITIES: Record<SystemUserRole, Capability[]> = {
     C.APPOINTMENT_VIEW,
     C.APPOINTMENT_EDIT,
     C.DASHBOARD_VIEW,
+    // Incident reporting (file + view) at the front desk. Triage stays
+    // restricted — enforced by the backend route gate.
+    C.INCIDENT_CREATE,
+    C.INCIDENT_VIEW,
     C.SUPPORT_CASE_CREATE,
     C.SUPPORT_CASE_VIEW,
     C.SUPPORT_CASE_REPLY,
@@ -65,6 +73,9 @@ export const ROLE_CAPABILITIES: Record<SystemUserRole, Capability[]> = {
   auditor: [
     C.AUDIT_VIEW,
     C.AUDIT_EXPORT,
+    // Incident reporting (file + view); triage stays restricted.
+    C.INCIDENT_CREATE,
+    C.INCIDENT_VIEW,
     C.VISITOR_VIEW_SESSIONS,
     C.VISITOR_VIEW_PROFILES,
     C.DASHBOARD_VIEW,
@@ -88,6 +99,11 @@ export const ROLE_CAPABILITIES: Record<SystemUserRole, Capability[]> = {
   ],
 
   dpo: [
+    // Incident reporting + triage — the DPO files, views, and can transition
+    // incident status / mark NDPC-notified for compliance.
+    C.INCIDENT_CREATE,
+    C.INCIDENT_VIEW,
+    C.INCIDENT_EDIT,
     C.DSR_CREATE,
     C.DSR_VIEW,
     C.DSR_EDIT,

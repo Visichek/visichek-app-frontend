@@ -106,6 +106,11 @@ const INCIDENT_TABS: { value: IncidentStatusTab; label: string; description: str
 export default function IncidentsPage() {
   const { hasCapability } = useCapabilities();
   const canCreate = hasCapability(CAPABILITIES.INCIDENT_CREATE);
+  // Triage (status transitions + NDPC-notified marking) is restricted to the
+  // security / compliance roles. View & create-only roles (dept_admin,
+  // receptionist, auditor) get a read-only list plus the report action, with
+  // no triage controls — the backend _triage_roles gate is the real enforcer.
+  const canEdit = hasCapability(CAPABILITIES.INCIDENT_EDIT);
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
   const [statusTab, setStatusTab] = useState<IncidentStatusTab>("all");
@@ -200,22 +205,27 @@ export default function IncidentsPage() {
     }
   }
 
-  const bulkActions: DataTableBulkAction<Incident>[] = [
-    {
-      label: "Mark as Notified",
-      description: "Mark every selected incident as notified to NDPC with the current timestamp",
-      icon: <CheckCircle2 className="h-4 w-4" />,
-      variant: "default",
-      onClick: (_ids, rows) => {
-        const eligible = rows.filter((i) => !i.ndpcNotified).map((i) => i.id);
-        if (eligible.length === 0) {
-          toast.info("All selected incidents are already marked as notified");
-          return;
-        }
-        setBulkNotifyIds(eligible);
-      },
-    },
-  ];
+  const bulkActions: DataTableBulkAction<Incident>[] = canEdit
+    ? [
+        {
+          label: "Mark as Notified",
+          description:
+            "Mark every selected incident as notified to NDPC with the current timestamp",
+          icon: <CheckCircle2 className="h-4 w-4" />,
+          variant: "default",
+          onClick: (_ids, rows) => {
+            const eligible = rows
+              .filter((i) => !i.ndpcNotified)
+              .map((i) => i.id);
+            if (eligible.length === 0) {
+              toast.info("All selected incidents are already marked as notified");
+              return;
+            }
+            setBulkNotifyIds(eligible);
+          },
+        },
+      ]
+    : [];
 
   const handleMarkAsNotified = useCallback(
     (incident: Incident) => {
@@ -288,6 +298,7 @@ export default function IncidentsPage() {
           incident={row.original}
           onMarkNotified={handleMarkAsNotified}
           pendingNotificationId={pendingNotificationId}
+          canEdit={canEdit}
         />
       ),
     },
@@ -610,10 +621,12 @@ function RowActions({
   incident,
   onMarkNotified,
   pendingNotificationId,
+  canEdit,
 }: {
   incident: Incident;
   onMarkNotified: (i: Incident) => void;
   pendingNotificationId: string | null;
+  canEdit: boolean;
 }) {
   const editHref = `/app/incidents/${incident.id}/edit`;
   return (
@@ -634,10 +647,10 @@ function RowActions({
       <DropdownMenuContent align="end">
         <DropdownMenuNavItem
           href={editHref}
-          label="View / Edit"
+          label={canEdit ? "View / Edit" : "View"}
           icon={<Edit2 className="h-4 w-4" aria-hidden="true" />}
         />
-        {!incident.ndpcNotified && (
+        {canEdit && !incident.ndpcNotified && (
           <DropdownMenuItem
             onClick={() => onMarkNotified(incident)}
             disabled={pendingNotificationId === incident.id}

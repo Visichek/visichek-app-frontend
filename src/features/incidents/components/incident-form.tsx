@@ -32,6 +32,8 @@ import {
   RISK_LEVEL_OPTIONS,
   RISK_LEVEL_BY_VALUE,
 } from "@/features/incidents/lib/risk-levels";
+import { useCapabilities } from "@/hooks/use-capabilities";
+import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import type { Incident } from "@/types/incident";
 import type { IncidentStatus, IncidentType } from "@/types/enums";
 
@@ -81,6 +83,13 @@ export function IncidentForm({ incident }: IncidentFormProps) {
   const createMutation = useCreateIncident();
   const updateMutation = useUpdateIncident(incident?.id ?? "");
   const isEditing = !!incident;
+  const { hasCapability } = useCapabilities();
+  // Editing an existing incident is triage — restricted to INCIDENT_EDIT
+  // roles. View & create-only roles open an existing incident read-only (the
+  // backend _triage_roles gate would 403 a save anyway); creating a brand-new
+  // report stays fully editable for every reporter.
+  const canEdit = hasCapability(CAPABILITIES.INCIDENT_EDIT);
+  const readOnly = isEditing && !canEdit;
 
   const {
     register,
@@ -148,11 +157,19 @@ export function IncidentForm({ incident }: IncidentFormProps) {
       </div>
 
       <PageHeader
-        title={isEditing ? "Edit incident" : "Report incident"}
+        title={
+          readOnly
+            ? "Incident details"
+            : isEditing
+              ? "Edit incident"
+              : "Report incident"
+        }
         description={
-          isEditing
-            ? "Update this incident's details and status."
-            : "Log a new security or data-protection incident for triage."
+          readOnly
+            ? "Review this incident. Triage is handled by the security and compliance team."
+            : isEditing
+              ? "Update this incident's details and status."
+              : "Log a new security or data-protection incident for triage."
         }
       />
 
@@ -163,6 +180,7 @@ export function IncidentForm({ incident }: IncidentFormProps) {
             id="description"
             placeholder="What happened? Include enough detail for triage."
             className="flex min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={readOnly}
             {...register("description")}
             aria-invalid={!!errors.description}
             aria-describedby={errors.description ? "error-description" : undefined}
@@ -213,7 +231,11 @@ export function IncidentForm({ incident }: IncidentFormProps) {
                 RISK_LEVEL_BY_VALUE[field.value] ?? RISK_LEVEL_OPTIONS[0];
               return (
                 <>
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    disabled={readOnly}
+                  >
                     <SelectTrigger
                       id="riskLevel"
                       className="min-h-[44px]"
@@ -249,7 +271,11 @@ export function IncidentForm({ incident }: IncidentFormProps) {
               name="status"
               control={control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  disabled={readOnly}
+                >
                   <SelectTrigger id="status" className="min-h-[44px]">
                     <SelectValue />
                   </SelectTrigger>
@@ -275,32 +301,36 @@ export function IncidentForm({ incident }: IncidentFormProps) {
                 disabled={submitting}
                 className="w-full min-h-[44px] md:w-auto"
               >
-                Cancel
+                {readOnly ? "Back to incidents" : "Cancel"}
               </NavButton>
             </TooltipTrigger>
             <TooltipContent side="top">
-              Discard this draft and return to the incidents list
+              {readOnly
+                ? "Return to the incidents list"
+                : "Discard this draft and return to the incidents list"}
             </TooltipContent>
           </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span>
-                <LoadingButton
-                  type="submit"
-                  isLoading={submitting}
-                  loadingText={isEditing ? "Saving…" : "Reporting…"}
-                  className="w-full md:w-auto"
-                >
-                  {isEditing ? "Save changes" : "Report incident"}
-                </LoadingButton>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              {isEditing
-                ? "Save changes and return to the incidents list"
-                : "File this incident and return to the list"}
-            </TooltipContent>
-          </Tooltip>
+          {!readOnly && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <LoadingButton
+                    type="submit"
+                    isLoading={submitting}
+                    loadingText={isEditing ? "Saving…" : "Reporting…"}
+                    className="w-full md:w-auto"
+                  >
+                    {isEditing ? "Save changes" : "Report incident"}
+                  </LoadingButton>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                {isEditing
+                  ? "Save changes and return to the incidents list"
+                  : "File this incident and return to the list"}
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
       </form>
     </div>
