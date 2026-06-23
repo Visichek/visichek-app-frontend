@@ -275,6 +275,17 @@ export const PrintBadge = forwardRef<HTMLDivElement, PrintBadgeProps>(
     const grayLogo = useGrayscaleDataUrl(data.tenantLogoUrl);
     const showTenantLogo = Boolean(grayLogo);
 
+    // The visitor's name is the hero of the pass. Scale it down for
+    // longer names so it never wraps past two lines and crowds the QR.
+    const visitorNameDisplay = data.visitorName?.trim() || "Visitor";
+    const nameLen = visitorNameDisplay.length;
+    const nameFs =
+      nameLen > 24
+        ? sz.titleFs * 0.58
+        : nameLen > 16
+          ? sz.titleFs * 0.76
+          : sz.titleFs;
+
     return (
       <div
         ref={ref}
@@ -392,24 +403,40 @@ export const PrintBadge = forwardRef<HTMLDivElement, PrintBadgeProps>(
           </div>
         </header>
 
-        {/* ── Serif headline ──────────────────────────────────────── */}
-        <div
-          style={{
-            marginTop: sz.titleMt,
-            fontSize: `${sz.titleFs}px`,
-            fontWeight: 700,
-            letterSpacing: "-0.015em",
-            // Georgia's "p" descender sits ~0.2em below the baseline; a
-            // tight line-height of 1 clips it under the badge's
-            // overflow:hidden in the snapshot. 1.2 gives the descender
-            // its required headroom.
-            lineHeight: 1.2,
-            paddingBottom: "0.5mm",
-            flex: "0 0 auto",
-            fontFamily: DISPLAY_FONT,
-          }}
-        >
-          Visitor Pass
+        {/* ── Pass eyebrow + visitor name (the hero) ──────────────── */}
+        <div style={{ marginTop: sz.titleMt, flex: "0 0 auto" }}>
+          <div
+            style={{
+              fontSize: `${sz.tenantSubFs}px`,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.22em",
+              color: "rgba(0,0,0,0.55)",
+              lineHeight: 1,
+              fontFamily: BODY_FONT,
+            }}
+          >
+            Visitor Pass
+          </div>
+          <div
+            style={{
+              marginTop: format === "A6" ? "1.6mm" : "1.1mm",
+              fontSize: `${nameFs}px`,
+              fontWeight: 700,
+              letterSpacing: "-0.015em",
+              // Georgia's "p"/"g" descenders sit ~0.2em below the
+              // baseline; a tight line-height of 1 clips them under the
+              // badge's overflow:hidden in the snapshot. 1.18 gives the
+              // descender its required headroom.
+              lineHeight: 1.18,
+              paddingBottom: "0.5mm",
+              overflowWrap: "anywhere",
+              wordBreak: "break-word",
+              fontFamily: DISPLAY_FONT,
+            }}
+          >
+            {visitorNameDisplay}
+          </div>
         </div>
 
         {/* ── QR with explicit quiet zone ─────────────────────────── */}
@@ -454,57 +481,46 @@ export const PrintBadge = forwardRef<HTMLDivElement, PrintBadgeProps>(
           </div>
         </div>
 
-        {/* ── Visitor name (human verification) ───────────────────── */}
-        <div
-          style={{
-            marginTop: sz.visitorNameMt,
-            flex: "0 0 auto",
-            textAlign: "center",
-          }}
-        >
+        {/* ── Verification meta (company + issued) ────────────────── */}
+        {(data.company || issuedLabel) && (
           <div
             style={{
-              fontSize: `${sz.visitorNameFs}px`,
-              fontWeight: 700,
-              lineHeight: 1.05,
-              letterSpacing: "-0.01em",
-              overflowWrap: "anywhere",
-              fontFamily: BODY_FONT,
+              marginTop: sz.visitorNameMt,
+              flex: "0 0 auto",
+              textAlign: "center",
             }}
           >
-            {data.visitorName || "—"}
+            {data.company && (
+              <div
+                style={{
+                  fontSize: `${sz.visitorCompanyFs}px`,
+                  fontWeight: 400,
+                  color: "rgba(0,0,0,0.7)",
+                  overflowWrap: "anywhere",
+                  lineHeight: 1.1,
+                  fontFamily: BODY_FONT,
+                }}
+              >
+                {data.company}
+              </div>
+            )}
+            {issuedLabel && (
+              <div
+                style={{
+                  marginTop: data.company ? sz.visitorMetaMt : "0mm",
+                  fontSize: `${sz.visitorMetaFs}px`,
+                  fontWeight: 400,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  color: "rgba(0,0,0,0.55)",
+                  fontFamily: BODY_FONT,
+                }}
+              >
+                Issued {issuedLabel}
+              </div>
+            )}
           </div>
-          {data.company && (
-            <div
-              style={{
-                marginTop: "0.8mm",
-                fontSize: `${sz.visitorCompanyFs}px`,
-                fontWeight: 400,
-                color: "rgba(0,0,0,0.7)",
-                overflowWrap: "anywhere",
-                lineHeight: 1.1,
-                fontFamily: BODY_FONT,
-              }}
-            >
-              {data.company}
-            </div>
-          )}
-          {issuedLabel && (
-            <div
-              style={{
-                marginTop: sz.visitorMetaMt,
-                fontSize: `${sz.visitorMetaFs}px`,
-                fontWeight: 400,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: "rgba(0,0,0,0.55)",
-                fontFamily: BODY_FONT,
-              }}
-            >
-              Issued {issuedLabel}
-            </div>
-          )}
-        </div>
+        )}
 
         {/* ── Footer: hairline + VisiChek mark ────────────────────── */}
         <footer
