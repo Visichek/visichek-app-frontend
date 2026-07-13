@@ -5,7 +5,6 @@ import {
   ArrowLeft,
   CheckCircle2,
   XCircle,
-  ShieldCheck,
   User,
   Clock,
   Loader2,
@@ -20,6 +19,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { CheckinStateBadge } from "./state-badge";
+import { IdentityCheckBadge } from "./identity-check-badge";
 import { formatDateTime } from "@/lib/utils/format-date";
 import type { CheckinOut } from "@/types/checkin";
 
@@ -83,12 +83,13 @@ export function CheckinDetailView({ checkin }: CheckinDetailViewProps) {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <CheckinStateBadge state={checkin.state} />
-          {checkin.verified && (
-            <span className="inline-flex items-center gap-1 text-xs text-success">
-              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-              ID verified
-            </span>
-          )}
+          {/* Always rendered — previously this showed nothing at all when the
+              visitor was unverified, which is exactly the case the approver
+              most needs to see. */}
+          <IdentityCheckBadge
+            identityCheck={checkin.identityCheck}
+            verified={checkin.verified}
+          />
         </div>
 
         {checkin.visitor && (

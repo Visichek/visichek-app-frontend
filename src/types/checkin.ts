@@ -456,6 +456,8 @@ export interface CheckinOut {
   purpose: PurposeInfo;
   state: CheckinState;
   verified: boolean;
+  /** Why `verified` is what it is — see `IdentityCheckSummary`. */
+  identityCheck?: IdentityCheckSummary | null;
   /**
    * Attribution for a manual (staff-vouched) verification of this
    * check-in's visitor. Present only when `verified === true` AND the
@@ -509,11 +511,26 @@ export interface CheckinOut {
 export interface CheckinApproveResponse {
   checkinId: string;
   state: CheckinState;
-  badge: {
-    badgeQrToken: string;
-    badgePdfBase64?: string;
-    badgePngBase64?: string;
-  };
+  /**
+   * `null` on the Free plan — the check-in is still approved, there is just
+   * no badge artifact to print. Callers MUST null-check before reading.
+   */
+  badge: CheckinApproveBadge | null;
+}
+
+export interface CheckinApproveBadge {
+  /** Canonical QR string. `qrCodeValue` is the legacy alias for the same value. */
+  badgeQrToken: string;
+  qrCodeValue?: string;
+  badgePdfBase64?: string;
+  badgePngBase64?: string;
+}
+
+/** Reads the badge QR string regardless of which field name the API used. */
+export function readBadgeQrToken(
+  badge: CheckinApproveBadge | null | undefined
+): string {
+  return badge?.badgeQrToken || badge?.qrCodeValue || "";
 }
 
 /**
@@ -527,10 +544,14 @@ export type CheckinConfirmResponse = CheckinApproveResponse | CheckinOut;
 export function isCheckinApproveResponse(
   response: CheckinConfirmResponse
 ): response is CheckinApproveResponse {
+  // NB: `typeof null === "object"`, so the null check is load-bearing — on the
+  // Free plan the API legitimately returns `badge: null` on a successful
+  // approval, and treating that as a badge throws when we read the token.
   return (
     response.state === "approved" &&
     "badge" in response &&
-    typeof response.badge === "object"
+    typeof response.badge === "object" &&
+    response.badge !== null
   );
 }
 
@@ -581,12 +602,37 @@ export type PendingApprovalState =
  * to call to action it. Field availability varies by source — see the
  * inline notes.
  */
+/**
+ * Why a visitor is (or isn't) verified.
+ *
+ * "Not verified" on its own is ambiguous — it reads the same whether the check
+ * never ran, the visitor skipped it, or the ID they presented belongs to
+ * SOMEONE ELSE. The receptionist decides who walks in, so the backend always
+ * sends the reason and the UI must always show it.
+ */
+export interface IdentityCheckSummary {
+  verified: boolean;
+  /** KYC status, or "not_started" | "manual" | "host_approved". */
+  status: string;
+  /** Short badge label, e.g. "ID mismatch". */
+  headline: string;
+  /** The full explanation. Always present. */
+  reason: string;
+  /** True only for the dangerous case: a real ID belonging to a different person. */
+  mismatch: boolean;
+  /** What the ID actually said, when it disagreed with what was typed. */
+  extractedName?: string | null;
+  nameScore?: number | null;
+}
+
 export interface PendingApprovalItem {
   id: string;
   sourceType: PendingApprovalSourceType;
   tenantId: string;
   state: PendingApprovalState;
   verified: boolean;
+  /** Why `verified` is what it is. Never absent for check-in rows. */
+  identityCheck?: IdentityCheckSummary | null;
 
   visitorName: string;
   company?: string | null;
