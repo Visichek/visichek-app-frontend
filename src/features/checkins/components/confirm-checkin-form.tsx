@@ -27,6 +27,7 @@ import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { ApiError } from "@/types/api";
 import {
   isCheckinApproveResponse,
+  readBadgeQrToken,
   type CheckinConfirmAction,
   type CheckinOut,
 } from "@/types/checkin";
@@ -94,14 +95,21 @@ export function ConfirmCheckinForm({
       });
 
       if (action === "approve") {
-        toast.success(`${visitorName} checked in. Badge ready to print.`);
-        if (isCheckinApproveResponse(response)) {
-          setBadge({
-            qrToken: response.badge.badgeQrToken,
-            visitorName,
-          });
+        const qrToken = isCheckinApproveResponse(response)
+          ? readBadgeQrToken(response.badge)
+          : "";
+
+        if (qrToken) {
+          toast.success(`${visitorName} checked in. Badge ready to print.`);
+          setBadge({ qrToken, visitorName });
           return;
         }
+
+        // Approved, but the plan doesn't include badge printing (or the
+        // badge failed to issue). Say so rather than implying a badge exists.
+        toast.success(
+          `${visitorName} checked in. Badge printing isn't available on your plan.`,
+        );
         router.push("/app/visitors/pending");
       } else {
         toast.info(`${visitorName} rejected. Host has been notified.`);

@@ -27,7 +27,6 @@ import {
   LogIn,
   MoreHorizontal,
   ShieldAlert,
-  ShieldCheck,
   Unlock,
   UserCheck,
   XCircle,
@@ -89,6 +88,7 @@ import { useCapabilities } from "@/hooks/use-capabilities";
 import { useShowBranch } from "@/hooks/use-show-branch";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import type { PendingApprovalItem } from "@/types/checkin";
+import { IdentityCheckBadge } from "@/features/checkins/components/identity-check-badge";
 import type {
   AppointmentCheckInRequest,
   AppointmentCheckInResponse,
@@ -613,15 +613,12 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
         accessorKey: "verified",
         id: "verified",
         header: "ID",
-        cell: ({ row }) =>
-          row.original.verified ? (
-            <span className="inline-flex items-center gap-1 text-xs text-success">
-              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-              Verified
-            </span>
-          ) : (
-            <span className="text-xs text-muted-foreground">Not verified</span>
-          ),
+        cell: ({ row }) => (
+          <IdentityCheckBadge
+            identityCheck={row.original.identityCheck}
+            verified={row.original.verified}
+          />
+        ),
       },
       ...(showBranch
         ? [
