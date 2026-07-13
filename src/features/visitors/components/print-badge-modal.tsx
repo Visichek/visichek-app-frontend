@@ -146,9 +146,15 @@ export function PrintBadgeModal({
           })}
         </div>
 
+        {/* overflow-hidden, NOT overflow-y-auto. The preview scales itself to
+            fit, so it never needs to scroll — and an auto scrollbar here fed
+            straight back into the measurement below: badge grows -> scrollbar
+            appears -> container narrows -> badge shrinks -> scrollbar goes ->
+            container widens -> badge grows, forever. That loop is what made
+            the modal appear to flicker open and closed on every print. */}
         <div
           aria-label="Badge preview"
-          className="flex min-h-0 flex-1 justify-center overflow-y-auto rounded-lg border bg-muted/30 p-3 sm:p-4"
+          className="flex min-h-0 flex-1 justify-center overflow-hidden rounded-lg border bg-muted/30 p-3 sm:p-4"
         >
           <BadgePreviewFrame dims={dims}>
             <PrintBadge ref={badgeRef} data={data} format={format} />
@@ -236,17 +242,35 @@ function BadgePreviewFrame({ dims, children }: PreviewFrameProps) {
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+
     const compute = () => {
       const availableWidth = Math.max(0, el.clientWidth - 8);
       const availableHeight = Math.max(0, el.clientHeight - 8);
       const widthScale = availableWidth > 0 ? availableWidth / pxWidth : 1;
       const heightScale = availableHeight > 0 ? availableHeight / pxHeight : 1;
-      setScale(Math.min(1, widthScale, heightScale));
+      const next = Math.min(1, widthScale, heightScale);
+
+      // Ignore sub-pixel noise. Without this, the dialog's open animation
+      // (a 200ms zoom) drives a fresh measurement on every frame and the
+      // preview visibly churns while it settles.
+      setScale((prev) => (Math.abs(prev - next) < 0.005 ? prev : next));
     };
-    const observer = new ResizeObserver(compute);
+
+    // Defer to the next frame: measuring synchronously inside the observer
+    // callback and immediately re-rendering is what triggers the browser's
+    // "ResizeObserver loop completed with undelivered notifications" error.
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(compute);
+    });
     observer.observe(el);
     compute();
-    return () => observer.disconnect();
+
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
   }, [pxWidth, pxHeight]);
 
   return (
@@ -256,26 +280,39 @@ function BadgePreviewFrame({ dims, children }: PreviewFrameProps) {
         width: "100%",
         flex: 1,
         minHeight: 0,
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "center",
+        position: "relative",
+        overflow: "hidden",
       }}
     >
+      {/* Absolutely positioned so the scaled badge is OUT OF FLOW and can
+          never influence the size of the element we measure. The scale is
+          derived from the container, so if the container could in turn be
+          sized by the badge we would be right back in a measurement loop. */}
       <div
         style={{
-          width: pxWidth * scale,
-          height: pxHeight * scale,
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "center",
         }}
       >
         <div
           style={{
-            transform: `scale(${scale})`,
-            transformOrigin: "top left",
-            width: pxWidth,
-            height: pxHeight,
+            width: pxWidth * scale,
+            height: pxHeight * scale,
           }}
         >
-          {children}
+          <div
+            style={{
+              transform: `scale(${scale})`,
+              transformOrigin: "top left",
+              width: pxWidth,
+              height: pxHeight,
+            }}
+          >
+            {children}
+          </div>
         </div>
       </div>
     </div>
