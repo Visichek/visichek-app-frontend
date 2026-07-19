@@ -3,7 +3,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api/request";
 import { POLLING_INTERVALS, pollWhenAuthenticated } from "@/lib/query/polling";
-import type { JobListParams, JobRecord } from "@/types/job";
+import type { JobListParams, JobListResponse, JobRecord } from "@/types/job";
 
 // Centralised keys so anything that invalidates jobs can do so cleanly.
 export const jobKeys = {
@@ -18,9 +18,21 @@ export const jobKeys = {
  * notifications.
  */
 export function useJobs(params?: JobListParams) {
-  return useQuery<JobRecord[]>({
+  return useQuery<JobListResponse>({
     queryKey: jobKeys.list(params),
-    queryFn: () => apiGet<JobRecord[]>("/jobs", params),
+    queryFn: async () => {
+      const data = await apiGet<JobListResponse | JobRecord[]>("/jobs", params);
+      // Older backend builds returned a bare array — normalise both shapes.
+      if (Array.isArray(data)) {
+        return {
+          items: data,
+          total: data.length,
+          skip: params?.skip ?? 0,
+          limit: params?.limit ?? data.length,
+        };
+      }
+      return data;
+    },
     placeholderData: keepPreviousData,
     // Jobs change fast; keep the list fresh without beating the endpoint.
     refetchInterval: () => pollWhenAuthenticated(POLLING_INTERVALS.jobsList),

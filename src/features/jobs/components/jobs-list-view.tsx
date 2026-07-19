@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   Activity,
@@ -29,6 +29,8 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { FilterBar } from "@/components/recipes/filter-bar";
+import { AUDIT_RESOURCE_TYPE_OPTIONS } from "@/features/audit/lib/audit-display";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useJobs } from "@/features/jobs/hooks";
 import { JobStatusBadge } from "@/features/jobs/components";
@@ -102,19 +104,34 @@ function groupJobs(jobs: JobRecord[]): JobGroup[] {
 export function JobsListView({ basePath }: JobsListViewProps) {
   const [status, setStatus] = useState<StatusFilter>("all");
   const [view, setView] = useState<ViewMode>("grouped");
+  const [resourceType, setResourceType] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [q, setQ] = useState("");
   const { loadingHref, navigate } = useNavigationLoading();
+
+  // Debounce the search box into the wire param (≥2 chars).
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const trimmed = searchInput.trim();
+      setQ(trimmed.length >= 2 ? trimmed : "");
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   const params = useMemo(
     () => ({
       status: status === "all" ? undefined : status,
+      resourceType: resourceType || undefined,
+      q: q || undefined,
       skip: 0,
       limit: 50,
     }),
-    [status],
+    [status, resourceType, q],
   );
 
-  const { data: jobs, isLoading, isError, refetch } = useJobs(params);
-  const rows = jobs ?? [];
+  const { data, isLoading, isError, refetch } = useJobs(params);
+  const rows = data?.items ?? [];
+  const total = data?.total ?? rows.length;
 
   const groups = useMemo(() => groupJobs(rows), [rows]);
 
@@ -230,6 +247,27 @@ export function JobsListView({ basePath }: JobsListViewProps) {
         }
       />
 
+      <FilterBar
+        filters={[
+          {
+            key: "resourceType",
+            label: "Resource type",
+            type: "select",
+            options: AUDIT_RESOURCE_TYPE_OPTIONS,
+          },
+        ]}
+        values={{ resourceType }}
+        onChange={(_key, value) => setResourceType(value)}
+        onClear={() => {
+          setResourceType("");
+          setSearchInput("");
+          setStatus("all");
+        }}
+        searchPlaceholder="Search activity by action, resource, or id"
+        searchValue={searchInput}
+        onSearchChange={setSearchInput}
+      />
+
       <Tabs value={view} onValueChange={(v) => setView(v as ViewMode)}>
         <div className="flex items-center justify-between">
           <TabsList>
@@ -247,7 +285,7 @@ export function JobsListView({ basePath }: JobsListViewProps) {
             </TabsTrigger>
           </TabsList>
           <div className="text-sm text-muted-foreground">
-            {rows.length} event{rows.length !== 1 ? "s" : ""}
+            {total} event{total !== 1 ? "s" : ""}
             {view === "grouped" && groups.length
               ? ` · ${groups.length} action${groups.length !== 1 ? "s" : ""}`
               : ""}

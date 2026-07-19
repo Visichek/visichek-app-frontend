@@ -467,6 +467,8 @@ export interface CheckinOut {
   manualVerification?: ManualVerificationInfo | null;
   approvedByUserId?: string;
   approvedAt?: number;
+  /** Internal note the approving staff member left at approval time. */
+  approvalNotes?: string;
   rejectionReason?: string;
   dateCreated: number;
   lastUpdated: number;

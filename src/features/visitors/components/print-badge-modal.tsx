@@ -115,7 +115,10 @@ export function PrintBadgeModal({
       title="Print visitor badge"
       description={`Preview the badge before printing. Default size is A6 (${FORMAT_OPTIONS[0].label.split(" ")[1]}).`}
     >
-      <div className="flex max-h-[calc(85vh-7rem)] flex-col gap-4">
+      {/* Definite height (not max-h) — the preview frame is `flex-1` with an
+          absolutely-positioned child, so without a resolved height on this
+          column the preview collapses to 0px and the badge never shows. */}
+      <div className="flex h-[calc(85vh-7rem)] flex-col gap-4">
         <div
           className="grid grid-cols-2 gap-2"
           role="radiogroup"

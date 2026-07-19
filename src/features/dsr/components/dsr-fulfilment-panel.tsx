@@ -112,6 +112,22 @@ export function DSRFulfilmentPanel({ dsr }: { dsr: DataSubjectRequest }) {
             <span className="font-medium text-foreground">{dsr.status}</span>.
             No further action is required.
           </p>
+          {dsr.resolution && (
+            <p>
+              Resolution:{" "}
+              <span className="font-medium text-foreground">
+                {dsr.resolution}
+              </span>
+            </p>
+          )}
+          {dsr.rejectionReason && (
+            <p>
+              Rejection reason:{" "}
+              <span className="font-medium text-foreground">
+                {dsr.rejectionReason}
+              </span>
+            </p>
+          )}
           {dsr.accessExportEmailedTo && (
             <p className="flex items-start gap-2">
               <Mail

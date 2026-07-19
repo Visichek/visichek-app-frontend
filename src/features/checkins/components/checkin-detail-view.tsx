@@ -192,6 +192,12 @@ export function CheckinDetailView({ checkin }: CheckinDetailViewProps) {
               {formatDateTime(checkin.approvedAt)}
             </p>
           )}
+          {checkin.approvalNotes && (
+            <p>Approval note: {checkin.approvalNotes}</p>
+          )}
+          {checkin.manualVerification?.notes && (
+            <p>Verification note: {checkin.manualVerification.notes}</p>
+          )}
           {checkin.rejectionReason && (
             <p className="text-destructive">
               Reason: {checkin.rejectionReason}

@@ -101,6 +101,21 @@ export interface JobListParams {
   limit?: number;
   /** Filter to a single terminal / transient status. */
   status?: JobStatus;
-  /** Filter by taskKey prefix (e.g. `"db.write:department"`). */
+  /** Filter by taskKey substring (e.g. `"department"`). */
   taskKey?: string;
+  /** Filter by exact resource type (e.g. `"checkin"`). */
+  resourceType?: string;
+  /** Free-text search over task key, resource type, and resource id. */
+  q?: string;
+  /** Unix epoch seconds range on dateCreated. */
+  dateFrom?: number;
+  dateTo?: number;
+}
+
+/** Paginated envelope returned by `GET /v1/jobs`. */
+export interface JobListResponse {
+  items: JobRecord[];
+  total: number;
+  skip: number;
+  limit: number;
 }

@@ -10,7 +10,6 @@ import {
   XCircle,
   Loader2,
   Printer,
-  Copy,
 } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
 import { NavButton } from "@/components/recipes/nav-button";
@@ -240,30 +239,6 @@ export function ConfirmCheckinForm({
                 it as a PDF
               </TooltipContent>
             </Tooltip>
-            {badge.qrToken && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      navigator.clipboard
-                        .writeText(badge.qrToken)
-                        .then(() => toast.success("Token copied"))
-                        .catch(() =>
-                          toast.error("Couldn't copy to clipboard"),
-                        );
-                    }}
-                    className="min-h-[44px]"
-                  >
-                    <Copy className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Copy badge token
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  Copy the badge QR token to share or paste into another system
-                </TooltipContent>
-              </Tooltip>
-            )}
             <Tooltip>
               <TooltipTrigger asChild>
                 <NavButton
