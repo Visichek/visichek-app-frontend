@@ -12,7 +12,7 @@ import { BrandedSplash } from "@/components/auth/branded-splash";
  *
  *   - authenticated admin → `/admin/dashboard`
  *   - authenticated tenant user → `/app/dashboard`
- *   - unauthenticated → `/login` (dual-portal chooser)
+ *   - unauthenticated → `/app/login` (tenant portal sign-in)
  *
  * A minimum on-screen time keeps the animation from flashing past on
  * fast networks. A safety timer guarantees we never strand the user on
@@ -44,7 +44,7 @@ export function VisichekSplash() {
     } else if (isAuthenticated && isSystemUser) {
       router.replace("/app/dashboard");
     } else {
-      router.replace("/login");
+      router.replace("/app/login");
     }
   }, [
     isAuthenticated,
@@ -59,7 +59,7 @@ export function VisichekSplash() {
     const safety = window.setTimeout(() => {
       if (hasRedirectedRef.current) return;
       hasRedirectedRef.current = true;
-      router.replace("/login");
+      router.replace("/app/login");
     }, SAFETY_TIMEOUT_MS);
     return () => window.clearTimeout(safety);
   }, [router]);

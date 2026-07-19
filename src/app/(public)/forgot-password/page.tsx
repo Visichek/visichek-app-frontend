@@ -284,7 +284,7 @@ function EmailStep({
       <Tooltip>
         <TooltipTrigger asChild>
           <Link
-            href="/login"
+            href="/app/login"
             className="w-full flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#3A9615] transition-colors py-2"
           >
             <ArrowLeft size={14} />
@@ -545,7 +545,7 @@ function SentConfirmation({
       <Tooltip>
         <TooltipTrigger asChild>
           <Link
-            href="/login"
+            href="/app/login"
             className="w-full inline-flex items-center justify-center gap-2 min-h-[48px] bg-[#3A9615] hover:bg-[#2e7a11] text-white font-semibold rounded-xl py-3 px-4 transition-all duration-200 active:scale-[0.98] shadow-[0_6px_20px_-6px_rgba(58,150,21,0.5)] hover:shadow-[0_8px_24px_-6px_rgba(58,150,21,0.6)] text-base md:text-sm"
           >
             Return to sign in

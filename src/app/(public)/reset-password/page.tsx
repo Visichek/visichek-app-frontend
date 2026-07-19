@@ -347,7 +347,7 @@ function ResetPasswordContent() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Link
-                    href="/login"
+                    href="/app/login"
                     className="w-full flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-[#3A9615] transition-colors py-2"
                   >
                     <ArrowLeft size={14} />

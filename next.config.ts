@@ -68,6 +68,20 @@ const nextConfig: NextConfig = {
     ],
   },
 
+  // The dual-portal chooser at /login is retired: visitors who type /login
+  // land on the tenant portal sign-in. The platform-admin console stays
+  // reachable only by intentionally navigating to /admin/login. Temporary
+  // (307) so browsers don't permanently cache the hop.
+  async redirects() {
+    return [
+      {
+        source: "/login",
+        destination: "/app/login",
+        permanent: false,
+      },
+    ];
+  },
+
   async headers() {
     return [
       {

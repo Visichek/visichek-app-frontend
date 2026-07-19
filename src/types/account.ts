@@ -58,8 +58,10 @@ export interface SessionOut {
   id: string;
   userId: string;
   userType: string;
-  ipAddress: string;
-  userAgent: string;
+  // ip_address / user_agent are Optional on the backend (legacy rows,
+  // proxies that strip headers) — never assume they're present.
+  ipAddress: string | null;
+  userAgent: string | null;
   deviceType: DeviceType;
   /**
    * Backend-formatted device label like "Chrome (Windows)". Prefer this
@@ -76,8 +78,14 @@ export interface SessionOut {
    * sessions with token revocation events if needed.
    */
   accessTokenId?: string;
-  dateCreated: number;
-  lastActiveAt: number;
+  // Unix seconds; Optional on the backend for legacy rows.
+  dateCreated: number | null;
+  lastActiveAt: number | null;
+}
+
+export interface BulkRevokeSessionsResult {
+  succeeded: string[];
+  failed: string[];
 }
 
 export interface RevokeSessionResponse {

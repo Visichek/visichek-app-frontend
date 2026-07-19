@@ -14,6 +14,7 @@ import { useSettingsManifest, useSettingsSection } from "@/features/settings/hoo
 import {
   useSessions,
   useRevokeSession,
+  useRevokeSessions,
   useRevokeAllSessions,
 } from "@/features/account/hooks";
 import { toast } from "sonner";
@@ -25,6 +26,7 @@ export function SessionsTab() {
 
   const { data: sessions, isLoading: sessionsLoading } = useSessions();
   const revokeSession = useRevokeSession();
+  const revokeSessions = useRevokeSessions();
   const revokeAllSessions = useRevokeAllSessions();
 
   return (
@@ -111,6 +113,22 @@ export function SessionsTab() {
                 onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to revoke session"),
               });
             }}
+            onRevokeMany={(ids) => {
+              revokeSessions.mutate(ids, {
+                onSuccess: ({ succeeded, failed }) => {
+                  if (failed.length === 0) {
+                    toast.success(`${succeeded.length} session(s) revoked`);
+                  } else {
+                    toast.error(
+                      `${succeeded.length} of ${succeeded.length + failed.length} sessions revoked — ${failed.length} failed`
+                    );
+                  }
+                },
+                onError: (err) =>
+                  toast.error(err instanceof Error ? err.message : "Failed to revoke sessions"),
+              });
+            }}
+            isRevokingMany={revokeSessions.isPending}
             revokingId={revokeSession.isPending ? (revokeSession.variables as string) : null}
           />
         )}

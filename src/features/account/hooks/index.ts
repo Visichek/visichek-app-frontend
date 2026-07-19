@@ -6,6 +6,7 @@ export {
   useRegenerateBackupCodes,
   useSessions,
   useRevokeSession,
+  useRevokeSessions,
   useRevokeAllSessions,
   accountKeys,
 } from "./use-account";

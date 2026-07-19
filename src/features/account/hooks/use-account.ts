@@ -16,6 +16,7 @@ import type {
   SessionOut,
   RevokeSessionResponse,
   RevokeAllSessionsResponse,
+  BulkRevokeSessionsResult,
 } from "@/types/account";
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -126,6 +127,40 @@ export function useRevokeSession() {
         `${basePath}/sessions/${sessionId}`
       ),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: accountKeys.sessions });
+    },
+  });
+}
+
+/**
+ * Revoke a selected set of sessions. The backend only exposes
+ * revoke-one and revoke-all, so a partial selection fans out to
+ * per-session DELETEs and aggregates the outcome — callers surface
+ * "X of Y revoked" instead of failing silently on partial errors.
+ */
+export function useRevokeSessions() {
+  const queryClient = useQueryClient();
+  const basePath = useBasePath();
+
+  return useMutation({
+    mutationFn: async (
+      sessionIds: string[]
+    ): Promise<BulkRevokeSessionsResult> => {
+      const results = await Promise.allSettled(
+        sessionIds.map((id) =>
+          apiDelete<RevokeSessionResponse>(`${basePath}/sessions/${id}`)
+        )
+      );
+      const succeeded: string[] = [];
+      const failed: string[] = [];
+      results.forEach((result, index) => {
+        (result.status === "fulfilled" ? succeeded : failed).push(
+          sessionIds[index]
+        );
+      });
+      return { succeeded, failed };
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: accountKeys.sessions });
     },
   });

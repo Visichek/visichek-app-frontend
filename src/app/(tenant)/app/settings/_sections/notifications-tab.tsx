@@ -285,7 +285,11 @@ function humanizeSkipReason(code: string): string {
     case "email_disabled_in_preferences":
       return "your master Email notifications toggle is off.";
     case "smtp_not_configured":
+    case "email_transport_not_configured":
       return "the platform's email provider isn't configured yet. Contact support.";
+    case "smtp_send_failed":
+    case "send_failed":
+      return "the email provider rejected the send. Contact support.";
     case "missing_recipient_email":
       return "your account doesn't have a verified email on file.";
     case "rate_limited":
