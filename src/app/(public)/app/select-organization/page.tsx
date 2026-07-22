@@ -140,7 +140,7 @@ export default function SelectOrganizationPage() {
                 <LoadingButton
                   onClick={() => handleSelectTenant(tenant.id)}
                   isLoading={loadingTenantId === tenant.id}
-                  loadingText="Switching..."
+                  loadingText="Switching…"
                   className="w-full"
                   size="sm"
                 >

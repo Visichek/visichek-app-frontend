@@ -20,6 +20,12 @@
  * A small allowlist exists for lines that are legitimately fine (backend
  * enum values quoted as copy, e.g. discount scope options) — add to it
  * deliberately, never to silence a real miss.
+ *
+ * Known limitation: the JSX-text pattern only matches text that appears on
+ * a single line (`>text<` within one line), so text nodes split across
+ * multiple lines are not scanned. Bare string constants without a
+ * recognized keyword prefix (label/title/description/etc.) are also not
+ * scanned unless they match one of the COPY_VALUE_PATTERNS above.
  */
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -49,11 +55,16 @@ const TENANT_WORD = /\btenant\b/i;
 // file:line substrings that are known-safe and intentionally excluded.
 // Keep this list short — every entry should be reviewed, not a dumping
 // ground for lazily suppressing real misses.
+// Allowlist entries match on file path + trimmed line CONTENT (not line
+// number), so they don't silently rot when the file shifts around them.
 const ALLOWLIST = [
   // Backend enum literal ("global" | "tenant" | "plan") rendered as a raw
   // SelectItem value, not label copy — the visible label was already
   // changed to "Organization — one specific organization".
-  'src/features/discounts/components/discount-form.tsx:397:                  <SelectItem value="tenant">',
+  {
+    file: "src/features/discounts/components/discount-form.tsx",
+    line: '<SelectItem value="tenant">',
+  },
 ];
 
 /** @param {string} dir */
@@ -78,7 +89,7 @@ for (const file of walk(SRC_DIR)) {
 
   lines.forEach((line, idx) => {
     const lineNo = idx + 1;
-    const key = `${relPath}:${lineNo}`;
+    const trimmed = line.trim();
 
     for (const pattern of COPY_VALUE_PATTERNS) {
       pattern.lastIndex = 0;
@@ -90,8 +101,12 @@ for (const file of walk(SRC_DIR)) {
         const value = match[1]?.replace(/\$\{[^}]*\}/g, "");
         if (!value || !TENANT_WORD.test(value)) continue;
 
-        const entry = `${key}:${line.trim()}`;
-        if (ALLOWLIST.some((allowed) => entry.startsWith(allowed))) continue;
+        if (
+          ALLOWLIST.some(
+            (allowed) => allowed.file === relPath && allowed.line === trimmed
+          )
+        )
+          continue;
 
         violations.push({ file: relPath, line: lineNo, text: line.trim() });
         break;

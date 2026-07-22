@@ -177,11 +177,11 @@ export function BootstrapTenantForm() {
               ) : (
                 <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
               )}
-              Back to organizations
+              Back to organisations
             </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
-            Return to the organizations list without creating a new one
+            Return to the organisations list without creating a new one
           </TooltipContent>
         </Tooltip>
       </div>
@@ -481,7 +481,7 @@ export function BootstrapTenantForm() {
             </TooltipTrigger>
             <TooltipContent side="top">
               {stepForm.isFirstStep
-                ? "Discard this draft and return to the organizations list"
+                ? "Discard this draft and return to the organisations list"
                 : "Go back to the previous step without losing your progress"}
             </TooltipContent>
           </Tooltip>
