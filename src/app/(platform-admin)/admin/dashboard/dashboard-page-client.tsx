@@ -47,23 +47,23 @@ const TABS: TabConfig[] = [
   },
   {
     id: "tenants",
-    label: "Tenants",
+    label: "Organizations",
     icon: Building2,
-    description: "Tenant counts, users, roles, geography, and recent signups",
+    description: "Organization counts, users, roles, geography, and recent signups",
   },
   {
     id: "billing",
     label: "Billing",
     icon: BadgeDollarSign,
     description:
-      "Subscriptions, revenue, payments, plans, and top tenants by revenue",
+      "Subscriptions, revenue, payments, plans, and top organizations by revenue",
   },
   {
     id: "activity",
     label: "Activity",
     icon: Activity,
     description:
-      "Cross-tenant visitor activity, time series, and traffic patterns",
+      "Cross-organization visitor activity, time series, and traffic patterns",
   },
   {
     id: "risk",
@@ -99,7 +99,7 @@ export function AdminDashboardPageClient() {
     <div className="space-y-6">
       <PageHeader
         title="Platform Dashboard"
-        description="Cross-tenant view of growth, revenue, and operational health"
+        description="Cross-organization view of growth, revenue, and operational health"
       />
 
       {/* Issue 1: surface the operational queue at the top of the page so

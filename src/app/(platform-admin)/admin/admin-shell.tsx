@@ -59,24 +59,24 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     label: "Dashboard",
     href: "/admin/dashboard",
     icon: LayoutDashboard,
-    description: "Range-aware, interactive platform analytics — tenants, revenue, risk, and live counters",
+    description: "Range-aware, interactive platform analytics — organizations, revenue, risk, and live counters",
   },
   {
     label: "Customers",
     icon: Users,
-    description: "Everything customer-facing — live tenants, signup queue, and marketing opt-ins",
+    description: "Everything customer-facing — live organizations, signup queue, and marketing opt-ins",
     children: [
       {
-        label: "Tenants",
+        label: "Organizations",
         href: "/admin/tenants",
         icon: Building2,
-        description: "Manage tenant organizations, bootstrap new tenants, and view their status",
+        description: "Manage organization accounts, bootstrap new organizations, and view their status",
       },
       {
         label: "Onboarding queue",
         href: "/admin/tenants/onboarding",
         icon: Inbox,
-        description: "Review self-service signups from the marketing site — accept to provision a tenant, partial-accept to flag missing fields, or reject with notes",
+        description: "Review self-service signups from the marketing site — accept to provision an organization, partial-accept to flag missing fields, or reject with notes",
         notificationBucket: "onboarding_queue",
       },
       {
@@ -102,7 +102,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
         label: "Subscriptions",
         href: "/admin/subscriptions",
         icon: CreditCard,
-        description: "View and manage tenant subscriptions, change plans, and handle cancellations",
+        description: "View and manage organization subscriptions, change plans, and handle cancellations",
       },
       {
         label: "Discounts",
@@ -158,13 +158,13 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
   {
     label: "Support",
     icon: Headphones,
-    description: "Tenant support cases, SLA watch, and the background-job activity feed",
+    description: "Organization support cases, SLA watch, and the background-job activity feed",
     children: [
       {
         label: "Support Cases",
         href: "/admin/support-cases",
         icon: LifeBuoy,
-        description: "Review tenant support tickets, reply, post internal notes, and move cases through the workflow",
+        description: "Review organization support tickets, reply, post internal notes, and move cases through the workflow",
         notificationBucket: "support_cases",
       },
       {
@@ -184,14 +184,14 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
         label: "Data Subject Requests",
         href: "/admin/dsr",
         icon: Scale,
-        description: "Cross-tenant read-only oversight of NDPA / GDPR data subject requests — SLA risk, status, and identity verification. Processing remains the tenant's responsibility.",
+        description: "Cross-organization read-only oversight of NDPA / GDPR data subject requests — SLA risk, status, and identity verification. Processing remains the organization's responsibility.",
         notificationBucket: "dsr",
       },
       {
         label: "Incidents",
         href: "/admin/incidents",
         icon: ShieldAlert,
-        description: "Cross-tenant read-only oversight of security and data-protection incidents — risk, status, and the 72h NDPC notification deadline across every tenant.",
+        description: "Cross-organization read-only oversight of security and data-protection incidents — risk, status, and the 72h NDPC notification deadline across every organization.",
         notificationBucket: "incidents",
       },
     ],

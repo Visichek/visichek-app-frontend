@@ -41,7 +41,7 @@ const FIELD_LABELS: Record<keyof AdminFilterValues, string> = {
   billingCycle: "Billing",
   paymentProvider: "Provider",
   country: "Country",
-  tenantId: "Tenant",
+  tenantId: "Organization",
   incidentType: "Incident type",
   incidentStatus: "Incident status",
   supportStatus: "Support status",
@@ -193,7 +193,7 @@ function RiskFilters({
       <FilterSelect label="Incident status" placeholder="All statuses" value={values.incidentStatus} options={INCIDENT_STATUSES} onChange={(v) => set({ incidentStatus: v })} />
       <FilterSelect label="Support status" placeholder="All statuses" value={values.supportStatus} options={SUPPORT_STATUSES} onChange={(v) => set({ supportStatus: v })} />
       <FilterSelect label="Support priority" placeholder="All priorities" value={values.supportPriority} options={SUPPORT_PRIORITIES} onChange={(v) => set({ supportPriority: v })} />
-      <FilterSelect label="Tenant" placeholder="All tenants" value={values.tenantId} options={tenantOpts} onChange={(v) => set({ tenantId: v })} />
+      <FilterSelect label="Organization" placeholder="All organizations" value={values.tenantId} options={tenantOpts} onChange={(v) => set({ tenantId: v })} />
     </Row>
   );
 }

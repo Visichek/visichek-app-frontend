@@ -325,7 +325,7 @@ export function AppointmentsPageClient() {
                   </NavButton>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
-                  Open the tenant form builder to configure appointment booking fields
+                  Open the organization form builder to configure appointment booking fields
                 </TooltipContent>
               </Tooltip>
             ) : null}

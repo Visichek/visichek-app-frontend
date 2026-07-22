@@ -35,8 +35,8 @@ export interface QuickAction {
 const ALL_ACTIONS: QuickAction[] = [
   {
     id: "create-tenant",
-    label: "Create Tenant",
-    description: "Bootstrap a new tenant organization with its first super admin",
+    label: "Create Organization",
+    description: "Bootstrap a new organization with its first super admin",
     icon: Building2,
     href: "/admin/tenants?action=create",
     color: "bg-blue-50",
@@ -63,7 +63,7 @@ const ALL_ACTIONS: QuickAction[] = [
   {
     id: "create-subscription",
     label: "New Subscription",
-    description: "Subscribe a tenant to a plan with optional overrides and trial",
+    description: "Subscribe an organization to a plan with optional overrides and trial",
     icon: CreditCard,
     href: "/admin/subscriptions?action=create",
     color: "bg-violet-50",

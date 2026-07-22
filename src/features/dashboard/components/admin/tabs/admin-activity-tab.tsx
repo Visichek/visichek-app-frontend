@@ -32,7 +32,7 @@ export function AdminActivityTab({ stats }: AdminActivityTabProps) {
   return (
     <div className="space-y-6">
       <StatGroup
-        title="Cross-tenant visitors"
+        title="Cross-organization visitors"
         items={[
           {
             label: "Visitors today",
@@ -80,7 +80,7 @@ export function AdminActivityTab({ stats }: AdminActivityTabProps) {
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <HeatmapBars
           title="By hour of day (UTC)"
-          description="Cross-tenant check-ins, last 30 days"
+          description="Cross-organization check-ins, last 30 days"
           data={stats.hourlyDistribution.map((b) => ({
             label: b.label,
             value: b.value,
@@ -89,7 +89,7 @@ export function AdminActivityTab({ stats }: AdminActivityTabProps) {
         />
         <HeatmapBars
           title="By day of week"
-          description="Cross-tenant check-ins, last 30 days"
+          description="Cross-organization check-ins, last 30 days"
           data={stats.dayOfWeekDistribution.map((b) => ({
             label: b.label,
             value: b.value,
@@ -100,7 +100,7 @@ export function AdminActivityTab({ stats }: AdminActivityTabProps) {
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <TopList
-          title="Top tenants by visitors"
+          title="Top organizations by visitors"
           description="Lifetime visitor profile count"
           items={tenantsToTopItems(stats.topTenantsByVisitors, {
             getId: (t) => t.tenantId,
@@ -110,7 +110,7 @@ export function AdminActivityTab({ stats }: AdminActivityTabProps) {
           unit="visitors"
         />
         <TopList
-          title="Top tenants by activity"
+          title="Top organizations by activity"
           description="Check-ins in the last 30 days"
           items={tenantsToTopItems(stats.topTenantsByActivity, {
             getId: (t) => t.tenantId,

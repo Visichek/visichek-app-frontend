@@ -102,7 +102,7 @@ export function AdminRiskTab({ stats }: AdminRiskTabProps) {
           height={220}
         />
         <TopList
-          title="Top tenants by incidents"
+          title="Top organizations by incidents"
           description="Across all severities"
           items={tenantsToTopItems(stats.topTenantsByIncidents, {
             getId: (t) => t.tenantId,
@@ -237,7 +237,7 @@ export function AdminRiskTab({ stats }: AdminRiskTabProps) {
       </section>
 
       <TopList
-        title="Top tenants by support load"
+        title="Top organizations by support load"
         description="Open and total cases"
         items={tenantsToTopItems(stats.topTenantsBySupport, {
           getId: (t) => t.tenantId,

@@ -119,13 +119,13 @@ export const ADMIN_PRESET_LABEL: Record<AdminAccessPreset, string> = {
 
 export const ADMIN_PRESET_DESCRIPTION: Record<AdminAccessPreset, string> = {
   all_controls:
-    "Full platform access — manage tenants, billing, content, and support.",
+    "Full platform access — manage organizations, billing, content, and support.",
   content_only:
-    "Manage marketing content only: blog, media, and pricing display. No access to tenants, billing, or support.",
+    "Manage marketing content only: blog, media, and pricing display. No access to organizations, billing, or support.",
   support_only:
-    "Triage tenant support cases and review the activity feed. No access to content, billing, or tenant management.",
+    "Triage organization support cases and review the activity feed. No access to content, billing, or organization management.",
   content_support:
-    "Manage marketing content and respond to tenant support cases. No access to billing or tenant management.",
+    "Manage marketing content and respond to organization support cases. No access to billing or organization management.",
   billing_only:
-    "Manage plans, subscriptions, and discounts. No access to tenants, content, or support.",
+    "Manage plans, subscriptions, and discounts. No access to organizations, content, or support.",
 };

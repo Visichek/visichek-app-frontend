@@ -1,7 +1,7 @@
 import { FormsSettingsClient } from "./forms-settings-client";
 
 export const metadata = {
-  title: "Tenant forms",
+  title: "Organization forms",
 };
 
 export default function TenantFormsSettingsPage() {

@@ -31,7 +31,7 @@ const FEATURE_COPY: Record<
     ],
   },
   branding: {
-    title: "Tenant branding",
+    title: "Organization branding",
     blurb:
       "Replace the VisiChek look with your own colours, logo, and badge styling.",
     bullets: [
@@ -82,7 +82,7 @@ const FEATURE_COPY: Record<
   multi_location: {
     title: "Multi-location",
     blurb:
-      "Run more than one branch from the same tenant with shared staff and reporting.",
+      "Run more than one branch from the same organization with shared staff and reporting.",
     bullets: [
       "Add unlimited physical branches",
       "Per-branch staff, departments, and dashboards",
@@ -122,7 +122,7 @@ const FEATURE_COPY: Record<
   audit: {
     title: "Audit log",
     blurb:
-      "A read-only, append-only trail of every system action across your tenant.",
+      "A read-only, append-only trail of every system action across your organization.",
     bullets: [
       "Filter by actor, action type, and date range",
       "Export for internal review or compliance reporting",

@@ -443,8 +443,8 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
             <p className="text-xs text-muted-foreground">
               Singleton plans only expose the fields the backend allows the
               tier to adjust. Locked inputs are shown for reference and
-              disabled. Use per-tenant overrides from the Subscriptions page
-              if a single tenant needs a custom value.
+              disabled. Use per-organization overrides from the Subscriptions page
+              if a single organization needs a custom value.
             </p>
           </div>
         </div>
@@ -700,8 +700,8 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
         {/* ────────────────  Tenant Caps  ──────────────── */}
         <section className="space-y-4">
           <SectionHeading
-            title="Tenant capacity limits"
-            subtitle="Hard caps applied to each tenant on this plan. Leave a field blank for unlimited."
+            title="Organization capacity limits"
+            subtitle="Hard caps applied to each organization on this plan. Leave a field blank for unlimited."
           />
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -744,7 +744,7 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
             title="Storage limits"
             subtitle={
               isLocked
-                ? "Storage limits are fixed on singleton plans. Use a per-tenant override from the Subscriptions page if a tenant needs more."
+                ? "Storage limits are fixed on singleton plans. Use a per-organization override from the Subscriptions page if an organization needs more."
                 : "Document count, total storage, and per-file size cap."
             }
           />
@@ -776,7 +776,7 @@ export function PlanEditForm({ plan }: PlanEditFormProps) {
         <section className="space-y-4">
           <SectionHeading
             title="Togglable features"
-            subtitle="These flip the feature on or off across every tenant on this plan. Each toggle saves immediately — no need to click Save below."
+            subtitle="These flip the feature on or off across every organization on this plan. Each toggle saves immediately — no need to click Save below."
           />
           <PlanFeaturesChecklist plan={plan} />
         </section>

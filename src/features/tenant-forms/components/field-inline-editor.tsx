@@ -563,7 +563,7 @@ function FieldTypeBody({
           onClick={(event) => event.stopPropagation()}
         />
         <p className="text-xs text-muted-foreground">
-          Stored verbatim with every submission so the tenant can prove which version was agreed to.
+          Stored verbatim with every submission so the organization can prove which version was agreed to.
         </p>
       </div>
     );

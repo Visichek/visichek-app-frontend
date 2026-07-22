@@ -139,7 +139,7 @@ export const FIELD_TYPE_GROUPS: Array<{
       {
         type: "host_picker",
         label: "Host",
-        description: "Pick a host from this tenant's staff directory.",
+        description: "Pick a host from this organization's staff directory.",
         mappable: true,
       },
       {

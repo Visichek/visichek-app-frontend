@@ -13,9 +13,9 @@ const LABELS: Record<SupportTier, string> = {
 };
 
 const HINTS: Record<SupportTier, string> = {
-  none: "Best-effort response; no admin paging is triggered on this tenant's cases.",
+  none: "Best-effort response; no admin paging is triggered on this organization's cases.",
   standard: "Admins are paged on case open and SLA-at-risk events; ack within the SLA window.",
-  priority: "Admins are paged on every event for this tenant; acknowledgement is expected within a few hours.",
+  priority: "Admins are paged on every event for this organization; acknowledgement is expected within a few hours.",
 };
 
 function variantFor(tier: SupportTier) {

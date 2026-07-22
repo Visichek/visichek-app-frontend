@@ -30,7 +30,7 @@ export function AdminTenantsTab({ stats }: AdminTenantsTabProps) {
   return (
     <div className="space-y-6">
       <StatGroup
-        title="Tenant counts"
+        title="Organization counts"
         items={[
           {
             label: "Total",
@@ -72,11 +72,11 @@ export function AdminTenantsTab({ stats }: AdminTenantsTabProps) {
       <GrowthRow
         metrics={[
           {
-            label: "Tenant signups — week over week",
+            label: "Organization signups — week over week",
             metric: stats.tenantsGrowthWow,
           },
           {
-            label: "Tenant signups — month over month",
+            label: "Organization signups — month over month",
             metric: stats.tenantsGrowthMom,
           },
           {
@@ -88,10 +88,10 @@ export function AdminTenantsTab({ stats }: AdminTenantsTabProps) {
 
       <StatGroup
         title="People"
-        description="Across all tenants"
+        description="Across all organizations"
         items={[
           {
-            label: "Tenant users",
+            label: "Organization users",
             value: stats.totalTenantUsers,
             icon: <Users className="h-4 w-4" />,
             description: "All system users",
@@ -117,7 +117,7 @@ export function AdminTenantsTab({ stats }: AdminTenantsTabProps) {
 
       <StatGroup
         title="System user roles"
-        description="Distribution of staff seats across tenants"
+        description="Distribution of staff seats across organizations"
         items={[
           {
             label: "Super admins",
@@ -156,8 +156,8 @@ export function AdminTenantsTab({ stats }: AdminTenantsTabProps) {
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <DistributionPie
-            title="Tenants by country"
-            description="Active tenants by hosting country"
+            title="Organizations by country"
+            description="Active organizations by hosting country"
             data={stats.tenantsByCountry}
             height={240}
           />
@@ -176,13 +176,13 @@ export function AdminTenantsTab({ stats }: AdminTenantsTabProps) {
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <AdminTenantBriefTable
-          title="Recent tenant signups"
+          title="Recent organization signups"
           description="10 most recently provisioned"
           rows={stats.recentTenantSignups}
           activityHeader="Visitors"
         />
         <AdminTenantBriefTable
-          title="Recently active tenants"
+          title="Recently active organizations"
           description="Top 10 by check-ins in the last 30 days"
           rows={stats.recentlyActiveTenants}
           activityHeader="Check-ins (30d)"

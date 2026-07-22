@@ -214,7 +214,7 @@ export function NotificationsTab() {
               <SettingsToggle
                 id="emailOnSubscriptionAlert"
                 label="Subscription alerts"
-                description="Trial expiry, failed payment, plan change, or other billing events that need a tenant admin to look."
+                description="Trial expiry, failed payment, plan change, or other billing events that need an organization admin to look."
                 checked={notifPrefs?.emailOnSubscriptionAlert ?? true}
                 onCheckedChange={(v) =>
                   handleNotifUpdate({ emailOnSubscriptionAlert: v })
@@ -224,7 +224,7 @@ export function NotificationsTab() {
               <SettingsToggle
                 id="emailOnNewUser"
                 label="New user added"
-                description="A new system user (receptionist, dept admin, etc.) was added to your tenant — useful for auditors."
+                description="A new system user (receptionist, dept admin, etc.) was added to your organization — useful for auditors."
                 checked={notifPrefs?.emailOnNewUser ?? false}
                 onCheckedChange={(v) =>
                   handleNotifUpdate({ emailOnNewUser: v })

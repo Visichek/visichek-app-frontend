@@ -148,7 +148,7 @@ export function JobDetailView({ taskId, listHref }: JobDetailViewProps) {
             value={job.resourceType ?? "—"}
           />
           <DetailRow label="Resource id" value={job.resourceId ?? "—"} mono />
-          <DetailRow label="Tenant id" value={job.tenantId ?? "—"} mono />
+          <DetailRow label="Organization id" value={job.tenantId ?? "—"} mono />
           <DetailRow label="Actor id" value={job.actorId ?? "—"} mono />
           <DetailRow label="Actor role" value={job.actorRole ?? "—"} />
           <DetailRow label="Request id" value={job.requestId ?? "—"} mono />
@@ -193,7 +193,7 @@ export function JobDetailView({ taskId, listHref }: JobDetailViewProps) {
       {job.tenantSummary ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Tenant</CardTitle>
+            <CardTitle className="text-base">Organization</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
             <DetailRow
@@ -205,7 +205,7 @@ export function JobDetailView({ taskId, listHref }: JobDetailViewProps) {
               value={job.tenantSummary.slug ?? "—"}
               mono
             />
-            <DetailRow label="Tenant id" value={job.tenantSummary.id} mono />
+            <DetailRow label="Organization id" value={job.tenantSummary.id} mono />
           </CardContent>
         </Card>
       ) : null}

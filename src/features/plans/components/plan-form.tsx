@@ -257,8 +257,8 @@ const STEP_DESCRIPTIONS_CREATE: Record<number, string> = {
 const STEP_DESCRIPTIONS_EDIT: Record<number, string> = {
   1: "Update the plan identity and visibility.",
   2: "Update pricing, SLA, and feature flags.",
-  3: "Set tenant capacity and storage limits.",
-  4: "Toggle the togglable features available to tenants on this plan.",
+  3: "Set organization capacity and storage limits.",
+  4: "Toggle the togglable features available to organizations on this plan.",
   5: "Review all changes before saving.",
 };
 
@@ -584,8 +584,8 @@ export function PlanForm({ plan }: PlanFormProps) {
               <p className="text-xs text-muted-foreground">
                 Canonical plans only expose the fields the backend allows the
                 tier to adjust. Other inputs are shown for reference and
-                disabled. Use per-tenant overrides from the Subscriptions
-                page if you need a custom value for one tenant.
+                disabled. Use per-organization overrides from the Subscriptions
+                page if you need a custom value for one organization.
               </p>
             </div>
           </div>
@@ -868,7 +868,7 @@ export function PlanForm({ plan }: PlanFormProps) {
           <div className="space-y-5">
             <div>
               <p className="mb-3 text-sm font-medium text-foreground">
-                Tenant Capacity Limits
+                Organization Capacity Limits
               </p>
               <p className="mb-3 text-xs text-muted-foreground">
                 Leave blank for unlimited.
@@ -946,7 +946,7 @@ export function PlanForm({ plan }: PlanFormProps) {
               {isLocked && (
                 <p className="mb-3 text-xs text-muted-foreground">
                   Storage limits are not editable on canonical plans. Apply a
-                  per-tenant override from the Subscriptions page if a tenant
+                  per-organization override from the Subscriptions page if an organization
                   needs more.
                 </p>
               )}

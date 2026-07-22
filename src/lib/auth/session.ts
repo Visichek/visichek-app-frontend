@@ -108,7 +108,8 @@ export function clearSession(): void {
     currentPath.startsWith("/rights") ||
     currentPath.startsWith("/support") ||
     currentPath.startsWith("/app/scan") ||
-    currentPath.startsWith("/app/select-tenant")
+    currentPath.startsWith("/app/select-tenant") ||
+    currentPath.startsWith("/app/select-organization")
   ) {
     return;
   }

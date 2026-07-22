@@ -33,7 +33,7 @@ export function PlatformTab() {
         <p className="text-sm text-muted-foreground mb-4">
           Maintenance mode is the only runtime-editable platform setting. Every
           other platform configuration value (password rules, lockout, 2FA
-          enforcement, SMTP, rate limits, tenant defaults) is version-controlled
+          enforcement, SMTP, rate limits, organization defaults) is version-controlled
           in backend code and changed by a deploy.
         </p>
 
@@ -41,7 +41,7 @@ export function PlatformTab() {
           <SettingsToggle
             id="maintenanceMode"
             label="Maintenance mode"
-            description="Show a maintenance page to all tenants. Toggling this requires a one-time verification code."
+            description="Show a maintenance page to all organizations. Toggling this requires a one-time verification code."
             checked={maintenanceOn}
             onCheckedChange={(v) => setModalState({ open: true, target: v })}
           />
@@ -52,12 +52,12 @@ export function PlatformTab() {
             <Info className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
             <div className="text-sm">
               <p className="font-medium text-amber-700 dark:text-amber-400">
-                Maintenance mode is ON — all tenants see a maintenance page.
+                Maintenance mode is ON — all organizations see a maintenance page.
               </p>
               <p className="text-muted-foreground mt-0.5">
                 {platformSettingsData?.maintenanceMessage
-                  ? `Message shown to tenants: “${platformSettingsData.maintenanceMessage}”`
-                  : "No custom message set — tenants see the default maintenance page."}
+                  ? `Message shown to organizations: “${platformSettingsData.maintenanceMessage}”`
+                  : "No custom message set — organizations see the default maintenance page."}
               </p>
             </div>
           </div>

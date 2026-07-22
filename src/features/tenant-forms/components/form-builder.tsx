@@ -821,7 +821,7 @@ export function FormBuilder({
             </Tooltip>
             <div className="min-w-0">
               <p className="text-xs font-medium text-muted-foreground">
-                Tenant form builder
+                Organization form builder
               </p>
               <h1 className="truncate text-lg font-semibold tracking-tight">
                 {draft.name || "Untitled form"}
@@ -1415,7 +1415,7 @@ function PreviewDialog({
           <DialogDescription className="text-xs">
             {shell === "kiosk"
               ? "Mirrors what the visitor or receptionist sees on the kiosk after publish. Inputs are disabled — this is a visual preview only."
-              : "Mirrors what the scheduler sees when booking an appointment after publish. System-required fields (host, department, date) appear above the tenant section. Inputs are disabled."}
+              : "Mirrors what the scheduler sees when booking an appointment after publish. System-required fields (host, department, date) appear above the organization section. Inputs are disabled."}
           </DialogDescription>
         </DialogHeader>
 
@@ -1458,7 +1458,7 @@ function PreviewKioskShell({
         </div>
         <div className="min-w-0">
           <p className="font-display text-lg leading-tight truncate">
-            {title || "Your tenant"}
+            {title || "Your organization"}
           </p>
           <p className="text-xs text-muted-foreground">Visitor check-in</p>
         </div>
@@ -1526,7 +1526,7 @@ function PreviewAppointmentShell({
           <h3 className="text-sm font-semibold">System-required fields</h3>
           <p className="text-xs text-muted-foreground">
             Always present on the scheduler — enforced server-side regardless
-            of what the tenant form defines.
+            of what the organization form defines.
           </p>
         </div>
         <div className="space-y-3">
@@ -1567,7 +1567,7 @@ function PreviewAppointmentShell({
 
       <section className="space-y-4 rounded-lg border border-border bg-muted/20 p-4">
         <div className="space-y-1">
-          <h3 className="text-sm font-semibold">Tenant-required fields</h3>
+          <h3 className="text-sm font-semibold">Organization-required fields</h3>
           <p className="text-xs text-muted-foreground">
             Defined by this form. Every required field must be filled before
             the appointment is accepted.
@@ -1767,7 +1767,7 @@ function PreviewControl({ field }: { field: FormFieldDefinition }) {
       >
         <option value="">
           {field.type === "host_picker"
-            ? "Pick a host from this tenant's staff"
+            ? "Pick a host from this organization's staff"
             : "Pick a returning visitor"}
         </option>
       </select>

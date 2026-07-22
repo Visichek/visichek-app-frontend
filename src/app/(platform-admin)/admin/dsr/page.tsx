@@ -172,7 +172,7 @@ export default function AdminDSRPage() {
     if (tenantId !== "all")
       chips.push({
         key: "tenant",
-        label: `Tenant: ${tenantOptions.find((o) => o.value === tenantId)?.label ?? tenantId}`,
+        label: `Organization: ${tenantOptions.find((o) => o.value === tenantId)?.label ?? tenantId}`,
         clear: () => setTenantId("all"),
       });
     if (createdFrom)
@@ -207,7 +207,7 @@ export default function AdminDSRPage() {
     },
     {
       id: "tenantId",
-      header: "Tenant",
+      header: "Organization",
       enableSorting: false,
       cell: ({ row }) => (
         <Tooltip>
@@ -303,7 +303,7 @@ export default function AdminDSRPage() {
     <div className="space-y-6">
       <PageHeader
         title="Data Subject Requests"
-        description="Read-only oversight across every tenant — processing remains the tenant's legal responsibility."
+        description="Read-only oversight across every organization — processing remains the organization's legal responsibility."
         actions={
           <Tooltip>
             <TooltipTrigger asChild>
@@ -332,12 +332,12 @@ export default function AdminDSRPage() {
         <StatTile
           label="Total DSRs"
           value={stats?.total}
-          description="All requests across every tenant, regardless of status"
+          description="All requests across every organization, regardless of status"
         />
         <StatTile
           label="Pending"
           value={stats?.byStatus?.pending}
-          description="Requests waiting to be picked up by their tenant's DPO"
+          description="Requests waiting to be picked up by their organization's DPO"
         />
         <StatTile
           label="SLA at risk"
@@ -364,9 +364,9 @@ export default function AdminDSRPage() {
               {stats.slaBreached} request{stats.slaBreached === 1 ? "" : "s"} past their SLA deadline
             </p>
             <p className="text-muted-foreground">
-              The tenant has missed the legal window. Escalate via a support case or
-              contact the tenant&apos;s DPO directly — platform admins cannot process
-              DSRs on the tenant&apos;s behalf.
+              The organization has missed the legal window. Escalate via a support case or
+              contact the organization&apos;s DPO directly — platform admins cannot process
+              DSRs on the organization&apos;s behalf.
             </p>
           </div>
         </section>
@@ -414,11 +414,11 @@ export default function AdminDSRPage() {
         />
         <FilterSelect
           id="dsr-tenant"
-          label="Tenant"
+          label="Organization"
           value={tenantId}
           onChange={setTenantId}
-          options={[{ value: "all", label: "All tenants" }, ...tenantOptions]}
-          tooltip="Show only DSRs raised against a single tenant"
+          options={[{ value: "all", label: "All organizations" }, ...tenantOptions]}
+          tooltip="Show only DSRs raised against a single organization"
         />
         <FilterSelect
           id="dsr-sort"
@@ -516,7 +516,7 @@ export default function AdminDSRPage() {
         emptyDescription="Requests created across the platform will appear here."
         getRowId={(d) => d.id}
         getRowHref={(d) => `/admin/dsr/${d.id}`}
-        rowClickAriaLabel={(d) => `View DSR ${d.requestType} from tenant ${d.tenantId}`}
+        rowClickAriaLabel={(d) => `View DSR ${d.requestType} from organization ${d.tenantId}`}
       />
     </div>
   );
@@ -608,7 +608,7 @@ function SlaCountdown({
         </span>
       </TooltipTrigger>
       <TooltipContent side="top">
-        SLA deadline {formatRelative(deadline)} — based on the tenant&apos;s
+        SLA deadline {formatRelative(deadline)} — based on the organization&apos;s
         regulatory window. Closed DSRs no longer count against the SLA.
       </TooltipContent>
     </Tooltip>

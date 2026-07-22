@@ -269,11 +269,11 @@ export function LegalDocumentsPageClient() {
           {row.original.isTenantAgreement ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant="info">Tenant agreement</Badge>
+                <Badge variant="info">Organization agreement</Badge>
               </TooltipTrigger>
               <TooltipContent>
                 A platform-managed master. Publishing a new version forces all
-                tenants to re-accept before they can run visitor operations.
+                organizations to re-accept before they can run visitor operations.
               </TooltipContent>
             </Tooltip>
           ) : null}
@@ -393,7 +393,7 @@ export function LegalDocumentsPageClient() {
         {statusBadge(doc.status)}
         <Badge variant="outline">{docTypeLabel(doc.docType)}</Badge>
         {doc.isTenantAgreement ? (
-          <Badge variant="info">Tenant agreement</Badge>
+          <Badge variant="info">Organization agreement</Badge>
         ) : null}
         {doc.hasUnpublishedChanges ? (
           <Badge variant="warning">Unpublished changes</Badge>

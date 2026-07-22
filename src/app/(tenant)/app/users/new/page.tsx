@@ -103,7 +103,7 @@ export default function NewUserPage() {
       // that points operators at the right flow.
       if (isSuperAdminInviteForbidden(err)) {
         toast.error(
-          "Super admins can't be invited from this form. Add a super admin to this tenant from the platform-admin console, or transfer the role from an existing super admin.",
+          "Super admins can't be invited from this form. Add a super admin to this organization from the platform-admin console, or transfer the role from an existing super admin.",
         );
         return;
       }

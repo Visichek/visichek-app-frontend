@@ -78,18 +78,18 @@ const BACK_HREF = "/admin/legal-documents";
  * value renders as the literal "[To be provided]" so gaps stay reviewable.
  */
 const AGREEMENT_PLACEHOLDERS: { token: string; description: string }[] = [
-  { token: "[company_name]", description: "Tenant company / legal name" },
-  { token: "[organization_address]", description: "Tenant organization address" },
+  { token: "[company_name]", description: "Organization company / legal name" },
+  { token: "[organization_address]", description: "Organization address" },
   {
     token: "[contact_email]",
-    description: "Tenant main super admin email (falls back to DPO)",
+    description: "Organization main super admin email (falls back to DPO)",
   },
-  { token: "[dpo_contact_email]", description: "Tenant DPO contact email" },
+  { token: "[dpo_contact_email]", description: "Organization DPO contact email" },
   {
     token: "[retention_period]",
-    description: "Retention window from the tenant's policy, e.g. \"1095 days\"",
+    description: "Retention window from the organization's policy, e.g. \"1095 days\"",
   },
-  { token: "[country_of_hosting]", description: "Tenant data-hosting country" },
+  { token: "[country_of_hosting]", description: "Organization data-hosting country" },
   {
     token: "[effective_date]",
     description: "Reserved — currently resolves to the fallback",
@@ -357,11 +357,11 @@ export function LegalDocumentForm({ document }: { document?: LegalDocument }) {
             {isTenantAgreement ? (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge variant="info">Tenant agreement</Badge>
+                  <Badge variant="info">Organization agreement</Badge>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
                   Platform-managed master. Publishing a new version forces all
-                  tenants to re-accept before they can run visitor operations.
+                  organizations to re-accept before they can run visitor operations.
                 </TooltipContent>
               </Tooltip>
             ) : null}
@@ -617,10 +617,10 @@ export function LegalDocumentForm({ document }: { document?: LegalDocument }) {
                     aria-hidden="true"
                   />
                   <div>
-                    <p className="font-medium">Tenant placeholders</p>
+                    <p className="font-medium">Organization placeholders</p>
                     <p className="text-xs text-muted-foreground">
                       Type any of these tokens as plain text in the body. The
-                      backend fills them per tenant; an unset value renders as
+                      backend fills them per organization; an unset value renders as
                       &ldquo;[To be provided]&rdquo;. Anything else in square
                       brackets is left untouched.
                     </p>
@@ -665,8 +665,8 @@ export function LegalDocumentForm({ document }: { document?: LegalDocument }) {
                 aria-hidden="true"
               />
               <p className="text-foreground/90">
-                This is a tenant agreement. Publishing a new version requires{" "}
-                <span className="font-medium">all tenants to re-accept</span>{" "}
+                This is an organization agreement. Publishing a new version requires{" "}
+                <span className="font-medium">all organizations to re-accept</span>{" "}
                 before they can continue running visitor operations. They&apos;re
                 re-prompted within ~2 minutes.
               </p>

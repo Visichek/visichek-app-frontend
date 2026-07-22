@@ -73,7 +73,7 @@ type StatusTab =
   | "closed";
 
 const TABS: { value: StatusTab; label: string; description: string }[] = [
-  { value: "all", label: "All", description: "Every incident across all tenants" },
+  { value: "all", label: "All", description: "Every incident across all organizations" },
   { value: "open", label: "Open", description: "Newly reported, awaiting triage" },
   { value: "investigating", label: "Investigating", description: "Under active investigation" },
   { value: "contained", label: "Contained", description: "Threat contained, post-mortem in flight" },
@@ -153,12 +153,12 @@ export default function AdminIncidentsPage() {
   const columns: ColumnDef<AdminIncident>[] = [
     {
       id: "tenant",
-      header: "Tenant",
+      header: "Organization",
       cell: ({ row }) => (
         <div className="flex items-center gap-2 min-w-0">
           <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <span className="truncate text-sm font-medium">
-            {row.original.tenantSummary?.name ?? "Unknown tenant"}
+            {row.original.tenantSummary?.name ?? "Unknown organization"}
           </span>
         </div>
       ),
@@ -210,7 +210,7 @@ export default function AdminIncidentsPage() {
       <div className="flex items-center gap-2">
         <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <span className="truncate text-sm font-medium">
-          {incident.tenantSummary?.name ?? "Unknown tenant"}
+          {incident.tenantSummary?.name ?? "Unknown organization"}
         </span>
       </div>
       <p className="text-sm line-clamp-2">{incidentLabel(incident)}</p>
@@ -231,7 +231,7 @@ export default function AdminIncidentsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Incidents"
-        description="Security and data-protection incidents reported across every tenant."
+        description="Security and data-protection incidents reported across every organization."
       />
 
       <div className="relative">
@@ -302,7 +302,7 @@ export default function AdminIncidentsPage() {
         title={detailTarget ? incidentLabel(detailTarget) : ""}
         description={
           detailTarget
-            ? `${detailTarget.tenantSummary?.name ?? "Unknown tenant"} · reported ${formatDateTime(detailTarget.dateCreated)}`
+            ? `${detailTarget.tenantSummary?.name ?? "Unknown organization"} · reported ${formatDateTime(detailTarget.dateCreated)}`
             : undefined
         }
       >
@@ -311,7 +311,7 @@ export default function AdminIncidentsPage() {
             rows={(
               [
                 {
-                  label: "Tenant",
+                  label: "Organization",
                   value: detailTarget.tenantSummary?.name ?? null,
                 },
                 {

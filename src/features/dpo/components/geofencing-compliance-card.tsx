@@ -108,7 +108,7 @@ export function GeofencingComplianceCard() {
               <div className="space-y-1">
                 <p className="font-medium text-foreground">Privacy notice action required</p>
                 <p className="text-muted-foreground">
-                  Update your tenant privacy notice to cover approximate
+                  Update your organization privacy notice to cover approximate
                   staff-location collection (purpose: verify visitor check-ins
                   happen on-site; retention: up to 10 minutes) before relying
                   on this for enforcement.
@@ -119,7 +119,7 @@ export function GeofencingComplianceCard() {
         ) : (
           <p className="text-xs text-muted-foreground">
             Geofencing is off. No visitor or staff coordinates are collected
-            for this tenant.
+            for this organization.
           </p>
         )}
 

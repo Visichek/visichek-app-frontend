@@ -177,7 +177,7 @@ function TenantActions({ tenant, onSubscribe, onOffboard }: TenantActionsProps) 
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Tenant actions">
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Organization actions">
               <MoreHorizontal className="h-4 w-4" />
               <span className="sr-only">Open actions menu</span>
             </Button>
@@ -212,7 +212,7 @@ function TenantActions({ tenant, onSubscribe, onOffboard }: TenantActionsProps) 
           onClick={() => onOffboard(tenant)}
         >
           <AlertTriangle className="mr-2 h-4 w-4" />
-          Offboard Tenant
+          Offboard Organization
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -224,9 +224,9 @@ type BoolFilter = "all" | "true" | "false";
 type LawfulBasisFilter = "all" | "consent" | "legitimate_interest";
 
 const TENANT_TABS: { value: TenantStatusTab; label: string; description: string }[] = [
-  { value: "active", label: "Active", description: "Tenants currently provisioned and serving traffic" },
-  { value: "inactive", label: "Inactive", description: "Tenants that have been offboarded or deactivated" },
-  { value: "all", label: "All", description: "Show every tenant regardless of status" },
+  { value: "active", label: "Active", description: "Organizations currently provisioned and serving traffic" },
+  { value: "inactive", label: "Inactive", description: "Organizations that have been offboarded or deactivated" },
+  { value: "all", label: "All", description: "Show every organization regardless of status" },
 ];
 
 const TENANTS_PAGE_SIZE = 25;
@@ -299,7 +299,7 @@ export function TenantsPageClient() {
     setBulkPending(true);
     try {
       const result = await bulkOffboard.mutateAsync({ ids: bulkOffboardIds });
-      const { tone, message } = summarizeBulkResult(result, "tenant", "offboarding started");
+      const { tone, message } = summarizeBulkResult(result, "organization", "offboarding started");
       toast[tone](message);
       setBulkOffboardIds(null);
     } catch (error) {
@@ -314,7 +314,7 @@ export function TenantsPageClient() {
   const bulkActions: DataTableBulkAction<AdminTenant>[] = [
     {
       label: "Offboard",
-      description: "Start offboarding for every selected tenant — schedules data deletion and terminates active sessions",
+      description: "Start offboarding for every selected organization — schedules data deletion and terminates active sessions",
       icon: <AlertTriangle className="h-4 w-4" />,
       variant: "destructive",
       onClick: (ids) => {
@@ -493,8 +493,8 @@ export function TenantsPageClient() {
       <ConfirmDialog
         open={!!offboardTarget}
         onOpenChange={(open) => { if (!open) setOffboardTarget(null); }}
-        title={`Offboard ${offboardTarget?.companyName ?? "tenant"}?`}
-        description="This will start the offboarding process. The tenant's data will be scheduled for deletion and all active sessions will be terminated. This action cannot be undone."
+        title={`Offboard ${offboardTarget?.companyName ?? "organization"}?`}
+        description="This will start the offboarding process. The organization's data will be scheduled for deletion and all active sessions will be terminated. This action cannot be undone."
         confirmLabel="Offboard"
         variant="destructive"
         isLoading={offboardTenant.isPending}
@@ -502,8 +502,8 @@ export function TenantsPageClient() {
       />
 
       <PageHeader
-        title="Tenants"
-        description="Manage tenant organizations"
+        title="Organizations"
+        description="Manage organization accounts"
         actions={
           <div className="flex w-full flex-col gap-2 md:flex-row md:items-center md:gap-2 md:w-auto">
             <Tooltip>
@@ -539,11 +539,11 @@ export function TenantsPageClient() {
                   ) : (
                     <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
                   )}
-                  Bootstrap Tenant
+                  Bootstrap Organization
                 </NavButton>
               </TooltipTrigger>
               <TooltipContent>
-                Create a new tenant and their first super admin account
+                Create a new organization and their first super admin account
               </TooltipContent>
             </Tooltip>
           </div>
@@ -576,7 +576,7 @@ export function TenantsPageClient() {
           {
             id: "tenant-onboarding-filter",
             label: "Onboarding",
-            tooltip: "Filter by whether the tenant has confirmed their onboarding info",
+            tooltip: "Filter by whether the organization has confirmed their onboarding info",
             value: onboardingFilter,
             onChange: (v: string) => setOnboardingFilter(v as BoolFilter),
             options: [
@@ -588,7 +588,7 @@ export function TenantsPageClient() {
           {
             id: "tenant-dpa-filter",
             label: "DPA",
-            tooltip: "Filter by whether the tenant accepted the Data Processing Agreement",
+            tooltip: "Filter by whether the organization accepted the Data Processing Agreement",
             value: dpaFilter,
             onChange: (v: string) => setDpaFilter(v as BoolFilter),
             options: [
@@ -612,7 +612,7 @@ export function TenantsPageClient() {
           {
             id: "tenant-lawfulbasis-filter",
             label: "Lawful basis",
-            tooltip: "Filter by the tenant's declared lawful basis for processing visitor data",
+            tooltip: "Filter by the organization's declared lawful basis for processing visitor data",
             value: lawfulBasisFilter,
             onChange: (v: string) => setLawfulBasisFilter(v as LawfulBasisFilter),
             options: [
@@ -684,25 +684,25 @@ export function TenantsPageClient() {
           onPageChange: setPageIndex,
         }}
         searchKey="companyName"
-        searchPlaceholder="Search tenants…"
+        searchPlaceholder="Search organizations…"
         emptyTitle={
           statusTab === "inactive"
-            ? "No inactive tenants"
+            ? "No inactive organizations"
             : statusTab === "active"
-              ? "No active tenants"
-              : "No tenants yet"
+              ? "No active organizations"
+              : "No organizations yet"
         }
         emptyDescription={
           hasActiveFilters
-            ? "No tenants match the current filters. Try clearing them."
+            ? "No organizations match the current filters. Try clearing them."
             : statusTab === "inactive"
-              ? "Inactive tenants will appear here after offboarding."
-              : "Bootstrap your first tenant to get started."
+              ? "Inactive organizations will appear here after offboarding."
+              : "Bootstrap your first organization to get started."
         }
         mobileCard={mobileCard}
         selectable
         getRowId={(tenant) => tenant.id}
-        itemNoun="tenant"
+        itemNoun="organization"
         bulkActions={bulkActions}
         getRowHref={(tenant) => tenantDetailHref(tenant.id)}
         rowClickAriaLabel={(tenant) => `View details for ${tenant.companyName}`}
@@ -714,8 +714,8 @@ export function TenantsPageClient() {
         onOpenChange={(open) => {
           if (!open) setBulkOffboardIds(null);
         }}
-        title={`Offboard ${bulkOffboardIds?.length ?? 0} tenant${(bulkOffboardIds?.length ?? 0) === 1 ? "" : "s"}`}
-        description={`Start offboarding for ${bulkOffboardIds?.length ?? 0} tenant${(bulkOffboardIds?.length ?? 0) === 1 ? "" : "s"}. Their data will be scheduled for deletion and all active sessions terminated. This cannot be undone.`}
+        title={`Offboard ${bulkOffboardIds?.length ?? 0} organization${(bulkOffboardIds?.length ?? 0) === 1 ? "" : "s"}`}
+        description={`Start offboarding for ${bulkOffboardIds?.length ?? 0} organization${(bulkOffboardIds?.length ?? 0) === 1 ? "" : "s"}. Their data will be scheduled for deletion and all active sessions terminated. This cannot be undone.`}
         confirmLabel="Offboard"
         variant="destructive"
         isLoading={bulkPending}

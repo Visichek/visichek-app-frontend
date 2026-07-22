@@ -87,7 +87,7 @@ function OverviewTab({ tenant }: { tenant: AdminTenant }) {
       <Section title="Identity">
         <Field label="Company Name" value={tenant.companyName} />
         <Field
-          label="Tenant ID"
+          label="Organization ID"
           value={
             <span className="font-mono text-xs break-all">{tenant.id}</span>
           }
@@ -272,7 +272,7 @@ function SubscriptionTab({ tenantId }: { tenantId: string }) {
   if (isError || !sub) {
     return (
       <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-        No active subscription for this tenant.
+        No active subscription for this organization.
       </div>
     );
   }
@@ -365,18 +365,18 @@ export function TenantDetailView({ tenant }: TenantDetailViewProps) {
               ) : (
                 <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
               )}
-              Back to tenants
+              Back to organizations
             </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
-            Return to the tenants list
+            Return to the organizations list
           </TooltipContent>
         </Tooltip>
       </div>
 
       <PageHeader
         title={tenant.companyName}
-        description={`Tenant ID: ${tenant.id}`}
+        description={`Organization ID: ${tenant.id}`}
         actions={
           <div className="flex flex-col gap-2 sm:flex-row">
             <Tooltip>
@@ -404,7 +404,7 @@ export function TenantDetailView({ tenant }: TenantDetailViewProps) {
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                View and manage this tenant&apos;s subscriptions
+                View and manage this organization&apos;s subscriptions
               </TooltipContent>
             </Tooltip>
             <Tooltip>
@@ -432,7 +432,7 @@ export function TenantDetailView({ tenant }: TenantDetailViewProps) {
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                Open the usage dashboard for this tenant
+                Open the usage dashboard for this organization
               </TooltipContent>
             </Tooltip>
             <Tooltip>
@@ -454,8 +454,8 @@ export function TenantDetailView({ tenant }: TenantDetailViewProps) {
               </TooltipTrigger>
               <TooltipContent side="bottom">
                 {tenantIsActive
-                  ? "Provision the first super admin on this tenant. A temporary password is emailed to them. Fails when one already exists — use Replace instead."
-                  : "This tenant is inactive. Reactivate it before adding a super admin."}
+                  ? "Provision the first super admin on this organization. A temporary password is emailed to them. Fails when one already exists — use Replace instead."
+                  : "This organization is inactive. Reactivate it before adding a super admin."}
               </TooltipContent>
             </Tooltip>
             <Tooltip>
@@ -478,7 +478,7 @@ export function TenantDetailView({ tenant }: TenantDetailViewProps) {
               <TooltipContent side="bottom">
                 {tenantIsActive
                   ? "Atomically deactivate the current super admin and provision a replacement. A temporary password is emailed to the new admin."
-                  : "This tenant is inactive. Reactivate it before replacing the super admin."}
+                  : "This organization is inactive. Reactivate it before replacing the super admin."}
               </TooltipContent>
             </Tooltip>
           </div>

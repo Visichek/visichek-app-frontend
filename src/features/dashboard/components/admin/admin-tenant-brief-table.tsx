@@ -37,7 +37,7 @@ export function AdminTenantBriefTable({
   description,
   rows,
   activityHeader = "Visitors",
-  emptyTitle = "No tenants yet",
+  emptyTitle = "No organizations yet",
 }: AdminTenantBriefTableProps) {
   return (
     <Card>
@@ -53,7 +53,7 @@ export function AdminTenantBriefTable({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Tenant</TableHead>
+                  <TableHead>Organization</TableHead>
                   <TableHead className="hidden md:table-cell">Country</TableHead>
                   <TableHead>Plan</TableHead>
                   <TableHead className="hidden md:table-cell">Status</TableHead>

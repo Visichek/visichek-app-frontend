@@ -30,7 +30,7 @@ export function FormsSettingsClient() {
   // access fails closed even when the sidebar entry is hidden.
   if (!hasCapability(CAPABILITIES.TENANT_FORM_CONFIGURE)) {
     return (
-      <PermissionDenied message="Only your tenant's super admin or a department admin can configure appointment and check-in forms." />
+      <PermissionDenied message="Only your organization's super admin or a department admin can configure appointment and check-in forms." />
     );
   }
 

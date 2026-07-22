@@ -92,7 +92,7 @@ export function MaintenanceModeModal({
       });
       toast.success(
         targetState
-          ? "Maintenance mode is now ON for all tenants."
+          ? "Maintenance mode is now ON for all organizations."
           : "Maintenance mode is now OFF.",
       );
       onOpenChange(false);
@@ -140,8 +140,8 @@ export function MaintenanceModeModal({
         step.kind === "verify"
           ? "Enter the 6-digit code we just sent to your verification channel to apply the change."
           : targetState
-            ? "All tenants will see a maintenance page until this is turned off. This change requires a verification code."
-            : "Tenants will regain access to the platform. This change requires a verification code."
+            ? "All organizations will see a maintenance page until this is turned off. This change requires a verification code."
+            : "Organizations will regain access to the platform. This change requires a verification code."
       }
     >
       <div className="space-y-5 pt-2">
@@ -170,7 +170,7 @@ export function MaintenanceModeModal({
                   className="text-base md:text-sm"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Shown to tenants on the maintenance page. Leave blank to use
+                  Shown to organizations on the maintenance page. Leave blank to use
                   the default message.
                 </p>
               </div>
@@ -228,7 +228,7 @@ export function MaintenanceModeModal({
                 <span className="font-medium text-foreground">
                   {targetState ? "ON" : "OFF"}
                 </span>
-                {targetState ? " for all tenants." : "."}
+                {targetState ? " for all organizations." : "."}
               </p>
             </div>
 

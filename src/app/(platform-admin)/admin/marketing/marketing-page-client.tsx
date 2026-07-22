@@ -146,7 +146,7 @@ export function MarketingPageClient() {
 
       <PageHeader
         title="Marketing opt-ins"
-        description="Deduplicated, normalized work emails of every onboarding lead who consented to product updates. Use this list to compose campaign recipient lists — opting in stays valid even if the tenant application was later rejected."
+        description="Deduplicated, normalized work emails of every onboarding lead who consented to product updates. Use this list to compose campaign recipient lists — opting in stays valid even if the organization application was later rejected."
       />
 
       {!isLoading && !isError && (

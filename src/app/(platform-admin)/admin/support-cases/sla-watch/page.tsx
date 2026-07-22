@@ -72,7 +72,7 @@ export default function AdminSlaWatchPage() {
     },
     {
       accessorKey: "tenantId",
-      header: "Tenant",
+      header: "Organization",
       cell: ({ row }) => (
         <span className="font-mono text-xs text-muted-foreground">
           {truncateId(row.original.tenantId)}
@@ -242,7 +242,7 @@ function SlaCountdown({ slaDueAt }: { slaDueAt?: number | null }) {
         </span>
       </TooltipTrigger>
       <TooltipContent side="top">
-        SLA deadline {formatRelative(slaDueAt)} — based on the tenant's support tier
+        SLA deadline {formatRelative(slaDueAt)} — based on the organization's support tier
       </TooltipContent>
     </Tooltip>
   );

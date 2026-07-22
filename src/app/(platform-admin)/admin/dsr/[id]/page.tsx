@@ -95,7 +95,7 @@ export default function AdminDSRDetailPage({
       ),
     },
     {
-      label: "Tenant id",
+      label: "Organization id",
       value: (
         <span className="font-mono text-xs">{data.tenantId}</span>
       ),
@@ -166,7 +166,7 @@ export default function AdminDSRDetailPage({
 
       <PageHeader
         title={`${data.requestType.replace(/_/g, " ")} request`}
-        description="Read-only oversight view — DSR processing is the tenant's legal responsibility."
+        description="Read-only oversight view — DSR processing is the organization's legal responsibility."
         actions={
           <Tooltip>
             <TooltipTrigger asChild>
@@ -184,7 +184,7 @@ export default function AdminDSRDetailPage({
               </NavButton>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              Escalate this DSR by opening a support case against the tenant — the
+              Escalate this DSR by opening a support case against the organization — the
               right channel when the DSR is at-risk or breached
             </TooltipContent>
           </Tooltip>
@@ -199,8 +199,8 @@ export default function AdminDSRDetailPage({
             <p className="font-semibold">SLA deadline passed</p>
             <p className="text-muted-foreground">
               This DSR&apos;s legal window expired {formatRelative(data.slaDeadline!)}.
-              Platform admins cannot process DSRs on the tenant&apos;s behalf —
-              escalate via a support case or contact the tenant&apos;s DPO directly.
+              Platform admins cannot process DSRs on the organization&apos;s behalf —
+              escalate via a support case or contact the organization&apos;s DPO directly.
             </p>
           </div>
         </section>
@@ -211,7 +211,7 @@ export default function AdminDSRDetailPage({
           <div className="space-y-1">
             <p className="font-semibold">SLA deadline within 24 hours</p>
             <p className="text-muted-foreground">
-              Deadline {formatRelative(data.slaDeadline!)}. Nudge the tenant&apos;s
+              Deadline {formatRelative(data.slaDeadline!)}. Nudge the organization&apos;s
               DPO if there is no recent activity on this request.
             </p>
           </div>
@@ -236,9 +236,9 @@ export default function AdminDSRDetailPage({
           <p className="font-semibold">Read-only oversight</p>
           <p className="text-muted-foreground">
             Platform admins can view but not acknowledge, complete, or reject DSRs
-            — that authority sits with the tenant&apos;s DPO or super admin to
+            — that authority sits with the organization&apos;s DPO or super admin to
             preserve the legal chain of custody. If escalation is required, open a
-            support case or contact the tenant directly.
+            support case or contact the organization directly.
           </p>
         </div>
       </section>

@@ -108,14 +108,14 @@ const TABS: TabDef[] = [
     id: "overview",
     label: "Overview",
     icon: LayoutDashboard,
-    description: "Headline platform KPIs, signups, revenue, and top tenants.",
+    description: "Headline platform KPIs, signups, revenue, and top organizations.",
     rows: [["kpis"], ["tenantSignups"], ["planTier"]],
   },
   {
     id: "tenants",
-    label: "Tenants",
+    label: "Organizations",
     icon: Building2,
-    description: "Tenant growth, geography, and recent signups.",
+    description: "Organization growth, geography, and recent signups.",
     rows: [["kpis"], ["tenantSignups"], ["geography"], ["recentSignups"]],
   },
   {
@@ -246,7 +246,7 @@ export function AdminInsightsClient() {
     <div className="space-y-6">
       <PageHeader
         title="Platform Dashboard"
-        description="Cross-tenant analytics — adjustable range and per-tab breakdowns."
+        description="Cross-organization analytics — adjustable range and per-tab breakdowns."
         actions={
           <div className="flex items-center gap-2">
             <Tooltip>

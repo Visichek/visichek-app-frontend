@@ -66,7 +66,7 @@ export function CompleteOnboardingClient() {
       <div className="mx-auto max-w-2xl space-y-6">
         <PageHeader
           title="Complete onboarding"
-          description="Finish setup for your VisiChek tenant."
+          description="Finish setup for your VisiChek organization."
         />
         <EmptyState
           title="Only the super admin can complete onboarding"
@@ -98,7 +98,7 @@ export function CompleteOnboardingClient() {
         <div className="mx-auto max-w-2xl space-y-6">
           <PageHeader
             title="Complete onboarding"
-            description="Finish setup for your VisiChek tenant."
+            description="Finish setup for your VisiChek organization."
           />
           <EmptyState
             icon={<CheckCircle2 className="h-6 w-6 text-success" />}
@@ -126,7 +126,7 @@ export function CompleteOnboardingClient() {
       <div className="mx-auto max-w-2xl space-y-6">
         <PageHeader
           title="Complete onboarding"
-          description="Finish setup for your VisiChek tenant."
+          description="Finish setup for your VisiChek organization."
         />
         <EmptyState
           icon={<CheckCircle2 className="h-6 w-6 text-success" />}
@@ -184,7 +184,7 @@ export function CompleteOnboardingClient() {
     <div className="mx-auto max-w-2xl space-y-6">
       <PageHeader
         title="Complete onboarding"
-        description="A platform admin needs the following details before your tenant is fully set up. These were flagged when your account was provisioned."
+        description="A platform admin needs the following details before your organization is fully set up. These were flagged when your account was provisioned."
         actions={
           <span className="rounded-full border bg-muted px-2.5 py-0.5 text-xs">
             {orderedKeys.length} field

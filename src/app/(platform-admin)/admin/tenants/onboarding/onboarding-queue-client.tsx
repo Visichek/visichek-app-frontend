@@ -195,7 +195,7 @@ export function OnboardingQueueClient() {
   const bulkActions: DataTableBulkAction<OnboardingSubmission>[] = [
     {
       label: "Archive",
-      description: "Archive every selected new or rejected submission as spam or duplicate — no tenant is provisioned",
+      description: "Archive every selected new or rejected submission as spam or duplicate — no organization is provisioned",
       icon: <ShieldOff className="h-4 w-4" />,
       variant: "destructive",
       onClick: (_ids, rows) => {
@@ -378,7 +378,7 @@ export function OnboardingQueueClient() {
           if (!open) setArchiveTarget(null);
         }}
         title="Archive submission?"
-        description="Archived submissions disappear from the default queue but can still be retrieved by switching the status filter to Archived. No tenant is provisioned. Use this for spam or duplicate leads."
+        description="Archived submissions disappear from the default queue but can still be retrieved by switching the status filter to Archived. No organization is provisioned. Use this for spam or duplicate leads."
         confirmLabel="Archive"
         variant="destructive"
         isLoading={archive.isPending}
@@ -401,17 +401,17 @@ export function OnboardingQueueClient() {
             ) : (
               <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
             )}
-            Back to tenants
+            Back to organizations
           </NavButton>
         </TooltipTrigger>
         <TooltipContent side="bottom">
-          Return to the live tenants list
+          Return to the live organizations list
         </TooltipContent>
       </Tooltip>
 
       <PageHeader
         title="Onboarding queue"
-        description="Self-service signups submitted through the marketing site. Accept to provision a tenant + super admin, partial-accept if some fields still need clarification, or reject with reviewer notes."
+        description="Self-service signups submitted through the marketing site. Accept to provision an organization + super admin, partial-accept if some fields still need clarification, or reject with reviewer notes."
       />
 
       <Tabs

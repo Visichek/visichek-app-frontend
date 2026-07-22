@@ -79,7 +79,7 @@ export default function TenantSettingsPage() {
     tabs.push({
       id: "branding",
       label: "Branding",
-      description: "Colors, logo, and visitor badge appearance for your tenant",
+      description: "Colors, logo, and visitor badge appearance for your organization",
       content: <BrandingTab />,
       locked: brandingLockedByPlan,
       lockedFeatureKey: "branding",

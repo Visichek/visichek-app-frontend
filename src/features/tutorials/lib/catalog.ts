@@ -251,7 +251,7 @@ export const TUTORIALS: TutorialDefinition[] = [
     type: "admin_dashboard_overview",
     title: "Admin dashboard overview",
     description:
-      "Read the platform dashboard: tenant growth, revenue, and the metrics that matter.",
+      "Read the platform dashboard: organization growth, revenue, and the metrics that matter.",
     shell: "platform",
     category: "Platform overview",
     icon: LayoutDashboard,
@@ -260,7 +260,7 @@ export const TUTORIALS: TutorialDefinition[] = [
       step(
         "metrics",
         "Top-line metrics",
-        "The dashboard summarizes platform health — active tenants, subscriptions, and revenue — at a glance.",
+        "The dashboard summarizes platform health — active organizations, subscriptions, and revenue — at a glance.",
         { kind: "cards", highlight: "row", label: "Platform metrics" },
         { route: "/admin/dashboard", anchor: "admin-dashboard-metrics" },
       ),
@@ -279,21 +279,21 @@ export const TUTORIALS: TutorialDefinition[] = [
     description:
       "Work the onboarding queue: review submissions, approve, or request changes.",
     shell: "platform",
-    category: "Tenants & onboarding",
+    category: "Organizations & onboarding",
     icon: ClipboardList,
     version: 1,
     steps: [
       step(
         "queue",
         "The onboarding queue",
-        "New tenant sign-ups land in the onboarding queue. Open a submission to review the company's details and documents.",
+        "New organization sign-ups land in the onboarding queue. Open a submission to review the company's details and documents.",
         { kind: "table", highlight: "row", label: "Onboarding queue" },
         { route: "/admin/tenants/onboarding", anchor: "onboarding-queue" },
       ),
       step(
         "decision",
         "Approve or request changes",
-        "Approve a submission to provision the tenant, or send it back with notes when something needs fixing.",
+        "Approve a submission to provision the organization, or send it back with notes when something needs fixing.",
         { kind: "detail", highlight: "primary-action", label: "Submission" },
         { route: "/admin/tenants/onboarding" },
       ),
@@ -301,26 +301,26 @@ export const TUTORIALS: TutorialDefinition[] = [
   },
   {
     type: "tenant_management",
-    title: "Managing tenants",
+    title: "Managing organizations",
     description:
-      "Browse, search, and manage tenant accounts and their configuration.",
+      "Browse, search, and manage organization accounts and their configuration.",
     shell: "platform",
-    category: "Tenants & onboarding",
+    category: "Organizations & onboarding",
     icon: Building2,
     version: 1,
     steps: [
       step(
         "list",
-        "The tenant list",
-        "Every customer organization appears here. Click a tenant to open its detail page; use the checkboxes for bulk actions.",
-        { kind: "table", highlight: "row", label: "Tenants" },
+        "The organization list",
+        "Every customer organization appears here. Click an organization to open its detail page; use the checkboxes for bulk actions.",
+        { kind: "table", highlight: "row", label: "Organizations" },
         { route: "/admin/tenants", anchor: "tenants-table" },
       ),
       step(
         "detail",
-        "Tenant details",
-        "From a tenant's page you can review its plan, status, and usage, and take administrative actions.",
-        { kind: "detail", highlight: "none", label: "Tenant" },
+        "Organization details",
+        "From an organization's page you can review its plan, status, and usage, and take administrative actions.",
+        { kind: "detail", highlight: "none", label: "Organization" },
         { route: "/admin/tenants" },
       ),
     ],
@@ -355,7 +355,7 @@ export const TUTORIALS: TutorialDefinition[] = [
     type: "subscriptions_management",
     title: "Managing subscriptions",
     description:
-      "Track tenant subscriptions, statuses, and lifecycle changes.",
+      "Track organization subscriptions, statuses, and lifecycle changes.",
     shell: "platform",
     category: "Billing & monetization",
     icon: CreditCard,
@@ -364,7 +364,7 @@ export const TUTORIALS: TutorialDefinition[] = [
       step(
         "list",
         "Subscription list",
-        "See every tenant subscription with its plan, status, and renewal date. Filter by status to find what needs attention.",
+        "See every organization subscription with its plan, status, and renewal date. Filter by status to find what needs attention.",
         { kind: "table", highlight: "status", label: "Subscriptions" },
         { route: "/admin/subscriptions", anchor: "subscriptions-table" },
       ),
@@ -381,7 +381,7 @@ export const TUTORIALS: TutorialDefinition[] = [
     type: "discounts_setup",
     title: "Creating discounts",
     description:
-      "Configure percentage or fixed discounts scoped to plans, tenants, or globally.",
+      "Configure percentage or fixed discounts scoped to plans, organizations, or globally.",
     shell: "platform",
     category: "Billing & monetization",
     icon: Tags,
@@ -390,7 +390,7 @@ export const TUTORIALS: TutorialDefinition[] = [
       step(
         "type",
         "Discount type & scope",
-        "Choose a percentage or fixed amount, then scope it globally, to a plan, or to a specific tenant.",
+        "Choose a percentage or fixed amount, then scope it globally, to a plan, or to a specific organization.",
         { kind: "form", highlight: "field", label: "New discount" },
         { route: "/admin/discounts", anchor: "discounts-new-button" },
       ),
@@ -466,13 +466,13 @@ export const TUTORIALS: TutorialDefinition[] = [
       step(
         "model",
         "The billing model",
-        "Plans define pricing, subscriptions attach a plan to a tenant, discounts adjust the price, and payments record what was billed.",
+        "Plans define pricing, subscriptions attach a plan to an organization, discounts adjust the price, and payments record what was billed.",
         { kind: "cards", highlight: "none", label: "Billing model" },
       ),
       step(
         "flow",
         "Following the money",
-        "Start from a tenant's subscription to trace its plan, any applied discounts, and its invoice history.",
+        "Start from an organization's subscription to trace its plan, any applied discounts, and its invoice history.",
         { kind: "detail", highlight: "none", label: "Subscription" },
       ),
     ],

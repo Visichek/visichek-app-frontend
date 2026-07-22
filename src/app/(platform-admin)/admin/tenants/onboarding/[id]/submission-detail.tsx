@@ -168,12 +168,12 @@ export function OnboardingSubmissionDetail({
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Building2 className="h-4 w-4" />
-              Provisioned tenant
+              Provisioned organization
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-              <span className="text-muted-foreground">Tenant</span>
+              <span className="text-muted-foreground">Organization</span>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -183,11 +183,11 @@ export function OnboardingSubmissionDetail({
                       navigate(`/admin/tenants/${submission.tenantId}`)
                     }
                   >
-                    Open tenant detail
+                    Open organization detail
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Jump to the tenant record this onboarding created
+                  Jump to the organization record this onboarding created
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -204,7 +204,7 @@ export function OnboardingSubmissionDetail({
               <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-sm">
                 <div className="mb-1 flex items-center gap-2 font-medium text-warning-foreground">
                   <Clock className="h-4 w-4" />
-                  Awaiting tenant completion
+                  Awaiting organization completion
                 </div>
                 <p className="text-muted-foreground">
                   The new super admin still owes:{" "}
@@ -287,7 +287,7 @@ export function OnboardingSubmissionDetail({
                           </Badge>
                         </TooltipTrigger>
                         <TooltipContent>
-                          Tenant still owes this field after partial acceptance
+                          Organization still owes this field after partial acceptance
                         </TooltipContent>
                       </Tooltip>
                     )}
@@ -411,7 +411,7 @@ export function OnboardingSubmissionDetail({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                Create the tenant and the first super admin from this
+                Create the organization and the first super admin from this
                 submission in one step
               </TooltipContent>
             </Tooltip>
@@ -459,16 +459,16 @@ function AcceptDialog({ submission, open, onClose }: AcceptDialogProps) {
         data: {},
       }),
       {
-        loading: "Provisioning tenant…",
+        loading: "Provisioning organization…",
         success: (response) => {
           onClose();
           if (response?.tenantId) {
             navigate(`/admin/tenants/${response.tenantId}`);
           }
-          return "Tenant provisioned. Welcome email with a temp password queued.";
+          return "Organization provisioned. Welcome email with a temp password queued.";
         },
         error: (err: Error) =>
-          err.message || "Failed to provision tenant.",
+          err.message || "Failed to provision organization.",
       },
     );
   }
@@ -479,8 +479,8 @@ function AcceptDialog({ submission, open, onClose }: AcceptDialogProps) {
       onOpenChange={(o) => {
         if (!o && !accept.isPending) onClose();
       }}
-      title="Accept & provision tenant?"
-      description={`This creates the tenant and its first super admin from this submission in one step. A temporary password is generated server-side and emailed to ${recipient}; they must change it on first sign-in.`}
+      title="Accept & provision organization?"
+      description={`This creates the organization and its first super admin from this submission in one step. A temporary password is generated server-side and emailed to ${recipient}; they must change it on first sign-in.`}
       confirmLabel="Accept & provision"
       isLoading={accept.isPending}
       onConfirm={handleConfirm}

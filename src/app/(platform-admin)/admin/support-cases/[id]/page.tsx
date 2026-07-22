@@ -58,7 +58,7 @@ const ADMIN_TRANSITIONS: Record<
     {
       to: "acknowledged",
       label: "Acknowledge",
-      hint: "Let the tenant know we've seen the case and will be picking it up shortly",
+      hint: "Let the organization know we've seen the case and will be picking it up shortly",
       icon: CheckCircle2,
     },
   ],
@@ -66,21 +66,21 @@ const ADMIN_TRANSITIONS: Record<
     {
       to: "in_progress",
       label: "Start working",
-      hint: "Move the case into active investigation — visible to the tenant",
+      hint: "Move the case into active investigation — visible to the organization",
       icon: PlayCircle,
     },
   ],
   in_progress: [
     {
       to: "awaiting_tenant",
-      label: "Ask tenant",
-      hint: "Pause progress while we wait for the tenant to respond with more information",
+      label: "Ask organization",
+      hint: "Pause progress while we wait for the organization to respond with more information",
       icon: Hourglass,
     },
     {
       to: "resolved",
       label: "Mark resolved",
-      hint: "We've fixed the issue — the tenant can confirm or reopen",
+      hint: "We've fixed the issue — the organization can confirm or reopen",
       icon: CheckCircle2,
     },
   ],
@@ -88,7 +88,7 @@ const ADMIN_TRANSITIONS: Record<
     {
       to: "in_progress",
       label: "Resume",
-      hint: "Tenant replied — return the case to active work",
+      hint: "Organization replied — return the case to active work",
       icon: PlayCircle,
     },
   ],
@@ -96,7 +96,7 @@ const ADMIN_TRANSITIONS: Record<
     {
       to: "in_progress",
       label: "Pick back up",
-      hint: "Tenant reopened — move the case back into active work",
+      hint: "Organization reopened — move the case back into active work",
       icon: PlayCircle,
     },
   ],
@@ -197,7 +197,7 @@ export default function AdminSupportCaseDetailPage({
     ...(supportCase.supportTier
       ? [{ label: "Tier", value: <SupportTierBadge tier={supportCase.supportTier} /> }]
       : []),
-    { label: "Tenant", value: <span className="truncate">{tenantName}</span> },
+    { label: "Organization", value: <span className="truncate">{tenantName}</span> },
     {
       label: "Opened by",
       value: <span className="truncate">{openedByName}</span>,
@@ -228,9 +228,9 @@ export default function AdminSupportCaseDetailPage({
         {transitions.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             {isClosed
-              ? "This case is closed. The tenant can reopen it to continue."
+              ? "This case is closed. The organization can reopen it to continue."
               : status === "resolved"
-                ? "Waiting for the tenant to confirm resolution or reopen the case."
+                ? "Waiting for the organization to confirm resolution or reopen the case."
                 : "No admin transitions available from this state."}
           </p>
         ) : (
@@ -299,9 +299,9 @@ export default function AdminSupportCaseDetailPage({
           onSubmit={handleReply}
           isSubmitting={replyMutation.isPending}
           disabled={isClosed}
-          disabledReason="This case is closed. The tenant needs to reopen it first."
+          disabledReason="This case is closed. The organization needs to reopen it first."
           allowInternalNote
-          placeholder="Reply to the tenant, or check 'Internal note' for admin-only context…"
+          placeholder="Reply to the organization, or check 'Internal note' for admin-only context…"
         />
       }
     >

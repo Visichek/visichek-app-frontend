@@ -676,7 +676,7 @@ export function AppointmentForm({ appointment }: AppointmentFormProps) {
             <div className="space-y-4 rounded-lg border border-border bg-muted/20 p-4">
               <div className="space-y-1">
                 <h3 className="text-sm font-semibold">
-                  Tenant-required fields
+                  Organization-required fields
                 </h3>
                 <p className="text-xs text-muted-foreground">
                   Defined by your organization's appointment form

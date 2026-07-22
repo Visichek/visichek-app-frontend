@@ -121,8 +121,8 @@ export function PlanFeaturesChecklist({
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
         {readOnly
-          ? "Feature gates are tier-locked on this plan. The list below is read-only — to grant a denied feature to a single tenant, use a per-tenant override from the Subscriptions page."
-          : "Each toggle saves immediately and applies to all tenants on this plan within a few seconds."}
+          ? "Feature gates are tier-locked on this plan. The list below is read-only — to grant a denied feature to a single organization, use a per-organization override from the Subscriptions page."
+          : "Each toggle saves immediately and applies to all organizations on this plan within a few seconds."}
       </p>
       {catalog.map((spec) => {
         const enabled = isFeatureEnabled(spec, plan);
@@ -172,8 +172,8 @@ export function PlanFeaturesChecklist({
                   {readOnly
                     ? `${spec.label} is tier-locked on this plan and cannot be toggled here`
                     : enabled
-                      ? `Disable ${spec.label} for all tenants on this plan`
-                      : `Enable ${spec.label} for all tenants on this plan`}
+                      ? `Disable ${spec.label} for all organizations on this plan`
+                      : `Enable ${spec.label} for all organizations on this plan`}
                 </TooltipContent>
               </Tooltip>
             </div>

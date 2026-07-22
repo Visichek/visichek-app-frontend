@@ -698,7 +698,7 @@ export function ChangePlanForm({
                 <p className="text-muted-foreground">
                   Downgrading mid-period can deactivate non-HQ branches and
                   remove paid features (KYC, branding, exports, multi-location)
-                  from your tenant. To avoid surprises we don&apos;t support
+                  from your organization. To avoid surprises we don&apos;t support
                   self-service downgrades. Contact support and we&apos;ll
                   schedule the move with you.
                 </p>

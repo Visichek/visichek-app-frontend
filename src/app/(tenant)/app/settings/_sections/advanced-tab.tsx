@@ -90,7 +90,7 @@ export function AdvancedTab() {
 
       <section>
         <div className="space-y-1">
-          {profile?.tenantId && <CopyableId label="Tenant ID" value={profile.tenantId} />}
+          {profile?.tenantId && <CopyableId label="Organization ID" value={profile.tenantId} />}
           {profile?.id && <CopyableId label="User ID" value={profile.id} />}
         </div>
       </section>
