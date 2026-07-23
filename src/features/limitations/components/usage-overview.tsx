@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { AlertTriangle, PlusCircle, Users, Building2, HardDrive } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -13,6 +15,7 @@ import {
 import { NavButton } from "@/components/recipes/nav-button";
 import { PATHS } from "@/lib/routing/paths";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
+import { BuyBranchAddonModal } from "@/features/addons/components/buy-branch-addon-modal";
 import {
   useUsageOverview,
   type UsageMeterItem,
@@ -34,10 +37,10 @@ const STATUS_BADGE_VARIANT: Record<UsageStatus, "success" | "warning" | "destruc
 export interface UsageOverviewProps {
   className?: string;
   /**
-   * Where the "Buy another branch" / upgrade CTAs should point. The real
-   * add-on purchase flow ships in Task 12 — until then this deliberately
-   * targets the change-plan page so the seam is a single prop to retarget,
-   * not a hunt through the component.
+   * Fallback destination for the "Buy another branch" CTA when the tenant
+   * is NOT on Premium (branch add-ons are Premium-only) — points at the
+   * change-plan page so a Free/Starter tenant at cap is routed to upgrade
+   * instead of a purchase flow they can't use.
    */
   buyBranchHref?: string;
 }
@@ -100,6 +103,7 @@ export function UsageOverview({ className, buyBranchHref }: UsageOverviewProps) 
   const overview = useUsageOverview();
   const { loadingHref } = useNavigationLoading();
   const upgradeHref = buyBranchHref ?? PATHS.APP_BILLING_CHANGE_PLAN;
+  const [buyBranchOpen, setBuyBranchOpen] = useState(false);
 
   if (overview.isLoading) {
     return (
@@ -116,6 +120,17 @@ export function UsageOverview({ className, buyBranchHref }: UsageOverviewProps) 
           </Card>
         ))}
       </div>
+    );
+  }
+
+  if (overview.isError) {
+    return (
+      <Card className={className}>
+        <CardContent className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+          Couldn&apos;t load your usage data. Try refreshing the page.
+        </CardContent>
+      </Card>
     );
   }
 
@@ -172,6 +187,7 @@ export function UsageOverview({ className, buyBranchHref }: UsageOverviewProps) 
   const isUpgradeLoading = loadingHref === upgradeHref;
 
   return (
+    <>
     <div className={className ?? "grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"}>
       {visitorsCard}
 
@@ -188,7 +204,26 @@ export function UsageOverview({ className, buyBranchHref }: UsageOverviewProps) 
           <p className="text-xs text-muted-foreground">
             {recommendationFor(overview.branches, "branches")}
           </p>
-          {overview.branchesAtCap && (
+          {overview.branchesAtCap && overview.isPremiumTier && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="min-h-[44px] w-full"
+                  onClick={() => setBuyBranchOpen(true)}
+                >
+                  <PlusCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Buy another branch
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Open the branch add-on purchase flow to add branch capacity
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {overview.branchesAtCap && !overview.isPremiumTier && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <NavButton
@@ -198,11 +233,11 @@ export function UsageOverview({ className, buyBranchHref }: UsageOverviewProps) 
                   className="min-h-[44px] w-full"
                 >
                   <PlusCircle className="mr-2 h-4 w-4" aria-hidden="true" />
-                  {isUpgradeLoading ? "Loading…" : "Buy another branch"}
+                  {isUpgradeLoading ? "Loading…" : "Upgrade for more branches"}
                 </NavButton>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                Go to the change-plan page to add branch capacity to your organization
+                Go to the change-plan page — branch add-ons require Premium
               </TooltipContent>
             </Tooltip>
           )}
@@ -243,5 +278,9 @@ export function UsageOverview({ className, buyBranchHref }: UsageOverviewProps) 
         </Card>
       )}
     </div>
+    {overview.isPremiumTier && (
+      <BuyBranchAddonModal open={buyBranchOpen} onOpenChange={setBuyBranchOpen} />
+    )}
+    </>
   );
 }

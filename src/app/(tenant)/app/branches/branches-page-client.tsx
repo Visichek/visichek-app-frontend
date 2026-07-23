@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   Edit2,
@@ -8,6 +9,7 @@ import {
   MoreHorizontal,
   PowerOff,
   Loader2,
+  PlusCircle,
 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/recipes/page-header";
@@ -39,12 +41,14 @@ import { summarizeBulkResult } from "@/lib/api/bulk";
 import { useCapabilities } from "@/hooks/use-capabilities";
 import { useCapability } from "@/features/limitations/hooks/use-limitations";
 import { LockedBadge } from "@/features/limitations/components/locked-badge";
+import { BuyBranchAddonModal } from "@/features/addons/components/buy-branch-addon-modal";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import { cn } from "@/lib/utils/cn";
 import type { Branch } from "@/types/tenant";
 
 export function BranchesPageClient() {
+  const router = useRouter();
   const { hasCapability } = useCapabilities();
   const {
     isBranchLocked,
@@ -57,6 +61,17 @@ export function BranchesPageClient() {
   const canCreate =
     hasCapability(CAPABILITIES.BRANCH_CREATE) && can("multi_location");
   const { loadingHref } = useNavigationLoading();
+  const [buyBranchOpen, setBuyBranchOpen] = useState(false);
+
+  // Gate the branch add-on purchase CTA on the effective plan tier from
+  // `/me/limitations` — never a hardcoded price/tier constant. Falls back
+  // to the per-branch visitor cap (Premium-only today) when `plan.tier`
+  // is absent from an older payload.
+  const planTier = limitations?.plan?.tier?.toLowerCase();
+  const isPremiumTier =
+    planTier != null
+      ? planTier === "premium"
+      : limitations?.caps?.visitorsPerBranchPerMonth != null;
 
   const BRANCHES_PAGE_SIZE = 25;
   const [pageIndex, setPageIndex] = useState(0);
@@ -74,6 +89,9 @@ export function BranchesPageClient() {
   const data = branchesList?.items ?? [];
   const meta = branchesList?.meta;
   const branchCap = capFor("maxBranches");
+  const totalBranches = meta?.total ?? data.length;
+  const atBranchCap =
+    branchCap != null && branchCap > 0 && totalBranches >= branchCap;
   const lockedCount = useMemo(
     () => data.filter((b) => isBranchLocked(b.id)).length,
     [data, isBranchLocked],
@@ -303,7 +321,24 @@ export function BranchesPageClient() {
         title="Branches"
         description="Manage physical office locations"
         actions={
-          canCreate ? (
+          canCreate && atBranchCap && isPremiumTier ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  className="w-full md:w-auto min-h-[44px]"
+                  onClick={() => setBuyBranchOpen(true)}
+                >
+                  <PlusCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Buy another branch
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                You&apos;re at your branch limit — buy an add-on to open a
+                new location
+              </TooltipContent>
+            </Tooltip>
+          ) : canCreate ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <NavButton href="/app/branches/new" className="w-full md:w-auto min-h-[44px]">
@@ -416,6 +451,12 @@ export function BranchesPageClient() {
         variant={bulkOp === "delete" ? "destructive" : "default"}
         isLoading={bulkPending}
         onConfirm={handleBulkConfirm}
+      />
+
+      <BuyBranchAddonModal
+        open={buyBranchOpen}
+        onOpenChange={setBuyBranchOpen}
+        onPurchased={() => router.push("/app/branches/new")}
       />
     </div>
   );

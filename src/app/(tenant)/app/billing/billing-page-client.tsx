@@ -34,6 +34,8 @@ import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useMyUsage } from "@/features/usage/hooks/use-usage";
 import { UsageOverview } from "@/features/limitations/components/usage-overview";
+import { AddonsCard } from "@/features/addons/components/active-addons-card";
+import { useLimitations } from "@/features/limitations/hooks/use-limitations";
 import { useTenantInvoices } from "@/features/invoices/hooks/use-invoices";
 import { useActiveSubscription } from "@/features/subscriptions/hooks/use-subscriptions";
 import { CheckoutHistoryTable } from "@/features/checkout/components/checkout-history-table";
@@ -129,6 +131,17 @@ export function BillingPageClient() {
   const { data: activeSubscription } = useActiveSubscription(
     canManageBilling ? tenantId || "" : ""
   );
+
+  // Gate the branch add-on purchase CTA on the effective plan tier from
+  // `/me/limitations` — never a hardcoded price/tier constant. Falls back
+  // to the per-branch visitor cap (Premium-only today) if `plan.tier` is
+  // absent from an older payload.
+  const { data: limitations } = useLimitations();
+  const limitationsPlanTier = limitations?.plan?.tier?.toLowerCase();
+  const canBuyBranchAddon =
+    limitationsPlanTier != null
+      ? limitationsPlanTier === "premium"
+      : limitations?.caps?.visitorsPerBranchPerMonth != null;
 
   const invoices = useMemo(() => invoicesResponse?.items ?? [], [invoicesResponse]);
   const invoicesMeta = invoicesResponse?.meta;
@@ -431,6 +444,8 @@ export function BillingPageClient() {
         )}
 
         <UsageOverview />
+
+        {canManageBilling && <AddonsCard canBuyBranchAddon={canBuyBranchAddon} />}
 
         <Card>
           <CardHeader>

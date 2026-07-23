@@ -48,6 +48,13 @@ export interface UsageOverviewData {
   activeAddons: LimitationsActiveAddon[];
   /** Drives the "Buy another branch" CTA. */
   branchesAtCap: boolean;
+  /**
+   * Effective tier is Premium — gates the branch add-on purchase UI.
+   * Prefers `limitations.plan.tier`; falls back to
+   * `visitorsPerBranchPerMonth != null` (Premium-only cap today) when the
+   * tier field is absent, per Task 11 gating rule.
+   */
+  isPremiumTier: boolean;
 }
 
 function meter(
@@ -78,7 +85,8 @@ export function useUsageOverview(): UsageOverviewData {
   return useMemo(() => {
     const usage = usageQuery.data;
     const limitations = limitationsQuery.data;
-    const isLoading = usageQuery.isLoading || limitationsQuery.isLoading;
+    const isLoading =
+      usageQuery.isLoading || limitationsQuery.isLoading || branchesQuery.isLoading;
     const isError = usageQuery.isError || limitationsQuery.isError;
 
     // `entityCounts`/`entityCaps` are typed as plain `Record<string, number>`
@@ -110,10 +118,15 @@ export function useUsageOverview(): UsageOverviewData {
       : [];
 
     const aggregateUsed = counts.visitorsThisMonth ?? 0;
-    // Resolved via `useLimitations()` first — that cap is already
-    // addon-inclusive (branch/visitor top-ups folded in server-side).
-    const aggregateLimit =
+    // `limitations.caps.maxVisitorsPerMonth` is the plan's base cap — it
+    // is NOT addon-inclusive. Branch add-ons add `extraVisitorsPerMonth`
+    // on top; sum them ourselves. `null` base stays unlimited (extra is
+    // meaningless against an uncapped tenant).
+    const baseVisitorsLimit =
       limitations?.caps?.maxVisitorsPerMonth ?? caps.maxVisitorsPerMonth ?? null;
+    const extraVisitors = limitations?.caps?.extraVisitorsPerMonth ?? 0;
+    const aggregateLimit =
+      baseVisitorsLimit === null ? null : baseVisitorsLimit + extraVisitors;
     const visitorsAggregate: UsageMeterItem | null = perBranch
       ? null
       : meter("visitors-aggregate", "New visitors this month", aggregateUsed, aggregateLimit);
@@ -138,6 +151,10 @@ export function useUsageOverview(): UsageOverviewData {
 
     const activeAddons = limitations?.activeAddons ?? [];
 
+    const planTier = limitations?.plan?.tier?.toLowerCase();
+    const isPremiumTier =
+      planTier != null ? planTier === "premium" : perBranchCap != null;
+
     return {
       isLoading,
       isError,
@@ -150,6 +167,7 @@ export function useUsageOverview(): UsageOverviewData {
       storage,
       activeAddons,
       branchesAtCap: branches.status === "at_limit",
+      isPremiumTier,
     };
   }, [
     usageQuery.data,
@@ -159,5 +177,6 @@ export function useUsageOverview(): UsageOverviewData {
     limitationsQuery.isLoading,
     limitationsQuery.isError,
     branchesQuery.data,
+    branchesQuery.isLoading,
   ]);
 }

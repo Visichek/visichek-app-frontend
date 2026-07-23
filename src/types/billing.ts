@@ -494,6 +494,19 @@ export interface LimitationsCaps {
   analyticsMaxRangeDays?: number | null;
   /** Insights top-list cap (Free = 3). Absent/null => unlimited (server caps at 10). */
   topListMax?: number | null;
+  /**
+   * Per-branch new-visitor cap on Premium+ (aggregate `maxVisitorsPerMonth`
+   * is not used on those plans). Absent/null on tenant-wide (Free/Starter)
+   * accounting.
+   */
+  visitorsPerBranchPerMonth?: number | null;
+  /**
+   * Extra new-visitor allowance from purchased/granted branch add-ons —
+   * additive on top of `maxVisitorsPerMonth`. NOT already folded in here
+   * (unlike `usage.entityCaps`, which is addon-inclusive server-side);
+   * callers summing an aggregate visitor cap must add this in themselves.
+   */
+  extraVisitorsPerMonth?: number | null;
 }
 
 export interface DeniedEndpoint {

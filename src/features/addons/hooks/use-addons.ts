@@ -16,6 +16,8 @@ import {
 } from "@tanstack/react-query";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api/request";
 import { STORAGE_QUOTA_QUERY_KEY } from "@/lib/upload/storage-quota";
+import { LIMITATIONS_QUERY_KEY } from "@/features/limitations/hooks/use-limitations";
+import { USAGE_QUERY_KEY } from "@/features/usage/hooks/use-usage";
 import {
   addonCatalogDetailPath,
   addonsCatalogPath,
@@ -145,6 +147,8 @@ export function useReplayAddonWebhook() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: addonKeys.all });
       queryClient.invalidateQueries({ queryKey: STORAGE_QUOTA_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: LIMITATIONS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: USAGE_QUERY_KEY });
     },
   });
 }
@@ -171,12 +175,37 @@ export function useActiveTenantAddons(kind?: AddonKind) {
   });
 }
 
-export function useTenantAddon(tenantAddonId: string | undefined) {
+/**
+ * Adaptive polling that mirrors `useCheckoutSession`'s pattern: 2s for the
+ * first 30s after purchase, 10s until 2m30s, then stop. Stops immediately
+ * once the row leaves `pending`.
+ */
+function computeAddonRefetchInterval(
+  addon: TenantAddonOut | undefined,
+): number | false {
+  if (!addon) return 2_000;
+  if (addon.status !== "pending") return false;
+
+  const createdAtMs = addon.purchasedAt * 1000;
+  const elapsedMs = Date.now() - createdAtMs;
+
+  if (elapsedMs < 30_000) return 2_000;
+  if (elapsedMs < 2 * 60_000 + 30_000) return 10_000;
+  return false;
+}
+
+export function useTenantAddon(
+  tenantAddonId: string | undefined,
+  options?: { poll?: boolean },
+) {
   return useQuery<TenantAddonOut>({
     queryKey: addonKeys.tenantDetail(tenantAddonId ?? ""),
     queryFn: () =>
       apiGet<TenantAddonOut>(tenantAddonDetailPath(tenantAddonId!)),
     enabled: !!tenantAddonId,
+    refetchInterval: (query) =>
+      options?.poll ? computeAddonRefetchInterval(query.state.data) : false,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -219,6 +248,25 @@ export function useCancelTenantAddon() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: addonKeys.all });
       queryClient.invalidateQueries({ queryKey: STORAGE_QUOTA_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: LIMITATIONS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: USAGE_QUERY_KEY });
     },
   });
+}
+
+/**
+ * Invalidate every cache an addon entitlement change can affect: the
+ * addon feature's own queries, storage quota, `/me/limitations`, and
+ * usage summaries. Call this once a purchase's polled status flips to
+ * `active` (the purchase mutation itself only creates a `pending` row —
+ * the entitlement lands async via the payment webhook).
+ */
+export function useInvalidateAddonEntitlementCaches() {
+  const queryClient = useQueryClient();
+  return () => {
+    queryClient.invalidateQueries({ queryKey: addonKeys.all });
+    queryClient.invalidateQueries({ queryKey: STORAGE_QUOTA_QUERY_KEY });
+    queryClient.invalidateQueries({ queryKey: LIMITATIONS_QUERY_KEY });
+    queryClient.invalidateQueries({ queryKey: USAGE_QUERY_KEY });
+  };
 }

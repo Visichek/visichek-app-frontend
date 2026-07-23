@@ -9,8 +9,6 @@ import {
   ChevronRight,
   Loader2,
   Mail,
-  Minus,
-  Plus,
   Sparkles,
   Tag,
   X,
@@ -38,6 +36,7 @@ import {
 import { useDiscountPreview } from "@/features/discounts/hooks/use-discounts";
 import { useClaimTrial } from "@/features/trials/hooks/use-trials";
 import { UsageOverview } from "@/features/limitations/components/usage-overview";
+import { BranchAddonBlock } from "@/features/addons/components/branch-addon-block";
 import type {
   DiscountPreview,
   Plan,
@@ -145,9 +144,6 @@ export function ChangePlanForm({
   const [pendingDeepLinkCode, setPendingDeepLinkCode] = useState<string | null>(
     initialDiscountCode?.trim() || null
   );
-  // Premium plans are priced per location. Default to a single location;
-  // tenants who need more bump it before paying. Free/Starter ignore this.
-  const [locationCount, setLocationCount] = useState<number>(1);
 
   // Discount code state. Collapsed by default — most users won't have a
   // code. Trials are not entered here; they are auto-claimed below when
@@ -310,8 +306,7 @@ export function ChangePlanForm({
   }
 
   function quotedTotalForCycle(plan: Plan): number {
-    const base = basePriceForCycle(plan);
-    return plan.tier === "premium" ? base * Math.max(1, locationCount) : base;
+    return basePriceForCycle(plan);
   }
 
   // For the summary, prefer the server-computed price from a discount
@@ -321,22 +316,14 @@ export function ChangePlanForm({
     if (!selectedPlan) return 0;
     if (appliedCode?.kind === "trial") return 0;
     if (appliedCode?.kind === "discount") {
-      // The preview is computed against a single-location base. Premium
-      // plans are billed per-location, so scale up if needed. This is a
-      // preview only — the server re-runs the full breakdown at checkout.
-      const preview = appliedCode.preview;
-      const multiplier =
-        selectedPlan.tier === "premium" ? Math.max(1, locationCount) : 1;
-      return preview.finalPrice * multiplier;
+      return appliedCode.preview.finalPrice;
     }
     return quotedTotalForCycle(selectedPlan);
   }
 
   function previewDiscountSavings(): number {
     if (appliedCode?.kind !== "discount" || !selectedPlan) return 0;
-    const multiplier =
-      selectedPlan.tier === "premium" ? Math.max(1, locationCount) : 1;
-    return appliedCode.preview.discountAmount * multiplier;
+    return appliedCode.preview.discountAmount;
   }
 
   // Drop the applied discount and clear the code field.
@@ -393,9 +380,6 @@ export function ChangePlanForm({
         ...(opts.trialCode ? { trialCode: opts.trialCode } : {}),
         ...(opts.discountIds && opts.discountIds.length > 0
           ? { discountIds: opts.discountIds }
-          : {}),
-        ...(isPremium
-          ? { metadata: { location_count: Math.max(1, locationCount) } }
           : {}),
       });
       if (session.checkoutUrl) {
@@ -519,7 +503,6 @@ export function ChangePlanForm({
               const isCurrent = plan.id === currentPlanId;
               const price = basePriceForCycle(plan);
               const planIsEnterprise = plan.tier === "enterprise";
-              const planIsPremium = plan.tier === "premium";
               return (
                 <Tooltip key={plan.id}>
                   <TooltipTrigger asChild>
@@ -589,7 +572,6 @@ export function ChangePlanForm({
                               <div className="text-xs text-muted-foreground">
                                 per{" "}
                                 {billingCycle === "yearly" ? "year" : "month"}
-                                {planIsPremium ? " / location" : ""}
                               </div>
                             </>
                           )}
@@ -616,70 +598,13 @@ export function ChangePlanForm({
           )}
         </div>
 
-        {/* Premium per-location picker */}
+        {/* Branch add-ons — Premium ships with 1 branch; extra branches are
+            a separate recurring purchase (`additional-branch`), not a
+            per-location multiplier on the plan price. Purchasing only
+            works once the tenant is actually on Premium (backend-gated by
+            effective tier), so this is informational-only until then. */}
         {selectedPlan && isPremium && (
-          <div className="space-y-2 rounded-lg border bg-muted/40 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Number of locations</p>
-                <p className="text-xs text-muted-foreground">
-                  Premium is billed per location. Each location includes the
-                  plan&apos;s monthly visitor and department caps.
-                </p>
-              </div>
-              <div className="flex items-center gap-1">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="h-11 w-11"
-                      aria-label="Decrease location count"
-                      disabled={locationCount <= 1}
-                      onClick={() =>
-                        setLocationCount((n) => Math.max(1, n - 1))
-                      }
-                    >
-                      <Minus className="h-4 w-4" aria-hidden="true" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    Reduce the number of locations on this checkout
-                  </TooltipContent>
-                </Tooltip>
-                <Input
-                  type="number"
-                  min={1}
-                  inputMode="numeric"
-                  value={locationCount}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value, 10);
-                    setLocationCount(Number.isFinite(v) && v > 0 ? v : 1);
-                  }}
-                  className="h-11 w-16 text-center"
-                  aria-label="Locations"
-                />
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="h-11 w-11"
-                      aria-label="Increase location count"
-                      onClick={() => setLocationCount((n) => n + 1)}
-                    >
-                      <Plus className="h-4 w-4" aria-hidden="true" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    Add another location to this checkout
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-            </div>
-          </div>
+          <BranchAddonBlock canPurchaseNow={currentPlanTier === "premium"} />
         )}
 
         {/* Downgrade panel — backed by /v1/subscriptions/change-plan, but
@@ -919,11 +844,7 @@ export function ChangePlanForm({
             ) : (
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">
-                    {isPremium
-                      ? `Subtotal (${locationCount} location${locationCount === 1 ? "" : "s"})`
-                      : "Subtotal"}
-                  </span>
+                  <span className="text-muted-foreground">Subtotal</span>
                   <span className="tabular-nums">
                     {formatCurrency(
                       quotedTotalForCycle(selectedPlan) * 100,
@@ -955,15 +876,6 @@ export function ChangePlanForm({
                   </span>
                 </div>
               </div>
-            )}
-            {isPremium && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                {formatCurrency(
-                  basePriceForCycle(selectedPlan) * 100,
-                  selectedPlan.currency,
-                )}{" "}
-                per location, billed {billingCycle}.
-              </p>
             )}
             <p className="mt-1 text-xs text-muted-foreground">
               You&apos;ll be redirected to a secure checkout page to complete
