@@ -19,8 +19,16 @@ import {
 } from "@/lib/store/session-slice";
 import { useUserPreferences } from "@/features/settings/hooks";
 
-/** Preference key holding the per-admin beta opt-in (admin preferences KV). */
-export const BETA_FEATURES_PREFERENCE_KEY = "beta_features_enabled";
+/**
+ * Preference key holding the per-admin beta opt-in (admin preferences KV).
+ *
+ * MUST stay camelCase (no underscores): the backend's CaseConversionMiddleware
+ * camelizes every JSON response key, including the dynamic keys of the
+ * preferences dict. A snake_case key is stored verbatim on PATCH (it travels
+ * as a string *value*) but comes back camelized on GET, so the lookup below
+ * would never match and the toggle could never read as enabled.
+ */
+export const BETA_FEATURES_PREFERENCE_KEY = "betaFeaturesEnabled";
 
 /**
  * Org-wide beta flag for tenant-shell pages. Synchronous — the value ships
