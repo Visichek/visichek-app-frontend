@@ -37,6 +37,7 @@ import {
 } from "@/features/checkout/hooks/use-checkout";
 import { useDiscountPreview } from "@/features/discounts/hooks/use-discounts";
 import { useClaimTrial } from "@/features/trials/hooks/use-trials";
+import { UsageOverview } from "@/features/limitations/components/usage-overview";
 import type {
   DiscountPreview,
   Plan,
@@ -460,6 +461,8 @@ export function ChangePlanForm({
         title={currentPlanId ? "Change plan" : "Choose a plan"}
         description="Pick a plan and billing cycle — we'll take you to a secure checkout page."
       />
+
+      <UsageOverview />
 
       <div className="space-y-5">
         {/* Billing cycle toggle */}

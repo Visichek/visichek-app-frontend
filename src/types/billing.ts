@@ -361,6 +361,44 @@ export interface PaymentTransaction {
 }
 
 // ── Usage ─────────────────────────────────────────────────────────────
+/**
+ * `entity_counts` from `GET /v1/usage/my-usage` (and the admin tenant
+ * summary sibling). `visitorsThisMonth` is new-visitor (first-seen)
+ * semantics per branch first-seen ledger; `totalCheckinsThisMonth` is
+ * raw check-in activity (includes returning visitors) for dashboards
+ * that want that instead. `visitorsByBranch` is keyed by branch id —
+ * map ids to names via the branches list hook, falling back to the id.
+ * Extra keys tolerated via the index signature for forward-compat.
+ */
+export interface UsageEntityCounts {
+  branches?: number;
+  departments?: number;
+  systemUsers?: number;
+  visitorsThisMonth?: number;
+  visitorsByBranch?: Record<string, number>;
+  totalCheckinsThisMonth?: number;
+  appointmentsThisMonth?: number;
+  periodStart?: number;
+  periodEnd?: number;
+}
+
+/**
+ * `entity_caps` — the resolved tenant's `tenant_caps` snapshot, already
+ * addon-inclusive (branch add-ons folded into `maxBranches`; see
+ * `plan_cache_service._apply_addon_benefits`). `visitorsPerBranchPerMonth`
+ * is set on Premium+ (per-branch quota); `null`/absent means the tenant
+ * is on aggregate (tenant-wide) `maxVisitorsPerMonth` accounting instead.
+ */
+export interface UsageEntityCaps {
+  maxSystemUsers?: number | null;
+  maxDepartments?: number | null;
+  maxBranches?: number | null;
+  maxVisitorsPerMonth?: number | null;
+  maxAppointmentsPerMonth?: number | null;
+  visitorsPerBranchPerMonth?: number | null;
+  [key: string]: number | null | undefined;
+}
+
 export interface TenantUsageSummary {
   tenantId: string;
   planName: string;
@@ -369,6 +407,13 @@ export interface TenantUsageSummary {
   period: string;
   crudUsage: Record<string, unknown>;
   retrievalUsage: Record<string, unknown>;
+  /**
+   * Loosely typed for backward compatibility with existing readers
+   * (`pickCount`/`pickCap` helpers expect a plain `Record<string,
+   * number>`). Cast to {@link UsageEntityCounts} / {@link UsageEntityCaps}
+   * when reading the newer per-branch fields (`visitorsByBranch` is an
+   * object, not a number, so it doesn't fit this loose shape).
+   */
   entityCounts: Record<string, number>;
   entityCaps: Record<string, number | null>;
   storage: {
@@ -468,6 +513,22 @@ export interface LimitationsEnterprise {
   subAppPrefix: string | null;
 }
 
+/**
+ * Raw active add-on summary row from `plan_data.active_addons`
+ * (`services/plan_cache_service.py`), exposed on `Limitations.activeAddons`
+ * for display purposes. Benefits (branch/visitor top-ups) are already
+ * folded into `caps.maxBranches` — this list is not additive on top of
+ * `caps`; it's the "what did they buy" summary for the UI.
+ */
+export interface LimitationsActiveAddon {
+  kind: AddonKindLike;
+  quantity: number;
+  expiresAt: number | null;
+}
+
+/** Loosened to avoid a hard dependency from types/billing.ts on types/addon.ts. */
+export type AddonKindLike = "storage_extension" | "visitor_quota" | "branch_quota" | string;
+
 export interface Limitations {
   /** null for application admins (no tenant scope). */
   tenantId: string | null;
@@ -478,4 +539,11 @@ export interface Limitations {
   deniedFeatures: PlanFeatureKey[] | string[];
   lockedEntities: LockedEntities;
   enterprise: LimitationsEnterprise;
+  /**
+   * Active add-on summary (`kind`, `quantity`, `expiresAt`). Backend:
+   * `me_limitations_service.build_me_limitations` →
+   * `plan_data.active_addons`. Absent/empty when the addon framework
+   * isn't purchased into yet — treat as `[]`, not an error.
+   */
+  activeAddons?: LimitationsActiveAddon[];
 }

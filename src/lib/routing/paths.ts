@@ -57,6 +57,10 @@ export const PATHS = {
   // Visible to every tenant role; only super_admin can accept/decline.
   APP_AGREEMENTS: "/app/agreements",
   APP_BILLING: "/app/billing",
+  // Buy-a-branch / upgrade CTA target until the dedicated add-on purchase
+  // flow (Task 12) ships — the change-plan page is the correct interim
+  // destination for "I need more branches / visitor capacity" prompts.
+  APP_BILLING_CHANGE_PLAN: "/app/billing/change-plan",
   APP_ALERTS: "/app/alerts",
   APP_SETTINGS: "/app/settings",
 } as const;
