@@ -24,9 +24,19 @@ import type {
   RequiredField,
   RequiredFieldCategory,
 } from "@/types/checkin";
+import type { PublicDepartment } from "@/types/public";
 import { cn } from "@/lib/utils/cn";
 
 const ENUM_OTHER_VALUE = "__other__";
+
+/**
+ * Key of the system-managed Department field. The backend emits it as a
+ * `select` with NO options — by convention the option list is resolved
+ * live from the tenant's active departments (`usePublicDepartments`) and
+ * passed in via the `departments` prop. The submitted value is the
+ * department id.
+ */
+export const DEPARTMENT_FIELD_KEY = "department_id";
 
 export interface RequiredFieldsFormProps {
   /** Every field to render — config-driven. */
@@ -48,6 +58,13 @@ export interface RequiredFieldsFormProps {
    * kind isn't present, the field falls back to a plain text input.
    */
   enums?: EnumsResponse;
+  /**
+   * The tenant's active departments, driving the system
+   * `department_id` field's options (label = name, value = id). When
+   * omitted the field falls back to the generic renderer — callers that
+   * show the department field should always supply this.
+   */
+  departments?: PublicDepartment[];
   className?: string;
 }
 
@@ -68,6 +85,7 @@ export function RequiredFieldsForm({
   errors = {},
   readOnlyKeys = [],
   enums,
+  departments,
   className,
 }: RequiredFieldsFormProps) {
   const visible = category
@@ -121,7 +139,29 @@ export function RequiredFieldsForm({
               )}
             </div>
 
-            {bundle ? (
+            {field.key === DEPARTMENT_FIELD_KEY && departments ? (
+              <Select
+                value={(value as string) ?? ""}
+                onValueChange={(v) => onChange(field.key, v)}
+                disabled={readOnly}
+              >
+                <SelectTrigger
+                  id={id}
+                  className="text-base md:text-sm min-h-[44px]"
+                >
+                  <SelectValue
+                    placeholder={field.placeholder ?? "Select a department…"}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : bundle ? (
               <EnumPicker
                 id={id}
                 bundle={bundle}

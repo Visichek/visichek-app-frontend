@@ -153,9 +153,9 @@ export function ImageUploadField({
     quota.data?.maxDocuments != null &&
     quota.data.documentCount >= quota.data.maxDocuments;
   const budgetMessage = storageFull
-    ? "Storage is full for this tenant. Free up space or add storage before uploading."
+    ? "Storage is full for this organization. Free up space or add storage before uploading."
     : docCapReached
-      ? "This tenant has reached its document limit. Remove files or upgrade before uploading."
+      ? "This organization has reached its document limit. Remove files or upgrade before uploading."
       : null;
 
   const hasValue = value.trim().length > 0;

@@ -38,7 +38,7 @@ export const TUTORIAL_ANCHORS = {
   // ── Platform admin ─────────────────────────────────────────────────
   "admin-dashboard-metrics": "Top metric cards on the admin dashboard",
   "onboarding-queue": "Submissions table on the onboarding queue",
-  "tenants-table": "Tenant list table",
+  "tenants-table": "Organization list table",
   "plans-new-button": "New-plan button on the Plans page",
   "subscriptions-table": "Subscriptions list table",
   "discounts-new-button": "New-discount button on the Discounts page",

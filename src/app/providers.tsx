@@ -50,6 +50,7 @@ const PUBLIC_PATH_PREFIXES = [
   "/support",
   "/app/scan",
   "/app/select-tenant",
+  "/app/select-organization",
   "/offline",
 ];
 

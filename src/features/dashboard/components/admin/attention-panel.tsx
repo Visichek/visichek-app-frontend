@@ -167,7 +167,7 @@ function deriveAttentionItems(
         stats.supportCasesOpen === 1 ? "" : "s"
       }`,
       reason:
-        "Tenants are waiting for a reply. Review the queue, post replies, or move stale cases through the workflow.",
+        "Organizations are waiting for a reply. Review the queue, post replies, or move stale cases through the workflow.",
       count: stats.supportCasesOpen,
       href: "/admin/support-cases",
       ownerArea: "support",
@@ -183,7 +183,7 @@ function deriveAttentionItems(
         stats.onboardingNew === 1 ? "" : "s"
       }`,
       reason:
-        "Accept to provision a tenant, partial-accept to flag missing fields, or reject with notes.",
+        "Accept to provision an organization, partial-accept to flag missing fields, or reject with notes.",
       count: stats.onboardingNew,
       href: "/admin/tenants/onboarding",
       ownerArea: "onboarding",
@@ -253,7 +253,7 @@ function deriveAttentionItems(
       priority: pastDue >= 3 ? "urgent" : "normal",
       title: `${pastDue} past-due subscription${pastDue === 1 ? "" : "s"}`,
       reason:
-        "Dunning is running automatically, but failed retries may need a manual nudge or a chat with the tenant.",
+        "Dunning is running automatically, but failed retries may need a manual nudge or a chat with the organization.",
       count: pastDue,
       href: "/admin/subscriptions",
       ownerArea: "billing",

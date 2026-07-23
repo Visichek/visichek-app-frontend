@@ -201,7 +201,7 @@ function BadgePreview({
           {logoPreviewUrl ? (
             <img
               src={logoPreviewUrl}
-              alt="Tenant logo"
+              alt="Organization logo"
               className="h-10 max-w-[140px] rounded object-contain"
             />
           ) : (
@@ -370,7 +370,7 @@ export function BrandingTab() {
 
   const onSubmit = async (data: BrandingFormData) => {
     if (!tenantId) {
-      toast.error("Tenant ID not found.");
+      toast.error("Organization ID not found.");
       return;
     }
     const input: UpdateBrandingInput = {
@@ -436,7 +436,7 @@ export function BrandingTab() {
                 <TabsTrigger
                   value="colors"
                   className="min-h-[44px] gap-2"
-                  title="Pick your tenant's primary, secondary, and accent colors or apply a quick theme preset"
+                  title="Pick your organization's primary, secondary, and accent colors or apply a quick theme preset"
                 >
                   {isTabPending && pendingTab === "colors" ? (
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -557,7 +557,7 @@ export function BrandingTab() {
                     <div className="mb-3 flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-3">
                       <img
                         src={persistedLogoUrl}
-                        alt="Current tenant logo"
+                        alt="Current organization logo"
                         className="h-12 w-12 rounded object-contain bg-white"
                       />
                       <div className="min-w-0 flex-1">
@@ -645,7 +645,7 @@ export function BrandingTab() {
                     className="w-full cursor-not-allowed rounded-lg border border-input bg-muted px-4 py-2.5 text-base md:text-sm text-muted-foreground"
                   />
                   <p className="mt-1.5 text-xs text-muted-foreground">
-                    Managed in global tenant settings.
+                    Managed in global organization settings.
                   </p>
                 </div>
               </CardContent>
@@ -766,7 +766,7 @@ export function BrandingTab() {
               </LoadingButton>
             </TooltipTrigger>
             <TooltipContent side="top">
-              Apply and save your branding changes across the tenant
+              Apply and save your branding changes across the organization
             </TooltipContent>
           </Tooltip>
         </div>

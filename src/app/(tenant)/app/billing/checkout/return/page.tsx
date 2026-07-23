@@ -35,16 +35,28 @@ function CheckoutReturnContent() {
     searchParams.get("tx_ref") ||
     "";
 
+  // Addon purchases (addon_...) and trial card captures (trialcap_...) are
+  // not checkout sessions — the by-reference resolver only knows plan
+  // checkouts (chk_...). Their outcome is applied by the payment webhook and
+  // surfaced on the billing page, so hand off there instead of running (and
+  // failing) the session lookup.
+  const isNonSessionReference =
+    reference.startsWith("addon_") || reference.startsWith("trialcap_");
+
   const { data: session, isLoading, isError, error, refetch } =
-    useCheckoutSessionByReference(reference);
+    useCheckoutSessionByReference(isNonSessionReference ? "" : reference);
 
   // Once resolved, hand off to the canonical status page. `replace` so the
   // browser back button skips this transient resolver.
   useEffect(() => {
+    if (isNonSessionReference) {
+      router.replace("/app/billing");
+      return;
+    }
     if (session?.id) {
       router.replace(`/app/billing/checkout/${session.id}`);
     }
-  }, [session?.id, router]);
+  }, [isNonSessionReference, session?.id, router]);
 
   const billingButton = (
     <TooltipProvider delayDuration={200}>
@@ -73,6 +85,26 @@ function CheckoutReturnContent() {
           message="We couldn't read a payment reference from this link. Open your billing page to check your subscription and payment status."
         />
         <div className="flex justify-center">{billingButton}</div>
+      </div>
+    );
+  }
+
+  // Addon / trial-capture references skip the session lookup entirely; show
+  // the finalizing spinner while the effect above redirects to billing.
+  if (isNonSessionReference) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
+        <Loader2
+          className="h-8 w-8 animate-spin text-primary"
+          aria-hidden="true"
+        />
+        <div className="space-y-1">
+          <p className="text-base font-medium">Finalizing your payment…</p>
+          <p className="text-sm text-muted-foreground">
+            Hang tight — we&apos;re confirming your payment and taking you to
+            your billing page.
+          </p>
+        </div>
       </div>
     );
   }

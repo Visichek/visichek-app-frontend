@@ -71,7 +71,7 @@ type BootstrapFormData = z.infer<typeof bootstrapSchema>;
 /* ------------------------------------------------------------------ */
 
 const STEPS: StepDef[] = [
-  { id: 1, label: "Tenant", icon: Building2 },
+  { id: 1, label: "Organisation", icon: Building2 },
   { id: 2, label: "Admin", icon: UserCircle },
   { id: 3, label: "Review", icon: ClipboardCheck },
 ];
@@ -83,9 +83,9 @@ const STEP_FIELDS: Record<number, (keyof BootstrapFormData)[]> = {
 };
 
 const STEP_DESCRIPTIONS: Record<number, string> = {
-  1: "Enter the organisation details for the new tenant.",
-  2: "Create the first super admin account for this tenant.",
-  3: "Review the details before creating the tenant.",
+  1: "Enter the organisation details for the new organisation.",
+  2: "Create the first super admin account for this organisation.",
+  3: "Review the details before creating the organisation.",
 };
 
 const LIST_HREF = "/admin/tenants";
@@ -150,12 +150,12 @@ export function BootstrapTenantForm() {
         crossBorderApproved: data.crossBorderApproved || undefined,
       });
       toast.success(
-        `Tenant "${data.companyName}" bootstrapped — super admin account created.`,
+        `Organisation "${data.companyName}" bootstrapped — super admin account created.`,
       );
       navigate(LIST_HREF);
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to bootstrap tenant",
+        error instanceof Error ? error.message : "Failed to bootstrap organisation",
       );
     }
   };
@@ -177,17 +177,17 @@ export function BootstrapTenantForm() {
               ) : (
                 <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
               )}
-              Back to tenants
+              Back to organisations
             </NavButton>
           </TooltipTrigger>
           <TooltipContent side="bottom">
-            Return to the tenants list without creating a new one
+            Return to the organisations list without creating a new one
           </TooltipContent>
         </Tooltip>
       </div>
 
       <PageHeader
-        title="Bootstrap tenant"
+        title="Bootstrap organisation"
         description={STEP_DESCRIPTIONS[stepForm.currentStep]}
       />
 
@@ -308,7 +308,7 @@ export function BootstrapTenantForm() {
                 <p className="text-xs text-muted-foreground">
                   Required when hosting outside Nigeria (NDPA compliance). Check
                   this to confirm you have authority to approve cross-border
-                  data transfers for this tenant.
+                  data transfers for this organisation.
                 </p>
               </div>
             </div>
@@ -481,7 +481,7 @@ export function BootstrapTenantForm() {
             </TooltipTrigger>
             <TooltipContent side="top">
               {stepForm.isFirstStep
-                ? "Discard this draft and return to the tenants list"
+                ? "Discard this draft and return to the organisations list"
                 : "Go back to the previous step without losing your progress"}
             </TooltipContent>
           </Tooltip>
@@ -496,12 +496,12 @@ export function BootstrapTenantForm() {
                     loadingText="Bootstrapping..."
                     className="w-full md:w-auto min-h-[44px]"
                   >
-                    Bootstrap Tenant
+                    Bootstrap Organisation
                   </LoadingButton>
                 </span>
               </TooltipTrigger>
               <TooltipContent side="top">
-                Create this tenant and send login details to the super admin
+                Create this organisation and send login details to the super admin
               </TooltipContent>
             </Tooltip>
           ) : (

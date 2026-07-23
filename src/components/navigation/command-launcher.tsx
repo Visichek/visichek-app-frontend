@@ -232,8 +232,8 @@ export function CommandLauncher({ externalOpen, onExternalOpenChange }: CommandL
 
       navigationItems.push({
         id: "nav-tenants",
-        label: "Tenants",
-        description: "Manage tenant organizations",
+        label: "Organizations",
+        description: "Manage organization accounts",
         icon: <Building2 className="h-4 w-4" />,
         keywords: ["tenants", "organizations"],
         href: PATHS.ADMIN_TENANTS,

@@ -57,6 +57,12 @@ export const PATHS = {
   // Visible to every tenant role; only super_admin can accept/decline.
   APP_AGREEMENTS: "/app/agreements",
   APP_BILLING: "/app/billing",
+  // Upgrade CTA target for tenants who are not yet on Premium — buying a
+  // branch add-on requires Premium first, so "I need more branches /
+  // visitor capacity" prompts route here to upgrade. Once already on
+  // Premium, the dedicated BuyBranchAddonModal purchase flow is used
+  // directly instead of this route.
+  APP_BILLING_CHANGE_PLAN: "/app/billing/change-plan",
   APP_ALERTS: "/app/alerts",
   APP_SETTINGS: "/app/settings",
 } as const;

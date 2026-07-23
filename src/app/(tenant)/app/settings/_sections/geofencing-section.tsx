@@ -317,7 +317,7 @@ export function GeofencingSection({ settings }: GeofencingSectionProps) {
 
           <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground mt-2">
             <strong className="text-foreground">Before rolling this out:</strong>{" "}
-            ask your DPO to update the tenant privacy notice to cover
+            ask your DPO to update the organization privacy notice to cover
             "approximate location is collected while logged in, retained for
             up to 10 minutes, to verify visitor check-ins happen on-site".
           </div>

@@ -64,7 +64,7 @@ export default function ChangePlanPage() {
         </Tooltip>
         <ErrorState
           title="You can't change the billing plan"
-          message="Only a super admin can pick or change the subscription plan for this tenant."
+          message="Only a super admin can pick or change the subscription plan for this organization."
         />
       </div>
     );

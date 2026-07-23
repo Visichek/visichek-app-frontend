@@ -47,7 +47,7 @@ export function AdminOverviewTab({ stats }: AdminOverviewTabProps) {
         title="Headline"
         items={[
           {
-            label: "Tenants",
+            label: "Organizations",
             value: stats.totalTenants,
             description: `${stats.activeTenants} active`,
             icon: <Building2 className="h-4 w-4" />,
@@ -104,7 +104,7 @@ export function AdminOverviewTab({ stats }: AdminOverviewTabProps) {
             icon: <Wallet className="h-4 w-4" />,
           },
           {
-            label: "New tenants (30d)",
+            label: "New organizations (30d)",
             value: stats.newTenants30d,
             trend: asTrend(stats.tenantsGrowthMom),
             description: "vs last month",
@@ -138,7 +138,7 @@ export function AdminOverviewTab({ stats }: AdminOverviewTabProps) {
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <TimeSeriesChart
-          title="Tenant signups"
+          title="Organization signups"
           description="Last 30 days"
           data={stats.tenantSignupsLast30Days}
           valueLabel="Signups"
@@ -157,13 +157,13 @@ export function AdminOverviewTab({ stats }: AdminOverviewTabProps) {
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <AdminTenantBriefTable
-          title="Recent tenant signups"
+          title="Recent organization signups"
           description="10 most recently provisioned"
           rows={stats.recentTenantSignups}
           activityHeader="Visitors"
         />
         <AdminTenantBriefTable
-          title="Recently active tenants"
+          title="Recently active organizations"
           description="Top 10 by check-ins in the last 30 days"
           rows={stats.recentlyActiveTenants}
           activityHeader="Check-ins (30d)"

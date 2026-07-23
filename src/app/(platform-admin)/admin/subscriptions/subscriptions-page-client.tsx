@@ -71,7 +71,7 @@ const SUBSCRIPTION_STATUS_TABS: {
   { value: "active", label: "Active", description: "Subscriptions currently being billed and serving paid features" },
   { value: "trialing", label: "Trialing", description: "Subscriptions inside their trial window before the first charge" },
   { value: "past_due", label: "Past due", description: "Subscriptions whose latest invoice failed and is awaiting retry" },
-  { value: "cancelled", label: "Cancelled", description: "Subscriptions that were cancelled by an admin or the tenant" },
+  { value: "cancelled", label: "Cancelled", description: "Subscriptions that were cancelled by an admin or the organization" },
   { value: "suspended", label: "Suspended", description: "Subscriptions paused administratively but not cancelled" },
   { value: "expired", label: "Expired", description: "Subscriptions that ran past their period without renewal" },
 ];
@@ -216,8 +216,8 @@ function SubscriptionActions({
             <DialogTitle>Cancel subscription</DialogTitle>
             <DialogDescription>
               Choose how {tenantLabel} should be cancelled. Cancellation always
-              ends with the tenant on the FREE plan — paid subscriptions don&apos;t
-              leave tenants with no active plan.
+              ends with the organization on the FREE plan — paid subscriptions don&apos;t
+              leave organizations with no active plan.
             </DialogDescription>
           </DialogHeader>
 
@@ -238,7 +238,7 @@ function SubscriptionActions({
               <p className="mt-1 text-xs text-muted-foreground">
                 Subscription stays active and paid features keep working
                 {periodEnd ? ` until ${periodEnd}` : ""}.
-                The tenant is then automatically moved to the FREE plan and
+                The organization is then automatically moved to the FREE plan and
                 non-HQ branches are deactivated.
               </p>
             </button>
@@ -259,7 +259,7 @@ function SubscriptionActions({
                 Immediate
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Drops the tenant to FREE right now. Paid features stop working
+                Drops the organization to FREE right now. Paid features stop working
                 immediately and non-HQ branches are deactivated. Visitor logs
                 and configs are preserved.
               </p>
@@ -272,7 +272,7 @@ function SubscriptionActions({
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 rows={2}
-                placeholder="e.g. Admin cancellation per tenant request"
+                placeholder="e.g. Admin cancellation per organization request"
               />
             </div>
           </div>
@@ -337,11 +337,11 @@ function ScopedTenantHeader({ tenantId }: { tenantId: string }) {
             ) : (
               <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
             )}
-            Back to tenants
+            Back to organizations
           </NavButton>
         </TooltipTrigger>
         <TooltipContent side="bottom">
-          Return to the tenants list
+          Return to the organizations list
         </TooltipContent>
       </Tooltip>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -383,7 +383,7 @@ function ScopedTenantHeader({ tenantId }: { tenantId: string }) {
               </Link>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              Open this tenant&apos;s overview page
+              Open this organization&apos;s overview page
             </TooltipContent>
           </Tooltip>
         )}
@@ -404,7 +404,7 @@ function UsageView({ tenantId }: { tenantId: string }) {
     <div className="space-y-6">
       <PageHeader
         title="Usage"
-        description="Plan caps, monthly counters, and storage usage for this tenant"
+        description="Plan caps, monthly counters, and storage usage for this organization"
       />
       <TenantUsagePanel tenantId={tenantId} />
     </div>
@@ -444,7 +444,7 @@ function CreateSubscriptionModal({ open, onOpenChange }: CreateSubscriptionModal
       {
         loading: "Creating subscription…",
         success: () =>
-          `${tenant?.companyName ?? "Tenant"} subscribed successfully.`,
+          `${tenant?.companyName ?? "Organization"} subscribed successfully.`,
         error: (err: Error) => err.message || "Failed to create subscription.",
       }
     );
@@ -457,18 +457,18 @@ function CreateSubscriptionModal({ open, onOpenChange }: CreateSubscriptionModal
         <DialogHeader>
           <DialogTitle>Create Subscription</DialogTitle>
           <DialogDescription>
-            Subscribe a tenant to a plan. The subscription is billed on the
+            Subscribe an organization to a plan. The subscription is billed on the
             cycle you select below.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label htmlFor="tenant-select">Tenant</Label>
+            <Label htmlFor="tenant-select">Organization</Label>
             <Select value={tenantId} onValueChange={setTenantId} disabled={tenantsLoading}>
               <SelectTrigger id="tenant-select" className="min-h-[44px]">
                 <SelectValue
-                  placeholder={tenantsLoading ? "Loading tenants…" : "Select a tenant"}
+                  placeholder={tenantsLoading ? "Loading organizations…" : "Select an organization"}
                 />
               </SelectTrigger>
               <SelectContent>
@@ -634,7 +634,7 @@ export function SubscriptionsPageClient() {
   const columns: ColumnDef<Subscription>[] = [
     {
       id: "tenant",
-      header: "Tenant",
+      header: "Organization",
       cell: ({ row }) => <TenantNameCell tenantId={row.original.tenantId} />,
     },
     {
@@ -710,11 +710,11 @@ export function SubscriptionsPageClient() {
         <UsageView tenantId={tenantIdParam!} />
       ) : (
         <PageHeader
-          title={tenantIdParam ? "Tenant Subscriptions" : "Subscriptions"}
+          title={tenantIdParam ? "Organization Subscriptions" : "Subscriptions"}
           description={
             tenantIdParam
-              ? "Subscriptions for this tenant"
-              : "Manage tenant subscriptions and billing"
+              ? "Subscriptions for this organization"
+              : "Manage organization subscriptions and billing"
           }
           actions={
             <Tooltip>
@@ -728,7 +728,7 @@ export function SubscriptionsPageClient() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                Subscribe a tenant to a plan with a billing cycle of your choice
+                Subscribe an organization to a plan with a billing cycle of your choice
               </TooltipContent>
             </Tooltip>
           }
@@ -775,7 +775,7 @@ export function SubscriptionsPageClient() {
           columns={columns}
           data={subscriptions}
           searchKey="tenantId"
-          searchPlaceholder="Search by tenant ID..."
+          searchPlaceholder="Search by organization ID…"
           isLoading={isLoading}
           serverPagination={{
             pageIndex,
@@ -821,7 +821,7 @@ export function SubscriptionsPageClient() {
           getRowHref={(subscription) =>
             subscription.tenantId ? `/admin/tenants/${subscription.tenantId}` : undefined
           }
-          rowClickAriaLabel={() => "View the tenant this subscription belongs to"}
+          rowClickAriaLabel={() => "View the organization this subscription belongs to"}
         />
       )}
     </div>

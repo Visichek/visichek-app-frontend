@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tansta
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api/request";
 import { apiGetList } from "@/lib/api/list";
 import { bulkAction } from "@/lib/api/bulk";
-import type { Plan, PlanFeatureCatalogEntry } from "@/types/billing";
+import type { Plan, PlanFeatureCatalogEntry, Limitations } from "@/types/billing";
 import type { ListResponse, BulkJobResult } from "@/types/list";
 
 interface UsePlansParams {
@@ -217,6 +217,19 @@ export function useFeatureCatalog() {
     queryKey: ["plans", "features", "catalog"],
     queryFn: () => apiGet<PlanFeatureCatalogEntry[]>("/plans/features/catalog"),
     staleTime: 30 * 60 * 1000,
+  });
+}
+
+/**
+ * Enterprise composer review step: `POST /v1/admins/plans/{id}/preview-limitations`.
+ * Merges a draft `PlanUpdate` body on top of the stored plan and re-runs the
+ * same denied-endpoints / denied-features / caps composition used for a real
+ * tenant — no persistence, so it's safe to call on every review-step render.
+ */
+export function usePreviewPlanLimitations(planId: string) {
+  return useMutation<Limitations, Error, UpdatePlanRequest>({
+    mutationFn: (draft) =>
+      apiPost<Limitations>(`/admins/plans/${planId}/preview-limitations`, draft),
   });
 }
 

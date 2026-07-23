@@ -78,7 +78,7 @@ const STATUS_LABELS: Record<SupportCaseStatus, string> = {
   open: "Open",
   acknowledged: "Acknowledged",
   in_progress: "In progress",
-  awaiting_tenant: "Awaiting tenant",
+  awaiting_tenant: "Awaiting organization",
   resolved: "Resolved",
   closed: "Closed",
   reopened: "Reopened",
@@ -241,7 +241,7 @@ export default function AdminSupportCasesPage() {
     if (tenantId !== "all")
       chips.push({
         key: "tenant",
-        label: `Tenant: ${tenantOptions.find((o) => o.value === tenantId)?.label ?? tenantId}`,
+        label: `Organization: ${tenantOptions.find((o) => o.value === tenantId)?.label ?? tenantId}`,
         clear: () => setTenantId("all"),
       });
     if (assignee)
@@ -360,7 +360,7 @@ export default function AdminSupportCasesPage() {
     },
     {
       label: "Close",
-      description: "Close the selected cases — tenants can reopen them",
+      description: "Close the selected cases — organizations can reopen them",
       icon: <XCircle className="h-4 w-4" aria-hidden="true" />,
       variant: "destructive",
       onClick: (ids) => setBulkTarget({ action: "close", ids }),
@@ -506,7 +506,7 @@ export default function AdminSupportCasesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Support Cases"
-        description="Every case across all tenants. Search, filter, and act on the queue."
+        description="Every case across all organizations. Search, filter, and act on the queue."
         actions={
           <Tooltip>
             <TooltipTrigger asChild>
@@ -578,14 +578,14 @@ export default function AdminSupportCasesPage() {
               </div>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              Filter by workflow status — e.g. show only Resolved or Awaiting tenant cases
+              Filter by workflow status — e.g. show only Resolved or Awaiting organization cases
             </TooltipContent>
           </Tooltip>
 
           <FilterSheet
             activeCount={secondaryCount}
             onClear={clearSecondary}
-            description="Refine the queue by priority, category, tenant, assignee, date, and sort order."
+            description="Refine the queue by priority, category, organization, assignee, date, and sort order."
           >
             <FilterSelect
               id="filter-priority"
@@ -609,10 +609,10 @@ export default function AdminSupportCasesPage() {
             />
             <FilterSelect
               id="filter-tenant"
-              label="Tenant"
+              label="Organization"
               value={tenantId}
               onChange={setTenantId}
-              options={[{ value: "all", label: "All tenants" }, ...tenantOptions]}
+              options={[{ value: "all", label: "All organizations" }, ...tenantOptions]}
             />
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">
@@ -814,7 +814,7 @@ export default function AdminSupportCasesPage() {
         open={bulkTarget?.action === "close"}
         onOpenChange={(o) => !o && cancelBulk()}
         title={`Close ${bulkCount} case${plural(bulkCount)}?`}
-        description={`The selected case${plural(bulkCount)} will be closed. Tenants can reopen a closed case if they still need help.`}
+        description={`The selected case${plural(bulkCount)} will be closed. Organizations can reopen a closed case if they still need help.`}
         confirmLabel={`Close ${bulkCount} case${plural(bulkCount)}`}
         variant="destructive"
         isLoading={bulkClose.isPending}

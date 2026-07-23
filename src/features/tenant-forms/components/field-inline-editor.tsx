@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Copy,
   GripVertical,
+  Lock,
   Plus,
   Trash2,
   X,
@@ -67,6 +68,14 @@ interface FieldInlineEditorProps {
   onDrop: (event: DragEvent<HTMLDivElement>) => void;
 }
 
+/**
+ * Copy shown on every control a system-locked field disables. Locked
+ * fields (e.g. the check-in Department picker) are enforced server-side
+ * on autosave and publish — the UI mirrors that contract.
+ */
+const LOCKED_FIELD_TOOLTIP =
+  "This system field is required for QR check-in and can't be removed or made optional.";
+
 function slugify(input: string): string {
   return input
     .toLowerCase()
@@ -92,6 +101,7 @@ export function FieldInlineEditor({
   onDrop,
 }: FieldInlineEditorProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const locked = field.locked === true;
 
   const idCollision = useMemo(() => {
     if (!field.fieldId) return false;
@@ -233,22 +243,27 @@ export function FieldInlineEditor({
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onDelete();
-                  }}
-                  aria-label="Delete question"
-                  className="min-h-[44px] min-w-[44px] text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" aria-hidden="true" />
-                </Button>
+                <span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={locked}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onDelete();
+                    }}
+                    aria-label="Delete question"
+                    className="min-h-[44px] min-w-[44px] text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </span>
               </TooltipTrigger>
               <TooltipContent side="top">
-                Remove this question from the working draft
+                {locked
+                  ? LOCKED_FIELD_TOOLTIP
+                  : "Remove this question from the working draft"}
               </TooltipContent>
             </Tooltip>
             <div className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
@@ -259,15 +274,17 @@ export function FieldInlineEditor({
                   <Switch
                     checked={field.required}
                     onCheckedChange={(value) => update("required", value)}
-                    disabled={field.type === "consent_checkbox"}
+                    disabled={locked || field.type === "consent_checkbox"}
                     aria-label="Required"
                   />
                 </label>
               </TooltipTrigger>
               <TooltipContent side="top">
-                {field.type === "consent_checkbox"
-                  ? "Consent checkboxes are always required."
-                  : "When on, the form cannot be submitted unless this question is filled."}
+                {locked
+                  ? LOCKED_FIELD_TOOLTIP
+                  : field.type === "consent_checkbox"
+                    ? "Consent checkboxes are always required."
+                    : "When on, the form cannot be submitted unless this question is filled."}
               </TooltipContent>
             </Tooltip>
           </div>
@@ -325,6 +342,7 @@ function ExpandedEditor({
   onUpdateOption,
   onRemoveOption,
 }: ExpandedEditorProps) {
+  const locked = field.locked === true;
   const showPlaceholder =
     isStringType(field.type) ||
     isNumericType(field.type) ||
@@ -350,32 +368,44 @@ function ExpandedEditor({
           <Label htmlFor={`${labelInputId}-type`} className="sr-only">
             Question type
           </Label>
-          <Select
-            value={field.type}
-            onValueChange={(value) => onTypeChange(value as FormFieldType)}
-          >
-            <SelectTrigger
-              id={`${labelInputId}-type`}
-              className="min-h-[44px] text-base md:text-sm"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {FIELD_TYPE_GROUPS.map((group) => (
-                <div key={group.group}>
-                  <p className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {group.group}
-                  </p>
-                  {group.items.map((item) => (
-                    <SelectItem key={item.type} value={item.type}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </div>
-              ))}
-            </SelectContent>
-          </Select>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div>
+                <Select
+                  value={field.type}
+                  onValueChange={(value) => onTypeChange(value as FormFieldType)}
+                  disabled={locked}
+                >
+                  <SelectTrigger
+                    id={`${labelInputId}-type`}
+                    className="min-h-[44px] text-base md:text-sm"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FIELD_TYPE_GROUPS.map((group) => (
+                      <div key={group.group}>
+                        <p className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          {group.group}
+                        </p>
+                        {group.items.map((item) => (
+                          <SelectItem key={item.type} value={item.type}>
+                            {item.label}
+                          </SelectItem>
+                        ))}
+                      </div>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              {locked
+                ? LOCKED_FIELD_TOOLTIP
+                : "Change the input type respondents see for this question"}
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
 
@@ -563,7 +593,7 @@ function FieldTypeBody({
           onClick={(event) => event.stopPropagation()}
         />
         <p className="text-xs text-muted-foreground">
-          Stored verbatim with every submission so the tenant can prove which version was agreed to.
+          Stored verbatim with every submission so the organization can prove which version was agreed to.
         </p>
       </div>
     );
@@ -625,6 +655,7 @@ function AdvancedSettings({
   ) => void;
 }) {
   const meta = fieldTypeMeta(field.type);
+  const locked = field.locked === true;
 
   return (
     <div
@@ -638,6 +669,7 @@ function AdvancedSettings({
         <FieldIdInput
           id={`field-${field.fieldId}-id`}
           fieldId={field.fieldId}
+          disabled={locked}
           onCommit={onFieldIdChange}
         />
         <p className="text-xs text-muted-foreground">
@@ -835,34 +867,46 @@ function AdvancedSettings({
           >
             Mirror onto record
           </Label>
-          <Select
-            value={field.mapsTo ?? "__none"}
-            onValueChange={(value) =>
-              onUpdate(
-                "mapsTo",
-                value === "__none"
-                  ? null
-                  : (value as NonNullable<FormFieldDefinition["mapsTo"]>),
-              )
-            }
-          >
-            <SelectTrigger
-              id={`field-${field.fieldId}-mapsto`}
-              className="min-h-[40px] text-base md:text-sm"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {MAPS_TO_OPTIONS.map((option) => (
-                <SelectItem
-                  key={option.value || "__none"}
-                  value={option.value || "__none"}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div>
+                <Select
+                  value={field.mapsTo ?? "__none"}
+                  onValueChange={(value) =>
+                    onUpdate(
+                      "mapsTo",
+                      value === "__none"
+                        ? null
+                        : (value as NonNullable<FormFieldDefinition["mapsTo"]>),
+                    )
+                  }
+                  disabled={locked}
                 >
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                  <SelectTrigger
+                    id={`field-${field.fieldId}-mapsto`}
+                    className="min-h-[40px] text-base md:text-sm"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MAPS_TO_OPTIONS.map((option) => (
+                      <SelectItem
+                        key={option.value || "__none"}
+                        value={option.value || "__none"}
+                      >
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              {locked
+                ? LOCKED_FIELD_TOOLTIP
+                : "Choose which record column mirrors this answer"}
+            </TooltipContent>
+          </Tooltip>
           <p className="text-xs text-muted-foreground">
             When set, this value is also written to the parent record so search and dashboards can use it without diving into the form submission.
           </p>
@@ -883,10 +927,13 @@ function AdvancedSettings({
 function FieldIdInput({
   id,
   fieldId,
+  disabled,
   onCommit,
 }: {
   id: string;
   fieldId: string;
+  /** System-locked fields keep their stable id — the input is read-only. */
+  disabled?: boolean;
   onCommit: (value: string) => void;
 }) {
   const [local, setLocal] = useState(fieldId);
@@ -912,6 +959,7 @@ function FieldIdInput({
     <Input
       id={id}
       value={local}
+      disabled={disabled}
       onChange={(event) => setLocal(event.target.value)}
       onBlur={commit}
       onKeyDown={(event) => {
@@ -978,6 +1026,15 @@ function CollapsedPreview({
           <>
             <span aria-hidden="true">•</span>
             <span className="text-destructive">Required</span>
+          </>
+        )}
+        {field.locked && (
+          <>
+            <span aria-hidden="true">•</span>
+            <span className="inline-flex items-center gap-1">
+              <Lock className="h-3 w-3" aria-hidden="true" />
+              System field
+            </span>
           </>
         )}
       </div>

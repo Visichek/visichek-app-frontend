@@ -42,8 +42,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
-import { useCreatePlan, useUpdatePlan } from "@/features/plans/hooks/use-plans";
+import {
+  useCreatePlan,
+  useUpdatePlan,
+  usePreviewPlanLimitations,
+} from "@/features/plans/hooks/use-plans";
 import { PlanFeaturesChecklist } from "@/features/plans/components/plan-features-checklist";
+import { EnterprisePreviewPanel } from "@/features/plans/components/enterprise-preview-panel";
 import type { Plan } from "@/types/billing";
 import type { PlanTier } from "@/types/enums";
 
@@ -107,6 +112,12 @@ const planSchema = z.object({
     .min(1)
     .optional()
     .or(z.literal("")),
+  visitorsPerBranchPerMonth: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .or(z.literal("")),
   // Storage limits
   maxDocuments: z.coerce.number().int().min(1).optional().or(z.literal("")),
   maxStorageMb: z.coerce.number().int().min(1).optional().or(z.literal("")),
@@ -146,6 +157,7 @@ const TIER_ADJUSTABLE_CAP_FIELDS: Record<PlanTier, ReadonlySet<keyof PlanFormDat
     "maxSystemUsers",
     "maxBranches",
     "maxAppointmentsPerMonth",
+    "visitorsPerBranchPerMonth",
   ]),
   // Legacy tiers — open editing, eventually archived.
   professional: new Set([
@@ -257,8 +269,8 @@ const STEP_DESCRIPTIONS_CREATE: Record<number, string> = {
 const STEP_DESCRIPTIONS_EDIT: Record<number, string> = {
   1: "Update the plan identity and visibility.",
   2: "Update pricing, SLA, and feature flags.",
-  3: "Set tenant capacity and storage limits.",
-  4: "Toggle the togglable features available to tenants on this plan.",
+  3: "Set organization capacity and storage limits.",
+  4: "Toggle the togglable features available to organizations on this plan.",
   5: "Review all changes before saving.",
 };
 
@@ -324,6 +336,7 @@ export function PlanForm({ plan }: PlanFormProps) {
       maxBranches: "",
       maxVisitorsPerMonth: "",
       maxAppointmentsPerMonth: "",
+      visitorsPerBranchPerMonth: "",
       maxDocuments: "",
       maxStorageMb: "",
       maxFileSizeMb: "",
@@ -358,6 +371,9 @@ export function PlanForm({ plan }: PlanFormProps) {
       maxVisitorsPerMonth: nullableInt(plan.tenantCaps?.maxVisitorsPerMonth),
       maxAppointmentsPerMonth: nullableInt(
         plan.tenantCaps?.maxAppointmentsPerMonth,
+      ),
+      visitorsPerBranchPerMonth: nullableInt(
+        plan.tenantCaps?.visitorsPerBranchPerMonth,
       ),
       maxDocuments: nullableInt(plan.storageLimits?.maxDocuments),
       maxStorageMb: nullableInt(plan.storageLimits?.maxStorageMb),
@@ -398,84 +414,95 @@ export function PlanForm({ plan }: PlanFormProps) {
   const fieldDisabled = (field: keyof PlanFormData): boolean =>
     isLocked && !isFieldEditable(planTier, field);
 
+  // Build the patch payload, but for canonical plans only include fields
+  // the tier allows. Sending anything else returns HTTP 400. Extracted so
+  // the enterprise builder's "preview limitations" review step can send the
+  // exact same draft the submit button would, without a second definition
+  // drifting out of sync.
+  const buildEditPayload = (data: PlanFormData) => {
+    const allowed = (field: keyof PlanFormData): boolean =>
+      !isLocked || isFieldEditable(planTier, field);
+
+    const tenantCapsPatch = {
+      ...(allowed("maxSystemUsers")
+        ? { maxSystemUsers: toNullableInt(data.maxSystemUsers) }
+        : {}),
+      ...(allowed("maxDepartments")
+        ? { maxDepartments: toNullableInt(data.maxDepartments) }
+        : {}),
+      ...(allowed("maxBranches")
+        ? { maxBranches: toNullableInt(data.maxBranches) }
+        : {}),
+      ...(allowed("maxVisitorsPerMonth")
+        ? { maxVisitorsPerMonth: toNullableInt(data.maxVisitorsPerMonth) }
+        : {}),
+      ...(allowed("maxAppointmentsPerMonth")
+        ? {
+            maxAppointmentsPerMonth: toNullableInt(
+              data.maxAppointmentsPerMonth,
+            ),
+          }
+        : {}),
+      ...(allowed("visitorsPerBranchPerMonth")
+        ? {
+            visitorsPerBranchPerMonth: toNullableInt(
+              data.visitorsPerBranchPerMonth,
+            ),
+          }
+        : {}),
+    };
+
+    return {
+      // Identity fields (always editable)
+      displayName: data.displayName,
+      description: data.description || undefined,
+      isPublic: data.isPublic,
+      sortOrder: data.sortOrder !== "" ? Number(data.sortOrder) : undefined,
+      // Tier itself stays out of the patch for canonical plans —
+      // moving a tenant between tiers is a separate change-plan flow.
+      ...(isLocked ? {} : { tier: data.tier }),
+      // Tier-locked plan-level fields
+      ...(allowed("basePriceMonthly") && data.basePriceMonthly !== ""
+        ? { basePriceMonthly: Number(data.basePriceMonthly) }
+        : {}),
+      ...(allowed("basePriceYearly") && data.basePriceYearly !== ""
+        ? { basePriceYearly: Number(data.basePriceYearly) }
+        : {}),
+      // Currency is not in any tier allowlist; only send for legacy plans.
+      ...(!isLocked ? { currency: data.currency || "NGN" } : {}),
+      ...(allowed("prioritySupport")
+        ? { prioritySupport: data.prioritySupport }
+        : {}),
+      ...(allowed("customBranding")
+        ? { customBranding: data.customBranding }
+        : {}),
+      ...(allowed("apiAccess") ? { apiAccess: data.apiAccess } : {}),
+      ...(allowed("slaResponseHours")
+        ? { slaResponseHours: toNullableInt(data.slaResponseHours) }
+        : {}),
+      // Cap fields — only sent when the tier opts in to at least one
+      ...(Object.keys(tenantCapsPatch).length > 0
+        ? { tenantCaps: tenantCapsPatch }
+        : {}),
+      // Storage limits are not in any canonical tier's allowlist;
+      // only sent for legacy/non-canonical plans.
+      ...(!isLocked
+        ? {
+            storageLimits: {
+              maxDocuments: toNullableInt(data.maxDocuments),
+              maxStorageMb: toNullableInt(data.maxStorageMb),
+              maxFileSizeMb:
+                data.maxFileSizeMb !== "" ? Number(data.maxFileSizeMb) : 10,
+            },
+          }
+        : {}),
+    };
+  };
+
   const onSubmit = async (data: PlanFormData) => {
     try {
       if (isEdit) {
-        // Build the patch payload, but for canonical plans only include
-        // fields the tier allows. Sending anything else returns HTTP 400.
-        const allowed = (field: keyof PlanFormData): boolean =>
-          !isLocked || isFieldEditable(planTier, field);
-
-        const tenantCapsPatch = {
-          ...(allowed("maxSystemUsers")
-            ? { maxSystemUsers: toNullableInt(data.maxSystemUsers) }
-            : {}),
-          ...(allowed("maxDepartments")
-            ? { maxDepartments: toNullableInt(data.maxDepartments) }
-            : {}),
-          ...(allowed("maxBranches")
-            ? { maxBranches: toNullableInt(data.maxBranches) }
-            : {}),
-          ...(allowed("maxVisitorsPerMonth")
-            ? { maxVisitorsPerMonth: toNullableInt(data.maxVisitorsPerMonth) }
-            : {}),
-          ...(allowed("maxAppointmentsPerMonth")
-            ? {
-                maxAppointmentsPerMonth: toNullableInt(
-                  data.maxAppointmentsPerMonth,
-                ),
-              }
-            : {}),
-        };
-
-        await updateMutation.mutateAsync({
-          // Identity fields (always editable)
-          displayName: data.displayName,
-          description: data.description || undefined,
-          isPublic: data.isPublic,
-          sortOrder:
-            data.sortOrder !== "" ? Number(data.sortOrder) : undefined,
-          // Tier itself stays out of the patch for canonical plans —
-          // moving a tenant between tiers is a separate change-plan flow.
-          ...(isLocked ? {} : { tier: data.tier }),
-          // Tier-locked plan-level fields
-          ...(allowed("basePriceMonthly") && data.basePriceMonthly !== ""
-            ? { basePriceMonthly: Number(data.basePriceMonthly) }
-            : {}),
-          ...(allowed("basePriceYearly") && data.basePriceYearly !== ""
-            ? { basePriceYearly: Number(data.basePriceYearly) }
-            : {}),
-          // Currency is not in any tier allowlist; only send for legacy plans.
-          ...(!isLocked ? { currency: data.currency || "NGN" } : {}),
-          ...(allowed("prioritySupport")
-            ? { prioritySupport: data.prioritySupport }
-            : {}),
-          ...(allowed("customBranding")
-            ? { customBranding: data.customBranding }
-            : {}),
-          ...(allowed("apiAccess") ? { apiAccess: data.apiAccess } : {}),
-          ...(allowed("slaResponseHours")
-            ? { slaResponseHours: toNullableInt(data.slaResponseHours) }
-            : {}),
-          // Cap fields — only sent when the tier opts in to at least one
-          ...(Object.keys(tenantCapsPatch).length > 0
-            ? { tenantCaps: tenantCapsPatch }
-            : {}),
-          // Storage limits are not in any canonical tier's allowlist;
-          // only sent for legacy/non-canonical plans.
-          ...(!isLocked
-            ? {
-                storageLimits: {
-                  maxDocuments: toNullableInt(data.maxDocuments),
-                  maxStorageMb: toNullableInt(data.maxStorageMb),
-                  maxFileSizeMb:
-                    data.maxFileSizeMb !== ""
-                      ? Number(data.maxFileSizeMb)
-                      : 10,
-                },
-              }
-            : {}),
-        });
+        await updateMutation.mutateAsync(buildEditPayload(data));
         toast.success("Plan updated successfully");
       } else {
         await createMutation.mutateAsync({
@@ -584,8 +611,8 @@ export function PlanForm({ plan }: PlanFormProps) {
               <p className="text-xs text-muted-foreground">
                 Canonical plans only expose the fields the backend allows the
                 tier to adjust. Other inputs are shown for reference and
-                disabled. Use per-tenant overrides from the Subscriptions
-                page if you need a custom value for one tenant.
+                disabled. Use per-organization overrides from the Subscriptions
+                page if you need a custom value for one organization.
               </p>
             </div>
           </div>
@@ -868,7 +895,7 @@ export function PlanForm({ plan }: PlanFormProps) {
           <div className="space-y-5">
             <div>
               <p className="mb-3 text-sm font-medium text-foreground">
-                Tenant Capacity Limits
+                Organization Capacity Limits
               </p>
               <p className="mb-3 text-xs text-muted-foreground">
                 Leave blank for unlimited.
@@ -936,6 +963,24 @@ export function PlanForm({ plan }: PlanFormProps) {
                     {...register("maxAppointmentsPerMonth")}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="plan-visitorsPerBranch">
+                    Visitors per Branch / Month
+                  </Label>
+                  <Input
+                    id="plan-visitorsPerBranch"
+                    type="number"
+                    min={1}
+                    inputMode="numeric"
+                    placeholder="Unlimited"
+                    disabled={fieldDisabled("visitorsPerBranchPerMonth")}
+                    {...register("visitorsPerBranchPerMonth")}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Per-branch new-visitor cap used on Premium/Enterprise
+                    plans instead of the tenant-wide monthly cap.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -946,7 +991,7 @@ export function PlanForm({ plan }: PlanFormProps) {
               {isLocked && (
                 <p className="mb-3 text-xs text-muted-foreground">
                   Storage limits are not editable on canonical plans. Apply a
-                  per-tenant override from the Subscriptions page if a tenant
+                  per-organization override from the Subscriptions page if an organization
                   needs more.
                 </p>
               )}
@@ -1061,6 +1106,17 @@ export function PlanForm({ plan }: PlanFormProps) {
             )}
           </div>
         )}
+
+        {/* ---- Enterprise builder: preview limitations (edit + Enterprise only) ---- */}
+        {isEdit &&
+          plan &&
+          planTier === "enterprise" &&
+          stepForm.currentStep === reviewStep && (
+            <EnterprisePreviewPanel
+              planId={plan.id}
+              draft={buildEditPayload(values)}
+            />
+          )}
 
         {/* ---- Footer ---- */}
         <div className="flex w-full flex-col gap-2 md:flex-row md:justify-between pt-2">

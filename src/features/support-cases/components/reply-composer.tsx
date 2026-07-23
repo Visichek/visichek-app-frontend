@@ -233,7 +233,7 @@ export function ReplyComposer({
                 </label>
               </TooltipTrigger>
               <TooltipContent side="top">
-                Internal notes are visible to other admins only — the tenant will not see them
+                Internal notes are visible to other admins only — the organization will not see them
               </TooltipContent>
             </Tooltip>
           )}

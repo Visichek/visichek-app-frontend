@@ -272,17 +272,19 @@ export function TenantInsightsClient() {
           onCustomRange={setRange}
         />
       ) : (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex w-fit flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
           <span className="text-xs font-medium text-muted-foreground">Time range</span>
+          <span className="inline-flex h-9 w-fit items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium text-muted-foreground">
+            <Lock className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+            Last 7 days
+          </span>
           <button
             type="button"
             onClick={() => promptUpgrade({ featureKey: ANALYTICS_FEATURES.customRange, title: "Custom date ranges" })}
             title="Free plans see the last 7 days. Upgrade to choose any date range."
-            className="inline-flex h-9 w-fit items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 text-sm font-medium text-muted-foreground hover:text-foreground"
+            className="w-fit rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:hover:bg-amber-500/30"
           >
-            <Lock className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
-            Last 7 days
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-500/20 dark:text-amber-200">Upgrade</span>
+            Upgrade
           </button>
         </div>
       )}

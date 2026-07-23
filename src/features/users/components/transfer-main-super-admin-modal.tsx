@@ -178,7 +178,7 @@ export function TransferMainSuperAdminModal({
           ? "Enter the 6-digit code we just sent to your verification channel to finalise the transfer."
           : currentMain
             ? `${currentMain.fullName} is currently the main super admin. Pick another active super admin to take over.`
-            : "Pick another active super admin to take over the main super admin role for this tenant."
+            : "Pick another active super admin to take over the main super admin role for this organization."
       }
     >
       <div className="space-y-5 pt-2">

@@ -86,7 +86,7 @@ export default function ScanPage() {
     const parsed = extractTenantFromPayload(payload);
     if (!parsed) {
       setErrorMsg(
-        "QR code didn't contain a recognizable tenant ID. Try again or enter it manually."
+        "QR code didn't contain a recognizable organization ID. Try again or enter it manually."
       );
       return;
     }
@@ -152,7 +152,7 @@ export default function ScanPage() {
         setErrorMsg(
           err instanceof Error
             ? err.message
-            : "Couldn't start camera. Try again or enter the tenant ID manually."
+            : "Couldn't start camera. Try again or enter the organization ID manually."
         );
       }
     }
@@ -166,7 +166,7 @@ export default function ScanPage() {
     e.preventDefault();
     const parsed = extractTenantFromPayload(manualId);
     if (!parsed) {
-      setErrorMsg("Enter a valid tenant ID or registration URL.");
+      setErrorMsg("Enter a valid organization ID or registration URL.");
       return;
     }
     setErrorMsg(null);
@@ -262,7 +262,7 @@ export default function ScanPage() {
                 <>
                   <ScanLine className="h-8 w-8 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground max-w-xs">
-                    Point your camera at the tenant QR code to start
+                    Point your camera at the organization QR code to start
                     registration.
                   </p>
                 </>
@@ -291,7 +291,7 @@ export default function ScanPage() {
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
-              Turn on the camera and begin scanning for a tenant QR code
+              Turn on the camera and begin scanning for an organization QR code
             </TooltipContent>
           </Tooltip>
         ) : status === "scanning" ? (
@@ -329,7 +329,7 @@ export default function ScanPage() {
               className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide"
             >
               <Keyboard className="h-3.5 w-3.5" />
-              Can&apos;t scan? Enter tenant ID or registration URL
+              Can&apos;t scan? Enter organization ID or registration URL
             </Label>
             <div className="flex gap-2">
               <Input
@@ -346,7 +346,7 @@ export default function ScanPage() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top">
-                  Open the registration page for the tenant ID you entered
+                  Open the registration page for the organization ID you entered
                 </TooltipContent>
               </Tooltip>
             </div>

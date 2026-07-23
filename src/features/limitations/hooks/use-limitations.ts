@@ -11,6 +11,8 @@ import type {
 } from "@/types/billing";
 
 const limitationsKey = ["me", "limitations"] as const;
+/** Exported so other features (e.g. addon mutations) can invalidate this cache directly. */
+export const LIMITATIONS_QUERY_KEY = limitationsKey;
 
 const EMPTY_LOCKED: LockedEntities = { branches: [], departments: [] };
 

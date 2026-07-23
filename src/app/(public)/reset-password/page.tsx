@@ -499,7 +499,7 @@ function SuccessView({
           }
         >
           {platformPrimary ? (
-            "Tenant staff? Sign in here"
+            "Organization staff? Sign in here"
           ) : (
             <>
               Sign in to your workspace
@@ -509,7 +509,7 @@ function SuccessView({
         </Link>
       </TooltipTrigger>
       <TooltipContent side="top">
-        Go to the workspace sign-in page for tenant staff
+        Go to the workspace sign-in page for organization staff
         (super admin, receptionist, DPO, and others)
       </TooltipContent>
     </Tooltip>

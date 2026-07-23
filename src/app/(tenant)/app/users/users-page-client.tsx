@@ -71,7 +71,7 @@ import type { Branch } from "@/types/tenant";
 const USERS_PAGE_SIZE = 25;
 const USER_ROLE_TABS = [
   { value: "all", label: "All", description: "Show every staff account regardless of role" },
-  { value: "super_admin", label: "Super admin", description: "Tenant owners who can manage every setting in this organisation" },
+  { value: "super_admin", label: "Super admin", description: "Organisation owners who can manage every setting in this organisation" },
   { value: "dept_admin", label: "Dept admin", description: "Admins scoped to a department — manage that department's settings and staff" },
   { value: "receptionist", label: "Receptionist", description: "Front-desk staff responsible for checking visitors in and out" },
   { value: "auditor", label: "Auditor", description: "Read-only access to audit logs and compliance exports" },
@@ -406,7 +406,7 @@ export function UsersPageClient() {
                 </Badge>
               </TooltipTrigger>
               <TooltipContent side="top">
-                Tenant&apos;s main super admin. Locked from delete and role
+                Organisation&apos;s main super admin. Locked from delete and role
                 change — transfer the role first to demote.
               </TooltipContent>
             </Tooltip>

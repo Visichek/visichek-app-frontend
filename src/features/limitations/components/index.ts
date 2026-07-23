@@ -6,3 +6,5 @@ export {
   UpgradePromptProvider,
   useUpgradePrompt,
 } from "./upgrade-prompt-provider";
+export { UsageOverview } from "./usage-overview";
+export type { UsageOverviewProps } from "./usage-overview";

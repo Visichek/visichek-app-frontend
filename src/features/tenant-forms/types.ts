@@ -97,6 +97,14 @@ export interface FormFieldDefinition {
   visible: boolean;
   order: number;
   mapsTo?: FormFieldMapsTo | null;
+  /**
+   * System-managed lock. Locked fields (e.g. the check-in `department_id`
+   * picker) cannot be removed and their `required` / `type` / `mapsTo`
+   * cannot be changed — only label / help text / placeholder / order stay
+   * editable. Mirrors `FormFieldDefinition.locked` on the backend, which
+   * re-enforces the lock on autosave and publish.
+   */
+  locked?: boolean;
 
   // String validation
   minLength?: number | null;

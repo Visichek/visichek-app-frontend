@@ -52,7 +52,7 @@ export function SecurityTab() {
             </Badge>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="max-w-xs">
-            Exactly one super admin per tenant carries the main role. They
+            Exactly one super admin per organization carries the main role. They
             can&apos;t be deleted, demoted, or deactivated directly — the role
             must be transferred to another active super admin first.
           </TooltipContent>

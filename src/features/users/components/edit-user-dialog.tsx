@@ -147,7 +147,7 @@ export function EditUserDialog({
               <p className="flex items-start gap-2 text-amber-900 dark:text-amber-200">
                 <ShieldCheck className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
                 <span>
-                  This row is the tenant&apos;s main super admin. Role,
+                  This row is the organization&apos;s main super admin. Role,
                   account status, and deletion are locked. To demote them,
                   transfer the role first.
                 </span>
@@ -243,7 +243,7 @@ export function EditUserDialog({
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="top">
-                  Scope this user to a specific department. Leave empty for tenant-wide access.
+                  Scope this user to a specific department. Leave empty for organization-wide access.
                 </TooltipContent>
               </Tooltip>
             </div>

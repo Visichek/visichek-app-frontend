@@ -1,5 +1,8 @@
 export { CheckinStateBadge } from "./state-badge";
-export { RequiredFieldsForm } from "./required-fields-form";
+export {
+  RequiredFieldsForm,
+  DEPARTMENT_FIELD_KEY,
+} from "./required-fields-form";
 export { KycWidget } from "./kyc-widget";
 export type {
   KycWidgetProps,

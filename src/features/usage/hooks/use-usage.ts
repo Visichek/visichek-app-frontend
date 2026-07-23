@@ -15,6 +15,9 @@ const usageKeys = {
   tenant: (tenantId: string) => ['usage', 'tenant', tenantId] as const,
 };
 
+/** Exported so other features (e.g. addon mutations) can invalidate all usage caches. */
+export const USAGE_QUERY_KEY = usageKeys.all;
+
 /**
  * Fetch current user's usage summary.
  * Available to any authenticated user (admin or system user).

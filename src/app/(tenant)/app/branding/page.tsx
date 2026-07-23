@@ -8,7 +8,7 @@ export default function BrandingPage() {
     <div className="space-y-8">
       <PageHeader
         title="Brand Appearance"
-        description="Customize your tenant's colors, logo, and visitor badge appearance. Also available in Settings → Branding."
+        description="Customize your organization's colors, logo, and visitor badge appearance. Also available in Settings → Branding."
       />
       <BrandingTab />
     </div>

@@ -9,8 +9,9 @@
     "analyze": "cross-env ANALYZE=true next build --webpack",
     "analyze:turbo": "next experimental-analyze",
     "start": "next start",
-    "lint": "next lint",
-    "pwa:icons": "node scripts/generate-pwa-icons.mjs"
+    "lint": "next lint && node scripts/check-tenant-copy.mjs",
+    "pwa:icons": "node scripts/generate-pwa-icons.mjs",
+    "check:copy": "node scripts/check-tenant-copy.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

@@ -104,9 +104,9 @@ export default function AdminDSRSlaWatchPage() {
               {breachedItems.length} request{breachedItems.length === 1 ? "" : "s"} past deadline
             </p>
             <p className="text-muted-foreground">
-              The tenant has missed the legal SLA window. Platform admins cannot
-              process DSRs on the tenant&apos;s behalf — escalate by opening a
-              support case against the affected tenant or by contacting their DPO
+              The organization has missed the legal SLA window. Platform admins cannot
+              process DSRs on the organization&apos;s behalf — escalate by opening a
+              support case against the affected organization or by contacting their DPO
               directly.
             </p>
           </div>
@@ -132,7 +132,7 @@ export default function AdminDSRSlaWatchPage() {
               {approachingItems.length} request{approachingItems.length === 1 ? "" : "s"} due in 24h
             </p>
             <p className="text-muted-foreground">
-              Auto-refreshes every minute. Use these to nudge the tenant&apos;s DPO
+              Auto-refreshes every minute. Use these to nudge the organization&apos;s DPO
               before the legal window closes.
             </p>
           </div>
@@ -175,7 +175,7 @@ function SlaTable({
     },
     {
       id: "tenantId",
-      header: "Tenant",
+      header: "Organization",
       cell: ({ row }) => (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -226,7 +226,7 @@ function SlaTable({
       emptyDescription={emptyDescription}
       getRowId={(d) => d.id}
       getRowHref={(d) => `/admin/dsr/${d.id}`}
-      rowClickAriaLabel={(d) => `View DSR ${d.requestType} from tenant ${d.tenantId}`}
+      rowClickAriaLabel={(d) => `View DSR ${d.requestType} from organization ${d.tenantId}`}
       mobileCard={(dsr) => (
         <div className="rounded-lg border p-4 space-y-2">
           <div className="flex items-start justify-between gap-2">

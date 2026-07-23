@@ -311,7 +311,7 @@ export function AdminBillingTab({ stats }: AdminBillingTabProps) {
         />
         <DistributionPie
           title="Payment provider"
-          description="Active tenants"
+          description="Active organizations"
           data={stats.paymentProviderDistribution}
           height={220}
         />

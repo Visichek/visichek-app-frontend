@@ -18,7 +18,7 @@ const VERSION = "v4";
 const OFFLINE_URL = "/offline";
 // Bundled assets that the app needs the first time it boots offline: the
 // fallback shell, app icons referenced by the manifest, and the platform
-// logo used by the sidebar when a tenant has not uploaded one. Anything
+// logo used by the sidebar when an organization has not uploaded one. Anything
 // here is fetched on `install` so a first-launch-offline still paints.
 const PRECACHE_URLS = [
   OFFLINE_URL,
@@ -35,6 +35,7 @@ const PUBLIC_NAVIGATION_PREFIXES = [
   "/app/login",
   "/app/scan",
   "/app/select-tenant",
+  "/app/select-organization",
   "/register",
   "/checkout",
   "/rights",

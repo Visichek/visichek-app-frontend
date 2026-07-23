@@ -115,7 +115,7 @@ export function describeCheckinError(error: unknown): CheckinErrorInfo {
     return {
       title: "Reception sign-in required",
       message:
-        "This tenant's plan does not include unattended public kiosk check-ins. Please ask a receptionist to start your check-in.",
+        "This organization's plan does not include unattended public kiosk check-ins. Please ask a receptionist to start your check-in.",
       retryable: false,
       allowManualFallback: false,
     };
@@ -127,7 +127,7 @@ export function describeCheckinError(error: unknown): CheckinErrorInfo {
     return {
       title: "Wrong reception session",
       message:
-        "The reception account signed in here can't approve public check-ins for this tenant. Please ask a super_admin, dept_admin, or receptionist to sign in.",
+        "The reception account signed in here can't approve public check-ins for this organization. Please ask a super_admin, dept_admin, or receptionist to sign in.",
       retryable: false,
       allowManualFallback: false,
     };

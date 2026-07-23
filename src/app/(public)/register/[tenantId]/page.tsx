@@ -72,6 +72,7 @@ import {
   useKycStatus,
   useVerifyRegistrationToken,
   RequiredFieldsForm,
+  DEPARTMENT_FIELD_KEY,
   KycWidget,
   KycStatusScreen,
   describeCheckinError,
@@ -90,8 +91,11 @@ import type {
   RequiredField,
 } from "@/types/checkin";
 import type { KycWidgetConfig } from "@/types/kyc";
-import type { PublicPrivacyNotice } from "@/types/public";
-import { usePublicPrivacyNotice } from "@/features/public-registration/hooks/use-public-registration";
+import type { PublicDepartment, PublicPrivacyNotice } from "@/types/public";
+import {
+  usePublicDepartments,
+  usePublicPrivacyNotice,
+} from "@/features/public-registration/hooks/use-public-registration";
 import { PrivacyNoticeDisplay } from "@/features/public-registration/components/privacy-notice-display";
 import { LegalContentRenderer } from "@/features/legal-documents/components/legal-content-renderer";
 
@@ -257,6 +261,10 @@ export default function KioskCheckinPage() {
 
   const configQ = useActiveCheckinConfigForTenant(tenantId);
   const enumsQ = useCheckinEnumsForTenant(tenantId);
+  // Options for the system Department field on the GENERAL flow. A
+  // department-scoped QR pins the department via the token instead, so
+  // the field (and this list) is unused in that case.
+  const departmentsQ = usePublicDepartments(tenantId);
   // Tenant's visitor-facing privacy notice. When its displayMode is
   // `active_consent`, the visitor must accept it before the wizard opens.
   const privacyNoticeQ = usePublicPrivacyNotice(tenantId);
@@ -347,10 +355,28 @@ export default function KioskCheckinPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [consentRequired, state.consentAccepted, isTenantStaff]);
 
+  const departments = departmentsQ.data;
+
   const detailsFields = useMemo<RequiredField[]>(() => {
     if (!config) return [];
-    return config.requiredFields.filter((f) => !IDENTITY_KEYS.has(f.key));
-  }, [config]);
+    return config.requiredFields.filter((f) => {
+      if (IDENTITY_KEYS.has(f.key)) return false;
+      if (f.key === DEPARTMENT_FIELD_KEY) {
+        // Department-scoped QR: the signed token pins the department
+        // server-side, so the picker is omitted (the scoped banner
+        // already explains the routing).
+        if (tokenScope?.departmentId) return false;
+        // Degenerate cases: departments failed to load, are still
+        // loading, or the tenant has none. Don't hard-block check-in on
+        // a picker with nothing to pick — hide the field; the backend
+        // treats a missing department as optional then and falls back
+        // to HQ routing.
+        if (departmentsQ.isError) return false;
+        if (!departments || departments.length === 0) return false;
+      }
+      return true;
+    });
+  }, [config, tokenScope?.departmentId, departments, departmentsQ.isError]);
 
   const visibleSteps = kycAvailable ? STEPS : STEPS_NO_KYC;
 
@@ -991,6 +1017,7 @@ export default function KioskCheckinPage() {
             <DetailsStep
               fields={detailsFields}
               enums={enumsQ.data}
+              departments={departments}
               fieldValues={state.fieldValues}
               setFieldValue={setFieldValue}
               onBack={retreat}
@@ -1004,6 +1031,7 @@ export default function KioskCheckinPage() {
               state={state}
               fields={detailsFields}
               enums={enums}
+              departments={departments}
               // When KYC is available, Review hands off to the final Verify
               // step (Continue); otherwise Review is the last step and
               // submits directly.
@@ -1494,6 +1522,7 @@ function KycOptionStep({
 function DetailsStep({
   fields,
   enums,
+  departments,
   fieldValues,
   setFieldValue,
   onBack,
@@ -1502,6 +1531,8 @@ function DetailsStep({
 }: {
   fields: RequiredField[];
   enums: ReturnType<typeof useCheckinEnumsForTenant>["data"];
+  /** Options for the system `department_id` field (GENERAL flow only). */
+  departments: PublicDepartment[] | undefined;
   fieldValues: Record<string, unknown>;
   setFieldValue: (key: string, value: unknown) => void;
   onBack: () => void;
@@ -1516,6 +1547,7 @@ function DetailsStep({
           values={fieldValues}
           onChange={setFieldValue}
           enums={enums}
+          departments={departments}
         />
       )}
 
@@ -1564,6 +1596,7 @@ function ReviewStep({
   state,
   fields,
   enums,
+  departments,
   kycAvailable,
   onBack,
   onContinue,
@@ -1574,6 +1607,8 @@ function ReviewStep({
   state: KioskState;
   fields: RequiredField[];
   enums: ReturnType<typeof useCheckinEnumsForTenant>["data"];
+  /** Used to resolve the department id back to its name on review. */
+  departments: PublicDepartment[] | undefined;
   /**
    * When true a final Verify step follows, so Review advances to it
    * (`onContinue`) instead of submitting. When false Review is the last
@@ -1599,7 +1634,7 @@ function ReviewStep({
             <ReviewItem
               key={f.key}
               label={f.label}
-              value={renderReviewValue(f, v, enums)}
+              value={renderReviewValue(f, v, enums, departments)}
             />
           );
         })}
@@ -1680,15 +1715,21 @@ function ReviewItem({ label, value }: { label: string; value: string }) {
 
 /**
  * Resolve enum picker values back to their human label for the review
- * panel — `"meeting"` → `"Meeting"`. Falls back to the raw value when the
+ * panel — `"meeting"` → `"Meeting"`. The system department field maps its
+ * id back to the department name. Falls back to the raw value when the
  * field isn't enum-driven or the option isn't found (custom values).
  */
 function renderReviewValue(
   field: RequiredField,
   value: unknown,
   enums: ReturnType<typeof useCheckinEnumsForTenant>["data"],
+  departments: PublicDepartment[] | undefined,
 ): string {
   const raw = String(value ?? "");
+  if (field.key === DEPARTMENT_FIELD_KEY) {
+    const match = departments?.find((d) => d.id === raw);
+    return match?.name ?? raw;
+  }
   if (!field.enumKind || !enums) return raw;
   const bundle = enums.enums[field.enumKind];
   const match = bundle?.options.find((o) => o.value === raw);

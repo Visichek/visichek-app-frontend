@@ -89,7 +89,7 @@ const discountSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["targetTenantId"],
-        message: "Select a tenant for tenant-scoped discounts",
+        message: "Select an organization for organization-scoped discounts",
       });
     }
     if (data.scope === "plan" && !(data.targetPlanIds?.length)) {
@@ -227,7 +227,7 @@ export function DiscountForm() {
 
   const scopeLabel: Record<DiscountFormData["scope"], string> = {
     global: "Global",
-    tenant: "Tenant",
+    tenant: "Organization",
     plan: "Plan",
   };
 
@@ -392,10 +392,10 @@ export function DiscountForm() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="global">
-                    Global — available to all tenants
+                    Global — available to all organizations
                   </SelectItem>
                   <SelectItem value="tenant">
-                    Tenant — one specific tenant
+                    Organization — one specific organization
                   </SelectItem>
                   <SelectItem value="plan">
                     Plan — specific plans only
@@ -407,7 +407,7 @@ export function DiscountForm() {
             {values.scope === "tenant" && (
               <div className="space-y-2">
                 <Label htmlFor="discount-tenantId">
-                  Target Tenant <span aria-hidden="true">*</span>
+                  Target Organization <span aria-hidden="true">*</span>
                 </Label>
                 <Select
                   value={values.targetTenantId || ""}
@@ -429,15 +429,15 @@ export function DiscountForm() {
                     <SelectValue
                       placeholder={
                         tenantsLoading
-                          ? "Loading tenants…"
-                          : "Select a tenant"
+                          ? "Loading organizations…"
+                          : "Select an organization"
                       }
                     />
                   </SelectTrigger>
                   <SelectContent>
                     {tenants.length === 0 && !tenantsLoading ? (
                       <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                        No active tenants found
+                        No active organizations found
                       </div>
                     ) : (
                       tenants.map((tenant) => (
@@ -615,7 +615,7 @@ export function DiscountForm() {
             <ReviewRow label="Scope" value={scopeLabel[values.scope]} />
             {values.scope === "tenant" && (
               <ReviewRow
-                label="Target Tenant"
+                label="Target Organization"
                 value={
                   tenants.find((t) => t.id === values.targetTenantId)
                     ?.companyName ||
@@ -706,7 +706,7 @@ export function DiscountForm() {
                 </span>
               </TooltipTrigger>
               <TooltipContent side="top">
-                Save this discount so tenants can start redeeming it
+                Save this discount so organizations can start redeeming it
               </TooltipContent>
             </Tooltip>
           ) : (

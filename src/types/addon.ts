@@ -39,18 +39,39 @@ export type AddonPaymentProvider = "stripe" | "flutterwave" | "app";
  * `{ visitors: <number> }`; etc. The frontend treats it as a free-form
  * record and reads the key that matches the kind.
  */
+export type AddonPricingMode = "fixed" | "derived";
+
+/** Shape of `derivedFrom` on a `pricingMode: "derived"` catalog row. */
+export interface AddonDerivedFrom {
+  plan: string;
+  field: string;
+  multiplier: number;
+}
+
 export interface AddonOut {
   id: string;
   name: string;
   description?: string | null;
   kind: AddonKind;
   status: AddonStatus;
+  /**
+   * Resolved unit price at read time. For `pricingMode: "derived"` rows
+   * (e.g. `additional-branch`) this is the live Premium-price-derived
+   * value, not a stored constant — always render this field, never
+   * recompute client-side.
+   */
   unitPrice: number;
   currency: string;
   benefitPerUnit: Record<string, number | string>;
   /** null = perpetual (never expires). */
   validityDays?: number | null;
   maxUnitsPerPurchase: number;
+  /** `"fixed"` (default) or `"derived"` — see {@link AddonDerivedFrom}. */
+  pricingMode?: AddonPricingMode;
+  /** Present only when `pricingMode === "derived"`. */
+  derivedFrom?: AddonDerivedFrom | null;
+  /** True for recurring (subscription-style) add-ons like branch quota. */
+  recurring?: boolean;
   createdAt?: number;
   updatedAt?: number;
 }
@@ -102,6 +123,12 @@ export interface TenantAddonOut {
   cancelledAt?: number | null;
   cancellationReason?: string | null;
   createdByUserId?: string | null;
+  /**
+   * Free-form metadata. Grandfathered/backfill-granted rows carry
+   * `metadata.granted === "premium-per-location-migration"` — render
+   * those as "Included — migration" rather than a purchased row.
+   */
+  metadata?: Record<string, unknown> | null;
 }
 
 /** Body for `POST /v1/tenants/me/addons/purchase`. */

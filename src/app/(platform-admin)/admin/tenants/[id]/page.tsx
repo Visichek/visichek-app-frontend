@@ -44,15 +44,15 @@ export default function TenantDetailPage({
                 ) : (
                   <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
                 )}
-                Back to tenants
+                Back to organizations
               </NavButton>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              Return to the tenants list
+              Return to the organizations list
             </TooltipContent>
           </Tooltip>
           <ErrorState
-            title="Couldn't load this tenant"
+            title="Couldn't load this organization"
             message="It may have been deleted, or your connection dropped."
             onRetry={() => refetch()}
           />

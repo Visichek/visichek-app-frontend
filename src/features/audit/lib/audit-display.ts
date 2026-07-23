@@ -75,7 +75,7 @@ export const AUDIT_RESOURCE_TYPE_OPTIONS: FilterOption[] = [
   { label: "Support case", value: "support_case" },
   { label: "User", value: "system_user" },
   { label: "User location", value: "user_location" },
-  { label: "Tenant settings", value: "tenant_settings" },
+  { label: "Organization settings", value: "tenant_settings" },
   { label: "Subscription", value: "subscription" },
 ];
 

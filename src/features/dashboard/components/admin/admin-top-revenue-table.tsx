@@ -31,7 +31,7 @@ export function AdminTopRevenueTable({ rows }: AdminTopRevenueTableProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Top tenants by revenue</CardTitle>
+        <CardTitle className="text-base">Top organizations by revenue</CardTitle>
         <CardDescription>
           Ranked by monthly equivalent (monthly + yearly / 12)
         </CardDescription>
@@ -44,7 +44,7 @@ export function AdminTopRevenueTable({ rows }: AdminTopRevenueTableProps) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Tenant</TableHead>
+                  <TableHead>Organization</TableHead>
                   <TableHead className="hidden md:table-cell">Plan</TableHead>
                   <TableHead className="hidden md:table-cell">Status</TableHead>
                   <TableHead className="text-right">Monthly</TableHead>

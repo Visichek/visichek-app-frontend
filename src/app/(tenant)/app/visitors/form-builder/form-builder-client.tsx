@@ -32,7 +32,7 @@ export function FormBuilderClient() {
 
   if (!hasCapability(CAPABILITIES.TENANT_FORM_CONFIGURE)) {
     return (
-      <PermissionDenied message="Only your tenant's super admin or a department admin can configure visitor forms. Contact them if this view is wrong." />
+      <PermissionDenied message="Only your organization's super admin or a department admin can configure visitor forms. Contact them if this view is wrong." />
     );
   }
 
