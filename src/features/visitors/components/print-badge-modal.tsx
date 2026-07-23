@@ -13,6 +13,7 @@ import {
 import { ResponsiveModal } from "@/components/recipes/responsive-modal";
 import { useAppSelector } from "@/lib/store/hooks";
 import { selectBranding } from "@/lib/store/branding-slice";
+import { useCapability } from "@/features/limitations/hooks";
 import type { TenantBranding } from "@/types/tenant";
 import {
   VisitorBadge,
@@ -78,7 +79,10 @@ export function badgeBrandingFromTenantBranding(
   if (!branding) return null;
   const headerColor = branding.badgeHeaderColor ?? branding.primaryColor;
   const logoUrl = branding.badgeLogoUrl ?? branding.logoUrl;
-  if (!headerColor && !logoUrl) return null;
+  // NOTE: a record with no explicit colors/logo still returns a branding
+  // object — the badge component supplies the same header/text fallbacks
+  // the backend badge-pass uses, so the reception print matches the
+  // visitor's kiosk badge exactly.
   return {
     headerColor: headerColor ?? null,
     textColor: branding.badgeTextColor ?? null,
@@ -120,13 +124,18 @@ export function PrintBadgeModal({
     if (open) setFormat("A6");
   }, [open]);
 
-  const badgeBranding = useMemo<BadgeBranding | null>(
-    () =>
-      brandingOverride !== undefined
-        ? brandingOverride
-        : badgeBrandingFromTenantBranding(tenantBranding),
-    [brandingOverride, tenantBranding],
-  );
+  // Mirror the backend badge-pass gate: the badge renders branded
+  // whenever the plan allows branding — even if the org never customised
+  // colors (component fallbacks apply), so the reception print always
+  // matches the visitor's kiosk badge. Only branding-denied plans get
+  // the neutral layout.
+  const { can } = useCapability();
+  const badgeBranding = useMemo<BadgeBranding | null>(() => {
+    if (brandingOverride !== undefined) return brandingOverride;
+    const fromRecord = badgeBrandingFromTenantBranding(tenantBranding);
+    if (fromRecord) return fromRecord;
+    return can("branding") ? {} : null;
+  }, [brandingOverride, tenantBranding, can]);
 
   const data = useMemo<BadgePassData>(
     () => ({
