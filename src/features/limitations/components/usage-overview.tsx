@@ -83,6 +83,9 @@ function MeterBar({ item }: { item: UsageMeterItem }) {
 }
 
 function StatusChip({ status }: { status: UsageStatus }) {
+  // "On track" is the healthy default — a chip saying so is noise. Only
+  // surface the chip when the meter needs attention.
+  if (status === "on_track") return null;
   return (
     <Badge variant={STATUS_BADGE_VARIANT[status]}>
       {status === "at_limit" && (
