@@ -55,6 +55,9 @@ import {
   getInitials,
 } from "@/features/support-cases/components";
 import { formatDateTime, formatRelative } from "@/lib/utils/format-date";
+import { useAdminBetaFeatures } from "@/features/beta/hooks/use-beta-features";
+import { AdminSupportChat } from "@/features/beta/support/admin-support-chat";
+import { PageSkeleton } from "@/components/feedback/page-skeleton";
 import type {
   SupportCase,
   AdminSupportCaseSort,
@@ -140,6 +143,16 @@ function plural(n: number): string {
 }
 
 export default function AdminSupportCasesPage() {
+  // Personal beta gate (admin preferences KV). The brief cold-load skeleton
+  // avoids flashing the classic table at an admin who opted into beta.
+  const { enabled: betaEnabled, isLoading: betaLoading } =
+    useAdminBetaFeatures();
+  if (betaLoading) return <PageSkeleton />;
+  if (betaEnabled) return <AdminSupportChat />;
+  return <ClassicAdminSupportCasesPage />;
+}
+
+function ClassicAdminSupportCasesPage() {
   const { loadingHref, handleNavClick } = useNavigationLoading();
 
   // Inline filters

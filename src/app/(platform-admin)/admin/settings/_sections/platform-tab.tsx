@@ -7,7 +7,11 @@ import {
   useSettingsManifest,
   useSettingsSection,
   usePlatformSettings,
+  useUserPreferences,
+  useUpdateUserPreference,
 } from "@/features/settings/hooks";
+import { BetaBadge } from "@/features/beta/components/beta-badge";
+import { BETA_FEATURES_PREFERENCE_KEY } from "@/features/beta/hooks/use-beta-features";
 import { MaintenanceModeModal } from "./maintenance-mode-modal";
 
 export function PlatformTab() {
@@ -15,6 +19,8 @@ export function PlatformTab() {
   const platformSection = useSettingsSection(manifest, "platform_settings");
 
   const { data: platformSettingsData } = usePlatformSettings();
+  const { data: preferences } = useUserPreferences();
+  const updatePreference = useUpdateUserPreference();
 
   const [modalState, setModalState] = useState<{
     open: boolean;
@@ -22,6 +28,8 @@ export function PlatformTab() {
   }>({ open: false, target: false });
 
   if (!platformSection) return null;
+
+  const betaEnabled = preferences?.[BETA_FEATURES_PREFERENCE_KEY] === true;
 
   const maintenanceOn = platformSettingsData?.maintenanceMode ?? false;
   const endpoints = platformSection.endpoints ?? {};
@@ -62,6 +70,33 @@ export function PlatformTab() {
             </div>
           </div>
         )}
+      </section>
+
+      <section>
+        <div className="mb-1 flex items-center gap-2">
+          <h2 className="text-base font-semibold">Beta features</h2>
+          <BetaBadge hint="Beta features are early-access designs. This toggle is personal to your admin account." />
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          Try early-access admin redesigns before they become the default. This
+          only changes what you see — other admins and organizations are not
+          affected.
+        </p>
+        <div className="space-y-1">
+          <SettingsToggle
+            id="adminBetaFeaturesEnabled"
+            label="Enable beta features"
+            description="Chat-style Support Cases and the SLA Watch calendar in the admin console."
+            checked={betaEnabled}
+            onCheckedChange={(v) =>
+              updatePreference.mutate({
+                key: BETA_FEATURES_PREFERENCE_KEY,
+                value: v,
+              })
+            }
+            isLoading={updatePreference.isPending}
+          />
+        </div>
       </section>
 
       <MaintenanceModeModal

@@ -196,6 +196,10 @@ export interface TenantSettings {
   geofencingRadiusMeters: number;
   geofencingReferenceLat: number | null;
   geofencingReferenceLng: number | null;
+  // Beta features — org-wide opt-in to early-access UI (chat-style support
+  // cases, incident calendar). Mirrored to every role at boot via the
+  // /system-users/me tenant summary.
+  betaFeaturesEnabled: boolean;
   dateCreated: number;
   lastUpdated: number;
 }

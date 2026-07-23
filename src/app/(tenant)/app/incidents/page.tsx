@@ -47,6 +47,8 @@ import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import { apiPatch } from "@/lib/api/request";
 import { formatDateTime } from "@/lib/utils/format-date";
 import { toast } from "sonner";
+import { useTenantBetaFeatures } from "@/features/beta/hooks/use-beta-features";
+import { IncidentsBeta } from "@/features/beta/incidents/incidents-beta";
 import type { Incident, UpdateIncidentRequest } from "@/types/incident";
 import type { IncidentStatus } from "@/types/enums";
 
@@ -104,6 +106,14 @@ const INCIDENT_TABS: { value: IncidentStatusTab; label: string; description: str
 ];
 
 export default function IncidentsPage() {
+  // Org-wide beta gate (synchronous — the flag ships with the /me
+  // bootstrap). Beta on → calendar + countdown view; off → classic table.
+  const { enabled: betaEnabled } = useTenantBetaFeatures();
+  if (betaEnabled) return <IncidentsBeta />;
+  return <ClassicIncidentsPage />;
+}
+
+function ClassicIncidentsPage() {
   const { hasCapability } = useCapabilities();
   const canCreate = hasCapability(CAPABILITIES.INCIDENT_CREATE);
   // Triage (status transitions + NDPC-notified marking) is restricted to the

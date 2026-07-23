@@ -26,8 +26,12 @@ import {
 import { useOrgContact } from "@/features/branches/hooks/use-branches";
 import { useCapability } from "@/features/limitations/hooks/use-limitations";
 import { LockedOverlay } from "@/features/limitations/components/locked-overlay";
+import { BetaBadge } from "@/features/beta/components/beta-badge";
+import { useAppDispatch } from "@/lib/store/hooks";
+import { setTenantBetaFeaturesEnabled } from "@/lib/store/session-slice";
 
 export function AdvancedTab() {
+  const dispatch = useAppDispatch();
   const { data: manifest } = useSettingsManifest();
   const deletionSection = useSettingsSection(manifest, "account_deletion");
   const tenantSettingsSection = useSettingsSection(manifest, "tenant_settings");
@@ -105,6 +109,40 @@ export function AdvancedTab() {
 
       {tenantSettingsSection && tenantSettingsData && (
         <>
+          <Separator />
+
+          <section>
+            <div className="mb-1 flex items-center gap-2">
+              <h2 className="text-base font-semibold">Beta features</h2>
+              <BetaBadge hint="Beta features are early-access designs. This toggle controls them for your whole organization." />
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Try early-access redesigns before they become the default. Applies
+              to your whole organization and can be switched off at any time.
+            </p>
+            <div className="space-y-1">
+              <SettingsToggle
+                id="betaFeaturesEnabled"
+                label="Enable beta features"
+                description="New chat-style Support Cases and the Incidents calendar with NDPC deadline countdowns. Staff see the new look after their next sign-in or page refresh."
+                checked={tenantSettingsData.betaFeaturesEnabled ?? false}
+                onCheckedChange={(v) =>
+                  updateTenantSettings.mutate(
+                    { betaFeaturesEnabled: v },
+                    {
+                      // Keep the session copy honest so the toggling admin
+                      // sees the beta UI immediately; everyone else picks it
+                      // up on their next /me re-hydration.
+                      onSuccess: () =>
+                        dispatch(setTenantBetaFeaturesEnabled(v)),
+                    },
+                  )
+                }
+                isLoading={updateTenantSettings.isPending}
+              />
+            </div>
+          </section>
+
           <Separator />
 
           {!hideVisitorPolicies && (

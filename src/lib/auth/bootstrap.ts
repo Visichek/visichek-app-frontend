@@ -169,6 +169,9 @@ async function runBootstrap(): Promise<boolean> {
 async function tryFetchSystemUserProfile(): Promise<SystemUserProfile | null> {
   try {
     const data = await apiGet<Record<string, unknown>>("/system-users/me");
+    // Org-wide beta-features flag rides on the embedded tenant summary so
+    // every role learns it at boot without a super_admin-only settings call.
+    const tenant = (data.tenant ?? null) as Record<string, unknown> | null;
     return {
       id: (data.id as string) ?? "",
       fullName: (data.fullName as string) ?? (data.full_name as string) ?? "",
@@ -187,6 +190,10 @@ async function tryFetchSystemUserProfile(): Promise<SystemUserProfile | null> {
       mustChangePassword:
         (data.mustChangePassword as boolean | undefined) ??
         (data.must_change_password as boolean | undefined) ??
+        false,
+      betaFeaturesEnabled:
+        (tenant?.betaFeaturesEnabled as boolean | undefined) ??
+        (tenant?.beta_features_enabled as boolean | undefined) ??
         false,
     };
   } catch (err) {

@@ -32,6 +32,8 @@ import {
   FilterSheet,
 } from "@/features/support-cases/components";
 import { formatDateTime, formatRelative } from "@/lib/utils/format-date";
+import { useTenantBetaFeatures } from "@/features/beta/hooks/use-beta-features";
+import { TenantSupportChat } from "@/features/beta/support/tenant-support-chat";
 import type { SupportCase } from "@/types/support-case";
 import type {
   SupportCaseStatus,
@@ -80,6 +82,14 @@ const PRIORITY_OPTIONS: { value: PriorityFilter; label: string }[] = [
 ];
 
 export default function SupportCasesPage() {
+  // Org-wide beta gate (synchronous — the flag ships with the /me
+  // bootstrap). Beta on → chat-style UI; off → the classic table below.
+  const { enabled: betaEnabled } = useTenantBetaFeatures();
+  if (betaEnabled) return <TenantSupportChat />;
+  return <ClassicSupportCasesPage />;
+}
+
+function ClassicSupportCasesPage() {
   const [status, setStatus] = useState<StatusFilter>("all");
   const [priority, setPriority] = useState<PriorityFilter>("all");
   const [category, setCategory] = useState<CategoryFilter>("all");

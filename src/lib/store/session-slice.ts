@@ -62,6 +62,16 @@ const sessionSlice = createSlice({
     markBootstrapDone(state) {
       state.isBootstrapping = false;
     },
+    /**
+     * Keep the cached org beta-features flag honest after the super_admin
+     * flips the toggle in Settings → Advanced. Other users pick the change
+     * up on their next /me re-hydration; without this the toggling admin
+     * would need a hard refresh to see the beta UI they just enabled.
+     */
+    setTenantBetaFeaturesEnabled(state, action: PayloadAction<boolean>) {
+      if (state.systemUserProfile)
+        state.systemUserProfile.betaFeaturesEnabled = action.payload;
+    },
   },
 });
 
@@ -71,6 +81,7 @@ export const {
   clearSessionState,
   clearMustChangePassword,
   markBootstrapDone,
+  setTenantBetaFeaturesEnabled,
 } = sessionSlice.actions;
 export const sessionReducer = sessionSlice.reducer;
 
@@ -89,3 +100,6 @@ export const selectCurrentRole = (state: { session: SessionState }) =>
   state.session.systemUserProfile?.role ?? null;
 export const selectTenantId = (state: { session: SessionState }) =>
   state.session.systemUserProfile?.tenantId ?? null;
+export const selectTenantBetaFeaturesEnabled = (state: {
+  session: SessionState;
+}) => state.session.systemUserProfile?.betaFeaturesEnabled ?? false;

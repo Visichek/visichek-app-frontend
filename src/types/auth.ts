@@ -153,6 +153,14 @@ export interface SystemUserProfile {
   mfaLockedByAdmin?: boolean;
   /** See {@link AdminProfile.mustChangePassword}. */
   mustChangePassword?: boolean;
+  /**
+   * Org-wide beta-features opt-in, mirrored from
+   * `tenant_settings.beta_features_enabled` via the /system-users/me
+   * tenant summary. Gates the early-access UI (chat-style support cases,
+   * incident calendar) for every tenant role without a super_admin-only
+   * settings call. Toggled from Settings → Advanced by the super_admin.
+   */
+  betaFeaturesEnabled?: boolean;
 }
 
 export interface AdminSession {

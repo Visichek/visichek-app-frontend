@@ -20,9 +20,24 @@ import {
   SupportTierBadge,
 } from "@/features/support-cases/components";
 import { formatRelative } from "@/lib/utils/format-date";
+import { useAdminBetaFeatures } from "@/features/beta/hooks/use-beta-features";
+import {
+  SlaWatchCalendar,
+  SlaWatchCalendarSkeleton,
+} from "@/features/beta/sla-watch/sla-watch-calendar";
 import type { SupportCase } from "@/types/support-case";
 
 export default function AdminSlaWatchPage() {
+  // Personal beta gate (admin preferences KV): calendar view when on,
+  // classic 24-hour table when off.
+  const { enabled: betaEnabled, isLoading: betaLoading } =
+    useAdminBetaFeatures();
+  if (betaLoading) return <SlaWatchCalendarSkeleton />;
+  if (betaEnabled) return <SlaWatchCalendar />;
+  return <ClassicAdminSlaWatchPage />;
+}
+
+function ClassicAdminSlaWatchPage() {
   const { loadingHref, handleNavClick, navigateFromOverlay } = useNavigationLoading();
 
   const { data, isLoading, isError, refetch } = useApproachingSla();
