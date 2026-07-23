@@ -405,9 +405,30 @@ export function GroupedVisitorsList({
                                   Reason: {checkin.rejectionReason}
                                 </p>
                               )}
+                              {(checkin.autoCheckedOut ||
+                                checkin.checkOutMethod === "auto") &&
+                                checkin.checkOutReason && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {checkin.checkOutReason}
+                                  </p>
+                                )}
                             </div>
                             <div className="flex items-center gap-2 md:gap-3 md:justify-end flex-wrap">
                               <CheckinStateBadge state={checkin.state} />
+                              {(checkin.autoCheckedOut ||
+                                checkin.checkOutMethod === "auto") && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground text-xs font-medium px-2 py-0.5">
+                                      Auto checkout
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    {checkin.checkOutReason ||
+                                      "This visit was closed automatically because no checkout was recorded"}
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
                               {!checkin.verified && canVerify && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>

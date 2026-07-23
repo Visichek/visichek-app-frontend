@@ -1,15 +1,13 @@
 "use client";
 
-import type { PrintBadgeFormat } from "../components/print-badge";
-
-const DIMS: Record<PrintBadgeFormat, { w: number; h: number }> = {
-  A6: { w: 105, h: 148 },
-  A7: { w: 74, h: 105 },
-};
+import {
+  badgePrintDims,
+  type BadgePrintFormat,
+} from "../components/visitor-badge";
 
 function badgeFilename(
   visitorName: string,
-  format: PrintBadgeFormat,
+  format: BadgePrintFormat,
   ext: "pdf" | "png",
 ) {
   const slug =
@@ -32,9 +30,9 @@ function badgeFilename(
  *
  * Parity caveats that remain (rare):
  *   - Cross-origin <img> sources without CORS headers will taint the
- *     canvas; the grayscale tenant logo is already pre-converted to a
- *     data URL upstream so this only matters if a new asset is added.
- *   - Everything visual on `PrintBadge` is inline `style={{...}}`, so
+ *     canvas; `inlineCrossOriginImages` converts the org logo (and any
+ *     other remote image) to a data URL before the capture.
+ *   - Everything visual on `VisitorBadge` is inline `style={{...}}`, so
  *     external stylesheets aren't needed inside the foreignObject.
  */
 async function captureBadgeImage(node: HTMLElement): Promise<{
@@ -59,11 +57,11 @@ async function captureBadgeImage(node: HTMLElement): Promise<{
   clone.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
 
   // Cross-origin <img> sources inside <foreignObject> taint the canvas
-  // on draw and block toDataURL/toBlob. The tenant logo is the usual
-  // culprit: useGrayscaleDataUrl falls back to the raw remote URL when
-  // the CDN doesn't return CORS headers. Inline every <img> as a data
-  // URL before we serialise — if any fetch fails, drop the src so the
-  // export still completes without the logo.
+  // on draw and block toDataURL/toBlob. The org logo is the usual
+  // culprit — it renders straight from its remote URL on the badge.
+  // Inline every <img> as a data URL before we serialise — if any
+  // fetch fails, drop the src so the export still completes without
+  // the logo.
   await inlineCrossOriginImages(clone);
 
   const xhtml = new XMLSerializer().serializeToString(clone);
@@ -180,7 +178,7 @@ function loadSvgImage(src: string): Promise<HTMLImageElement> {
  *
  * Why a clone, not the live node: moving the live node out of the
  * modal would unmount its React subtree mid-flow. A deep clone keeps
- * the on-screen preview intact, and since every style on `PrintBadge`
+ * the on-screen preview intact, and since every style on `VisitorBadge`
  * is an inline `style={{...}}` (no class names, no CSS variables, no
  * webfonts), the clone is fully self-contained.
  *
@@ -197,9 +195,9 @@ function loadSvgImage(src: string): Promise<HTMLImageElement> {
  */
 export async function printVisitorBadge(
   node: HTMLElement,
-  format: PrintBadgeFormat,
+  format: BadgePrintFormat,
 ): Promise<void> {
-  const { w, h } = DIMS[format];
+  const { width: w, height: h } = badgePrintDims(format);
 
   const clone = node.cloneNode(true) as HTMLElement;
   // On-screen drop shadow is a preview affordance — drop it so the
@@ -281,10 +279,10 @@ export async function printVisitorBadge(
  */
 export async function downloadVisitorBadgePdf(
   node: HTMLElement,
-  format: PrintBadgeFormat,
+  format: BadgePrintFormat,
   visitorName: string,
 ): Promise<void> {
-  const { w, h } = DIMS[format];
+  const { width: w, height: h } = badgePrintDims(format);
   const [{ default: JsPDF }, { dataUrl }] = await Promise.all([
     import("jspdf"),
     captureBadgeImage(node),

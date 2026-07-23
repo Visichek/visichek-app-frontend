@@ -1,5 +1,5 @@
 import type { VisitSession, Appointment } from "./visitor";
-import type { NoticeDisplayMode, VisitStatus } from "./enums";
+import type { LogoPosition, NoticeDisplayMode, VisitStatus } from "./enums";
 import type { Block } from "./blog";
 
 // ── Public Registration Info ─────────────────────────────────────────
@@ -147,6 +147,20 @@ export interface PublicBadgeTenant {
   brandingEnabled: boolean;
 }
 
+/**
+ * Badge branding block (wire fields badge_header_color / badge_text_color /
+ * logo_url / logo_position / company_display_name, camelCased by the
+ * backend's case middleware). `null` for orgs without the custom-branding
+ * entitlement — the badge then renders the neutral VisiChek layout.
+ */
+export interface PublicBadgeBranding {
+  headerColor?: string | null;
+  textColor?: string | null;
+  logoUrl?: string | null;
+  logoPosition?: LogoPosition | null;
+  companyDisplayName?: string | null;
+}
+
 export interface PublicBadgePass {
   /** Echo of the badgeQrToken used in the URL; also what the QR encodes. */
   token: string;
@@ -157,11 +171,15 @@ export interface PublicBadgePass {
   departmentName?: string;
   /** Current visit status; drives the status pill label. */
   status: VisitStatus;
+  /** Unix epoch seconds — when the visit was checked in. */
+  checkInTime?: number | null;
   /** Unix epoch seconds. */
   issuedAt?: number;
   /** Unix epoch seconds. */
   expiresAt?: number;
   tenant: PublicBadgeTenant;
+  /** Null / absent for orgs without custom branding on their plan. */
+  branding?: PublicBadgeBranding | null;
 }
 
 // ── Public Rights ────────────────────────────────────────────────────

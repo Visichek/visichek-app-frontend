@@ -1,6 +1,8 @@
 export {
   useBranches,
   useBranch,
+  useBranchContact,
+  useOrgContact,
   useCreateBranch,
   useUpdateBranch,
   useDeactivateBranch,

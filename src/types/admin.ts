@@ -67,4 +67,10 @@ export interface AdminTenant extends Tenant {
   planSummary?: TenantPlanSummary | null;
   systemUsersCount?: number;
   lastActivity?: number;
+  /**
+   * Organization point of contact (WS4): the main super admin summary
+   * `{userId, fullName, email, role}`, when the admin payload embeds it.
+   * Optional — older payloads carry nothing and the POC card hides.
+   */
+  contactSummary?: import("./tenant").OrgContactSummary | null;
 }

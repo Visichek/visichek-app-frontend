@@ -203,6 +203,20 @@ export function CheckinDetailView({ checkin }: CheckinDetailViewProps) {
               Reason: {checkin.rejectionReason}
             </p>
           )}
+          {checkin.checkedOutAt && (
+            <p className="inline-flex items-center gap-1.5 flex-wrap">
+              Checked out {formatDateTime(checkin.checkedOutAt)}
+              {(checkin.autoCheckedOut ||
+                checkin.checkOutMethod === "auto") && (
+                <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground text-xs font-medium px-2 py-0.5">
+                  Auto checkout
+                </span>
+              )}
+            </p>
+          )}
+          {checkin.checkOutReason && (
+            <p>Checkout reason: {checkin.checkOutReason}</p>
+          )}
         </section>
 
         {isPending && (

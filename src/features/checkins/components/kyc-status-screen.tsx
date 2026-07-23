@@ -17,7 +17,6 @@
 
 import {
   AlertTriangle,
-  CheckCircle2,
   Clock,
   Info,
   Loader2,
@@ -75,17 +74,19 @@ export function KycStatusScreen({
   }
 
   if (state === "awaiting_approval") {
+    // Copy note: the check-in is SUBMITTED but still pending receptionist
+    // approval at this point — never claim "you're checked in" here.
     return (
       <div className="text-center space-y-4 py-6" role="status" aria-live="polite">
-        <div className="mx-auto h-16 w-16 rounded-full bg-success/10 text-success flex items-center justify-center">
-          <CheckCircle2 className="h-8 w-8" aria-hidden="true" />
+        <div className="mx-auto h-16 w-16 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin" aria-hidden="true" />
         </div>
-        <h2 className="text-xl font-display">You&apos;re checked in</h2>
+        <h2 className="text-xl font-display">Check-in submitted</h2>
         <p className="text-sm text-muted-foreground max-w-sm mx-auto">
           {message ??
             (tenantName
-              ? `Your check-in has been sent to ${tenantName}. Please have a seat — a receptionist will be with you shortly.`
-              : "Your check-in is waiting for receptionist approval. Please have a seat.")}
+              ? `Waiting for the front desk at ${tenantName} to clear you… Please have a seat — this screen updates automatically the moment you're approved.`
+              : "Waiting for the front desk to clear you… This screen updates automatically the moment you're approved.")}
         </p>
         {note && (
           <div className="mx-auto max-w-sm rounded-lg border bg-muted/40 p-3 text-left text-xs flex items-start gap-2">

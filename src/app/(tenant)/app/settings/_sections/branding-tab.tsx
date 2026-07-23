@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { QRCodeSVG } from "qrcode.react";
 import {
   Palette,
   Image as ImageIcon,
@@ -34,11 +33,20 @@ import {
 } from "@/features/branding/hooks/use-branding";
 import type { LogoPosition } from "@/types/enums";
 import { PrintBadgeModal } from "@/features/visitors/components/print-badge-modal";
+import {
+  VisitorBadge,
+  BadgeScaleFrame,
+  badgePrintDims,
+  type BadgeBranding,
+  type BadgePassData,
+} from "@/features/visitors/components/visitor-badge";
 
 interface BrandingFormData {
   primaryColor: string;
   secondaryColor: string;
   accentColor: string;
+  badgeHeaderColor: string;
+  badgeTextColor: string;
   logoPosition: LogoPosition;
 }
 
@@ -46,8 +54,33 @@ const DEFAULT_BRANDING: BrandingFormData = {
   primaryColor: "#1e293b",
   secondaryColor: "#f8fafc",
   accentColor: "#3b82f6",
+  badgeHeaderColor: "#1e293b",
+  badgeTextColor: "#ffffff",
   logoPosition: "top_left",
 };
+
+/**
+ * Fixed sample visitor for the Live Badge Preview + Test Print — same
+ * data everywhere so the preview, test print, and real badges are the
+ * one unified renderer with different inputs.
+ */
+const SAMPLE_TIME = Math.floor(Date.now() / 1000);
+
+function sampleBadgeData(orgName: string): BadgePassData {
+  return {
+    visitorName: "Jane Doe",
+    orgName: orgName || "Your Organization",
+    company: "Acme Logistics",
+    purpose: "Partnership meeting",
+    departmentName: "Operations",
+    hostName: "M. Adeola",
+    checkInTime: SAMPLE_TIME,
+    qrValue: "visichek://badge-sample",
+    validFrom: SAMPLE_TIME,
+    validUntil: SAMPLE_TIME + 8 * 60 * 60,
+    statusLabel: "Sample",
+  };
+}
 
 interface ThemePreset {
   name: string;
@@ -71,14 +104,20 @@ const LOGO_ALIGNMENT_OPTIONS = [
 ];
 
 /**
- * Inline "test print" (#20) — opens the same local-render badge modal
- * receptionists use, seeded with sample visitor data and the tenant's saved
- * branding (logo + name from Redux). Lets admins preview + print/download an
- * A6/A7 badge right on the branding page, without opening the public
- * test-badge tab.
+ * Inline "test print" — opens the same badge modal receptionists use
+ * (the one unified badge renderer), seeded with sample visitor data and
+ * the CURRENT branding edits — including unsaved ones — so what prints
+ * here is exactly what real badges will look like once saved.
  */
-function TestPrintBadgeButton() {
+function TestPrintBadgeButton({
+  branding,
+  orgName,
+}: {
+  branding: BadgeBranding | null;
+  orgName: string;
+}) {
   const [open, setOpen] = useState(false);
+  const sample = sampleBadgeData(orgName);
   return (
     <>
       <Tooltip>
@@ -90,24 +129,31 @@ function TestPrintBadgeButton() {
             onClick={() => setOpen(true)}
           >
             <Printer className="mr-2 h-4 w-4" aria-hidden="true" />
-            Preview &amp; print here
+            Preview &amp; print sample badge
           </Button>
         </TooltipTrigger>
         <TooltipContent side="top">
-          Open the printable badge inline with your saved branding — pick A6 or
-          A7, then print or download a PDF without leaving this page
+          Open the printable sample badge with your current branding edits —
+          pick A6 or A7, then print or download a PDF without leaving this page
         </TooltipContent>
       </Tooltip>
       <PrintBadgeModal
         open={open}
         onOpenChange={setOpen}
         badge={{
-          visitorName: "Nathaniel Uriri",
-          company: "Sample Company Ltd",
-          purpose: "Test print",
-          statusLabel: "Checked in",
-          qrToken: "test-badge-token",
+          visitorName: sample.visitorName,
+          company: sample.company ?? undefined,
+          purpose: sample.purpose ?? undefined,
+          hostName: sample.hostName ?? undefined,
+          departmentName: sample.departmentName ?? undefined,
+          statusLabel: "Sample",
+          qrToken: sample.qrValue,
+          issuedAt: sample.checkInTime ?? undefined,
+          expiresAt: sample.validUntil ?? undefined,
+          tenantName: sample.orgName,
         }}
+        branding={branding}
+        sample
       />
     </>
   );
@@ -157,129 +203,6 @@ function ColorInput({ id, label, value, onChange }: ColorInputProps) {
             placeholder="000000"
             maxLength={6}
           />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-interface BadgePreviewProps {
-  primaryColor: string;
-  secondaryColor: string;
-  accentColor: string;
-  logoPosition: LogoPosition;
-  companyName: string;
-  logoPreviewUrl: string | null;
-}
-
-function BadgePreview({
-  primaryColor,
-  secondaryColor,
-  accentColor,
-  logoPosition,
-  companyName,
-  logoPreviewUrl,
-}: BadgePreviewProps) {
-  const logoJustify =
-    logoPosition === "top_center"
-      ? "justify-center"
-      : logoPosition === "top_right"
-      ? "justify-end"
-      : "justify-start";
-
-  return (
-    <div
-      className="mx-auto flex h-[500px] w-full max-w-[340px] flex-col overflow-hidden rounded-2xl border border-border shadow-lg"
-      style={{ backgroundColor: secondaryColor }}
-    >
-      {/* Badge header with logo */}
-      <div
-        className="px-5 py-4 transition-colors duration-300"
-        style={{ backgroundColor: primaryColor }}
-      >
-        <div className={`flex items-center gap-2 ${logoJustify}`}>
-          {logoPreviewUrl ? (
-            <img
-              src={logoPreviewUrl}
-              alt="Organization logo"
-              className="h-10 max-w-[140px] rounded object-contain"
-            />
-          ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded bg-white/20 backdrop-blur-sm">
-              <div className="h-5 w-5 rounded-sm bg-white" />
-            </div>
-          )}
-          <span className="font-display text-base font-bold tracking-wide text-white">
-            {companyName || "ACME"}
-          </span>
-        </div>
-      </div>
-
-      {/* Badge body */}
-      <div className="flex flex-1 flex-col items-center gap-4 px-6 py-6">
-        <p
-          className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-          style={{ color: primaryColor }}
-        >
-          Visitor Pass
-        </p>
-
-        {/* Visitor photo placeholder */}
-        <div
-          className="flex h-24 w-24 items-center justify-center rounded-full border-2 bg-white text-2xl font-semibold"
-          style={{ borderColor: accentColor, color: primaryColor }}
-        >
-          JD
-        </div>
-
-        <div className="text-center">
-          <p className="text-lg font-semibold" style={{ color: primaryColor }}>
-            Jane Doe
-          </p>
-          <p className="text-xs text-muted-foreground">Acme Logistics</p>
-        </div>
-
-        <div className="mt-1 grid w-full grid-cols-2 gap-3 text-[11px]">
-          <div>
-            <p className="uppercase tracking-wide text-muted-foreground">Host</p>
-            <p className="font-medium" style={{ color: primaryColor }}>M. Adeola</p>
-          </div>
-          <div>
-            <p className="uppercase tracking-wide text-muted-foreground">Purpose</p>
-            <p className="font-medium" style={{ color: primaryColor }}>Meeting</p>
-          </div>
-          <div>
-            <p className="uppercase tracking-wide text-muted-foreground">Check-in</p>
-            <p className="font-medium" style={{ color: primaryColor }}>09:42</p>
-          </div>
-          <div>
-            <p className="uppercase tracking-wide text-muted-foreground">Badge</p>
-            <p className="font-medium" style={{ color: primaryColor }}>A7</p>
-          </div>
-        </div>
-
-        {/* QR with embedded logo (tenant logo if uploaded, VisiChek otherwise) */}
-        <div
-          className="mt-auto flex h-24 w-24 items-center justify-center rounded-md p-1.5"
-          style={{ backgroundColor: accentColor }}
-        >
-          <div className="flex h-full w-full items-center justify-center rounded-sm bg-white p-1">
-            <QRCodeSVG
-              value="visichek://badge-preview"
-              size={84}
-              level="H"
-              marginSize={0}
-              fgColor={primaryColor}
-              bgColor="#ffffff"
-              imageSettings={{
-                src: logoPreviewUrl ?? "/visichek_logo.svg",
-                height: 18,
-                width: 18,
-                excavate: true,
-              }}
-              style={{ width: "100%", height: "100%" }}
-            />
-          </div>
         </div>
       </div>
     </div>
@@ -339,6 +262,14 @@ export function BrandingTab() {
         primaryColor:   brandingConfig.primaryColor   || DEFAULT_BRANDING.primaryColor,
         secondaryColor: brandingConfig.secondaryColor || DEFAULT_BRANDING.secondaryColor,
         accentColor:    brandingConfig.accentColor    || DEFAULT_BRANDING.accentColor,
+        // Badge header falls back to the primary brand color, text to
+        // white — mirrors the backend's badge-pass fallbacks.
+        badgeHeaderColor:
+          brandingConfig.badgeHeaderColor ||
+          brandingConfig.primaryColor ||
+          DEFAULT_BRANDING.badgeHeaderColor,
+        badgeTextColor:
+          brandingConfig.badgeTextColor || DEFAULT_BRANDING.badgeTextColor,
         logoPosition:   brandingConfig.logoPosition   || DEFAULT_BRANDING.logoPosition,
       };
       reset(next);
@@ -358,11 +289,23 @@ export function BrandingTab() {
     setValue("primaryColor",   preset.primary,   { shouldDirty: true });
     setValue("secondaryColor", preset.secondary, { shouldDirty: true });
     setValue("accentColor",    preset.accent,    { shouldDirty: true });
+    // Keep the badge header in step with the theme so the preview stays
+    // cohesive; the badge inputs below can still override it.
+    setValue("badgeHeaderColor", preset.primary, { shouldDirty: true });
     setActivePreset(preset.name);
   };
 
   const handleColorChange =
-    (field: keyof Pick<BrandingFormData, "primaryColor" | "secondaryColor" | "accentColor">) =>
+    (
+      field: keyof Pick<
+        BrandingFormData,
+        | "primaryColor"
+        | "secondaryColor"
+        | "accentColor"
+        | "badgeHeaderColor"
+        | "badgeTextColor"
+      >,
+    ) =>
     (val: string) => {
       setValue(field, val, { shouldDirty: true });
       setActivePreset(null);
@@ -376,10 +319,14 @@ export function BrandingTab() {
     const input: UpdateBrandingInput = {
       branding: {
         tenantId,
-        primaryColor:   data.primaryColor,
-        secondaryColor: data.secondaryColor,
-        accentColor:    data.accentColor,
-        logoPosition:   data.logoPosition,
+        primaryColor:     data.primaryColor,
+        secondaryColor:   data.secondaryColor,
+        accentColor:      data.accentColor,
+        badgeHeaderColor: data.badgeHeaderColor,
+        badgeTextColor:   data.badgeTextColor,
+        // The wire field is badge_logo_position — the bare logoPosition
+        // is an FE-side alias that doesn't exist on the backend schema.
+        badgeLogoPosition: data.logoPosition,
       },
       logoFile: logoFile ?? undefined,
     };
@@ -426,6 +373,17 @@ export function BrandingTab() {
   const companyName = (systemUserProfile as { companyName?: string } | undefined)?.companyName || "";
   const persistedLogoUrl = brandingConfig?.logoUrl ?? null;
 
+  // Badge branding derived from the CURRENT (possibly unsaved) form
+  // state — feeds the live preview AND the inline test print, so both
+  // are true WYSIWYG for what real badges will look like once saved.
+  const previewBranding: BadgeBranding = {
+    headerColor: watched.badgeHeaderColor || watched.primaryColor,
+    textColor: watched.badgeTextColor,
+    logoUrl: logoPreviewUrl ?? persistedLogoUrl,
+    logoPosition: watched.logoPosition,
+    companyDisplayName: companyName || undefined,
+  };
+
   return (
     <div className="space-y-8">
       <form onSubmit={handleSubmit(onSubmit)}>
@@ -460,7 +418,7 @@ export function BrandingTab() {
                 <TabsTrigger
                   value="print"
                   className="min-h-[44px] gap-2"
-                  title="Open a sample printable visitor badge in a new tab to test how it looks coming out of your printer"
+                  title="Preview and print a sample visitor badge with your current branding to test how it comes out of your printer"
                 >
                   {isTabPending && pendingTab === "print" ? (
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -537,6 +495,31 @@ export function BrandingTab() {
                     onChange={handleColorChange("accentColor")}
                   />
                 </div>
+
+                <Separator />
+
+                <div>
+                  <p className="mb-1 text-sm font-medium text-foreground">Badge Colors</p>
+                  <p className="mb-4 text-xs text-muted-foreground">
+                    Used on the visitor badge header — on screen, on the
+                    printed pass, and in the PDF download. The live preview
+                    updates as you pick.
+                  </p>
+                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <ColorInput
+                      id="badge-header-color"
+                      label="Badge Header"
+                      value={watched.badgeHeaderColor}
+                      onChange={handleColorChange("badgeHeaderColor")}
+                    />
+                    <ColorInput
+                      id="badge-text-color"
+                      label="Badge Header Text"
+                      value={watched.badgeTextColor}
+                      onChange={handleColorChange("badgeTextColor")}
+                    />
+                  </div>
+                </div>
               </CardContent>
             </Card>
               </TabsContent>
@@ -604,7 +587,7 @@ export function BrandingTab() {
                 </div>
 
                 <div>
-                  <p className="mb-2 text-sm font-medium text-foreground">Navigation Alignment</p>
+                  <p className="mb-2 text-sm font-medium text-foreground">Badge Logo Alignment</p>
                   <div className="flex w-fit rounded-lg bg-muted p-1">
                     {LOGO_ALIGNMENT_OPTIONS.map((opt) => {
                       const Icon = opt.icon;
@@ -661,52 +644,20 @@ export function BrandingTab() {
 
                   <CardContent className="space-y-4 p-6">
                     <p className="text-sm text-muted-foreground">
-                      Open a sample printable visitor badge in a new tab to test how the
-                      A6 and A7 layouts come out of your printer. The sample uses mock
-                      visitor data so you can run as many test prints as you like.
+                      Print a sample visitor badge to test how the A6 and A7
+                      layouts come out of your printer. The sample renders the
+                      exact same badge your visitors get — with your current
+                      branding edits, including any you haven&apos;t saved yet —
+                      and uses mock visitor data so you can run as many test
+                      prints as you like.
                     </p>
-
-                    {!isDirty && !logoFile ? null : (
-                      <div className="rounded-md border border-amber-300/50 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-                        You have unsaved changes. The test print page renders the sample
-                        badge with VisiChek defaults — save first to test with your own
-                        colors and logo.
-                      </div>
-                    )}
 
                     <div className="flex flex-col gap-2 sm:flex-row">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            asChild
-                            className="h-11 w-full sm:w-auto"
-                          >
-                            <a
-                              href="/badge/test-badge-token"
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              <Printer className="mr-2 h-4 w-4" aria-hidden="true" />
-                              Open test badge
-                            </a>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          Open the printable visitor badge with mock data in a new tab —
-                          use the Print and Download buttons there to verify your printer
-                          output
-                        </TooltipContent>
-                      </Tooltip>
-                      <TestPrintBadgeButton />
+                      <TestPrintBadgeButton
+                        branding={previewBranding}
+                        orgName={companyName}
+                      />
                     </div>
-
-                    <p className="text-xs text-muted-foreground">
-                      The printable badge is monochrome by design so it prints crisply
-                      on any black-and-white printer, including thermal label printers.
-                      Your colors apply to the on-screen badge experience and visitor
-                      check-in flows.
-                    </p>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -720,17 +671,22 @@ export function BrandingTab() {
                 <h2 className="text-base font-semibold text-foreground">Live Badge Preview</h2>
               </div>
 
-              <BadgePreview
-                primaryColor={watched.primaryColor}
-                secondaryColor={watched.secondaryColor}
-                accentColor={watched.accentColor}
-                logoPosition={watched.logoPosition}
-                companyName={companyName}
-                logoPreviewUrl={logoPreviewUrl ?? persistedLogoUrl}
-              />
+              {/* The one unified badge renderer, print-a6 variant scaled
+                  to fit — exactly what prints and downloads. */}
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <BadgeScaleFrame dims={badgePrintDims("A6")} maxWidthPx={340}>
+                  <VisitorBadge
+                    data={sampleBadgeData(companyName)}
+                    branding={previewBranding}
+                    variant="print-a6"
+                    sample
+                  />
+                </BadgeScaleFrame>
+              </div>
 
               <p className="text-center text-sm text-muted-foreground">
-                This is how the printed visitor badge will look. Don&apos;t forget to save.
+                Exactly what prints — including your unsaved edits. Save to
+                apply them to real visitor badges.
               </p>
             </div>
           </div>

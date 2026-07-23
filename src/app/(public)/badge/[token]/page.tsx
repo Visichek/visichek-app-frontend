@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { AlertCircle, Loader2, Printer } from "lucide-react";
 import { toast } from "sonner";
@@ -19,16 +13,17 @@ import {
 } from "@/components/ui/tooltip";
 import { usePublicBadge } from "@/features/public-registration/hooks";
 import {
-  PrintBadge,
-  printBadgeDims,
-  type PrintBadgeData,
-  type PrintBadgeFormat,
-} from "@/features/visitors/components/print-badge";
+  VisitorBadge,
+  BadgeScaleFrame,
+  badgePrintDims,
+  printVariantForFormat,
+  publicBadgePassToBadge,
+  type BadgePrintFormat,
+} from "@/features/visitors/components/visitor-badge";
 import { printVisitorBadge } from "@/features/visitors/lib/badge-export";
-import type { VisitStatus } from "@/types/enums";
 
 const FORMAT_OPTIONS: {
-  value: PrintBadgeFormat;
+  value: BadgePrintFormat;
   label: string;
   help: string;
 }[] = [
@@ -44,15 +39,6 @@ const FORMAT_OPTIONS: {
   },
 ];
 
-const STATUS_LABELS: Record<VisitStatus, string> = {
-  registered: "Registered",
-  pending_verification: "Pending",
-  checked_in: "Checked in",
-  checked_out: "Checked out",
-  denied: "Denied",
-  cancelled: "Cancelled",
-};
-
 export default function PublicBadgePage() {
   const params = useParams<{ token: string }>();
   const token = decodeURIComponent(
@@ -61,28 +47,14 @@ export default function PublicBadgePage() {
 
   const { data: pass, isLoading, isError, error } = usePublicBadge(token);
 
-  const [format, setFormat] = useState<PrintBadgeFormat>("A6");
+  const [format, setFormat] = useState<BadgePrintFormat>("A6");
   const [isPrinting, setIsPrinting] = useState(false);
   const badgeRef = useRef<HTMLDivElement | null>(null);
 
-  const badgeData = useMemo<PrintBadgeData | null>(() => {
-    if (!pass) return null;
-    return {
-      tenantName: pass.tenant.companyName,
-      tenantLogoUrl: pass.tenant.brandingEnabled
-        ? pass.tenant.logoUrl
-        : undefined,
-      visitorName: pass.visitorName,
-      company: pass.company,
-      purpose: pass.purpose,
-      hostName: pass.hostName,
-      departmentName: pass.departmentName,
-      statusLabel: STATUS_LABELS[pass.status] ?? "Visitor",
-      qrToken: pass.token,
-      issuedAt: pass.issuedAt,
-      expiresAt: pass.expiresAt,
-    };
-  }, [pass]);
+  const badge = useMemo(
+    () => (pass ? publicBadgePassToBadge(pass) : null),
+    [pass],
+  );
 
   async function handlePrint() {
     if (!badgeRef.current || isPrinting) return;
@@ -109,7 +81,7 @@ export default function PublicBadgePage() {
   }
 
   // ── Error / not found ───────────────────────────────────────────────
-  if (isError || !badgeData) {
+  if (isError || !badge) {
     return (
       <div className="flex min-h-[70vh] items-center justify-center px-4">
         <div className="flex max-w-md flex-col items-center gap-3 text-center">
@@ -129,7 +101,7 @@ export default function PublicBadgePage() {
     );
   }
 
-  const dims = printBadgeDims(format);
+  const dims = badgePrintDims(format);
 
   // ── Badge ready ─────────────────────────────────────────────────────
   return (
@@ -172,14 +144,19 @@ export default function PublicBadgePage() {
         })}
       </div>
 
-      {/* Preview */}
+      {/* Preview — the same node the print pipeline captures. */}
       <div
         aria-label="Badge preview"
         className="flex w-full justify-center rounded-lg border bg-muted/30 p-3 sm:p-4"
       >
-        <BadgePreviewFrame dims={dims}>
-          <PrintBadge ref={badgeRef} data={badgeData} format={format} />
-        </BadgePreviewFrame>
+        <BadgeScaleFrame dims={dims}>
+          <VisitorBadge
+            ref={badgeRef}
+            data={badge.data}
+            branding={badge.branding}
+            variant={printVariantForFormat(format)}
+          />
+        </BadgeScaleFrame>
       </div>
 
       {/* Actions */}
@@ -210,55 +187,6 @@ export default function PublicBadgePage() {
         The QR code on this badge is what reception scans to check you out. Keep
         the printed copy until you leave.
       </p>
-    </div>
-  );
-}
-
-interface PreviewFrameProps {
-  dims: { width: number; height: number };
-  children: ReactNode;
-}
-
-/**
- * Scales the print-sized badge down to fit the on-screen card while leaving
- * the underlying mm geometry untouched, so the print/PDF capture stays crisp.
- */
-function BadgePreviewFrame({ dims, children }: PreviewFrameProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [scale, setScale] = useState(1);
-
-  // 1mm ≈ 3.7795 CSS px at 96dpi.
-  const pxWidth = dims.width * 3.7795;
-  const pxHeight = dims.height * 3.7795;
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver(() => {
-      const available = el.clientWidth - 8;
-      setScale(Math.min(1, Math.min(360, available) / pxWidth));
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [pxWidth]);
-
-  return (
-    <div
-      ref={containerRef}
-      style={{ width: "100%", display: "flex", justifyContent: "center" }}
-    >
-      <div style={{ width: pxWidth * scale, height: pxHeight * scale }}>
-        <div
-          style={{
-            transform: `scale(${scale})`,
-            transformOrigin: "top left",
-            width: pxWidth,
-            height: pxHeight,
-          }}
-        >
-          {children}
-        </div>
-      </div>
     </div>
   );
 }

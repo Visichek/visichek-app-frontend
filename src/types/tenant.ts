@@ -48,6 +48,32 @@ export interface TenantBootstrapRequest {
   adminPassword: string;
 }
 
+/**
+ * Point-of-contact summary embedded on branch reads (WS4). Resolved
+ * server-side: the designated contact user → else the branch's own
+ * email/phone as a synthetic contact → else the org's main super admin.
+ * The backend never returns an empty summary, but every field is
+ * optional here so older payloads (no summary at all) render safely.
+ *
+ * `userId` is null/absent for the synthetic branch-email fallback.
+ * `phone` can only come from the branch record itself — system users
+ * have no phone field.
+ */
+export interface BranchContactSummary {
+  userId?: string | null;
+  fullName?: string | null;
+  email?: string | null;
+  role?: string | null;
+  phone?: string | null;
+}
+
+/**
+ * Organization-level point of contact (WS4) — the main super admin, as
+ * returned by `GET /v1/tenants/me/contact`. Same shape as the branch
+ * summary; kept as a named alias for call-site clarity.
+ */
+export type OrgContactSummary = BranchContactSummary;
+
 export interface Branch {
   id: string;
   tenantId: string;
@@ -59,6 +85,14 @@ export interface Branch {
   isActive?: boolean;
   /** True for the tenant's auto-created HQ branch. */
   isHeadquarters?: boolean;
+  /**
+   * Designated point-of-contact system user for this branch (WS4).
+   * Optional on the wire; send `null` to clear the designation and fall
+   * back to the server's resolution chain.
+   */
+  contactUserId?: string | null;
+  /** Resolved point of contact — see {@link BranchContactSummary}. */
+  contactSummary?: BranchContactSummary | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -82,14 +116,23 @@ export interface TenantBranding {
   tenantId: string;
   /** Tenant's display name — sourced from PublicTenantInfo and used in titles/headers */
   companyName?: string;
+  /** Branding display name (wire: company_display_name) — may differ from the legal company name. */
+  companyDisplayName?: string;
   primaryColor?: string;
   secondaryColor?: string;
   accentColor?: string;
+  /** Badge header background color (wire: badge_header_color). Falls back to primaryColor. */
+  badgeHeaderColor?: string;
+  /** Badge header text color (wire: badge_text_color). Falls back to #FFFFFF. */
+  badgeTextColor?: string;
   logoUrl?: string;
   logoObjectKey?: string;
+  faviconUrl?: string;
+  faviconObjectKey?: string;
+  /** FE convenience alias of badgeLogoPosition (populated by normalizeBranding). */
   logoPosition?: LogoPosition;
-  badgePrimaryColor?: string;
-  badgeSecondaryColor?: string;
+  /** FE convenience — resolved logo URL for badges (populated by normalizeBranding). */
   badgeLogoUrl?: string;
+  /** Logo position on generated visitor badges (wire: badge_logo_position). */
   badgeLogoPosition?: LogoPosition;
 }

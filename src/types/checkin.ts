@@ -409,6 +409,27 @@ export interface CheckinSubmitByVisitorIdRequest {
   visitorLocationAccuracyM?: number;
 }
 
+/**
+ * Response from the public check-in status endpoint
+ * (`GET /v1/public/checkins/{checkin_id}/status`, Task B2 contract).
+ * Fields arrive camelCased on the wire.
+ *
+ * - `badge` is populated once `state === "approved"` AND a badge exists.
+ *   Free-plan orgs get `state: "approved"` with `badge: null` — badges are
+ *   plan-gated but the check-in itself succeeds.
+ * - `badgeToken` is the badge QR token; `/badge/{badgeToken}` renders the
+ *   phone-friendly pass.
+ * - `badgeExpiresAt` is unix epoch seconds; null when the badge has no
+ *   auto-expiry (MANUAL expiry mode) or no badge was issued.
+ */
+export interface PublicCheckinStatusOut {
+  state: CheckinState;
+  badge: import("./public").PublicBadgePass | null;
+  badgeToken: string | null;
+  badgeExpiresAt: number | null;
+  rejectionReason: string | null;
+}
+
 /** Receptionist approve/reject payload. */
 export interface CheckinConfirmRequest {
   action: CheckinConfirmAction;
@@ -479,6 +500,19 @@ export interface CheckinOut {
    * `null` for any check-in that hasn't been checked out yet.
    */
   checkedOutAt?: number | null;
+  /**
+   * How the visit ended (WS6): "qr_scan" | "manual" | "auto". Absent on
+   * rows checked out before the field existed.
+   */
+  checkOutMethod?: string | null;
+  /**
+   * Why the visit was closed (WS6). The auto-checkout sweep stamps
+   * "Auto checkout after {N}h (no checkout recorded)"; manual checkouts
+   * may carry an operator-supplied reason.
+   */
+  checkOutReason?: string | null;
+  /** True when the auto-checkout sweep closed this check-in (WS6). */
+  autoCheckedOut?: boolean;
   /**
    * Visitor snapshot embedded on every check-in list / detail / analytics
    * row so the approver can confirm identity without a second fetch.
