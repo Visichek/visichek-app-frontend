@@ -42,15 +42,29 @@ import { formatDate } from "@/lib/utils/format-date";
 
 interface FormState {
   companyName: string;
-  organizationAddress: string;
+  addressStreet: string;
+  addressCity: string;
+  addressState: string;
+  addressPostalCode: string;
+  addressCountry: string;
 }
 
 const EMPTY_FORM: FormState = {
   companyName: "",
-  organizationAddress: "",
+  addressStreet: "",
+  addressCity: "",
+  addressState: "",
+  addressPostalCode: "",
+  addressCountry: "",
 };
 
-const ORG_ADDRESS_MAX = 500;
+const ADDRESS_LIMITS: Record<keyof Omit<FormState, "companyName">, number> = {
+  addressStreet: 200,
+  addressCity: 100,
+  addressState: 100,
+  addressPostalCode: 20,
+  addressCountry: 100,
+};
 
 export function ConfirmTenantClient() {
   const { hasCapability } = useCapabilities();
@@ -105,12 +119,26 @@ export function ConfirmTenantClient() {
     if (dpa?.accepted) setDpaAccepted(true);
   }, [dpa?.accepted]);
 
-  // Prefill once the review payload arrives.
+  // Prefill once the review payload arrives. Tenants saved before the
+  // address split only have the joined organizationAddress — surface it in
+  // the street field so nothing they entered disappears.
   useEffect(() => {
     if (!confirmation) return;
+    const hasStructured =
+      confirmation.addressStreet ||
+      confirmation.addressCity ||
+      confirmation.addressState ||
+      confirmation.addressPostalCode ||
+      confirmation.addressCountry;
     setForm({
       companyName: confirmation.companyName ?? "",
-      organizationAddress: confirmation.organizationAddress ?? "",
+      addressStreet:
+        confirmation.addressStreet ??
+        (hasStructured ? "" : (confirmation.organizationAddress ?? "")),
+      addressCity: confirmation.addressCity ?? "",
+      addressState: confirmation.addressState ?? "",
+      addressPostalCode: confirmation.addressPostalCode ?? "",
+      addressCountry: confirmation.addressCountry ?? "",
     });
   }, [confirmation]);
 
@@ -218,8 +246,28 @@ export function ConfirmTenantClient() {
     if (name.length < 1 || name.length > 200) {
       next.companyName = "Company name must be 1–200 characters.";
     }
-    if (form.organizationAddress.trim().length > ORG_ADDRESS_MAX) {
-      next.organizationAddress = `Address must be ${ORG_ADDRESS_MAX} characters or fewer.`;
+    // The organization address feeds the DPA's Controller party block, so
+    // the core parts are required to finish onboarding (postal code stays
+    // optional — not every region uses one).
+    if (!form.addressStreet.trim()) {
+      next.addressStreet = "Street address is required.";
+    }
+    if (!form.addressCity.trim()) {
+      next.addressCity = "City is required.";
+    }
+    if (!form.addressState.trim()) {
+      next.addressState = "State or region is required.";
+    }
+    if (!form.addressCountry.trim()) {
+      next.addressCountry = "Country is required.";
+    }
+    for (const [key, max] of Object.entries(ADDRESS_LIMITS) as [
+      keyof typeof ADDRESS_LIMITS,
+      number,
+    ][]) {
+      if (form[key].trim().length > max && !next[key]) {
+        next[key] = `Must be ${max} characters or fewer.`;
+      }
     }
     setFieldErrors(next);
     return Object.keys(next).length === 0;
@@ -231,17 +279,28 @@ export function ConfirmTenantClient() {
   function buildPayload(): TenantConfirmationRequest {
     if (!confirmation) return {};
     const payload: TenantConfirmationRequest = {};
-    const trimmed = {
-      companyName: form.companyName.trim(),
-      organizationAddress: form.organizationAddress.trim(),
-    };
-    if (trimmed.companyName !== (confirmation.companyName ?? "")) {
-      payload.companyName = trimmed.companyName;
+    const trimmedName = form.companyName.trim();
+    if (trimmedName !== (confirmation.companyName ?? "")) {
+      payload.companyName = trimmedName;
     }
-    if (
-      trimmed.organizationAddress !== (confirmation.organizationAddress ?? "")
-    ) {
-      payload.organizationAddress = trimmed.organizationAddress;
+    // Send only changed address parts — the backend merges them with what's
+    // on file and recomposes the joined organizationAddress for the DPA.
+    const addressFields = [
+      ["addressStreet", form.addressStreet, confirmation.addressStreet],
+      ["addressCity", form.addressCity, confirmation.addressCity],
+      ["addressState", form.addressState, confirmation.addressState],
+      [
+        "addressPostalCode",
+        form.addressPostalCode,
+        confirmation.addressPostalCode,
+      ],
+      ["addressCountry", form.addressCountry, confirmation.addressCountry],
+    ] as const;
+    for (const [key, value, current] of addressFields) {
+      const trimmed = value.trim();
+      if (trimmed !== (current ?? "")) {
+        payload[key] = trimmed;
+      }
     }
     // The DPO contact email is always the email of the super admin completing
     // onboarding — not a field they fill in. Send it when it differs from
@@ -329,16 +388,76 @@ export function ConfirmTenantClient() {
               maxLength={200}
               hint="This is the company name on file. Contact support if it needs to change."
             />
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Organization address</p>
+              <p className="text-xs text-muted-foreground">
+                Used to fill the Organization party block in your Data
+                Processing Agreement.
+              </p>
+            </div>
             <Field
-              id="confirm-organizationAddress"
-              label="Organization address"
-              value={form.organizationAddress}
-              onChange={(v) => setField("organizationAddress", v)}
-              error={fieldErrors.organizationAddress}
-              maxLength={ORG_ADDRESS_MAX}
-              placeholder="e.g. 1 Main St, Lagos"
-              hint="Used to fill the Organization party block in your Data Processing Agreement."
+              id="confirm-addressStreet"
+              label="Street address"
+              required
+              value={form.addressStreet}
+              onChange={(v) => setField("addressStreet", v)}
+              error={fieldErrors.addressStreet}
+              maxLength={ADDRESS_LIMITS.addressStreet}
+              placeholder="e.g. 1 Main Street"
             />
+            <div className="flex flex-col gap-5 md:flex-row">
+              <div className="flex-1">
+                <Field
+                  id="confirm-addressCity"
+                  label="City"
+                  required
+                  value={form.addressCity}
+                  onChange={(v) => setField("addressCity", v)}
+                  error={fieldErrors.addressCity}
+                  maxLength={ADDRESS_LIMITS.addressCity}
+                  placeholder="e.g. Ikeja"
+                />
+              </div>
+              <div className="flex-1">
+                <Field
+                  id="confirm-addressState"
+                  label="State / region"
+                  required
+                  value={form.addressState}
+                  onChange={(v) => setField("addressState", v)}
+                  error={fieldErrors.addressState}
+                  maxLength={ADDRESS_LIMITS.addressState}
+                  placeholder="e.g. Lagos"
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-5 md:flex-row">
+              <div className="flex-1">
+                <Field
+                  id="confirm-addressPostalCode"
+                  label="Postal code"
+                  value={form.addressPostalCode}
+                  onChange={(v) => setField("addressPostalCode", v)}
+                  error={fieldErrors.addressPostalCode}
+                  maxLength={ADDRESS_LIMITS.addressPostalCode}
+                  placeholder="e.g. 100001"
+                  inputMode="numeric"
+                  hint="Optional."
+                />
+              </div>
+              <div className="flex-1">
+                <Field
+                  id="confirm-addressCountry"
+                  label="Country"
+                  required
+                  value={form.addressCountry}
+                  onChange={(v) => setField("addressCountry", v)}
+                  error={fieldErrors.addressCountry}
+                  maxLength={ADDRESS_LIMITS.addressCountry}
+                  placeholder="e.g. Nigeria"
+                />
+              </div>
+            </div>
           </CardContent>
         </Card>
 

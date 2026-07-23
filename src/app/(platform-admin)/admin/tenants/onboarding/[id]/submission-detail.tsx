@@ -77,8 +77,7 @@ function renderFieldValue(value: OnboardingFieldValue): string {
 // The backend's case-conversion middleware camelCases object keys but leaves
 // array string values alone, so `fieldOrder` arrives as snake_case while
 // `payload` / `fieldLabels` keys arrive as camelCase. Convert each field key
-// to its camelCase form for lookups; the original snake_case is still what
-// we render to the user as the canonical form-field id.
+// to its camelCase form for lookups.
 function toCamelKey(key: string): string {
   return key.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
 }
@@ -291,9 +290,6 @@ export function OnboardingSubmissionDetail({
                         </TooltipContent>
                       </Tooltip>
                     )}
-                  </div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">
-                    {key}
                   </div>
                 </div>
                 <div className="text-sm md:col-span-2 break-words">

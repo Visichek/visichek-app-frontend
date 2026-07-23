@@ -278,16 +278,36 @@ function draftReducer(state: DraftState, action: DraftAction): DraftState {
         (field) => field.fieldId === action.previousFieldId,
       );
       if (index < 0) return state;
+      const previous = state.fields[index];
+      // System-locked fields: `required` / `type` / `mapsTo` (and the id
+      // itself) are pinned — only label / help / placeholder / order pass
+      // through. The backend re-enforces the same lock on autosave/publish.
+      const nextField: FormFieldDefinition = previous.locked
+        ? {
+            ...action.field,
+            fieldId: previous.fieldId,
+            type: previous.type,
+            required: previous.required,
+            mapsTo: previous.mapsTo,
+            locked: true,
+          }
+        : action.field;
       const fields = state.fields.map((field, i) =>
-        i === index ? { ...action.field, order: field.order } : field,
+        i === index ? { ...nextField, order: field.order } : field,
       );
       return {
         ...state,
         fields: restamp(ordered(fields)),
-        focusedFieldId: action.field.fieldId,
+        focusedFieldId: nextField.fieldId,
       };
     }
-    case "removeField":
+    case "removeField": {
+      const target = state.fields.find(
+        (field) => field.fieldId === action.fieldId,
+      );
+      // Locked system fields (e.g. the check-in Department picker) cannot
+      // be removed — the backend would re-inject them anyway.
+      if (target?.locked) return state;
       return {
         ...state,
         fields: restamp(
@@ -296,6 +316,7 @@ function draftReducer(state: DraftState, action: DraftAction): DraftState {
         focusedFieldId:
           state.focusedFieldId === action.fieldId ? null : state.focusedFieldId,
       };
+    }
     case "duplicateField": {
       const fields = ordered(state.fields);
       const index = fields.findIndex((field) => field.fieldId === action.fieldId);
@@ -309,6 +330,11 @@ function draftReducer(state: DraftState, action: DraftAction): DraftState {
         ...structuredClone(source),
         fieldId,
         label: source.label ? `${source.label} (copy)` : "Untitled question",
+        // Never propagate the system lock (or its record mapping) to a
+        // copy — otherwise the backend's maps_to-based lock enforcement
+        // would make the duplicate permanently undeletable too.
+        locked: false,
+        mapsTo: source.locked ? null : source.mapsTo,
       };
       const next = [...fields.slice(0, index + 1), clone, ...fields.slice(index + 1)];
       return { ...state, fields: restamp(next), focusedFieldId: fieldId };

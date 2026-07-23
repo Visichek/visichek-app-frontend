@@ -143,11 +143,17 @@ export interface TenantConfirmation {
   privacyPolicyUrl: string | null;
   countryOfHosting: string | null;
   /**
-   * Organization's registered address. Fills the "Address" line of the
-   * Organization party block in the per-tenant Data Processing Agreement;
-   * shows `[To be provided]` in the DPA copy when unset.
+   * Organization's registered address (joined single line). Fills the
+   * "Address" line of the Organization party block in the per-tenant Data
+   * Processing Agreement; shows `[To be provided]` in the DPA copy when
+   * unset. Composed server-side from the structured address parts below.
    */
   organizationAddress: string | null;
+  addressStreet: string | null;
+  addressCity: string | null;
+  addressState: string | null;
+  addressPostalCode: string | null;
+  addressCountry: string | null;
 
   onboardingInfoConfirmed: boolean;
   onboardingInfoConfirmedAt: number | null;
@@ -171,12 +177,22 @@ export interface TenantConfirmationRequest {
   privacyPolicyUrl?: string;
   countryOfHosting?: string;
   /**
-   * Organization's registered address (max 500 chars). Editable on the
-   * confirm screen; fills the Organization party "Address" line in the DPA.
-   * Save it in the same request as `dpaAccepted: true` so the frozen DPA copy
-   * reflects the final address.
+   * Organization's registered address (max 500 chars). Legacy single-line
+   * form — prefer the structured parts below; the backend recomposes this
+   * joined line from them so the DPA's Organization party "Address" line
+   * stays in sync.
    */
   organizationAddress?: string;
+  /** Street address, e.g. "1 Main Street" (max 200 chars). */
+  addressStreet?: string;
+  /** City or town (max 100 chars). */
+  addressCity?: string;
+  /** State, province, or region (max 100 chars). */
+  addressState?: string;
+  /** Postal or ZIP code (max 20 chars). */
+  addressPostalCode?: string;
+  /** Country (max 100 chars). */
+  addressCountry?: string;
   /**
    * Tenant's acceptance of the VisiChek Data Processing Agreement, captured
    * on the first-login confirm screen. `dpaAcceptedAt` is the Unix epoch
