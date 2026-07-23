@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   CheckCircle2,
+  Clock,
+  User,
   XCircle,
   Loader2,
   Printer,
@@ -15,6 +17,7 @@ import { PageHeader } from "@/components/recipes/page-header";
 import { NavButton } from "@/components/recipes/nav-button";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { LoadingButton } from "@/components/feedback/loading-button";
 import {
@@ -31,6 +34,7 @@ import {
   type CheckinOut,
 } from "@/types/checkin";
 import { CheckinStateBadge } from "./state-badge";
+import { IdentityCheckBadge } from "./identity-check-badge";
 import { useConfirmCheckin } from "../hooks";
 import {
   PrintBadgeModal,
@@ -46,7 +50,11 @@ interface ConfirmCheckinFormProps {
 interface BadgeState {
   qrToken: string;
   visitorName: string;
+  issuedAt: number;
 }
+
+/** Default badge validity window shown when the backend doesn't supply one. */
+const BADGE_DEFAULT_TTL_SECONDS = 12 * 60 * 60;
 
 /**
  * Dedicated page-level form for approving or rejecting a check-in.
@@ -100,7 +108,7 @@ export function ConfirmCheckinForm({
 
         if (qrToken) {
           toast.success(`${visitorName} checked in. Badge ready to print.`);
-          setBadge({ qrToken, visitorName });
+          setBadge({ qrToken, visitorName, issuedAt: Math.floor(Date.now() / 1000) });
           return;
         }
 
@@ -154,7 +162,8 @@ export function ConfirmCheckinForm({
         description={`${visitorName} is waiting for a decision.`}
       />
 
-      {/* Visitor snapshot */}
+      {/* Visitor snapshot — every detail the old two-button screen showed,
+          collapsed onto this decision page so there's only one stop. */}
       <section className="rounded-lg border p-4 space-y-3 bg-card">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -167,7 +176,12 @@ export function ConfirmCheckinForm({
                 className="h-12 w-12 rounded-full object-cover border"
               />
             ) : (
-              <div className="h-12 w-12 rounded-full bg-muted" aria-hidden="true" />
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                <User
+                  className="h-5 w-5 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              </div>
             )}
             <div className="min-w-0">
               <p className="font-medium truncate">{visitorName}</p>
@@ -188,8 +202,16 @@ export function ConfirmCheckinForm({
               )}
             </div>
           </div>
-          <CheckinStateBadge state={checkin.state} />
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <CheckinStateBadge state={checkin.state} />
+            <IdentityCheckBadge
+              identityCheck={checkin.identityCheck}
+              verified={checkin.verified}
+            />
+          </div>
         </div>
+
+        <Separator />
 
         <div className="text-sm">
           <p className="font-medium">Purpose</p>
@@ -199,7 +221,41 @@ export function ConfirmCheckinForm({
               {checkin.purpose.purposeDetails}
             </p>
           )}
+          {checkin.purpose.expectedDurationMinutes && (
+            <p className="text-xs text-muted-foreground inline-flex items-center gap-1 mt-1">
+              <Clock className="h-3 w-3" aria-hidden="true" />
+              Expected: {checkin.purpose.expectedDurationMinutes} min
+            </p>
+          )}
         </div>
+
+        {Object.keys(checkin.tenantSpecificData).length > 0 && (
+          <>
+            <Separator />
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">
+                Additional details
+              </p>
+              <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2 sm:gap-x-6">
+                {Object.entries(checkin.tenantSpecificData).map(
+                  ([key, value]) => (
+                    <div
+                      key={key}
+                      className="flex justify-between gap-4 sm:block sm:space-y-0.5"
+                    >
+                      <dt className="text-muted-foreground capitalize">
+                        {key.replace(/_/g, " ")}
+                      </dt>
+                      <dd className="text-right sm:text-left">
+                        {String(value)}
+                      </dd>
+                    </div>
+                  ),
+                )}
+              </dl>
+            </div>
+          </>
+        )}
 
         <p className="text-xs text-muted-foreground">
           Submitted {formatDateTime(checkin.dateCreated)}
@@ -409,6 +465,8 @@ export function ConfirmCheckinForm({
                 purpose: checkin.purpose?.purpose ?? undefined,
                 statusLabel: "Checked in",
                 qrToken: badge.qrToken,
+                issuedAt: badge.issuedAt,
+                expiresAt: badge.issuedAt + BADGE_DEFAULT_TTL_SECONDS,
               } satisfies PrintBadgeModalData)
             : { visitorName: "", statusLabel: "Checked in", qrToken: "" }
         }

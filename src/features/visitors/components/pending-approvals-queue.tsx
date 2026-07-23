@@ -162,8 +162,16 @@ function checkinConfirmHref(id: string, action: "approve" | "reject") {
   return `/app/visitors/${id}/confirm?action=${action}`;
 }
 
+/**
+ * "View details" for a pending row now goes straight to the unified
+ * decision page (`/confirm`) instead of the old read-only two-button
+ * screen at `/app/visitors/{id}` — that screen is redundant once the
+ * decision page shows the full visitor snapshot itself. No `?action=`
+ * is passed, so the decision page defaults to "approve" until the
+ * receptionist flips the switch.
+ */
 function checkinDetailHref(id: string) {
-  return `/app/visitors/${id}`;
+  return `/app/visitors/${id}/confirm`;
 }
 
 /** Default expiry hint shown on the badge when the backend doesn't supply one. */
@@ -1214,7 +1222,7 @@ export function PendingApprovalsQueue({ tenantId }: PendingApprovalsQueueProps) 
         }
         rowClickAriaLabel={(item) =>
           item.sourceType === "checkin"
-            ? `View check-in details for ${item.visitorName}`
+            ? `Review and decide on the check-in for ${item.visitorName}`
             : `Check in appointment for ${item.visitorName}`
         }
       />

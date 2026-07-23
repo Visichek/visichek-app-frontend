@@ -184,7 +184,7 @@ export function PrintBadgeModal({
       open={open}
       onOpenChange={onOpenChange}
       title="Print visitor badge"
-      description={`Preview the badge before printing. Default size is A6 (${FORMAT_OPTIONS[0].label.split(" ")[1]}).`}
+      description="Preview the badge before printing. Default size is A6 (105 × 148 mm)."
     >
       {/* Definite height (not max-h) — the preview frame is `flex-1` with an
           absolutely-positioned child, so without a resolved height on this
