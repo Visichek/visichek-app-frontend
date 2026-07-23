@@ -409,6 +409,27 @@ export interface CheckinSubmitByVisitorIdRequest {
   visitorLocationAccuracyM?: number;
 }
 
+/**
+ * Response from the public check-in status endpoint
+ * (`GET /v1/public/checkins/{checkin_id}/status`, Task B2 contract).
+ * Fields arrive camelCased on the wire.
+ *
+ * - `badge` is populated once `state === "approved"` AND a badge exists.
+ *   Free-plan orgs get `state: "approved"` with `badge: null` — badges are
+ *   plan-gated but the check-in itself succeeds.
+ * - `badgeToken` is the badge QR token; `/badge/{badgeToken}` renders the
+ *   phone-friendly pass.
+ * - `badgeExpiresAt` is unix epoch seconds; null when the badge has no
+ *   auto-expiry (MANUAL expiry mode) or no badge was issued.
+ */
+export interface PublicCheckinStatusOut {
+  state: CheckinState;
+  badge: import("./public").PublicBadgePass | null;
+  badgeToken: string | null;
+  badgeExpiresAt: number | null;
+  rejectionReason: string | null;
+}
+
 /** Receptionist approve/reject payload. */
 export interface CheckinConfirmRequest {
   action: CheckinConfirmAction;

@@ -29,6 +29,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useParams, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { QRCodeSVG } from "qrcode.react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils/cn";
 import {
   UserCheck,
@@ -40,6 +42,10 @@ import {
   Loader2,
   ArrowLeft,
   ArrowRight,
+  Download,
+  Printer,
+  Smartphone,
+  XCircle,
 } from "lucide-react";
 import {
   Card,
@@ -63,10 +69,14 @@ import {
 import { LoadingButton } from "@/components/feedback/loading-button";
 import { ErrorState } from "@/components/feedback/error-state";
 import { StepIndicator, type StepDef } from "@/components/recipes/step-indicator";
+import { ConfirmDialog } from "@/components/recipes/confirm-dialog";
 import {
   useActiveCheckinConfigForTenant,
   useCheckinEnumsForTenant,
+  useCheckinStatus,
   useSubmitCheckin,
+  useSubmitCheckinByVisitorId,
+  useVisitorStatus,
   useKycInitiate,
   useKycSkip,
   useKycStatus,
@@ -78,6 +88,14 @@ import {
   describeCheckinError,
   checkinKeys,
 } from "@/features/checkins";
+import {
+  VisitorBadge,
+  publicBadgePassToBadge,
+} from "@/features/visitors/components/visitor-badge";
+import {
+  downloadVisitorBadgePdf,
+  printVisitorBadge,
+} from "@/features/visitors/lib/badge-export";
 import type { KycStatusScreenState } from "@/features/checkins";
 import { ApiError } from "@/types/api";
 import { usePublicTenantBranding } from "@/hooks/use-public-tenant-branding";
@@ -88,10 +106,15 @@ import { requestUserLocation } from "@/lib/geolocation/user-location";
 import type {
   CheckinOut,
   PurposeInfo,
+  PublicVisitorStatusOut,
   RequiredField,
 } from "@/types/checkin";
 import type { KycWidgetConfig } from "@/types/kyc";
-import type { PublicDepartment, PublicPrivacyNotice } from "@/types/public";
+import type {
+  PublicBadgePass,
+  PublicDepartment,
+  PublicPrivacyNotice,
+} from "@/types/public";
 import {
   usePublicDepartments,
   usePublicPrivacyNotice,
@@ -184,13 +207,29 @@ const INITIAL_STATE: KioskState = {
 // v3 drops the freeform `purposeDetails` notes field, adds
 // `consentAcceptedAt`, and reorders the wizard (Verify is now the last step
 // after Review) — bump so stale cursors/drafts from the old order are dropped.
-const KIOSK_PERSIST_VERSION = 3;
+// v4 (WS5): the post-submit marker gains `approved` / `rejected` kinds plus
+// badge fields (`badge`, `badgeToken`, `badgeExpiresAt`), an `at` write
+// timestamp, and `phone` — all three keys share the version, so bump.
+const KIOSK_PERSIST_VERSION = 4;
 /** Form draft + wizard cursor — a kiosk session window. */
 const KIOSK_TTL_MS = 30 * 60 * 1000;
-/** KYC resume marker — shorter, since the verification window is brief. */
-const KYC_TTL_MS = 15 * 60 * 1000;
-/** On a terminal/wait screen, wipe everything after this much inactivity so a
- *  shared kiosk doesn't leak one visitor's data to the next. */
+/**
+ * Post-submit marker envelope TTL. Awaiting/approved markers must survive
+ * as long as a badge can be valid (so a refresh resumes the waiting or
+ * badge view), so the localStorage envelope is generous; the *effective*
+ * lifetime is enforced in the resume logic instead:
+ *   - KYC-phase markers go stale after `KYC_FRESH_MS` (verification
+ *     windows are brief);
+ *   - approved markers past `badgeExpiresAt` fall through to the
+ *     returning-visitor prompt rather than the badge view.
+ */
+const MARKER_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** How long a KYC-phase marker (widget/polling/failed) stays resumable. */
+const KYC_FRESH_MS = 15 * 60 * 1000;
+/** On a failure/rejection screen, wipe everything after this much
+ *  inactivity so a shared kiosk doesn't leak one visitor's data to the
+ *  next. Awaiting/approved states are exempt (WS5): the visitor may
+ *  legitimately wait longer than this, and the badge must stay up. */
 const IDLE_RESET_MS = 3 * 60 * 1000;
 
 /**
@@ -205,12 +244,25 @@ interface KycMarker {
     | "kyc_polling"
     | "kyc_verifying"
     | "kyc_failed"
-    | "awaiting_approval";
+    | "awaiting_approval"
+    | "approved"
+    | "rejected";
   checkin: CheckinOut;
   kycIntent: KycIntent | null;
   reason?: string;
   fullName?: string;
   email?: string;
+  /** Persisted so the returning-visitor probe can identify the visitor
+   *  after the form draft has been cleared. */
+  phone?: string;
+  /** Unix epoch ms when the marker was written — drives the KYC-phase
+   *  staleness check on resume (the envelope TTL is much longer). */
+  at?: number;
+  /** Badge fields, present on `approved` markers. `badge: null` with an
+   *  approved kind = badge-less approval (Free-plan org). */
+  badge?: PublicBadgePass | null;
+  badgeToken?: string | null;
+  badgeExpiresAt?: number | null;
 }
 
 /**
@@ -237,7 +289,34 @@ type KycPhase =
   | { kind: "kyc_polling"; checkin: CheckinOut }
   | { kind: "kyc_verifying"; checkin: CheckinOut }
   | { kind: "kyc_failed"; checkin: CheckinOut; reason?: string }
-  | { kind: "kyc_skipping"; checkin: CheckinOut };
+  | { kind: "kyc_skipping"; checkin: CheckinOut }
+  /** Receptionist approved. `badge: null` = badge-less approval (Free
+   *  plan) — show the "see the front desk for a printed pass" screen. */
+  | {
+      kind: "approved";
+      checkin: CheckinOut;
+      badge: PublicBadgePass | null;
+      badgeToken: string | null;
+      badgeExpiresAt: number | null;
+    }
+  | { kind: "rejected"; checkin: CheckinOut; reason?: string }
+  /** Same-device returning visitor: a previous visit's marker exists but
+   *  the visit is over / the badge expired. Offers a fast re-check-in. */
+  | {
+      kind: "returning_prompt";
+      fullName?: string;
+      email?: string;
+      phone?: string;
+    }
+  | {
+      kind: "returning_form";
+      visitorId: string;
+      fullName?: string;
+      /** Server said the stored ID verification is stale — surface a note. */
+      needsReverify?: boolean;
+      submitting?: boolean;
+      error?: string;
+    };
 
 // ── Page ─────────────────────────────────────────────────────────────
 
@@ -270,6 +349,8 @@ export default function KioskCheckinPage() {
   const privacyNoticeQ = usePublicPrivacyNotice(tenantId);
 
   const submitMutation = useSubmitCheckin({ configId: undefined, tenantId });
+  const submitByVisitorIdMutation = useSubmitCheckinByVisitorId({ tenantId });
+  const visitorStatusMutation = useVisitorStatus({ tenantId });
   const kycInitiateMutation = useKycInitiate();
   const kycSkipMutation = useKycSkip();
   const queryClient = useQueryClient();
@@ -286,11 +367,26 @@ export default function KioskCheckinPage() {
     usePersistentState<KycMarker | null>(
       `visichek:kiosk-kyc:${persistScope}`,
       null,
-      { ttlMs: KYC_TTL_MS, version: KIOSK_PERSIST_VERSION },
+      { ttlMs: MARKER_TTL_MS, version: KIOSK_PERSIST_VERSION },
     );
   const [stepError, setStepError] = useState<string | null>(null);
   const [phase, setPhase] = useState<KycPhase>({ kind: "idle" });
   const [refillDismissed, setRefillDismissed] = useState(false);
+  /**
+   * Pending clear-this-device request (WS5 clear-with-warning). Every
+   * clear path ("Not me", "Clear my details", post-badge "Done") funnels
+   * through a ConfirmDialog; clearing away a live badge takes TWO
+   * confirmations (`stage` 1 → 2) since the badge is the visitor's proof
+   * of entry on this device.
+   */
+  const [clearRequest, setClearRequest] = useState<{
+    stage: 1 | 2;
+    /** Whether a badge is currently held — drives the two-step confirm. */
+    hasBadge: boolean;
+  } | null>(null);
+  /** Result of the returning-visitor server probe (visitor-status). */
+  const [returningStatus, setReturningStatus] =
+    useState<PublicVisitorStatusOut | null>(null);
 
   usePublicTenantBranding(tenantId);
 
@@ -405,16 +501,47 @@ export default function KioskCheckinPage() {
     wizard.retreat();
   }
 
-  /** Wipe every kiosk key and return to a clean step 1. */
+  /**
+   * Wipe every kiosk key and return to a clean step 1.
+   *
+   * Order matters for a REAL wipe: `setState`/`setKycMarker` schedule a
+   * debounced (400ms) localStorage write, so calling them AFTER `clear()`
+   * used to re-persist the just-cleared key with the reset value. Setting
+   * state first and clearing last lets `clear()` cancel the pending
+   * debounced write as well as remove the stored key.
+   */
   function resetKiosk() {
-    stateControls.clear();
-    kycMarkerControls.clear();
     setKycMarker(null);
     setState(INITIAL_STATE);
     setStepError(null);
     setRefillDismissed(false);
+    setReturningStatus(null);
+    setClearRequest(null);
     setPhase({ kind: "idle" });
     wizard.reset();
+    // Last: cancel any pending debounced writes AND remove the keys.
+    stateControls.clear();
+    kycMarkerControls.clear();
+  }
+
+  /**
+   * WS5 clear-with-warning: every clear path opens a ConfirmDialog before
+   * anything is wiped. When a badge is on screen the confirm is two-step.
+   */
+  function requestClear() {
+    const hasBadge = phase.kind === "approved" && !!phase.badge;
+    setClearRequest({ stage: 1, hasBadge });
+  }
+
+  function confirmClear() {
+    if (!clearRequest) return;
+    if (clearRequest.hasBadge && clearRequest.stage === 1) {
+      // Two-step for the badge state: first confirm explains the impact,
+      // second confirm actually clears.
+      setClearRequest({ stage: 2, hasBadge: true });
+      return;
+    }
+    resetKiosk();
   }
 
   // ── Step 1: Identity ─────────────────────────────────────────────
@@ -706,16 +833,185 @@ export default function KioskCheckinPage() {
     }
   }, [statusQ.data, phase]);
 
+  // ── Check-in approval long-poll (WS5) ─────────────────────────────
+  // While the visitor waits on the awaiting_approval screen, long-poll
+  // the public status endpoint (server holds each request ~25s). The
+  // moment the receptionist actions the check-in we transition to the
+  // badge view (approved), the front-desk screen (approved, badge-less
+  // Free org), or the rejection screen.
+  const awaitingCheckin =
+    phase.kind === "awaiting_approval" ? phase.checkin : undefined;
+  const checkinStatusQ = useCheckinStatus(
+    awaitingCheckin?.id,
+    awaitingCheckin?.capabilityToken,
+    { enabled: !!awaitingCheckin },
+  );
+
+  useEffect(() => {
+    if (phase.kind !== "awaiting_approval") return;
+    const status = checkinStatusQ.data;
+    if (!status) return;
+    if (status.state === "approved" || status.state === "checked_out") {
+      setPhase({
+        kind: "approved",
+        checkin: phase.checkin,
+        badge: status.badge ?? null,
+        badgeToken: status.badgeToken ?? null,
+        badgeExpiresAt: status.badgeExpiresAt ?? null,
+      });
+    } else if (status.state === "rejected") {
+      setPhase({
+        kind: "rejected",
+        checkin: phase.checkin,
+        reason: status.rejectionReason ?? undefined,
+      });
+    }
+    // pending_* states: keep waiting — the hook keeps polling.
+  }, [checkinStatusQ.data, phase]);
+
+  // The capability token can outlive its usefulness (badge expired, row
+  // archived). A hard auth/not-found error while waiting means this
+  // check-in can no longer be resolved — fall through to the
+  // returning-visitor prompt rather than spinning forever.
+  useEffect(() => {
+    if (phase.kind !== "awaiting_approval") return;
+    const err = checkinStatusQ.error;
+    if (
+      err instanceof ApiError &&
+      (err.status === 401 ||
+        err.status === 403 ||
+        err.status === 404 ||
+        err.status === 410)
+    ) {
+      setPhase({
+        kind: "returning_prompt",
+        fullName: state.fullName || kycMarker?.fullName,
+        email: state.email || kycMarker?.email,
+        phone: state.phone || kycMarker?.phone,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkinStatusQ.error, phase.kind]);
+
+  // ── Returning visitor probe (WS5) ─────────────────────────────────
+  // When the returning prompt opens, ask the server whether it still
+  // recognises this visitor (non-PII probe by email/phone). Server truth
+  // decides: found + visitorId → fast reason-only re-check-in; anything
+  // else → the visitor starts the full form fresh.
+  const returningProbeRef = useRef(false);
+  useEffect(() => {
+    if (phase.kind !== "returning_prompt") {
+      returningProbeRef.current = false;
+      return;
+    }
+    if (returningProbeRef.current) return;
+    returningProbeRef.current = true;
+    const email = phase.email?.trim();
+    const phone = phase.phone?.trim();
+    if (!email && !phone) {
+      setReturningStatus({
+        found: false,
+        visitorId: null,
+        totalVisits: null,
+        lastVisitAgoDays: null,
+        idVerifiedRecently: false,
+      });
+      return;
+    }
+    visitorStatusMutation
+      .mutateAsync({ email, phone })
+      .then(setReturningStatus)
+      .catch(() =>
+        setReturningStatus({
+          found: false,
+          visitorId: null,
+          totalVisits: null,
+          lastVisitAgoDays: null,
+          idVerifiedRecently: false,
+        }),
+      );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase.kind]);
+
+  /** "Yes, check me in again" on the returning prompt. */
+  function confirmReturning() {
+    if (phase.kind !== "returning_prompt") return;
+    if (!returningStatus?.found || !returningStatus.visitorId) {
+      // Server no longer recognises the visitor (or only a legacy
+      // profile exists) — full form it is.
+      resetKiosk();
+      return;
+    }
+    setPhase({
+      kind: "returning_form",
+      visitorId: returningStatus.visitorId,
+      fullName: phase.fullName,
+      needsReverify: !returningStatus.idVerifiedRecently,
+    });
+  }
+
+  /** Reason-only submit for a recognised returning visitor. */
+  async function handleReturningSubmit(values: Record<string, unknown>) {
+    if (phase.kind !== "returning_form") return;
+    const current = phase;
+    setPhase({ ...current, submitting: true, error: undefined });
+    try {
+      const location = await requestUserLocation();
+      const purposeValue =
+        typeof values[PURPOSE_KEY] === "string"
+          ? (values[PURPOSE_KEY] as string)
+          : "";
+      const tenantData: Record<string, unknown> = {};
+      for (const field of config?.requiredFields ?? []) {
+        if (field.category !== "tenant_specific") continue;
+        const v = values[field.key];
+        if (v == null || v === "") continue;
+        tenantData[field.key] = v;
+      }
+      const checkin = await submitByVisitorIdMutation.mutateAsync({
+        visitorId: current.visitorId,
+        purpose: { purpose: purposeValue.trim() },
+        tenantSpecificData: tenantData,
+        visitorLat: location?.lat,
+        visitorLng: location?.lng,
+        visitorLocationAccuracyM: location?.accuracyM ?? undefined,
+      });
+      await routePostSubmit(checkin);
+    } catch (err) {
+      // Includes the 429 at-capacity case — describeCheckinError renders
+      // the server's friendly message.
+      const info = describeCheckinError(err);
+      setPhase({
+        ...current,
+        submitting: false,
+        error: `${info.title}: ${info.message}`,
+      });
+    }
+  }
+
   // ── KYC resume marker persistence ─────────────────────────────────
   // Mirror the post-submit phase to a minimal localStorage marker so a
   // refresh resumes verification. Never persist `widgetConfig`.
   useEffect(() => {
     if (!stateControls.hydrated) return;
+    // After a resume-from-marker the in-memory form state is empty — fall
+    // back to the previous marker's identity fields so a phase change
+    // post-reload doesn't blank them out of the persisted marker.
+    const identity = {
+      kycIntent: state.kycIntent,
+      fullName: state.fullName || kycMarker?.fullName,
+      email: state.email || kycMarker?.email,
+      phone: state.phone || kycMarker?.phone,
+      at: Date.now(),
+    };
     switch (phase.kind) {
       case "idle":
       case "submitting":
+      case "returning_prompt":
+      case "returning_form":
         // Transient — nothing durable to resume. (A refresh mid-submit lands
-        // back on Review; see the submit-during-refresh note in the plan.)
+        // back on Review; see the submit-during-refresh note in the plan.
+        // The returning screens re-derive from the previous marker.)
         break;
       case "kyc_initiating":
       case "kyc_running":
@@ -723,9 +1019,7 @@ export default function KioskCheckinPage() {
         setKycMarker({
           kind: "awaiting_kyc",
           checkin: phase.checkin,
-          kycIntent: state.kycIntent,
-          fullName: state.fullName,
-          email: state.email,
+          ...identity,
         });
         break;
       case "kyc_polling":
@@ -733,33 +1027,45 @@ export default function KioskCheckinPage() {
         setKycMarker({
           kind: phase.kind,
           checkin: phase.checkin,
-          kycIntent: state.kycIntent,
-          fullName: state.fullName,
-          email: state.email,
+          ...identity,
         });
         break;
       case "kyc_failed":
         setKycMarker({
           kind: "kyc_failed",
           checkin: phase.checkin,
-          kycIntent: state.kycIntent,
           reason: phase.reason,
-          fullName: state.fullName,
-          email: state.email,
+          ...identity,
         });
         break;
       case "awaiting_approval":
         setKycMarker({
           kind: "awaiting_approval",
           checkin: phase.checkin,
-          kycIntent: state.kycIntent,
-          fullName: state.fullName,
-          email: state.email,
+          ...identity,
         });
         // Terminal: drop the form draft + wizard cursor so a refresh resumes
         // the wait screen (from the marker), not a pre-filled form.
         stateControls.clear();
         wizard.reset();
+        break;
+      case "approved":
+        setKycMarker({
+          kind: "approved",
+          checkin: phase.checkin,
+          badge: phase.badge,
+          badgeToken: phase.badgeToken,
+          badgeExpiresAt: phase.badgeExpiresAt,
+          ...identity,
+        });
+        break;
+      case "rejected":
+        setKycMarker({
+          kind: "rejected",
+          checkin: phase.checkin,
+          reason: phase.reason,
+          ...identity,
+        });
         break;
     }
     // Intentionally keyed on `phase` only — `state` values are stable by the
@@ -778,6 +1084,23 @@ export default function KioskCheckinPage() {
     const marker = kycMarker;
     if (!marker || phase.kind !== "idle") return;
 
+    const now = Date.now();
+    const markerAgeMs = marker.at ? now - marker.at : Number.POSITIVE_INFINITY;
+    const isKycKind =
+      marker.kind === "awaiting_kyc" ||
+      marker.kind === "kyc_polling" ||
+      marker.kind === "kyc_verifying" ||
+      marker.kind === "kyc_failed";
+
+    // KYC-phase markers go stale quickly (the verification window is
+    // brief); the envelope TTL is now badge-scale, so enforce the short
+    // window here instead.
+    if (isKycKind && markerAgeMs > KYC_FRESH_MS) {
+      setKycMarker(null);
+      kycMarkerControls.clear();
+      return;
+    }
+
     if (marker.kind === "awaiting_kyc") {
       if (marker.kycIntent === "skip") void runKycSkip(marker.checkin);
       else void runKycInitiate(marker.checkin);
@@ -792,16 +1115,49 @@ export default function KioskCheckinPage() {
         reason: marker.reason,
       });
     } else if (marker.kind === "awaiting_approval") {
+      // Resume straight into the waiting screen; the status long-poll
+      // brings server truth (it may already be approved / rejected).
       setPhase({ kind: "awaiting_approval", checkin: marker.checkin });
+    } else if (marker.kind === "approved") {
+      const expired =
+        typeof marker.badgeExpiresAt === "number" &&
+        marker.badgeExpiresAt * 1000 <= now;
+      if (expired) {
+        // Visit over — same-device returning visitor (WS5 item 6).
+        setPhase({
+          kind: "returning_prompt",
+          fullName: marker.fullName,
+          email: marker.email,
+          phone: marker.phone,
+        });
+      } else {
+        setPhase({
+          kind: "approved",
+          checkin: marker.checkin,
+          badge: marker.badge ?? null,
+          badgeToken: marker.badgeToken ?? null,
+          badgeExpiresAt: marker.badgeExpiresAt ?? null,
+        });
+      }
+    } else if (marker.kind === "rejected") {
+      setPhase({
+        kind: "rejected",
+        checkin: marker.checkin,
+        reason: marker.reason,
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kycMarkerControls.hydrated]);
 
-  // ── Idle hygiene on terminal screens ──────────────────────────────
-  // On a shared kiosk, wipe everything after a few minutes idle on the wait
-  // screen so the next visitor starts clean.
+  // ── Idle hygiene on failure screens ───────────────────────────────
+  // On a shared kiosk, wipe everything after a few minutes idle on a
+  // failure/rejection screen so the next visitor starts clean. The
+  // awaiting-approval and badge states are intentionally EXEMPT (WS5):
+  // waiting can legitimately take longer than the idle window, and the
+  // badge must stay on screen until the visitor dismisses it — those
+  // states clear only via the confirmed "Done"/"Clear" paths.
   useEffect(() => {
-    if (phase.kind !== "awaiting_approval" && phase.kind !== "kyc_failed") {
+    if (phase.kind !== "kyc_failed" && phase.kind !== "rejected") {
       return;
     }
     const timer = setTimeout(() => resetKiosk(), IDLE_RESET_MS);
@@ -844,7 +1200,107 @@ export default function KioskCheckinPage() {
 
   // ── Render ────────────────────────────────────────────────────────
 
+  // WS5 clear-with-warning dialog — mounted in every branch so any clear
+  // path can open it. Copy adapts to the two-step badge flow.
+  const clearDialog = (
+    <ConfirmDialog
+      open={!!clearRequest}
+      onOpenChange={(open) => {
+        if (!open) setClearRequest(null);
+      }}
+      title={
+        clearRequest?.stage === 2
+          ? "Really remove your badge from this device?"
+          : "Clear your details from this device?"
+      }
+      description={
+        clearRequest?.stage === 2
+          ? "This kiosk will forget your badge. You can still open it from the email link if you provided an email address — otherwise ask the front desk to reprint it."
+          : clearRequest?.hasBadge
+            ? "This removes your saved check-in and badge from this device. If you provided an email, your badge stays available via the link we sent you."
+            : "This removes your saved check-in details from this device and starts a fresh check-in."
+      }
+      confirmLabel={
+        clearRequest?.stage === 2 ? "Yes, remove badge" : "Clear this device"
+      }
+      cancelLabel="Keep"
+      variant="destructive"
+      onConfirm={confirmClear}
+    />
+  );
+
   // Post-submit phases own the screen.
+  if (phase.kind === "approved") {
+    return (
+      <KioskShell config={config}>
+        {phase.badge ? (
+          <BadgeReadyScreen
+            pass={phase.badge}
+            badgeToken={phase.badgeToken}
+            onDone={requestClear}
+          />
+        ) : (
+          <FrontDeskPassScreen
+            tenantName={config.tenantName}
+            onDone={requestClear}
+          />
+        )}
+        {clearDialog}
+      </KioskShell>
+    );
+  }
+
+  if (phase.kind === "rejected") {
+    return (
+      <KioskShell config={config}>
+        <RejectedScreen
+          tenantName={config.tenantName}
+          reason={phase.reason}
+          onDone={requestClear}
+        />
+        {clearDialog}
+      </KioskShell>
+    );
+  }
+
+  if (phase.kind === "returning_prompt") {
+    return (
+      <KioskShell config={config}>
+        <ReturningPromptScreen
+          fullName={phase.fullName}
+          status={returningStatus}
+          checking={visitorStatusMutation.isPending}
+          onConfirm={confirmReturning}
+          onNotMe={requestClear}
+          onStartFresh={resetKiosk}
+        />
+        {clearDialog}
+      </KioskShell>
+    );
+  }
+
+  if (phase.kind === "returning_form") {
+    return (
+      <KioskShell config={config}>
+        <ReturningVisitForm
+          fullName={phase.fullName}
+          needsReverify={phase.needsReverify}
+          fields={(config.requiredFields ?? []).filter(
+            (f) =>
+              f.key === PURPOSE_KEY ||
+              (f.category === "tenant_specific" && f.required),
+          )}
+          enums={enums}
+          submitting={!!phase.submitting}
+          error={phase.error}
+          onSubmit={handleReturningSubmit}
+          onCancel={requestClear}
+        />
+        {clearDialog}
+      </KioskShell>
+    );
+  }
+
   if (phase.kind !== "idle" && phase.kind !== "submitting") {
     return (
       <KioskShell config={config}>
@@ -857,6 +1313,30 @@ export default function KioskCheckinPage() {
           fullName={state.fullName || kycMarker?.fullName || ""}
           email={state.email || kycMarker?.email || ""}
         />
+        {/* On the waiting screen the visitor can still bail out — with a
+            warning, since it abandons the pending check-in on this device
+            (the receptionist can still action it). */}
+        {phase.kind === "awaiting_approval" && (
+          <div className="flex justify-center">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={requestClear}
+                >
+                  Clear my details from this kiosk
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                Remove your saved check-in from this device
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        )}
+        {clearDialog}
       </KioskShell>
     );
   }
@@ -984,7 +1464,7 @@ export default function KioskCheckinPage() {
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={resetKiosk}
+                onClick={requestClear}
               >
                 Not me
               </Button>
@@ -1056,6 +1536,8 @@ export default function KioskCheckinPage() {
           )}
         </CardContent>
       </Card>
+
+      {clearDialog}
     </KioskShell>
   );
 }
@@ -1816,4 +2298,573 @@ function mapPhaseToScreenState(phase: KycPhase): KycStatusScreenState {
     default:
       return "verifying";
   }
+}
+
+// ── WS5: badge / outcome screens ────────────────────────────────────
+
+/** "Jane Alero Doe" → "Jane A. D." — enough to recognise yourself,
+ *  little enough not to leak a full identity on a shared kiosk. */
+function maskName(name: string | undefined): string {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "visitor";
+  const initials = parts
+    .slice(1)
+    .map((p) => `${p[0].toUpperCase()}.`)
+    .join(" ");
+  return initials ? `${parts[0]} ${initials}` : parts[0];
+}
+
+function formatSummaryTime(seconds: number | null | undefined): string | null {
+  if (!seconds) return null;
+  try {
+    return new Date(seconds * 1000).toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Approved WITH a badge: the kiosk becomes the badge surface. Renders the
+ * unified badge (screen variant) with Download / Print actions, an
+ * "Open on your phone" QR deep-linking `/badge/{token}`, and a check-in
+ * summary. Print/PDF capture a hidden print-a6 render of the SAME
+ * component so the physical output matches the export pipeline exactly.
+ */
+function BadgeReadyScreen({
+  pass,
+  badgeToken,
+  onDone,
+}: {
+  pass: PublicBadgePass;
+  badgeToken: string | null;
+  onDone: () => void;
+}) {
+  const { data, branding } = useMemo(
+    () => publicBadgePassToBadge(pass),
+    [pass],
+  );
+  const printRef = useRef<HTMLDivElement | null>(null);
+  const [busy, setBusy] = useState<null | "print" | "download">(null);
+
+  const token = badgeToken ?? pass.token;
+  const badgeUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/badge/${encodeURIComponent(token)}`
+      : `/badge/${encodeURIComponent(token)}`;
+
+  async function handlePrint() {
+    if (!printRef.current || busy) return;
+    setBusy("print");
+    try {
+      await printVisitorBadge(printRef.current, "A6");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not open the print dialog.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleDownload() {
+    if (!printRef.current || busy) return;
+    setBusy("download");
+    try {
+      await downloadVisitorBadgePdf(printRef.current, "A6", data.visitorName);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not export the badge PDF.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const checkInLabel = formatSummaryTime(data.checkInTime);
+  const validUntilLabel = formatSummaryTime(data.validUntil);
+
+  return (
+    <div className="space-y-4">
+      <div className="text-center space-y-1" role="status" aria-live="polite">
+        <div className="mx-auto h-12 w-12 rounded-full bg-success/10 text-success flex items-center justify-center">
+          <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
+        </div>
+        <h2 className="text-xl font-display">You&apos;re checked in</h2>
+        <p className="text-sm text-muted-foreground">
+          Here&apos;s your visitor badge — keep it with you until you check
+          out.
+        </p>
+      </div>
+
+      {/* On-screen badge (unified component, screen variant). */}
+      <div className="flex justify-center">
+        <VisitorBadge data={data} branding={branding} variant="screen" />
+      </div>
+
+      {/* Hidden print-a6 render — the node the print/PDF pipeline clones.
+          Off-screen (not display:none) so layout metrics stay real. */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          left: "-10000px",
+          top: 0,
+          pointerEvents: "none",
+        }}
+      >
+        <VisitorBadge
+          ref={printRef}
+          data={data}
+          branding={branding}
+          variant="print-a6"
+        />
+      </div>
+
+      {/* Actions */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              onClick={handlePrint}
+              disabled={!!busy}
+              className="min-h-[44px]"
+            >
+              {busy === "print" ? (
+                <Loader2
+                  className="mr-2 h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Printer className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Print badge
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            Print your badge at A6 size at this kiosk
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleDownload}
+              disabled={!!busy}
+              className="min-h-[44px]"
+            >
+              {busy === "download" ? (
+                <Loader2
+                  className="mr-2 h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              Download PDF
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            Save the badge as a PDF on this device
+          </TooltipContent>
+        </Tooltip>
+      </div>
+
+      {/* Open on your phone */}
+      <div className="rounded-lg border bg-muted/30 p-4 flex items-center gap-4">
+        <div className="rounded-md bg-white p-2 border shrink-0">
+          <QRCodeSVG value={badgeUrl} size={96} aria-hidden="true" />
+        </div>
+        <div className="min-w-0 text-sm space-y-1">
+          <p className="font-medium flex items-center gap-1.5">
+            <Smartphone className="h-4 w-4" aria-hidden="true" />
+            Open on your phone
+          </p>
+          <p className="text-muted-foreground">
+            Scan this code with your phone camera to carry your badge with
+            you — no print needed.
+          </p>
+        </div>
+      </div>
+
+      {/* Check-in summary */}
+      <dl className="rounded-lg border p-4 text-sm space-y-2">
+        <div className="flex justify-between gap-4">
+          <dt className="text-muted-foreground">Visitor</dt>
+          <dd className="text-right font-medium">{data.visitorName}</dd>
+        </div>
+        {checkInLabel && (
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted-foreground">Checked in</dt>
+            <dd className="text-right font-medium">{checkInLabel}</dd>
+          </div>
+        )}
+        {data.departmentName && (
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted-foreground">Department</dt>
+            <dd className="text-right font-medium">{data.departmentName}</dd>
+          </div>
+        )}
+        {data.hostName && (
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted-foreground">Host</dt>
+            <dd className="text-right font-medium">{data.hostName}</dd>
+          </div>
+        )}
+        {validUntilLabel && (
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted-foreground">Valid until</dt>
+            <dd className="text-right font-medium">{validUntilLabel}</dd>
+          </div>
+        )}
+      </dl>
+
+      <div className="flex justify-center">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-[44px]"
+              onClick={onDone}
+            >
+              Done — clear this kiosk
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            Finish and remove your details from this device
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Approved WITHOUT a badge — badges are plan-gated (Free orgs). The
+ * check-in itself succeeded, so this is a success screen, not an error.
+ */
+function FrontDeskPassScreen({
+  tenantName,
+  onDone,
+}: {
+  tenantName: string;
+  onDone: () => void;
+}) {
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div
+          className="text-center space-y-4 py-6"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="mx-auto h-16 w-16 rounded-full bg-success/10 text-success flex items-center justify-center">
+            <CheckCircle2 className="h-8 w-8" aria-hidden="true" />
+          </div>
+          <h2 className="text-xl font-display">You&apos;re checked in</h2>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            {`Welcome to ${tenantName}. Please see the front desk for a printed visitor pass.`}
+          </p>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-[44px]"
+                onClick={onDone}
+              >
+                Done
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              Finish and remove your details from this device
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Courteous rejection screen with the receptionist's reason. */
+function RejectedScreen({
+  tenantName,
+  reason,
+  onDone,
+}: {
+  tenantName: string;
+  reason?: string;
+  onDone: () => void;
+}) {
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="text-center space-y-4 py-6" role="status">
+          <div className="mx-auto h-16 w-16 rounded-full bg-destructive/10 text-destructive flex items-center justify-center">
+            <XCircle className="h-8 w-8" aria-hidden="true" />
+          </div>
+          <h2 className="text-xl font-display">
+            We couldn&apos;t approve your check-in
+          </h2>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            {`Sorry — the front desk at ${tenantName} wasn't able to approve your visit this time.`}
+          </p>
+          {reason && (
+            <div className="mx-auto max-w-sm rounded-lg border bg-muted/40 p-3 text-left text-sm">
+              <p className="text-xs font-medium text-muted-foreground mb-1">
+                Reason given
+              </p>
+              <p>{reason}</p>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+            If you think this is a mistake, please speak to the front desk.
+          </p>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-[44px]"
+                onClick={onDone}
+              >
+                Done
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              Clear this kiosk for the next visitor
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Same-device returning visitor (WS5 item 6) — slim replacement for the
+ * unused `ReturningVisitorCard`. The previous visit is over/expired; the
+ * server probe decides whether the fast reason-only re-check-in is
+ * available. "Not me" goes through the clear-with-warning dialog.
+ */
+function ReturningPromptScreen({
+  fullName,
+  status,
+  checking,
+  onConfirm,
+  onNotMe,
+  onStartFresh,
+}: {
+  fullName?: string;
+  status: PublicVisitorStatusOut | null;
+  checking: boolean;
+  onConfirm: () => void;
+  onNotMe: () => void;
+  onStartFresh: () => void;
+}) {
+  const recognised = !!status?.found && !!status.visitorId;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{`Welcome back, ${maskName(fullName)}`}</CardTitle>
+        <CardDescription>
+          Your previous visit on this device has ended. Checking in again?
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {checking || !status ? (
+          <div
+            className="flex items-center gap-2 text-sm text-muted-foreground"
+            role="status"
+            aria-live="polite"
+          >
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            Checking your visitor record…
+          </div>
+        ) : recognised ? (
+          <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+            We recognise you — you&apos;ll only need to tell us the reason
+            for today&apos;s visit.
+            {!status.idVerifiedRecently && (
+              <span>
+                {" "}
+                A receptionist may ask to re-verify your ID at the front
+                desk.
+              </span>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+            We couldn&apos;t find your previous record, so we&apos;ll take
+            your details again — it only takes a minute.
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                className="min-h-[44px]"
+                onClick={recognised ? onConfirm : onStartFresh}
+                disabled={checking || !status}
+              >
+                {recognised ? "Yes, check me in again" : "Start check-in"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {recognised
+                ? "Fast re-check-in — just pick your reason for visiting"
+                : "Begin a fresh check-in"}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-[44px]"
+                onClick={onNotMe}
+              >
+                Not me
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              Clear the saved details and start as a new visitor
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Reason-only re-check-in form for a recognised returning visitor.
+ * Collects the purpose picker plus any REQUIRED tenant-specific fields
+ * (the submit-by-visitor-id contract makes the caller responsible for
+ * those); identity comes from the stored visitor record server-side.
+ */
+function ReturningVisitForm({
+  fullName,
+  needsReverify,
+  fields,
+  enums,
+  submitting,
+  error,
+  onSubmit,
+  onCancel,
+}: {
+  fullName?: string;
+  needsReverify?: boolean;
+  fields: RequiredField[];
+  enums: ReturnType<typeof useCheckinEnumsForTenant>["data"];
+  submitting: boolean;
+  error?: string;
+  onSubmit: (values: Record<string, unknown>) => void;
+  onCancel: () => void;
+}) {
+  const [values, setValues] = useState<Record<string, unknown>>({});
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  function handleSubmit() {
+    setLocalError(null);
+    const missing: string[] = [];
+    for (const field of fields) {
+      if (!field.required && field.key !== PURPOSE_KEY) continue;
+      const v = values[field.key];
+      if (v == null || (typeof v === "string" && v.trim() === "")) {
+        missing.push(field.label);
+      }
+    }
+    if (missing.length > 0) {
+      setLocalError(`Please fill in: ${missing.join(", ")}`);
+      return;
+    }
+    onSubmit(values);
+  }
+
+  const shownError = error ?? localError;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{`Almost done, ${maskName(fullName)}`}</CardTitle>
+        <CardDescription>
+          Just tell us why you&apos;re visiting today — we already have the
+          rest of your details.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {needsReverify && (
+          <div className="rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-muted-foreground">
+            It&apos;s been a while since your ID was verified — a
+            receptionist may re-verify it when they approve you.
+          </div>
+        )}
+
+        <RequiredFieldsForm
+          fields={fields}
+          values={values}
+          onChange={(key, value) =>
+            setValues((prev) => ({ ...prev, [key]: value }))
+          }
+          enums={enums}
+          departments={undefined}
+        />
+
+        {shownError && (
+          <p
+            role="alert"
+            className="flex items-start gap-2 text-sm text-destructive"
+          >
+            <AlertTriangle
+              className="h-4 w-4 mt-0.5 flex-shrink-0"
+              aria-hidden="true"
+            />
+            <span>{shownError}</span>
+          </p>
+        )}
+
+        <div className="flex justify-between pt-2 border-t">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancel}
+                disabled={submitting}
+              >
+                Cancel
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              Clear the saved details instead
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <LoadingButton
+                  onClick={handleSubmit}
+                  isLoading={submitting}
+                  loadingText="Submitting…"
+                >
+                  Submit check-in
+                </LoadingButton>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              Send your check-in to the receptionist for approval
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }

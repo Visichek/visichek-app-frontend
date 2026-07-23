@@ -14,6 +14,9 @@ export {
   useVerifyRegistrationToken,
 } from "./use-public-checkin";
 
+// Public check-in status long-poll (kiosk waiting → badge flow)
+export { useCheckinStatus } from "./use-checkin-status";
+
 // Receptionist hooks — tenant-authenticated
 export {
   useTenantCheckins,

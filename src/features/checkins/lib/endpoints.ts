@@ -72,6 +72,20 @@ export const kycStatusPath = (checkinId: string) =>
   `/kyc/status/${checkinId}`;
 
 /**
+ * Public check-in status with optional long-poll (Task B2 contract).
+ *
+ * `GET /v1/public/checkins/{checkin_id}/status?capability_token=...&wait=0|1`
+ * Auth is the capability token minted at kiosk submit (query param, NOT
+ * Bearer). With `wait=1` the server holds the request up to ~25s and
+ * returns early when the receptionist actions the check-in; on timeout it
+ * returns the current state. Response: `{ state, badge, badgeToken,
+ * badgeExpiresAt, rejectionReason }` — `badge` is populated once approved
+ * AND a badge exists (Free orgs: state approved + badge null).
+ */
+export const checkinStatusPath = (checkinId: string) =>
+  `/public/checkins/${checkinId}/status`;
+
+/**
  * Default-mode submit: used when the tenant has not customized a config yet
  * and the public endpoint returns defaults with `checkin_config_id === ""`.
  * The backend resolves the tenant's default config server-side.

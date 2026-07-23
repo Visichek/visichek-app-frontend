@@ -167,6 +167,17 @@ export function describeCheckinError(error: unknown): CheckinErrorInfo {
         retryable: false,
         allowManualFallback: true,
       };
+    case 429:
+      // Visitor-capacity cap (or anonymous rate limit). The backend sends
+      // a friendly, tenant-aware message — prefer it verbatim.
+      return {
+        title: "We're at capacity right now",
+        message:
+          error.message ||
+          "The building has reached its visitor capacity at the moment. Please wait a few minutes and try again, or see the front desk.",
+        retryable: true,
+        allowManualFallback: false,
+      };
     case 422:
       return {
         title: "We couldn't read your ID",
