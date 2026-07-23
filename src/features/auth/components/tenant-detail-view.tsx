@@ -22,6 +22,7 @@ import {
 import { formatDate } from "@/lib/utils/format-date";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { useActiveSubscription } from "@/features/subscriptions/hooks/use-subscriptions";
+import { PlanEntitlementsPanel } from "@/features/subscriptions/components/plan-entitlements-panel";
 import { TenantUsagePanel } from "@/features/usage/components/tenant-usage-panel";
 import { AddSuperAdminDialog } from "@/features/auth/components/add-super-admin-dialog";
 import type { AdminTenant } from "@/types/admin";
@@ -256,7 +257,13 @@ function OverviewTab({ tenant }: { tenant: AdminTenant }) {
   );
 }
 
-function SubscriptionTab({ tenantId }: { tenantId: string }) {
+function SubscriptionTab({
+  tenantId,
+  tenantCompanyName,
+}: {
+  tenantId: string;
+  tenantCompanyName: string;
+}) {
   const { data: sub, isLoading, isError } = useActiveSubscription(tenantId);
 
   if (isLoading) {
@@ -319,6 +326,13 @@ function SubscriptionTab({ tenantId }: { tenantId: string }) {
           </div>
         </>
       )}
+
+      <SectionDivider />
+
+      <PlanEntitlementsPanel
+        subscription={sub}
+        tenantCompanyName={tenantCompanyName}
+      />
     </div>
   );
 }
@@ -506,7 +520,10 @@ export function TenantDetailView({ tenant }: TenantDetailViewProps) {
           <OverviewTab tenant={tenant} />
         </TabsContent>
         <TabsContent value="subscription" className="mt-0">
-          <SubscriptionTab tenantId={tenant.id} />
+          <SubscriptionTab
+            tenantId={tenant.id}
+            tenantCompanyName={tenant.companyName}
+          />
         </TabsContent>
         <TabsContent value="usage" className="mt-0">
           <UsageTab tenantId={tenant.id} />

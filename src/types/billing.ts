@@ -62,6 +62,8 @@ export interface TenantCapLimit {
   maxBranches?: number | null;
   maxVisitorsPerMonth?: number | null;
   maxAppointmentsPerMonth?: number | null;
+  /** Per-branch new-visitor cap (Premium+ / Enterprise). */
+  visitorsPerBranchPerMonth?: number | null;
 }
 
 export interface Plan {
