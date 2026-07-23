@@ -46,6 +46,12 @@ export interface CheckOutRequest {
   checkinId?: string;
   appointmentId?: string;
   checkOutMethod?: CheckOutMethod;
+  /**
+   * Optional free-text reason recorded on the checkout (WS6). Manual
+   * checkouts may attach one; the auto-checkout sweep stamps its own
+   * ("Auto checkout after {N}h (no checkout recorded)").
+   */
+  checkOutReason?: string;
 }
 
 /**
@@ -69,6 +75,14 @@ export interface VisitSession {
   status: VisitStatus;
   checkInMethod?: CheckInMethod;
   checkOutMethod?: CheckOutMethod;
+  /**
+   * Why the visit was closed (WS6). Set by the auto-checkout sweep and
+   * optionally by manual checkout. Absent on rows closed before the
+   * feature shipped.
+   */
+  checkOutReason?: string | null;
+  /** True when the auto-checkout sweep closed this visit (WS6). */
+  autoCheckedOut?: boolean;
   checkedInAt: number;
   checkedOutAt?: number;
   checkedInBy?: string;
@@ -341,6 +355,10 @@ export interface CheckoutResult {
 
   /** Only persisted on `visit_session` records; echoed back here when set. */
   checkOutMethod?: string | null;
+  /** Free-text checkout reason, when one was recorded (WS6). */
+  checkOutReason?: string | null;
+  /** True when the auto-checkout sweep produced this record (WS6). */
+  autoCheckedOut?: boolean;
 
   /** Populated only when `sourceType === "visit_session"`. */
   visitSession?: VisitSession | null;

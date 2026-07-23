@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus,
+  Copy,
   Edit2,
   Trash2,
   MoreHorizontal,
@@ -45,7 +46,68 @@ import { BuyBranchAddonModal } from "@/features/addons/components/buy-branch-add
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import { CAPABILITIES } from "@/lib/permissions/capabilities";
 import { cn } from "@/lib/utils/cn";
-import type { Branch } from "@/types/tenant";
+import type { Branch, BranchContactSummary } from "@/types/tenant";
+
+/**
+ * Point-of-contact cell (WS4): contact name + a copy-email affordance.
+ * The summary is resolved server-side and never empty on new payloads,
+ * but older cached rows may miss it entirely — render a dash then.
+ */
+function ContactCell({
+  contact,
+}: {
+  contact?: BranchContactSummary | null;
+}) {
+  if (!contact || (!contact.fullName && !contact.email)) {
+    return <span className="text-sm text-muted-foreground">—</span>;
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1 min-w-0"
+      // Row click navigates to the edit page — keep the copy button from
+      // triggering it.
+      onClick={(e) => e.stopPropagation()}
+    >
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="text-sm truncate max-w-[160px]">
+            {contact.fullName || contact.email}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          {[contact.fullName, contact.email, contact.role?.replace(/_/g, " ")]
+            .filter(Boolean)
+            .join(" · ")}
+        </TooltipContent>
+      </Tooltip>
+      {contact.email && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 shrink-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.clipboard
+                  .writeText(contact.email ?? "")
+                  .then(() => toast.success("Email copied"))
+                  .catch(() => toast.error("Couldn't copy the email"));
+              }}
+              aria-label={`Copy email for ${contact.fullName || "branch contact"}`}
+            >
+              <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            Copy the contact&apos;s email address
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </span>
+  );
+}
 
 export function BranchesPageClient() {
   const router = useRouter();
@@ -253,6 +315,11 @@ export function BranchesPageClient() {
       ),
     },
     {
+      id: "contact",
+      header: "Point of contact",
+      cell: ({ row }) => <ContactCell contact={row.original.contactSummary} />,
+    },
+    {
       id: "isActive",
       header: "Status",
       cell: ({ row }) => (
@@ -305,6 +372,13 @@ export function BranchesPageClient() {
         {branch.address && (
           <div className="text-sm text-muted-foreground">{branch.address}</div>
         )}
+        {branch.contactSummary &&
+          (branch.contactSummary.fullName || branch.contactSummary.email) && (
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+              <span className="shrink-0">Contact:</span>
+              <ContactCell contact={branch.contactSummary} />
+            </div>
+          )}
         <RowActions
           branch={branch}
           locked={locked}

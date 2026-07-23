@@ -4,7 +4,11 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api/request';
 import { apiGetList } from '@/lib/api/list';
 import { bulkAction } from '@/lib/api/bulk';
-import type { Branch } from '@/types/tenant';
+import type {
+  Branch,
+  BranchContactSummary,
+  OrgContactSummary,
+} from '@/types/tenant';
 import type { ListResponse, BulkJobResult } from '@/types/list';
 
 /**
@@ -17,6 +21,8 @@ const branchKeys = {
     ['branches', 'list', filters] as const,
   details: () => ['branches', 'detail'] as const,
   detail: (id: string) => ['branches', 'detail', id] as const,
+  contact: (id: string) => ['branches', 'contact', id] as const,
+  orgContact: () => ['branches', 'org-contact'] as const,
 };
 
 /**
@@ -43,6 +49,34 @@ export function useBranch(branchId: string) {
       return data;
     },
     enabled: !!branchId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Resolved point of contact for a branch (WS4):
+ * `GET /v1/branches/{branch_id}/contact`. The server resolves the
+ * designated contact user → branch email/phone fallback → main super
+ * admin, so a summary is always returned when the branch exists.
+ */
+export function useBranchContact(branchId: string, enabled = true) {
+  return useQuery<BranchContactSummary>({
+    queryKey: branchKeys.contact(branchId),
+    queryFn: () => apiGet<BranchContactSummary>(`/branches/${branchId}/contact`),
+    enabled: enabled && !!branchId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Organization point of contact (WS4): the main super admin card from
+ * `GET /v1/tenants/me/contact`.
+ */
+export function useOrgContact(enabled = true) {
+  return useQuery<OrgContactSummary>({
+    queryKey: branchKeys.orgContact(),
+    queryFn: () => apiGet<OrgContactSummary>('/tenants/me/contact'),
+    enabled,
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -95,6 +129,10 @@ export function useUpdateBranch() {
       queryClient.invalidateQueries({ queryKey: branchKeys.lists() });
       // Update the specific branch in cache
       queryClient.setQueryData(branchKeys.detail(updatedBranch.id), updatedBranch);
+      // The point-of-contact designation may have changed (WS4).
+      queryClient.invalidateQueries({
+        queryKey: branchKeys.contact(updatedBranch.id),
+      });
     },
   });
 }

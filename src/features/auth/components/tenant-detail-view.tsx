@@ -114,6 +114,42 @@ function OverviewTab({ tenant }: { tenant: AdminTenant }) {
         />
       </Section>
 
+      {tenant.contactSummary &&
+        (tenant.contactSummary.fullName || tenant.contactSummary.email) && (
+          <>
+            <SectionDivider />
+            <Section title="Point of Contact">
+              <Field
+                label="Name"
+                value={tenant.contactSummary.fullName ?? "—"}
+              />
+              <Field
+                label="Email"
+                value={
+                  tenant.contactSummary.email ? (
+                    <a
+                      href={`mailto:${tenant.contactSummary.email}`}
+                      className="underline underline-offset-2 break-all"
+                    >
+                      {tenant.contactSummary.email}
+                    </a>
+                  ) : (
+                    "—"
+                  )
+                }
+              />
+              <Field
+                label="Role"
+                value={
+                  tenant.contactSummary.role
+                    ? tenant.contactSummary.role.replace(/_/g, " ")
+                    : "—"
+                }
+              />
+            </Section>
+          </>
+        )}
+
       <SectionDivider />
 
       <Section title="Data Privacy">

@@ -501,6 +501,19 @@ export interface CheckinOut {
    */
   checkedOutAt?: number | null;
   /**
+   * How the visit ended (WS6): "qr_scan" | "manual" | "auto". Absent on
+   * rows checked out before the field existed.
+   */
+  checkOutMethod?: string | null;
+  /**
+   * Why the visit was closed (WS6). The auto-checkout sweep stamps
+   * "Auto checkout after {N}h (no checkout recorded)"; manual checkouts
+   * may carry an operator-supplied reason.
+   */
+  checkOutReason?: string | null;
+  /** True when the auto-checkout sweep closed this check-in (WS6). */
+  autoCheckedOut?: boolean;
+  /**
    * Visitor snapshot embedded on every check-in list / detail / analytics
    * row so the approver can confirm identity without a second fetch.
    * `null` only when the referenced visitor record was hard-deleted — the

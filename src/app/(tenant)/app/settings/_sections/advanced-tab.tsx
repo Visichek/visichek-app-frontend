@@ -1,7 +1,9 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { Copy, Mail, Trash2, UserRound } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { NavButton } from "@/components/recipes/nav-button";
 import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
@@ -21,6 +23,7 @@ import {
   useTenantSettings,
   useUpdateTenantSettings,
 } from "@/features/settings/hooks";
+import { useOrgContact } from "@/features/branches/hooks/use-branches";
 import { useCapability } from "@/features/limitations/hooks/use-limitations";
 import { LockedOverlay } from "@/features/limitations/components/locked-overlay";
 
@@ -33,6 +36,11 @@ export function AdvancedTab() {
 
   const { data: tenantSettingsData } = useTenantSettings(tenantId);
   const updateTenantSettings = useUpdateTenantSettings(tenantId);
+
+  // Organization point of contact (WS4): the main super admin card.
+  // Only fetched when the manifest exposes tenant settings (i.e. the
+  // viewer is a super_admin — the endpoint 403s for everyone else).
+  const { data: orgContact } = useOrgContact(!!tenantSettingsSection);
 
   // Free-plan gating for the three sections the backend should refuse
   // to persist on Free (see `new-limitations.txt` § "Settings sections
@@ -109,7 +117,43 @@ export function AdvancedTab() {
                   <SettingsToggle id="requireHostApproval" label="Require host approval" description="Visitor must be approved by their host before completing check-in" checked={tenantSettingsData.requireHostApproval ?? false} onCheckedChange={(v) => updateTenantSettings.mutate({ requireHostApproval: v })} isLoading={updateTenantSettings.isPending} />
                   <SettingsToggle id="requireConsent" label="Require NDPA consent" description="Visitors must acknowledge a data protection notice before check-in" checked={tenantSettingsData.requireConsentBeforeCheckIn ?? true} onCheckedChange={(v) => updateTenantSettings.mutate({ requireConsentBeforeCheckIn: v })} isLoading={updateTenantSettings.isPending} />
                   <SettingsToggle id="allowSelfRegistration" label="Self-registration via QR" description="Allow visitors to register themselves by scanning a public QR code" checked={tenantSettingsData.allowSelfRegistration ?? false} onCheckedChange={(v) => updateTenantSettings.mutate({ allowSelfRegistration: v })} isLoading={updateTenantSettings.isPending} />
-                  <SettingsSelect id="autoCheckout" label="Auto checkout" description="Automatically check visitors out after a set duration" value={tenantSettingsData.autoCheckoutAfterHours ? String(tenantSettingsData.autoCheckoutAfterHours) : "disabled"} onValueChange={(v) => updateTenantSettings.mutate({ autoCheckoutAfterHours: v === "disabled" ? null : parseInt(v, 10) })} options={[{ value: "disabled", label: "Disabled" }, { value: "4", label: "4 hours" }, { value: "8", label: "8 hours" }, { value: "12", label: "12 hours" }]} isLoading={updateTenantSettings.isPending} />
+                  <SettingsToggle
+                    id="autoCheckoutEnabled"
+                    label="Automatic checkout"
+                    description="Visitors still shown as on-site after this long are checked out automatically; the time and reason are recorded"
+                    checked={
+                      (tenantSettingsData.autoCheckoutAfterHours ?? 0) > 0
+                    }
+                    onCheckedChange={(v) =>
+                      updateTenantSettings.mutate({
+                        autoCheckoutAfterHours: v ? 12 : null,
+                      })
+                    }
+                    isLoading={updateTenantSettings.isPending}
+                  />
+                  {(tenantSettingsData.autoCheckoutAfterHours ?? 0) > 0 && (
+                    <SettingsTextEdit
+                      id="autoCheckoutAfterHours"
+                      label="Check out after"
+                      description="Hours a visitor can stay on-site before the automatic checkout runs (1-48)"
+                      value={String(tenantSettingsData.autoCheckoutAfterHours)}
+                      inputMode="numeric"
+                      placeholder="12"
+                      validate={(v) => {
+                        const n = Number(v);
+                        if (!Number.isInteger(n) || n < 1 || n > 48) {
+                          return "Enter a whole number of hours between 1 and 48";
+                        }
+                        return null;
+                      }}
+                      onSave={(v) =>
+                        updateTenantSettings.mutate({
+                          autoCheckoutAfterHours: parseInt(v, 10),
+                        })
+                      }
+                      isLoading={updateTenantSettings.isPending}
+                    />
+                  )}
                   <SettingsSelect id="badgeExpiry" label="Badge expiry" description="When visitor badges become invalid" value={tenantSettingsData.visitorBadgeExpiry ?? "end_of_day"} onValueChange={(v) => updateTenantSettings.mutate({ visitorBadgeExpiry: v as "end_of_day" | "manual" | "hours" })} options={[{ value: "end_of_day", label: "End of day" }, { value: "manual", label: "Manual" }, { value: "hours", label: "After set hours" }]} isLoading={updateTenantSettings.isPending} />
                 </div>
               </section>
@@ -199,6 +243,101 @@ export function AdvancedTab() {
                 isLoading={updateTenantSettings.isPending}
               />
             </div>
+
+            {orgContact && (
+              <div className="mt-4 rounded-lg border p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
+                    <UserRound
+                      className="h-4 w-4 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">Organization contact</p>
+                    <p className="text-sm truncate">
+                      {orgContact.fullName || "Main administrator"}
+                    </p>
+                    {orgContact.email && (
+                      <p className="text-xs text-muted-foreground truncate">
+                        {orgContact.email}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      The main administrator is your organization&apos;s point
+                      of contact. To change who holds this role, use the
+                      transfer flow on the Users page.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {orgContact.email && (
+                      <>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-9 w-9"
+                              onClick={() => {
+                                navigator.clipboard
+                                  .writeText(orgContact.email ?? "")
+                                  .then(() => toast.success("Email copied"))
+                                  .catch(() =>
+                                    toast.error("Couldn't copy the email"),
+                                  );
+                              }}
+                              aria-label="Copy organization contact email"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            Copy the contact&apos;s email address
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-9 w-9"
+                              asChild
+                            >
+                              <a
+                                href={`mailto:${orgContact.email}`}
+                                aria-label="Email the organization contact"
+                              >
+                                <Mail className="h-3.5 w-3.5" />
+                              </a>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            Open your mail app to email the contact
+                          </TooltipContent>
+                        </Tooltip>
+                      </>
+                    )}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <NavButton
+                          href="/app/users"
+                          size="sm"
+                          variant="outline"
+                          className="min-h-[36px]"
+                        >
+                          Manage
+                        </NavButton>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        Open Users to transfer the main administrator role
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
 
           {!hideEmailPrefs && (

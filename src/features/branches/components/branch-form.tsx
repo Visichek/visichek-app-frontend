@@ -1,11 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Copy, Loader2, Mail, UserRound } from "lucide-react";
 import { PageHeader } from "@/components/recipes/page-header";
 import { NavButton } from "@/components/recipes/nav-button";
 import { Input } from "@/components/ui/input";
@@ -19,9 +20,11 @@ import {
 } from "@/components/ui/tooltip";
 import { useNavigationLoading } from "@/lib/routing/navigation-context";
 import {
+  useBranchContact,
   useCreateBranch,
   useUpdateBranch,
 } from "@/features/branches/hooks/use-branches";
+import { ContactUserPicker } from "@/features/branches/components/contact-user-picker";
 import type { Branch } from "@/types/tenant";
 
 const branchSchema = z.object({
@@ -45,6 +48,16 @@ export function BranchForm({ branch }: BranchFormProps) {
   const updateMutation = useUpdateBranch();
   const isEditing = !!branch;
 
+  // Designated point of contact (WS4). Kept outside react-hook-form —
+  // it's a custom picker with a nullable value.
+  const [contactUserId, setContactUserId] = useState<string | null>(
+    branch?.contactUserId ?? null,
+  );
+  // Resolved POC card for the branch being edited (designated contact →
+  // branch email fallback → main administrator; never empty server-side).
+  const contactQuery = useBranchContact(branch?.id ?? "", isEditing);
+  const contact = contactQuery.data;
+
   const {
     register,
     handleSubmit,
@@ -65,6 +78,8 @@ export function BranchForm({ branch }: BranchFormProps) {
       address: data.address || undefined,
       city: data.city || undefined,
       state: data.state || undefined,
+      // Explicit null clears the designation server-side (WS4).
+      contactUserId,
     };
 
     try {
@@ -168,6 +183,97 @@ export function BranchForm({ branch }: BranchFormProps) {
             />
           </div>
         </div>
+
+        {isEditing && contact && (contact.fullName || contact.email) && (
+          <div className="rounded-lg border p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
+                <UserRound
+                  className="h-4 w-4 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">Point of contact</p>
+                <p className="text-sm truncate">
+                  {contact.fullName || contact.email}
+                </p>
+                {contact.email && (
+                  <p className="text-xs text-muted-foreground truncate">
+                    {contact.email}
+                  </p>
+                )}
+                {contact.role && (
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {contact.role.replace(/_/g, " ")}
+                  </p>
+                )}
+                {!contact.userId && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    No contact designated — showing this branch&apos;s
+                    fallback contact. Pick a staff member below to change it.
+                  </p>
+                )}
+              </div>
+              {contact.email && (
+                <div className="flex items-center gap-1 shrink-0">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-9 w-9"
+                        onClick={() => {
+                          navigator.clipboard
+                            .writeText(contact.email ?? "")
+                            .then(() => toast.success("Email copied"))
+                            .catch(() =>
+                              toast.error("Couldn't copy the email"),
+                            );
+                        }}
+                        aria-label="Copy contact email"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      Copy the contact&apos;s email address
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-9 w-9"
+                        asChild
+                      >
+                        <a
+                          href={`mailto:${contact.email}`}
+                          aria-label="Email the branch contact"
+                        >
+                          <Mail className="h-3.5 w-3.5" />
+                        </a>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      Open your mail app to email the contact
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <ContactUserPicker
+          value={contactUserId}
+          onChange={setContactUserId}
+          branchId={branch?.id}
+          disabled={submitting}
+        />
 
         <div className="flex flex-col gap-2 pt-2 md:flex-row md:justify-end">
           <Tooltip>

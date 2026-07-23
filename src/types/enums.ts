@@ -21,7 +21,9 @@ export type VisitStatus =
   | "cancelled";
 
 export type CheckInMethod = "qr_registration" | "id_scan" | "manual_entry";
-export type CheckOutMethod = "qr_scan" | "manual";
+// `auto` = the visit was closed by the scheduled auto-checkout sweep
+// (tenant setting `autoCheckoutAfterHours`), not by a person.
+export type CheckOutMethod = "qr_scan" | "manual" | "auto";
 // `manual` = a staff member vouched for the visitor's identity from the
 // receptionist UI without an automated ID scan (see the manual-verify
 // flow doc). NOTE: this value is a pending backend addition — the FE ships
