@@ -13,30 +13,83 @@ import {
 import { ResponsiveModal } from "@/components/recipes/responsive-modal";
 import { useAppSelector } from "@/lib/store/hooks";
 import { selectBranding } from "@/lib/store/branding-slice";
+import type { TenantBranding } from "@/types/tenant";
 import {
-  PrintBadge,
-  printBadgeDims,
-  type PrintBadgeData,
-  type PrintBadgeFormat,
-} from "./print-badge";
+  VisitorBadge,
+  BadgeScaleFrame,
+  badgePrintDims,
+  printVariantForFormat,
+  type BadgeBranding,
+  type BadgePassData,
+  type BadgePrintFormat,
+} from "./visitor-badge";
 import {
   downloadVisitorBadgePdf,
   printVisitorBadge,
 } from "../lib/badge-export";
 
-/** Badge data the caller supplies — tenant info is merged in from Redux. */
-export type PrintBadgeModalData = Omit<PrintBadgeData, "tenantName" | "tenantLogoUrl"> & {
+/**
+ * Badge data the caller supplies — org identity/branding is merged in
+ * from the Redux branding slice (or the `branding` override prop).
+ */
+export interface PrintBadgeModalData {
+  visitorName: string;
+  company?: string;
+  purpose?: string;
+  hostName?: string;
+  departmentName?: string;
+  /** Short status label rendered in the badge's corner pill. */
+  statusLabel: string;
+  /** The badge QR token — encoded in the QR. */
+  qrToken: string;
+  /** Unix epoch seconds — rendered as the check-in time. */
+  issuedAt?: number;
+  /** Unix epoch seconds — rendered as the validity window. */
+  expiresAt?: number;
   /** Optional override; falls back to Redux tenant branding company name. */
   tenantName?: string;
-};
+}
 
 export interface PrintBadgeModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   badge: PrintBadgeModalData;
+  /**
+   * Override the badge branding (e.g. the settings page passes the
+   * CURRENT UNSAVED branding edits for a true WYSIWYG test print).
+   * Omit to derive branding from the Redux tenant branding slice;
+   * pass `null` explicitly to force the neutral VisiChek layout.
+   */
+  branding?: BadgeBranding | null;
+  /** Mark the badge as a sample (settings test print). */
+  sample?: boolean;
 }
 
-const FORMAT_OPTIONS: { value: PrintBadgeFormat; label: string; help: string }[] = [
+/**
+ * Build the badge branding block from the tenant branding record the
+ * shell already has in Redux. Mirrors the backend's badge-pass
+ * fallbacks: header falls back to the primary brand color, text to
+ * white. Returns null when the tenant has no branding at all — the
+ * badge then renders the neutral VisiChek layout.
+ */
+export function badgeBrandingFromTenantBranding(
+  branding: TenantBranding | null | undefined,
+): BadgeBranding | null {
+  if (!branding) return null;
+  const headerColor = branding.badgeHeaderColor ?? branding.primaryColor;
+  const logoUrl = branding.badgeLogoUrl ?? branding.logoUrl;
+  if (!headerColor && !logoUrl) return null;
+  return {
+    headerColor: headerColor ?? null,
+    textColor: branding.badgeTextColor ?? null,
+    logoUrl: logoUrl ?? null,
+    logoPosition: branding.logoPosition ?? branding.badgeLogoPosition ?? null,
+    companyDisplayName:
+      branding.companyDisplayName ?? branding.companyName ?? null,
+  };
+}
+
+const FORMAT_OPTIONS: { value: BadgePrintFormat; label: string; help: string }[] = [
   {
     value: "A6",
     label: "A6 (105 × 148mm)",
@@ -53,9 +106,11 @@ export function PrintBadgeModal({
   open,
   onOpenChange,
   badge,
+  branding: brandingOverride,
+  sample = false,
 }: PrintBadgeModalProps) {
-  const branding = useAppSelector(selectBranding);
-  const [format, setFormat] = useState<PrintBadgeFormat>("A6");
+  const tenantBranding = useAppSelector(selectBranding);
+  const [format, setFormat] = useState<BadgePrintFormat>("A6");
   const [isPrinting, setIsPrinting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const badgeRef = useRef<HTMLDivElement | null>(null);
@@ -65,14 +120,30 @@ export function PrintBadgeModal({
     if (open) setFormat("A6");
   }, [open]);
 
-  const data = useMemo<PrintBadgeData>(
+  const badgeBranding = useMemo<BadgeBranding | null>(
+    () =>
+      brandingOverride !== undefined
+        ? brandingOverride
+        : badgeBrandingFromTenantBranding(tenantBranding),
+    [brandingOverride, tenantBranding],
+  );
+
+  const data = useMemo<BadgePassData>(
     () => ({
-      ...badge,
-      tenantName:
-        badge.tenantName || branding?.companyName || "Your Company",
-      tenantLogoUrl: branding?.badgeLogoUrl || branding?.logoUrl || undefined,
+      visitorName: badge.visitorName,
+      orgName:
+        badge.tenantName || tenantBranding?.companyName || "Your Company",
+      company: badge.company ?? null,
+      purpose: badge.purpose ?? null,
+      departmentName: badge.departmentName ?? null,
+      hostName: badge.hostName ?? null,
+      checkInTime: badge.issuedAt ?? null,
+      qrValue: badge.qrToken,
+      validFrom: badge.issuedAt ?? null,
+      validUntil: badge.expiresAt ?? null,
+      statusLabel: badge.statusLabel,
     }),
-    [badge, branding],
+    [badge, tenantBranding],
   );
 
   async function handlePrint() {
@@ -106,7 +177,7 @@ export function PrintBadgeModal({
     }
   }
 
-  const dims = printBadgeDims(format);
+  const dims = badgePrintDims(format);
 
   return (
     <ResponsiveModal
@@ -159,9 +230,15 @@ export function PrintBadgeModal({
           aria-label="Badge preview"
           className="flex min-h-0 flex-1 justify-center overflow-hidden rounded-lg border bg-muted/30 p-3 sm:p-4"
         >
-          <BadgePreviewFrame dims={dims}>
-            <PrintBadge ref={badgeRef} data={data} format={format} />
-          </BadgePreviewFrame>
+          <BadgeScaleFrame dims={dims} fit="both">
+            <VisitorBadge
+              ref={badgeRef}
+              data={data}
+              branding={badgeBranding}
+              variant={printVariantForFormat(format)}
+              sample={sample}
+            />
+          </BadgeScaleFrame>
         </div>
 
         <p className="text-xs text-muted-foreground">
@@ -220,104 +297,5 @@ export function PrintBadgeModal({
         </div>
       </div>
     </ResponsiveModal>
-  );
-}
-
-interface PreviewFrameProps {
-  dims: { width: number; height: number };
-  children: React.ReactNode;
-}
-
-/**
- * Scales the print-sized badge down to fit the on-screen preview while
- * leaving the underlying mm geometry untouched, so the print and PDF
- * capture stays crisp. Scales by BOTH available width and height so the
- * badge never overflows the dialog and the action buttons stay in view.
- */
-function BadgePreviewFrame({ dims, children }: PreviewFrameProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [scale, setScale] = useState(1);
-
-  // 1mm ≈ 3.7795 CSS px at 96dpi.
-  const pxWidth = dims.width * 3.7795;
-  const pxHeight = dims.height * 3.7795;
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const compute = () => {
-      const availableWidth = Math.max(0, el.clientWidth - 8);
-      const availableHeight = Math.max(0, el.clientHeight - 8);
-      const widthScale = availableWidth > 0 ? availableWidth / pxWidth : 1;
-      const heightScale = availableHeight > 0 ? availableHeight / pxHeight : 1;
-      const next = Math.min(1, widthScale, heightScale);
-
-      // Ignore sub-pixel noise. Without this, the dialog's open animation
-      // (a 200ms zoom) drives a fresh measurement on every frame and the
-      // preview visibly churns while it settles.
-      setScale((prev) => (Math.abs(prev - next) < 0.005 ? prev : next));
-    };
-
-    // Defer to the next frame: measuring synchronously inside the observer
-    // callback and immediately re-rendering is what triggers the browser's
-    // "ResizeObserver loop completed with undelivered notifications" error.
-    let frame = 0;
-    const observer = new ResizeObserver(() => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(compute);
-    });
-    observer.observe(el);
-    compute();
-
-    return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-    };
-  }, [pxWidth, pxHeight]);
-
-  return (
-    <div
-      ref={containerRef}
-      style={{
-        width: "100%",
-        flex: 1,
-        minHeight: 0,
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      {/* Absolutely positioned so the scaled badge is OUT OF FLOW and can
-          never influence the size of the element we measure. The scale is
-          derived from the container, so if the container could in turn be
-          sized by the badge we would be right back in a measurement loop. */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "center",
-        }}
-      >
-        <div
-          style={{
-            width: pxWidth * scale,
-            height: pxHeight * scale,
-          }}
-        >
-          <div
-            style={{
-              transform: `scale(${scale})`,
-              transformOrigin: "top left",
-              width: pxWidth,
-              height: pxHeight,
-            }}
-          >
-            {children}
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }

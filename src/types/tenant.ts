@@ -82,14 +82,23 @@ export interface TenantBranding {
   tenantId: string;
   /** Tenant's display name — sourced from PublicTenantInfo and used in titles/headers */
   companyName?: string;
+  /** Branding display name (wire: company_display_name) — may differ from the legal company name. */
+  companyDisplayName?: string;
   primaryColor?: string;
   secondaryColor?: string;
   accentColor?: string;
+  /** Badge header background color (wire: badge_header_color). Falls back to primaryColor. */
+  badgeHeaderColor?: string;
+  /** Badge header text color (wire: badge_text_color). Falls back to #FFFFFF. */
+  badgeTextColor?: string;
   logoUrl?: string;
   logoObjectKey?: string;
+  faviconUrl?: string;
+  faviconObjectKey?: string;
+  /** FE convenience alias of badgeLogoPosition (populated by normalizeBranding). */
   logoPosition?: LogoPosition;
-  badgePrimaryColor?: string;
-  badgeSecondaryColor?: string;
+  /** FE convenience — resolved logo URL for badges (populated by normalizeBranding). */
   badgeLogoUrl?: string;
+  /** Logo position on generated visitor badges (wire: badge_logo_position). */
   badgeLogoPosition?: LogoPosition;
 }
