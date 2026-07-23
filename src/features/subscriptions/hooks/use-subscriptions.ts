@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tansta
 import { apiGet, apiPost, apiPut } from "@/lib/api/request";
 import { apiGetList } from "@/lib/api/list";
 import { bulkAction } from "@/lib/api/bulk";
+import { LIMITATIONS_QUERY_KEY } from "@/features/limitations/hooks/use-limitations";
+import { USAGE_QUERY_KEY } from "@/features/usage/hooks/use-usage";
 import type { Subscription, SubscribeTenantRequest, ChangePlanRequest, CancelSubscriptionRequest } from "@/types/billing";
 import type { ListResponse, BulkJobResult } from "@/types/list";
 
@@ -112,8 +114,8 @@ export function useChangePlan() {
       queryClient.invalidateQueries({
         queryKey: ["subscriptions", "tenant", subscription.tenantId, "active"],
       });
-      queryClient.invalidateQueries({ queryKey: ["me", "limitations"] });
-      queryClient.invalidateQueries({ queryKey: ["usage"] });
+      queryClient.invalidateQueries({ queryKey: LIMITATIONS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: USAGE_QUERY_KEY });
     },
   });
 }
@@ -137,8 +139,8 @@ export function useCancelSubscription() {
       // Cancel rotates the active plan (immediate → Free now, end-of-period
       // → Free at period end). Refresh the limitations manifest so locked
       // entities and denied features re-render.
-      queryClient.invalidateQueries({ queryKey: ["me", "limitations"] });
-      queryClient.invalidateQueries({ queryKey: ["usage"] });
+      queryClient.invalidateQueries({ queryKey: LIMITATIONS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: USAGE_QUERY_KEY });
     },
   });
 }
@@ -163,8 +165,8 @@ export function useUpdateOverrides(subscriptionId: string) {
       queryClient.invalidateQueries({
         queryKey: ["subscriptions", "tenant", subscription.tenantId, "active"],
       });
-      queryClient.invalidateQueries({ queryKey: ["me", "limitations"] });
-      queryClient.invalidateQueries({ queryKey: ["usage"] });
+      queryClient.invalidateQueries({ queryKey: LIMITATIONS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: USAGE_QUERY_KEY });
     },
   });
 }

@@ -9,13 +9,14 @@
  * add-on requires the tenant to already be effectively Premium (backend
  * gate), so while upgrading TO Premium this block is informational only
  * — quantity is for the tenant's own budgeting, not sent with checkout.
- * Once already on Premium (`canPurchaseNow`), it wires straight into the
- * real purchase flow (`usePurchaseAddon`).
+ * Once already on Premium (`canPurchaseNow`), the buy button opens the
+ * shared `BuyBranchAddonModal` — the same purchase flow (polling +
+ * entitlement-cache invalidation) used by the billing card, branches
+ * page, and usage overview, so all entry points stay in sync.
  */
 
 import { useState } from "react";
-import { Loader2, Minus, Plus } from "lucide-react";
-import { toast } from "sonner";
+import { Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,11 +26,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { formatCurrency } from "@/lib/utils/format-currency";
-import { resolveCheckoutUrl } from "@/features/checkout/hooks/use-checkout";
-import {
-  useAddonCatalog,
-  usePurchaseAddon,
-} from "@/features/addons/hooks/use-addons";
+import { useAddonCatalog } from "@/features/addons/hooks/use-addons";
+import { BuyBranchAddonModal } from "@/features/addons/components/buy-branch-addon-modal";
 
 export interface BranchAddonBlockProps {
   /** True when the tenant's current (not selected) plan is already Premium. */
@@ -38,36 +36,12 @@ export interface BranchAddonBlockProps {
 
 export function BranchAddonBlock({ canPurchaseNow }: BranchAddonBlockProps) {
   const [quantity, setQuantity] = useState(1);
+  const [buyOpen, setBuyOpen] = useState(false);
   const catalog = useAddonCatalog({ kind: "branch_quota" });
   const addon = catalog.data?.[0];
-  const purchase = usePurchaseAddon();
 
   const unitPrice = addon?.unitPrice ?? 0;
   const maxQty = addon?.maxUnitsPerPurchase ?? 10;
-
-  async function handleBuyNow() {
-    if (!addon) return;
-    try {
-      const resp = await purchase.mutateAsync({
-        addonId: addon.id,
-        quantity,
-      });
-      if (resp.checkoutUrl) {
-        window.open(
-          resolveCheckoutUrl(resp.checkoutUrl),
-          "_blank",
-          "noopener,noreferrer",
-        );
-      }
-      toast.info(
-        "Checkout opened in a new tab. Your branch add-on activates once payment completes.",
-      );
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Couldn't start the purchase.",
-      );
-    }
-  }
 
   return (
     <div className="space-y-3 rounded-lg border bg-muted/40 p-4">
@@ -165,20 +139,9 @@ export function BranchAddonBlock({ canPurchaseNow }: BranchAddonBlockProps) {
                   variant="outline"
                   size="sm"
                   className="min-h-[44px] w-full sm:w-auto"
-                  disabled={purchase.isPending}
-                  onClick={handleBuyNow}
+                  onClick={() => setBuyOpen(true)}
                 >
-                  {purchase.isPending ? (
-                    <>
-                      <Loader2
-                        className="mr-2 h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                      Starting checkout…
-                    </>
-                  ) : (
-                    "Buy branch add-on"
-                  )}
+                  Buy branch add-on
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="top">
@@ -193,6 +156,8 @@ export function BranchAddonBlock({ canPurchaseNow }: BranchAddonBlockProps) {
               Billing or Branches page.
             </p>
           )}
+
+          <BuyBranchAddonModal open={buyOpen} onOpenChange={setBuyOpen} />
         </>
       )}
     </div>
