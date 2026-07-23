@@ -163,6 +163,8 @@ export function useUpdateOverrides(subscriptionId: string) {
       queryClient.invalidateQueries({
         queryKey: ["subscriptions", "tenant", subscription.tenantId, "active"],
       });
+      queryClient.invalidateQueries({ queryKey: ["me", "limitations"] });
+      queryClient.invalidateQueries({ queryKey: ["usage"] });
     },
   });
 }
